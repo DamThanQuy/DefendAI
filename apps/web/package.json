@@ -1,0 +1,33 @@
+{
+  "name": "@defense-system/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "14.x",
+    "react": "^18.x",
+    "react-dom": "^18.x",
+    "tailwindcss": "^3.x",
+    "postcss": "^8.x",
+    "autoprefixer": "^10.x",
+    "axios": "^1.x",
+    "chart.js": "^4.x",
+    "react-chartjs-2": "^5.x",
+    "jspdf": "^2.x",
+    "@stomp/stompjs": "^7.x",
+    "ws": "^8.x"
+  },
+  "devDependencies": {
+    "@types/node": "^20.x",
+    "@types/react": "^18.x",
+    "@types/react-dom": "^18.x",
+    "typescript": "^5.x",
+    "eslint": "^8.x",
+    "eslint-config-next": "14.x"
+  }
+}
