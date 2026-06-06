@@ -1,0 +1,38 @@
+graph TB
+    subgraph Frontend["Next.js Frontend :3000"]
+        UI[React + Tanstack Query + Zustand]
+    end
+    
+    subgraph Backend["FastAPI Backend :8000"]
+        API[API Gateway Layer]
+        subgraph Modules
+            AM[Assessment Module]
+            MM[Meeting Module]
+            EM[Evaluation Module]
+            RM[Report Module]
+            SM[Storage Module]
+        end
+        SK[Shared Kernel<br/>AI Gateway | Event Bus | Repository]
+    end
+    
+    subgraph Data["Data Layer"]
+        PG[(PostgreSQL :5432)]
+        CACHE[(In-Memory Cache)]
+        FILES[Local Storage]
+    end
+    
+    UI -->|REST/SSE| API
+    UI -->|WebSocket| MM
+    API --> AM
+    API --> MM
+    API --> EM
+    API --> RM
+    API --> SM
+    AM --> SK
+    MM --> SK
+    EM --> SK
+    RM --> SK
+    SM --> SK
+    SK --> PG
+    SK --> CACHE
+    SK --> FILES

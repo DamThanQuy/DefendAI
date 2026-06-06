@@ -1,0 +1,22 @@
+sequenceDiagram
+    participant U as User
+    participant FE as Frontend
+    participant BE as Backend
+    participant AI as AI Gateway
+    
+    U->>FE: Upload Document (.pdf)
+    FE->>BE: POST /api/v1/documents/upload
+    BE->>BE: Save to storage
+    BE-->>FE: document_id
+    
+    U->>FE: Click "Generate Questions"
+    FE->>BE: POST /api/v1/assessment/generate-questions
+    BE->>BE: Create job_id
+    BE-->>FE: job_id
+    
+    FE->>BE: GET /api/v1/assessment/jobs/{job_id}
+    BE->>AI: Generate questions (background)
+    AI-->>BE: AI Response
+    BE->>BE: Save to database
+    BE-->>FE: {status: "completed", result: [...]}
+    FE-->>U: Display 10 questions

@@ -1,0 +1,17 @@
+graph LR
+    subgraph MVP["MVP (3 tuần)"]
+        D1[Docker Compose<br/>PostgreSQL + API + Web]
+    end
+    
+    subgraph Phase2["Phase 2"]
+        D2[Railway<br/>Frontend + Backend + DB]
+        D3[Redis<br/>Cache + Queue]
+    end
+    
+    subgraph Phase3["Phase 3"]
+        D4[AI Microservice<br/>pgvector + RAG]
+        D5[CDN<br/>File Storage]
+        D6[Read Replicas<br/>PostgreSQL]
+    end
+    
+    MVP --> Phase2 --> Phase3
