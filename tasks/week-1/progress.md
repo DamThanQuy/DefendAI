@@ -1,33 +1,29 @@
 # 📊 Tiến độ Tuần 1 — AI Module
 
-**Cập nhật lần cuối:** Chưa bắt đầu
+## Dev B (Quý) — AI Pipeline
+- [ ] Setup FastAPI + test AI API
+- [ ] Document parser (PDF/DOCX/PPTX)
+- [ ] Prompt Engineering 3 Personas
+- [ ] API `/generate-questions`
+- [ ] Optimization + deploy
 
-| Dev | Ngày 1-2 | Ngày 3-4 | Ngày 5-6 | Ngày 7 | M1 Pass? |
-|-----|---------|---------|---------|-------|---------|
-| **Quý (B)** | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| **Dev A** | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| **Dev C** | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+## Dev A — Frontend
+- [ ] Setup Next.js + UI Kit
+- [ ] Upload Document UI
+- [ ] Document Preview
+- [ ] AI Results UI (câu hỏi + gợi ý)
+- [ ] Integration testing
 
-**Legend:** ⬜ Chưa làm · 🔄 Đang làm · ✅ Hoàn thành · ❌ Blocked
-
----
-
-## Daily Standup Notes
-
-### Day 1
-| Dev | Hôm qua | Hôm nay | Blocker |
-|-----|---------|---------|---------|
-| Quý | — | Setup FastAPI + test AI key | — |
-| Dev A | — | Setup Next.js + UI Kit | — |
-| Dev C | — | Setup DB + schema | — |
-
-### Day 2
-_Chưa update_
+## Dev C — Backend/DB
+- [ ] Setup DB + schema (Users, Documents, Sessions)
+- [ ] API Auth (register, login, JWT)
+- [ ] API Upload (upload, list, get)
+- [ ] WebSocket setup
+- [ ] Deploy dev environment
 
 ---
 
-## Blocker Log
-
-| Ngày | Dev | Blocker | Trạng thái |
-|------|-----|---------|-----------|
-| — | — | — | — |
+## 🏆 M1: AI Pipeline hoạt động (Cuối ngày 7)
+- [ ] Upload PDF → API trả về 10 câu hỏi + gợi ý
+- [ ] Frontend hiển thị đẹp
+- [ ] Auth + upload hoạt động end-to-end
