@@ -23,24 +23,21 @@
 
 ---
 
-## Ngày 3-4: API Auth + API Upload
+## Ngày 3-4: API Upload (Document + Source Code)
 
-- [ ] **API Auth**:
-  - [ ] `POST /api/auth/register` — Đăng ký
-  - [ ] `POST /api/auth/login` — Đăng nhập, trả về JWT token
-  - [ ] `GET /api/auth/me` — Lấy thông tin user hiện tại
-  - [ ] Middleware verify JWT token
-- [ ] **API Upload**:
+- [ ] **API Upload chung** (cho cả tài liệu và source code):
   - [ ] `POST /api/documents/upload` — Upload file, lưu vào disk + DB
   - [ ] `GET /api/documents/{id}` — Lấy thông tin file
-  - [ ] `GET /api/documents` — List files của user
-  - [ ] Validate: chỉ chấp nhận .pdf, .docx, .pptx, max 50MB
+  - [ ] `GET /api/documents` — List files
+  - [ ] Validate: chỉ chấp nhận .pdf, .docx, .pptx, .zip, max 100MB
+- [ ] **🔥 MỚI: Hỗ trợ upload file .zip** (source code)
+  - [ ] Lưu file .zip vào thư mục riêng `uploads/code/`
+  - [ ] Thêm field `doc_type` trong DB: `document` (tài liệu) | `code` (source code)
 
 **File chính:**
-- `app/routers/auth.py` — Auth endpoints
-- `app/routers/documents.py` — Document endpoints
-- `app/schemas/auth.py`, `document.py` — Pydantic models
-- `app/core/security.py` — JWT helper
+- `app/routers/documents.py` — Upload endpoints
+- `app/schemas/document.py` — Pydantic models
+- **Không cần Auth/Login** — bỏ qua cho MVP
 
 ---
 
