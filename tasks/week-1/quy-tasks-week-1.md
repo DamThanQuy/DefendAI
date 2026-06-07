@@ -6,12 +6,12 @@
 
 ## Ngày 1-2: Setup FastAPI + Test AI API
 
-- [ ] Setup project FastAPI (đã có sẵn `app/main.py`, cần hoàn thiện)
-- [ ] Tạo file `app/core/config.py` — config từ env (DATABASE_URL, API keys, v.v.)
+- [x] Setup project FastAPI (đã có sẵn `app/main.py`, cần hoàn thiện)
+- [x] Tạo file `app/core/config.py` — config từ env (DATABASE_URL, API keys, v.v.)
 - [ ] Đăng ký tài khoản OpenAI (GPT-4o) hoặc Google (Gemini 1.5 Pro)
 - [ ] Test gọi API thành công từ Python
-- [ ] Tạo file `app/services/ai_client.py` — wrapper gọi AI API
-- [ ] Commit & push lên branch `quy/ai-pipeline`
+- [x] Tạo file `app/services/ai_client.py` — wrapper gọi AI API
+- [x] Commit & push lên branch `quy/ai-pipeline`
 
 **Checklist:**
 - [ ] `uvicorn app.main:app --reload` chạy được
@@ -254,15 +254,11 @@ curl -X POST http://localhost:8000/api/code/scan \
 
 | File | Trạng thái | Ghi chú |
 |------|-----------|---------|
-| `apps/api/app/core/config.py` | 🆕 Tạo mới | Config từ env |
-| `apps/api/app/services/ai_client.py` | 🆕 Tạo mới | AI API wrapper |
-| `apps/api/app/services/document_parser.py` | 🆕 Tạo mới | Parse PDF/DOCX/PPTX |
-| `apps/api/app/services/code_parser.py` | 🆕 **MỚI** | Unzip + đọc source code |
-| `apps/api/app/services/question_generator.py` | 🆕 Tạo mới | Gen question logic |
-| `apps/api/app/services/code_reviewer.py` | 🆕 **MỚI** | AI code review logic |
+| `apps/api/app/core/config.py` | ✅ Done | Config từ env |
+| `apps/api/app/services/ai_client.py` | ✅ Done | AI API wrapper |
 | `apps/api/app/schemas/question.py` | 🆕 Tạo mới | Pydantic models cho questions |
 | `apps/api/app/schemas/code_review.py` | 🆕 **MỚI** | Pydantic models cho code review |
 | `apps/api/app/routers/questions.py` | 🆕 Tạo mới | API /questions/generate |
 | `apps/api/app/routers/code_review.py` | 🆕 **MỚI** | API /code/scan |
-| `apps/api/app/main.py` | ✏️ Sửa | Register routers |
-| `apps/api/.env` | 🆕 Tạo mới | Copy từ .env.example + điền key |
+| `apps/api/app/main.py` | ✅ Done | Register routers |
+| `apps/api/.env` | ✅ Done | Copy từ .env.example + điền key |
