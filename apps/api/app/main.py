@@ -6,28 +6,31 @@ Entry point cho FastAPI backend.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.config import settings
+
 app = FastAPI(
-    title="AI Project Defense System API",
+    title=settings.app_name,
     description="Backend API cho hệ thống hỗ trợ bảo vệ đồ án bằng AI",
-    version="0.1.0"
+    version=settings.version,
 )
 
-# Cấu hình CORS để frontend có thể gọi API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Next.js dev server
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 async def root():
     return {
-        "message": "AI Project Defense System API",
-        "version": "0.1.0",
-        "status": "running"
+        "message": settings.app_name,
+        "version": settings.version,
+        "status": "running",
     }
+
 
 @app.get("/health")
 async def health_check():

@@ -142,6 +142,89 @@ async def generate_questions(
 
 ---
 
+## 🔄 Luồng nghiệp vụ MVP (Week 1 — End-to-end)
+
+### 1. Upload Tài liệu → AI Sinh câu hỏi (3 Persona)
+
+```
+User upload file tài liệu (PDF/DOCX/PPTX)
+    ↓
+[Frontend] UploadZone gửi multipart/form-data đến /api/upload
+    ↓
+[Backend - storage module] Lưu file vật lý + metadata (doc_id, file_type, name)
+    ↓
+return { document_id, status: "uploaded" }
+    ↓
+User click "Generate Questions" + chọn Persona:
+  - ly_thuyet (Giảng viên hàn lâm)
+  - thuc_te (Chuyên gia doanh nghiệp)
+  - khat_khe (Hội đồng khắt khe)
+    ↓
+POST /api/questions/generate { document_id, persona }
+    ↓
+[Backend] Tạo job_id, trả về ngay { job_id }
+    ↓
+BackgroundTasks (async):
+  1. Lấy text từ document_parser (PDF/DOCX/PPTX)
+  2. Chunk by paragraph (max ~1000 tokens/chunk)
+  3. Load system prompt theo persona từ .ai/prompts/persona/
+  4. Gọi AI Gateway → LLM (GPT-4o/Gemini)
+  5. Parse JSON response (10 câu hỏi + hint + difficulty)
+  6. Lưu vào assessments table (JSONB)
+  7. Cập nhật job status = completed
+    ↓
+Frontend poll /api/jobs/{job_id} mỗi 2s
+    ↓
+Job done → Hiển thị 10 câu hỏi theo từng tab Persona
+    ↓
+User có thể xem gợi ý trả lời + độ khó
+```
+
+### 2. Upload Source Code (.zip) → AI Quét lỗi Code Review
+
+```
+User upload file .zip (project source code)
+    ↓
+POST /api/upload -F "file=@project.zip"
+    ↓
+[Backend - storage module] Lưu file zip + metadata
+    ↓
+return { document_id, status: "uploaded" }
+    ↓
+User click "Scan Code"
+    ↓
+POST /api/code/scan { document_id }
+    ↓
+[Backend] Tạo job_id, trả về ngay { job_id }
+    ↓
+BackgroundTasks (async):
+  1. Đọc file zip từ storage
+  2. Unzip → lọc extension (.py, .js, .ts, .java, .cs, .cpp, .html, .css)
+  3. Bỏ qua thư mục: node_modules/, .git/, dist/, build/
+  4. Gom tất cả code text (max ~2000 lines/file)
+  5. Gọi AI Gateway với prompt Code Review
+     (phát hiện: logic_error, code_smell, missing_validation...)
+  6. Parse JSON response
+  7. Lưu vào code_analyses table
+  8. Cập nhật job status = completed
+    ↓
+Frontend poll /api/jobs/{job_id}
+    ↓
+Job done → Hiển thị:
+  - summary: Tổng quan số vấn đề
+  - issues: [{ type, file, line, description, severity, suggestion }]
+  - improvement_suggestions: [...]
+  - estimated_pass_rate: 75
+```
+
+### 3. Polling Pattern (Async Job Status)
+
+- Client gửi request → nhận `job_id` → poll `/api/jobs/{job_id}` mỗi 2 giây
+- Server trả về: `{ status: "pending" | "processing" | "completed" | "failed" }`
+- Khi `completed`: kèm theo `result` (questions/issues JSON)
+
+---
+
 ## 🏆 Milestone M1: Cuối ngày 7
 
 **Pass criteria:**
