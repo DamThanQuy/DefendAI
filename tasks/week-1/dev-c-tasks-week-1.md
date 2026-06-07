@@ -6,15 +6,15 @@
 
 ## Ngày 1-2: Setup Database + Schema
 
-- [ ] Setup PostgreSQL hoặc MongoDB
-- [ ] Thiết kế schema **Users**:
+- [x] Setup PostgreSQL hoặc MongoDB
+- [x] Thiết kế schema **Users**:
   - id, name, email, password_hash, role (admin/member), created_at
-- [ ] Thiết kế schema **Documents**:
+- [x] Thiết kế schema **Documents**:
   - id, user_id (FK), filename, file_path, file_type, file_size, uploaded_at, status (pending/processing/done)
-- [ ] Thiết kế schema **Sessions** (chuẩn bị cho tuần 2):
+- [x] Thiết kế schema **Sessions** (chuẩn bị cho tuần 2):
   - id, name, status, created_by, created_at
-- [ ] Tạo file `app/models/user.py`, `document.py`, `session.py`
-- [ ] Setup Alembic để migration
+- [x] Tạo file `app/models/user.py`, `document.py`, `session.py`
+- [x] Setup Alembic để migration
 
 **File chính:**
 - `app/models/` — SQLAlchemy models
