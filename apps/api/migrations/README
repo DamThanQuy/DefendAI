@@ -1,1 +1,7 @@
 Generic single-database configuration.
+
+## Notes
+
+- Always review migrations/versions/*.py before running `alembic upgrade head`.
+- If `upgrade()` contains only `pass`, do NOT apply it. Inspect `env.py` and models imports instead.
+- First migration must be reviewed with `alembic upgrade head --sql` and manually verified before applying.
