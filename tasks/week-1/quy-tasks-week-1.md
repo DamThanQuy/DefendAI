@@ -8,15 +8,37 @@
 
 - [x] Setup project FastAPI (đã có sẵn `app/main.py`, cần hoàn thiện)
 - [x] Tạo file `app/core/config.py` — config từ env (DATABASE_URL, API keys, v.v.)
-- [ ] Đăng ký tài khoản OpenAI (GPT-4o) hoặc Google (Gemini 1.5 Pro)
-- [ ] Test gọi API thành công từ Python
-- [x] Tạo file `app/services/ai_client.py` — wrapper gọi AI API
-- [x] Commit & push lên branch `quy/ai-pipeline`
+- [x] Đăng ký tài khoản AI (chuyển sang NVIDIA NIM + Google AI Studio)
+- [x] Test gọi API thành công từ Python (Google Gemma 4 31B IT — 3.5s latency, response thật)
+- [x] Tạo file `app/services/ai_client.py` — multi-provider gateway (NVIDIA + Google)
+- [ ] Commit & push lên branch `quy/ai-pipeline` (git repo có vấn đề, chưa commit được)
 
 **Checklist:**
-- [ ] `uvicorn app.main:app --reload` chạy được
-- [ ] `GET /` và `GET /health` trả về kết quả
-- [ ] AI API trả về response khi gọi thử
+- [x] `uvicorn app.main:app --reload` chạy được (verified qua TestClient)
+- [x] `GET /` và `GET /health` trả về kết quả
+- [x] AI API trả về response khi gọi thử
+
+### 🆕 Bổ sung: Multi-Provider AI Gateway (Ngoài kế hoạch)
+
+- [x] Search web MCP về model AI mới nhất 2026 (Step-3.7-Flash, Gemma 4 31B IT)
+- [x] Update `.env` — thêm NVIDIA_API_KEY, GOOGLE_API_KEY + routing config
+- [x] Tạo `app/services/ai_providers/base.py` — OpenAICompatibleProvider (httpx)
+- [x] Tạo `app/services/ai_providers/nvidia.py` — wrapper NVIDIA NIM (Step-3.7-Flash)
+- [x] Tạo `app/services/ai_providers/google.py` — wrapper Google AI Studio (Gemma 4 31B IT)
+- [x] Refactor `app/services/ai_client.py` — AIGateway class + orchestrate/worker helpers
+- [x] Tạo `app/schemas/ai.py` — AIRequest, AIResponse, AICompareRequest, AICompareResponse
+- [x] Tạo `app/routers/ai.py` — 6 endpoints test:
+  - `GET  /api/ai/providers` — list providers enabled
+  - `GET  /api/ai/models` — list model gợi ý
+  - `POST /api/ai/test` — gọi 1 model bất kỳ
+  - `POST /api/ai/orchestrate` — gọi model lớn (NVIDIA)
+  - `POST /api/ai/worker` — gọi model nhỏ (Google)
+  - `POST /api/ai/compare` — gọi song song 2 provider, so sánh tốc độ
+- [x] Register AI router vào `app/main.py`
+- [x] Update `/health` endpoint — trả thêm `ai_providers` + `ai_ready`
+- [x] Test 8 endpoints với TestClient — tất cả PASS, Google AI thật gọi được
+- [x] Tạo `tests/test_ai_endpoints.py` — script test toàn bộ
+- [x] Cleanup: xóa 4 file `__init__.py` rỗng (Python 3.3+ namespace package)
 
 ---
 
