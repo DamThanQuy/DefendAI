@@ -1,6 +1,6 @@
 # 🤝 CONTRIBUTING.md — Hướng dẫn đóng góp
 
-> Dành cho Developer (con người và AI Agent) tham gia phát triển DefendAI.
+> Dành cho Developer (con người và AI Agent) tham gia phát triển GraduAI.
 
 ---
 

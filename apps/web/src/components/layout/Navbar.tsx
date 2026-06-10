@@ -6,7 +6,7 @@ export function Navbar() {
     <header className="border-b bg-background sticky top-0 z-50">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2">
-          <span className="text-xl font-bold text-primary">DefendAI</span>
+          <span className="text-xl font-bold text-primary">GraduAI</span>
         </Link>
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
           <Link href="/" className="hover:text-primary transition-colors">Trang chủ</Link>
@@ -16,8 +16,12 @@ export function Navbar() {
           <Link href="/report" className="hover:text-primary transition-colors">Report</Link>
         </nav>
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm">Đăng nhập</Button>
-          <Button size="sm">Đăng ký</Button>
+          <Link href="/login">
+            <Button variant="outline" size="sm">Đăng nhập</Button>
+          </Link>
+          <Link href="/register">
+            <Button size="sm">Đăng ký</Button>
+          </Link>
         </div>
       </div>
     </header>

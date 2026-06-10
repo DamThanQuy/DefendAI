@@ -7,7 +7,7 @@ import { Footer } from "@/components/layout/Footer";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "DefendAI - Mock Defense",
+  title: "GraduAI - Mock Defense",
   description: "Hệ thống hỗ trợ bảo vệ đồ án tự động",
 };
 
