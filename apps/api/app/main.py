@@ -35,3 +35,14 @@ async def health_check():
     Health check endpoint để kiểm tra server có đang chạy không.
     """
     return {"status": "healthy"}
+
+from app.schemas.critique import CodeCritiqueRequest, CodeCritiqueResponse
+from app.services.ai_service import analyze_code_with_ai
+
+@app.post("/api/ai/critique-code", response_model=CodeCritiqueResponse)
+async def critique_code(request: CodeCritiqueRequest):
+    """
+    Nhận Source Code và cấu trúc AST, sau đó gửi cho AI để nhận xét phản biện.
+    """
+    critique_text = await analyze_code_with_ai(request)
+    return CodeCritiqueResponse(critique=critique_text)
