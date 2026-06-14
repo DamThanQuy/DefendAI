@@ -15,4 +15,3 @@ class Session(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     creator = relationship("User", back_populates="sessions", foreign_keys=[created_by])
-    documents = relationship("Document", back_populates="session", cascade="all, delete-orphan")

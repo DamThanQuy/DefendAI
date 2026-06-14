@@ -1,69 +1,77 @@
-# 📋 Task cho Dev A — Tuần 1: Frontend
+# Task cho Dev A — Sprint Demo (14/6 → 21/6)
 
-**Vai trò:** Lead Frontend + UI/UX
-
----
-
-## Ngày 1-2: Setup Next.js + UI Kit + Upload Document
-
-- [ ] Setup Next.js project với TypeScript + Tailwind CSS
-- [ ] Tạo UI Kit cơ bản: Button, Input, Card, Modal, Loading spinner
-- [ ] Tạo page **Upload Document**:
-  - Drag & drop zone
-  - Button chọn file
-  - Preview file name + size + type
-- [ ] Kết nối tạm với API upload (gọi mock hoặc API thật của Dev C)
-
-**File chính:**
-- `src/app/page.tsx` — trang chủ
-- `src/components/ui/Button.tsx`, `Input.tsx`, `Card.tsx`
-- `src/components/upload/UploadZone.tsx`
-- `src/lib/api.ts` — axios instance
+**Vai trò:** Fullstack — Feature Owner: Code Review API + Frontend Integration
 
 ---
 
-## Ngày 3-4: UI Document Preview + Tích hợp Upload API
+## ĐÃ XONG (Tuần trước)
 
-- [ ] Tạo component **Document Preview** — hiển thị nội dung file:
-  - PDF viewer (react-pdf hoặc iframe)
-  - DOCX preview (chuyển sang text)
-  - PPTX preview (chuyển sang slides)
-- [ ] Kết nối API upload thật (gọi từ Dev C)
-- [ ] Thêm loading state khi upload
-- [ ] Thêm error handling (file quá lớn, sai định dạng)
+- [x] Frontend Next.js setup (7 trang, UI components, Tailwind)
+- [x] UploadZone component
+- [x] Mock pages: /questions, /code-review, /room, /report
 
 ---
 
-## Ngày 5-6: UI AI Results — Hiển thị câu hỏi & gợi ý
+## Ngày 1 (14/6): Connect Frontend ↔ Backend
 
-- [ ] Gọi API `/generate-questions` từ Dev B
-- [ ] UI danh sách **10 câu hỏi**:
-  - Nhóm theo Persona (tab: Lý thuyết / Thực tế / Khắt khe)
-  - Mỗi câu hỏi có: question text + hint (ẩn/hiện) + độ khó (badge)
-  - Accordion để show/hide gợi ý trả lời
-- [ ] Thêm nút **Generate lại** (chọn persona khác)
-- [ ] Thêm nút **Tiếp tục → Mock Room** (chuyển sang tuần 2)
+- [ ] Tạo `apps/web/src/lib/api.ts` — Axios instance trỏ `http://localhost:8000`
+- [ ] Kết nối UploadZone với `POST /api/documents/upload`
+- [ ] Thêm loading state + error toast khi upload
+- [ ] Hiển thị document_id sau khi upload thành công
 
 ---
 
-## Ngày 7: Integration Testing
+## Ngày 2 (15/6): Questions Page → Real API
 
-- [ ] Test toàn luồng: Upload → AI Results → Hiển thị đẹp
-- [ ] Fix responsive (mobile-first)
-- [ ] Fix UI bugs
-- [ ] Hỗ trợ Dev B + C test end-to-end
+- [ ] Kết nối trang `/questions` với API:
+  - Nhận document_id từ upload
+  - Gọi `POST /api/questions/generate` với persona
+  - Hiển thị 10 câu hỏi thật theo tab (Lý thuyết / Thực tế / Khắt khe)
+- [ ] Component Accordion cho hint ẩn/hiện
+- [ ] Badge độ khó cho mỗi câu hỏi
 
 ---
 
-## Files cần tạo/chỉnh sửa
+## Ngày 3 (16/6): Code Review API (Backend)
 
-| File | Trạng thái | Ghi chú |
-|------|-----------|---------|
-| `src/app/page.tsx` | 🆕 Tạo | Trang chủ |
-| `src/app/layout.tsx` | 🆕 Tạo | Root layout |
-| `src/components/ui/Button.tsx` | 🆕 Tạo | Button component |
-| `src/components/ui/Card.tsx` | 🆕 Tạo | Card component |
-| `src/components/upload/UploadZone.tsx` | 🆕 Tạo | Upload drag & drop |
-| `src/components/preview/DocumentPreview.tsx` | 🆕 Tạo | Preview file |
-| `src/components/questions/QuestionList.tsx` | 🆕 Tạo | Danh sách câu hỏi |
-| `src/lib/api.ts` | 🆕 Tạo | Axios instance |
+- [ ] Tạo `apps/api/app/routers/code_review.py`:
+  - `POST /api/code/scan` — nhận `document_id` → gọi code_parser → gọi AI → trả issues JSON
+- [ ] Tạo `apps/api/app/services/code_reviewer.py`:
+  - Nhận code_text → gọi AI với prompt code review → parse JSON response
+- [ ] Tạo `apps/api/app/schemas/code_review.py`
+- [ ] Register router vào `main.py`
+- [ ] Test với curl
+
+---
+
+## Ngày 4 (17/6): Code Review Page → Real API
+
+- [ ] Kết nối trang `/code-review` với API thật
+- [ ] Hiển thị issues theo severity (error/warning/info)
+- [ ] Hiển thị file:line bằng font monospace
+- [ ] Hiển thị suggestions
+
+---
+
+## Ngày 5-7: Polish + Fix
+
+- [ ] Fix UI bugs, responsive
+- [ ] Loading states cho tất cả trang
+- [ ] Kết nối trang `/room` + `/report` (mock hoặc API thật)
+- [ ] Seed data, đảm bảo UI đẹp khi demo
+- [ ] Final commit + push
+
+---
+
+## Files tạo/sửa
+
+| File | Trạng thái |
+|------|-----------|
+| `apps/web/src/lib/api.ts` | 🆕 Tạo mới |
+| `apps/web/src/components/features/assessment/UploadZone.tsx` | ✏️ Kết nối API |
+| `apps/web/src/app/questions/page.tsx` | ✏️ Real API |
+| `apps/web/src/app/code-review/page.tsx` | ✏️ Real API |
+| `apps/api/app/routers/code_review.py` | 🆕 Tạo mới |
+| `apps/api/app/services/code_reviewer.py` | 🆕 Tạo mới |
+| `apps/api/app/schemas/code_review.py` | 🆕 Tạo mới |
+| `apps/api/app/main.py` | ✏️ Đăng ký router |
