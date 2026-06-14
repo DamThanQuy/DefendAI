@@ -1,185 +1,89 @@
-# 📋 Task cho Quý (Dev B) — Tuần 1: AI Pipeline
+# Task cho Quý — Sprint Demo (14/6 → 21/6)
 
-**Vai trò:** AI Engineer + Backend
-
----
-
-## Ngày 1-2: Setup FastAPI + Test AI API
-
-- [ ] Setup project FastAPI (đã có sẵn `app/main.py`, cần hoàn thiện)
-- [ ] Tạo file `app/core/config.py` — config từ env (DATABASE_URL, API keys, v.v.)
-- [ ] Đăng ký tài khoản OpenAI (GPT-4o) hoặc Google (Gemini 1.5 Pro)
-- [ ] Test gọi API thành công từ Python
-- [ ] Tạo file `app/services/ai_client.py` — wrapper gọi AI API
-- [ ] Commit & push lên branch `quy/ai-pipeline`
-
-**Checklist:**
-- [ ] `uvicorn app.main:app --reload` chạy được
-- [ ] `GET /` và `GET /health` trả về kết quả
-- [ ] AI API trả về response khi gọi thử
+**Vai trò:** Fullstack — Feature Owner: Upload API + Code Parser
 
 ---
 
-## Ngày 3-4: Prompt Engineering + Document Parser + Source Code Parser
+## ĐÃ XONG (Tuần trước)
 
-- [ ] Tạo file `app/services/document_parser.py` — parse text từ:
-  - [ ] `.pdf` → PyPDF2
-  - [ ] `.docx` → python-docx
-  - [ ] `.pptx` → python-pptx
-- [ ] Thử nghiệm parse 1 file mẫu, in ra console được text
-- [ ] **🔥 MỚI: Tạo file `app/services/code_parser.py`** — parse source code:
-  - [ ] Unzip file `.zip`
-  - [ ] Đọc các file code: `.py`, `.js`, `.ts`, `.java`, `.cs`, `.cpp`, `.html`, `.css`
-  - [ ] Bỏ qua thư mục `node_modules/`, `.git/`, `dist/`, `build/`
-  - [ ] Gom tất cả code text thành 1 string để gửi AI
-- [ ] Test parse 1 project mẫu (ví dụ clone 1 repo nhỏ) → in ra console được
-- [ ] **Prompt Engineering** — viết 3 system prompts cho 3 Persona:
-  - [ ] **Persona 1 - Lý thuyết:** Giảng viên hàn lâm, chuyên bắt lỗi lý thuyết, phương pháp luận
-  - [ ] **Persona 2 - Thực tế:** Chuyên gia doanh nghiệp, hỏi về ứng dụng thực tế, khả thi
-  - [ ] **Persona 3 - Khắt khe:** Hội đồng khó tính, bắt bẻ logic, số liệu, trích dẫn
-- [ ] **🔥 MỚI: Viết prompt cho Code Review AI** — phát hiện:
-  - [ ] Lỗi logic, bug tiềm ẩn
-  - [ ] Code smell, vi phạm coding convention
-  - [ ] Thiếu validation, thiếu error handling
-  - [ ] Đề xuất cải thiện cụ thể
-- [ ] Test thử mỗi Persona với 1 tài liệu mẫu → xem chất lượng câu hỏi
-- [ ] Test thử Code Review prompt với 1 project mẫu → xem chất lượng
-
-**Tip:** Prompt nên yêu cầu AI trả về JSON format để dễ parse:
-```json
-[
-  {
-    "persona": "ly_thuyet",
-    "question": "Cơ sở lý thuyết nào...",
-    "hint": "Gợi ý: Cần nhắc đến...",
-    "difficulty": "hard"
-  }
-]
-```
+- [x] Setup FastAPI + config + AI Gateway (NVIDIA + Google)
+- [x] Document parser service (PDF/DOCX/PPTX) — `services/document_parser.py`
+- [x] 6 AI endpoints hoạt động
+- [x] Push lên `feature/quy/week-1-foundation`
 
 ---
 
-## Ngày 5-6: API `/generate-questions` + API `/scan-code`
+## Ngày 1 (14/6): Upload API
 
-### 5a. API `/generate-questions`
+- [x] Tạo `app/routers/documents.py`:
+  - `POST /api/documents/upload` — nhận file multipart, validate type (.pdf/.docx/.pptx/.zip) + size (max 100MB), lưu vào `uploads/`, tạo record DB
+  - `GET /api/documents/{id}` — lấy metadata 1 file
+  - `GET /api/documents` — list tất cả files
+- [x] Tạo `app/schemas/document.py` — DocumentResponse, DocumentListResponse
+- [x] Tạo thư mục `uploads/` + `.gitkeep`
+- [x] Register document router vào `main.py`
+- [ ] Test với curl: upload 1 file PDF → verify file lưu + DB record tạo (cần PostgreSQL)
+- [x] Fix bug: xóa `Session.documents` relationship thiếu FK gây crash toàn app
 
-- [ ] Tạo file `app/schemas/question.py` — Pydantic models
-- [ ] Tạo file `app/services/question_generator.py` — logic chính:
-  - [ ] Nhận text tài liệu + persona
-  - [ ] Gọi AI với prompt tương ứng
-  - [ ] Parse response JSON
-  - [ ] Trả về danh sách câu hỏi
-- [ ] Tạo file `app/routers/questions.py` — endpoint:
-  - [ ] `POST /api/questions/generate` — nhận `document_id + persona`
-  - [ ] Trả về `{ questions: [...], document_summary: "..." }`
-- [ ] Register router vào `main.py`
-- [ ] Test với Postman/cURL
+### Kiến trúc lưu file — Q&A
 
-**Endpoint mẫu:**
-```python
-@router.post("/api/questions/generate")
-async def generate_questions(
-    document_id: int,
-    persona: str = "ly_thuyet"  # ly_thuyet | thuc_te | khat_khe
-):
-    # 1. Lấy file từ DB theo document_id
-    # 2. Parse text
-    # 3. Gọi AI với prompt persona
-    # 4. Trả về 10 câu hỏi + gợi ý
-    ...
-```
+**Q: File lưu vào DB thế nào?**
+A: Chỉ lưu **metadata** trên DB, file binary nằm trên **disk** (`uploads/`):
+| Field | Ví dụ |
+|-------|-------|
+| filename | `report.pdf` |
+| doc_type | `pdf` (enum) |
+| file_path | `uploads/abc123_report.pdf` |
+| status | `uploaded` |
 
-### 5b. 🔥 MỚI: API `/scan-code`
+**Q: Agent (AI) đọc file PDF thế nào?**
+A: `services/document_parser.py` dùng **PyPDF2** trích xuất text layer thuần túy.
+Text được chia chunks (~4000 chars) → lưu vào `assessments.chunks` (JSONB) → AI đọc chunks.
 
-- [ ] Tạo file `app/schemas/code_review.py` — Pydantic models
-- [ ] Tạo file `app/services/code_reviewer.py` — logic:
-  - [ ] Nhận code_text từ `code_parser.py`
-  - [ ] Gọi AI với prompt Code Review
-  - [ ] Parse response JSON
-  - [ ] Trả về: `{ issues: [...], summary: "...", improvement_suggestions: [...] }`
-- [ ] Tạo file `app/routers/code_review.py` — endpoint:
-  - [ ] `POST /api/code/scan` — nhận `document_id` (là file .zip đã upload)
-  - [ ] Trả về kết quả phân tích code
-- [ ] Test với Postman
-- [ ] Register router vào `main.py`
-
-**Format trả về mẫu:**
-```json
-{
-  "summary": "Phát hiện 5 vấn đề trong source code...",
-  "issues": [
-    {
-      "type": "logic_error",
-      "file": "src/app.py",
-      "line": 42,
-      "description": "Thiếu validation cho user input",
-      "severity": "high",
-      "suggestion": "Thêm kiểm tra dữ liệu đầu vào..."
-    },
-    {
-      "type": "code_smell",
-      "file": "src/utils.py",
-      "line": 15,
-      "description": "Hàm quá dài (> 50 dòng)",
-      "severity": "medium",
-      "suggestion": "Tách thành các hàm nhỏ hơn..."
-    }
-  ],
-  "improvement_suggestions": ["...", "..."],
-  "estimated_pass_rate": 75
-}
-```
+**Q: PDF chứa ảnh/sơ đồ thì sao?**
+A: **Hiện tại CHƯA XỬ LÝ.** Cần bổ sung sau:
+1. Nếu text trích xuất < 50 chars → xác định file là scan/ảnh
+2. Convert trang PDF → ảnh → OCR (Tesseract / Google Vision API) → text
+3. Nếu vẫn ít → Vision AI (GPT-4V / Gemini) mô tả nội dung ảnh, sơ đồ
 
 ---
 
-## Ngày 7: Optimization + Integration
+## Ngày 2 (15/6): Code Parser
 
-- [ ] Tối ưu prompt để giảm số lượng tokens (tiết kiệm cost)
-- [ ] Thêm error handling (file lỗi, AI timeout, v.v.)
-- [ ] Thêm logging
-- [ ] Hỗ trợ Dev A + C test luồng end-to-end
-- [ ] Viết document ngắn cho API (trong README hoặc Swagger)
-
----
-
-## 🏆 Milestone M1: Cuối ngày 7
-
-**Pass criteria:**
-```bash
-# 1. Upload file tài liệu test
-curl -X POST http://localhost:8000/api/upload -F "file=@test.pdf"
-
-# 2. Generate questions
-curl -X POST http://localhost:8000/api/questions/generate \
-  -H "Content-Type: application/json" \
-  -d '{"document_id": 1, "persona": "ly_thuyet"}'
-# ✅ Phải trả về 10 câu hỏi + gợi ý dưới dạng JSON
-
-# 3. Upload source code test
-curl -X POST http://localhost:8000/api/upload -F "file=@project.zip"
-
-# 4. Scan code
-curl -X POST http://localhost:8000/api/code/scan \
-  -H "Content-Type: application/json" \
-  -d '{"document_id": 2}'
-# ✅ Phải trả về danh sách lỗi + đề xuất cải thiện
-```
+- [ ] Tạo `app/services/code_parser.py`:
+  - Unzip file .zip vào temp dir
+  - Đọc file code: `.py`, `.js`, `.ts`, `.java`, `.cs`, `.cpp`, `.html`, `.css`, `.vue`, `.jsx`, `.tsx`
+  - Bỏ qua: `node_modules/`, `.git/`, `dist/`, `build/`, `__pycache__/`, `.env`
+  - Max 2000 dòng/file, gom tất cả code thành 1 string
+- [ ] Test unzip 1 project mẫu → in ra console
 
 ---
 
-## 📁 Files bạn cần tạo/ chỉnh sửa
+## Ngày 3 (16/6): Prompt Code Review
 
-| File | Trạng thái | Ghi chú |
-|------|-----------|---------|
-| `apps/api/app/core/config.py` | 🆕 Tạo mới | Config từ env |
-| `apps/api/app/services/ai_client.py` | 🆕 Tạo mới | AI API wrapper |
-| `apps/api/app/services/document_parser.py` | 🆕 Tạo mới | Parse PDF/DOCX/PPTX |
-| `apps/api/app/services/code_parser.py` | 🆕 **MỚI** | Unzip + đọc source code |
-| `apps/api/app/services/question_generator.py` | 🆕 Tạo mới | Gen question logic |
-| `apps/api/app/services/code_reviewer.py` | 🆕 **MỚI** | AI code review logic |
-| `apps/api/app/schemas/question.py` | 🆕 Tạo mới | Pydantic models cho questions |
-| `apps/api/app/schemas/code_review.py` | 🆕 **MỚI** | Pydantic models cho code review |
-| `apps/api/app/routers/questions.py` | 🆕 Tạo mới | API /questions/generate |
-| `apps/api/app/routers/code_review.py` | 🆕 **MỚI** | API /code/scan |
-| `apps/api/app/main.py` | ✏️ Sửa | Register routers |
-| `apps/api/.env` | 🆕 Tạo mới | Copy từ .env.example + điền key |
+- [ ] Viết prompt Code Review (trong `.ai/prompts/code-review.md` hoặc inline):
+  - Phát hiện: logic_error, code_smell, missing_validation, error_handling
+  - Trả về JSON: `{ issues: [{type, file, line, description, severity, suggestion}], summary, pass_rate }`
+- [ ] Test prompt với 1 project mẫu qua AI Gateway
+
+---
+
+## Ngày 4-7: Support + Fix
+
+- [ ] Verify document_parser hoạt động đúng với upload flow
+- [ ] Đảm bảo backend stable, không crash khi upload nhiều file
+- [ ] Chuẩn bị file mẫu demo (PDF, DOCX, .zip)
+- [ ] Viết script demo step-by-step
+- [ ] Final commit + push
+
+---
+
+## Files tạo/sửa
+
+| File | Trạng thái |
+|------|-----------|
+| `apps/api/app/routers/documents.py` | 🆕 Tạo mới |
+| `apps/api/app/schemas/document.py` | 🆕 Tạo mới |
+| `apps/api/app/services/code_parser.py` | 🆕 Tạo mới |
+| `apps/api/app/main.py` | ✏️ Đăng ký router |
+| `apps/api/uploads/` | 🆕 Tạo thư mục |
