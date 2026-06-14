@@ -1,49 +1,113 @@
-version: '3.8'
+# ===== docker-compose.yml cho DefendAI =====
+# Môi trường dev local - chạy 3 service: db, api, web
+# Sử dụng: docker compose up --build
+# (Docker Compose V2 không cần `version:` nữa)
 
 services:
-  # Backend API (FastAPI)
+  # ========================================================================
+  # Backend API (FastAPI + AI Gateway)
+  # ========================================================================
   api:
     build: ./apps/api
     container_name: defense-api
+    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/defense_db
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      # Database (trỏ về service "db" trong compose network)
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/defense_db
+
+      # ===== AI Providers =====
+      # NVIDIA NIM (model lớn - Step-3.7-Flash)
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      NVIDIA_BASE_URL: https://integrate.api.nvidia.com/v1
+      NVIDIA_MODEL: stepfun-ai/Step-3.7-Flash
+
+      # Google AI Studio (model worker - Gemma 4 31B IT)
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GOOGLE_BASE_URL: https://generativelanguage.googleapis.com/v1beta/openai
+      GOOGLE_MODEL: gemma-4-31b-it
+
+      # Routing
+      DEFAULT_PROVIDER: google
+      ORCHESTRATOR_PROVIDER: nvidia
+
+      # Auth (cho tuần 2-3)
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
     volumes:
+      # Mount code để dev có hot-reload
       - ./apps/api:/app
+      # Exclude __pycache__ để tận dụng Docker layer
       - /app/__pycache__
     depends_on:
-      - db
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      db:
+        condition: service_healthy
+    networks:
+      - defense-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health', timeout=3).raise_for_status()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
+  # ========================================================================
   # Frontend (Next.js)
+  # ========================================================================
   web:
     build: ./apps/web
     container_name: defense-web
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
     volumes:
       - ./apps/web:/app
       - /app/node_modules
       - /app/.next
+    depends_on:
+      - api
+    networks:
+      - defense-net
     command: npm run dev
 
-  # Database (PostgreSQL)
+  # ========================================================================
+  # Database (PostgreSQL 16)
+  # ========================================================================
   db:
     image: postgres:16-alpine
     container_name: defense-db
+    restart: unless-stopped
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=defense_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: defense_db
     ports:
-      - "5432:5432"
+      - "5433:5432"  # Host 5433 → Container 5432
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - defense-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d defense_db"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
+# ========================================================================
+# Volumes (persistent data)
+# ========================================================================
 volumes:
   postgres_data:
+    name: defense_postgres_data
+
+# ========================================================================
+# Networks
+# ========================================================================
+networks:
+  defense-net:
+    name: defense-net
+    driver: bridge

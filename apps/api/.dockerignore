@@ -1,0 +1,64 @@
+# ===== .dockerignore cho apps/api/ =====
+# Loại trừ các file không cần thiết khi build image (giảm size + tăng tốc build)
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual envs
+venv/
+env/
+.venv/
+.envrc
+
+# Env files (chứa API key - KHÔNG BAO GIỜ build vào image)
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Tests (không cần trong production image)
+tests/
+test_*.py
+*_test.py
+pytest.ini
+conftest.py
+
+# Tmp scripts
+_*.py
+*.tmp
+*.bak
+
+# Docs (không cần trong runtime)
+docs/
+*.md
+!README.md
+
+# Docker (không cần self-reference)
+Dockerfile
+.dockerignore
