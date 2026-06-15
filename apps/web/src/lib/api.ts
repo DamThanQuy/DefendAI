@@ -82,9 +82,9 @@ export function uploadDocument(file: File) {
   });
 }
 
-// Questions
 export function generateQuestions(documentId: number, persona: string) {
-  return api.post<{ questions: Question[] }>("/api/questions/generate", {
+  // Thêm provider và model vào kiểu trả về ở đây:
+  return api.post<{ questions: Question[]; provider?: string; model?: string }>("/api/questions/generate", {
     document_id: documentId,
     persona,
   });
