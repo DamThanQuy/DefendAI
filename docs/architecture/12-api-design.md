@@ -1,55 +1,55 @@
-# 12 — API Design
+# 12 — Thiết kế API
 
-## Overview
+## Tổng quan
 
-RESTful API endpoints cho tất cả modules. Prefix: `/api/v1`
+Các endpoint RESTful cho tất cả modules. Prefix: `/api/v1`
 
-## Endpoints
+## Danh sách Endpoint
 
-### Assessment
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/assessment/generate-questions` | AI generate 10 questions |
-| GET | `/api/v1/assessment/jobs/{job_id}` | Poll job status |
+### Đánh giá (Assessment)
+| Phương thức | Endpoint | Mô tả |
+|------------|----------|-------|
+| POST | `/api/v1/assessment/generate-questions` | AI sinh 10 câu hỏi |
+| GET | `/api/v1/assessment/jobs/{job_id}` | Kiểm tra trạng thái job |
 
-### Code Analysis
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/code/scan` | AI scan source code |
-| GET | `/api/v1/code/jobs/{job_id}` | Poll job status |
+### Phân tích mã nguồn (Code Analysis)
+| Phương thức | Endpoint | Mô tả |
+|------------|----------|-------|
+| POST | `/api/v1/code/scan` | AI quét mã nguồn |
+| GET | `/api/v1/code/jobs/{job_id}` | Kiểm tra trạng thái job |
 
-### Documents
-| Method | Endpoint | Description |
-|--------|----------|-------------|
+### Tài liệu (Documents)
+| Phương thức | Endpoint | Mô tả |
+|------------|----------|-------|
 | POST | `/api/v1/documents/upload` | Upload file |
-| GET | `/api/v1/documents/{id}` | Get document info |
-| GET | `/api/v1/documents` | List documents |
+| GET | `/api/v1/documents/{id}` | Lấy thông tin tài liệu |
+| GET | `/api/v1/documents` | Danh sách tài liệu |
 
-### Meeting
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/meeting/rooms` | Create room |
-| GET | `/api/v1/meeting/rooms/{id}` | Get room info |
+### Phòng họp (Meeting)
+| Phương thức | Endpoint | Mô tả |
+|------------|----------|-------|
+| POST | `/api/v1/meeting/rooms` | Tạo phòng |
+| GET | `/api/v1/meeting/rooms/{id}` | Lấy thông tin phòng |
 | WS | `/api/v1/meeting/ws/{room_id}` | WebSocket |
 
-### Evaluation
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/evaluation/scores` | Submit score |
-| GET | `/api/v1/evaluation/sessions/{id}/results` | Get results |
+### Đánh giá điểm (Evaluation)
+| Phương thức | Endpoint | Mô tả |
+|------------|----------|-------|
+| POST | `/api/v1/evaluation/scores` | Gửi điểm |
+| GET | `/api/v1/evaluation/sessions/{id}/results` | Lấy kết quả |
 
-### Report
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/report/generate` | Generate PDF report |
-| GET | `/api/v1/report/{id}/pdf` | Download PDF |
+### Báo cáo (Report)
+| Phương thức | Endpoint | Mô tả |
+|------------|----------|-------|
+| POST | `/api/v1/report/generate` | Tạo báo cáo PDF |
+| GET | `/api/v1/report/{id}/pdf` | Tải PDF |
 
-### Health
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Health check |
+### Kiểm tra sức khỏe (Health)
+| Phương thức | Endpoint | Mô tả |
+|------------|----------|-------|
+| GET | `/health` | Kiểm tra server |
 
-## Response Format
+## Định dạng Response
 
 ```json
 {
@@ -62,20 +62,36 @@ RESTful API endpoints cho tất cả modules. Prefix: `/api/v1`
 }
 ```
 
-## Error Format
+## Định dạng Lỗi
 
 ```json
 {
   "data": null,
   "error": {
     "code": "VALIDATION_ERROR",
-    "message": "Invalid persona. Must be one of: theory, enterprise, strict"
+    "message": "Persona không hợp lệ. Phải là một trong: theory, enterprise, strict"
   },
   "meta": { "timestamp": "..." }
 }
 ```
 
-## Related Documents
+---
 
+## Chi tiết từng Group API
+
+> Xem chi tiết request/response/edge cases tại [`docs/api/`](../api/):
+
+| # | Group | File | Endpoints |
+|---|-------|------|-----------|
+| 01 | Documents (Upload) | [`docs/api/01-documents.md`](../api/01-documents.md) | 3 |
+| 02 | Assessment | [`docs/api/02-assessment.md`](../api/02-assessment.md) | 2 |
+| 03 | Code Review | [`docs/api/03-code-review.md`](../api/03-code-review.md) | 2 |
+| 04 | Meeting | [`docs/api/04-meeting.md`](../api/04-meeting.md) | 3 |
+| 05 | Evaluation | [`docs/api/05-evaluation.md`](../api/05-evaluation.md) | 2 |
+| 06 | Report | [`docs/api/06-report.md`](../api/06-report.md) | 2 |
+
+## Tài liệu liên quan
+
+- `docs/api/README.md` — API Documentation Index
 - `05-backend.md` — Backend
 - `03-module-design.md` — Modules
