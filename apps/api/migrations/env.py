@@ -13,7 +13,12 @@ config = context.config
 # Chuyển đổi asyncpg URL sang sync URL cho Alembic
 def get_database_url():
     """Lấy database URL cho Alembic (sử dụng sync driver)"""
-    # Đọc từ file .env
+    # 1) Nếu có env var DATABASE_URL thì ưu tiên dùng nó (tiện cho docker run --env)
+    env_url = os.environ.get('DATABASE_URL')
+    if env_url:
+        return env_url.replace('postgresql+asyncpg://', 'postgresql://')
+
+    # 2) Nếu không có env var, đọc từ file .env
     env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
     if os.path.exists(env_path):
         with open(env_path, 'r') as f:

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function ReportPage() {
@@ -38,6 +39,36 @@ export default function ReportPage() {
             <CardHeader className="pb-2 bg-gray-50/50 rounded-t-xl"><CardTitle className="text-xs text-gray-500 font-bold uppercase tracking-widest">Chất lượng đồ án</CardTitle></CardHeader>
             <CardContent className="pt-4"><p className="text-4xl font-bold text-gray-900">8.5</p></CardContent>
           </Card>
+=======
+export default function ReportPage() {
+  return (
+    <div className="container mx-auto px-4 py-12 min-h-[80vh]">
+      <div className="mx-auto max-w-4xl rounded-2xl border bg-card/60 p-8 shadow-sm backdrop-blur-sm">
+        <h1 className="text-3xl font-bold tracking-tight">Báo cáo</h1>
+        <p className="mt-3 text-muted-foreground">
+          Milestone này chưa có backend thật. Hiện UI chỉ là khung để chuẩn bị cho báo cáo PDF “bệnh án đồ án”.
+        </p>
+
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border p-4">
+            <p className="text-sm font-medium">Đang có</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Upload tài liệu, parse file và sinh câu hỏi theo persona.
+            </p>
+          </div>
+          <div className="rounded-xl border p-4">
+            <p className="text-sm font-medium">Chưa làm</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Tổng hợp rubric, điểm buổi defense và xuất PDF báo cáo.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-8 flex gap-4 justify-center">
+          <a className="rounded-md border px-4 py-2 text-sm" href="/">
+            Quay về upload
+          </a>
+>>>>>>> 73a3644 ([FEAT]: Tich hop AI de scan file")
         </div>
       </div>
 

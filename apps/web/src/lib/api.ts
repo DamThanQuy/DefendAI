@@ -56,12 +56,19 @@ export interface CodeIssue {
   file: string;
   line: number;
   description: string;
-  severity: "error" | "warning" | "info";
+  severity: "critical" | "high" | "medium" | "low" | "info";
   suggestion: string;
 }
 
 export interface CodeScanResponse {
+  analysis_id: number;
+  document_id: number;
+  document_name: string;
+  status: string;
   summary: string;
+  provider?: string;
+  model?: string;
+  files_scanned: number;
   issues: CodeIssue[];
   pass_rate: number;
 }

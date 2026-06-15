@@ -22,12 +22,18 @@ class NVIDIAProvider(OpenAICompatibleProvider):
     - Vision input (multimodal) - chưa dùng trong GĐ1
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        model: str | None = None,
+    ) -> None:
         super().__init__(
-            api_key=settings.nvidia.api_key,
-            base_url=settings.nvidia.base_url,
+            api_key=api_key or settings.nvidia.api_key,
+            base_url=base_url or settings.nvidia.base_url,
             provider_name="nvidia",
         )
+        self._model = model or settings.nvidia.model
 
     def get_default_model(self) -> str:
-        return settings.nvidia.model
+        return self._model
