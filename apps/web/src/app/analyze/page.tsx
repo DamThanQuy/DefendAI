@@ -1,0 +1,177 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import Link from "next/link";
+import ReactMarkdown from 'react-markdown';
+
+export default function AnalyzePage() {
+  const [code, setCode] = useState("");
+  const [result, setResult] = useState<any>(null);
+  const [critique, setCritique] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleAnalyze = async () => {
+    if (!code.trim()) {
+      setError("Please enter some source code to analyze.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+    setResult(null);
+    setCritique(null);
+
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ code }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Analysis failed");
+      }
+
+      setResult(data.ast);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCritique = async () => {
+    if (!result || !code) return;
+
+    setIsAiLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("http://localhost:8000/api/ai/critique-code", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          source_code: code,
+          ast_data: result
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to get AI critique");
+      }
+
+      setCritique(data.critique);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  return (
+    <div className="container mx-auto py-10 px-4 max-w-7xl">
+      <div className="mb-6">
+        <Link href="/" className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-primary">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Home
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <Card className="flex flex-col h-[800px] lg:col-span-1">
+          <CardHeader>
+            <CardTitle>Source Code Analyzer</CardTitle>
+            <CardDescription>
+              Paste your TypeScript or React code here to extract its AST structure.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex-1 flex flex-col gap-4">
+            <Textarea
+              placeholder="Paste your source code here..."
+              className="flex-1 font-mono text-sm resize-none"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+            />
+            {error && <p className="text-sm text-destructive font-medium">{error}</p>}
+            <Button onClick={handleAnalyze} disabled={isLoading || isAiLoading} className="w-full">
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Analyze Code
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="flex flex-col h-[800px] lg:col-span-1">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle>AST Analysis Result</CardTitle>
+              <CardDescription>
+                Structured metadata extracted from the code.
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="flex-1 overflow-auto bg-muted rounded-md border m-4 mt-0 p-4">
+            {result ? (
+              <div className="flex flex-col h-full gap-4">
+                 <pre className="text-xs font-mono flex-1 overflow-auto">
+                  {JSON.stringify(result, null, 2)}
+                </pre>
+                <Button 
+                  onClick={handleCritique} 
+                  disabled={isAiLoading || isLoading} 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isAiLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
+                  Ask AI to Critique
+                </Button>
+              </div>
+            ) : (
+              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                Results will appear here
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="flex flex-col h-[800px] lg:col-span-1 border-blue-200 shadow-sm">
+          <CardHeader className="bg-blue-50/50 rounded-t-xl">
+            <CardTitle className="text-blue-800 flex items-center">
+              <Sparkles className="mr-2 h-5 w-5 text-blue-600" />
+              AI Critique
+            </CardTitle>
+            <CardDescription className="text-blue-600/80">
+              Insightful feedback from GPT-4o based on AST
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex-1 overflow-auto p-6 prose prose-sm prose-blue dark:prose-invert max-w-none">
+            {critique ? (
+              <ReactMarkdown>{critique}</ReactMarkdown>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm opacity-50">
+                <Sparkles className="h-10 w-10 mb-2 opacity-20" />
+                <p>AI critique will appear here</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
