@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 /** Severity levels cho code review issues. */
-export type Severity = "error" | "warning" | "info";
+export type Severity = "critical" | "high" | "medium" | "low" | "info";
 
 /** Difficulty levels cho exam questions. */
 export type Difficulty = "easy" | "medium" | "hard";
