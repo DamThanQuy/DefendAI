@@ -41,6 +41,17 @@
 ## API Design
 `architecture/12-api-design.md` — Endpoints, request/response format
 
+### API Details (`api/` folder)
+| Group | File |
+|-------|------|
+| Documents (Upload) | `api/01-documents.md` — Upload API + 21 edge cases |
+| Assessment | `api/02-assessment.md` — Generate questions + jobs |
+| Code Review | `api/03-code-review.md` — Code scan + analysis |
+| Meeting | `api/04-meeting.md` — Rooms + WebSocket + Timer |
+| Evaluation | `api/05-evaluation.md` — Scores + rubric |
+| Report | `api/06-report.md` — PDF generation + download |
+| Index | `api/README.md` — Quick links + conventions |
+
 ## Deployment
 `architecture/13-deployment.md` — Docker Compose, Railway, CI/CD
 
@@ -58,7 +69,9 @@
 |------|---------------|
 | Thêm AI provider mới | `07-ai-architecture.md`, `08-rag.md`, `ADR-002-ai-gateway.md` |
 | Sửa database schema | `11-database.md`, `ADR-001-postgresql.md` |
-| Thêm API endpoint | `05-backend.md`, `12-api-design.md` |
+| Thêm API endpoint | `05-backend.md`, `12-api-design.md`, `api/README.md` |
+| Upload/Document issues | `api/01-documents.md` — edge cases + trạng thái |
+| Meeting/Defense | `api/04-meeting.md`, `10-mock-defense.md` |
 | Sửa module assessment | `03-module-design.md`, `08-rag.md`, `05-backend.md` |
 | Deploy lên production | `13-deployment.md`, `04-folder-structure.md` |
 | Scale system | `14-scalability.md`, `03-module-design.md` |
