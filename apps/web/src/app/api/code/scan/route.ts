@@ -9,47 +9,63 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Source code zip is required' }, { status: 400 });
     }
 
-    // Giả lập processing delay
-    await new Promise((resolve) => setTimeout(resolve, 2500));
+    const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+
+    // 1. Upload file to backend
+    const uploadFormData = new FormData();
+    uploadFormData.append('file', file);
+    
+    const uploadRes = await fetch(`${backendUrl}/api/documents/upload`, {
+      method: 'POST',
+      body: uploadFormData,
+    });
+
+    if (!uploadRes.ok) {
+      const err = await uploadRes.json();
+      return NextResponse.json({ error: 'Upload zip failed', details: err }, { status: uploadRes.status });
+    }
+
+    const docData = await uploadRes.json();
+    const documentId = docData.id;
+
+    // 2. Request Code Scan
+    const scanRes = await fetch(`${backendUrl}/api/code/scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ document_id: documentId }),
+    });
+
+    if (!scanRes.ok) {
+      const err = await scanRes.json();
+      return NextResponse.json({ error: 'Code scan failed', details: err }, { status: scanRes.status });
+    }
+
+    const scanData = await scanRes.json();
+
+    // Tính toán lại stats để hiển thị UI
+    let critical = 0;
+    let warnings = 0;
+    let optimizations = 0;
+
+    (scanData.issues || []).forEach((issue: any) => {
+      const sev = issue.severity?.toLowerCase();
+      if (sev === 'critical' || sev === 'high') critical++;
+      else if (sev === 'medium') warnings++;
+      else optimizations++;
+    });
 
     return NextResponse.json({
       success: true,
       stats: {
-        critical: 3,
-        warnings: 12,
-        optimizations: 24
+        critical,
+        warnings,
+        optimizations
       },
-      details: [
-        {
-          id: 1,
-          file: 'src/services/api.js',
-          type: 'Critical',
-          title: 'SQL Injection Vulnerability',
-          description: 'Lỗi nối chuỗi trực tiếp trong câu query SQL. Hãy sử dụng parameterized queries hoặc ORM để bảo mật dữ liệu.',
-          oldCode: '- const query = "SELECT * FROM users WHERE id = " + userId;',
-          newCode: '+ const query = "SELECT * FROM users WHERE id = ?";'
-        },
-        {
-          id: 2,
-          file: 'src/components/List.jsx',
-          type: 'Warning',
-          title: 'Missing Key Prop',
-          description: 'Render list trong React thiếu thuộc tính key, ảnh hưởng đến performance render và state management.',
-          oldCode: '- {items.map(item => <div>{item.name}</div>)}',
-          newCode: '+ {items.map(item => <div key={item.id}>{item.name}</div>)}'
-        },
-        {
-          id: 3,
-          file: 'src/utils/auth.js',
-          type: 'Critical',
-          title: 'Hardcoded JWT Secret',
-          description: 'Secret key được hardcode trực tiếp trong source code. Hãy chuyển sang sử dụng biến môi trường (Environment Variables).',
-          oldCode: '- const jwtSecret = "my-super-secret-key-123";',
-          newCode: '+ const jwtSecret = process.env.JWT_SECRET;'
-        }
-      ]
+      backendData: scanData,
+      details: scanData.issues
     });
-  } catch (error) {
-    return NextResponse.json({ error: 'Scan failed' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Scan proxy error:', error);
+    return NextResponse.json({ error: 'Scan proxy failed', message: error.message }, { status: 500 });
   }
 }
