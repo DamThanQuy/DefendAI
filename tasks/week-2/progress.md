@@ -72,17 +72,19 @@ Hiện kết quả code review (FE)
 - [ ] ~~Hiển thị 10 câu hỏi + gợi ý theo persona~~ (chưa làm)
 - _Code xong. Cần test:_
 
-#### Cần test Giai đoạn 2
-- [ ] Test import: `from app.services.question_generator import generate_questions` — không lỗi
-- [ ] Test import: `from app.routers.questions import router` — không lỗi
-- [ ] Test persona validation — persona không tồn tại → 400
-- [ ] Test document not found — document_id không tồn tại → 400
-- [ ] Test ZIP rejection — upload .zip rồi gọi generate → 400
-- [ ] Test generate với document thật (PDF) + persona "mentor" → 200 + có 10 questions
-- [ ] Test cached assessment — gọi lại cùng document + persona → trả kết quả cũ (không generate lại)
-- [ ] Test GET /api/questions/{id} — assessment tồn tại → 200
-- [ ] Test GET /api/questions/{id} — assessment không tồn tại → 404
-- [ ] Test AI error handling — mock AI gateway fail → assessment status = "failed"
+#### Kết quả test Giai đoạn 2
+- [x] Test import: `from app.routers.questions import router` — ✅ OK
+- [x] Test persona validation — persona "invalid_xyz" → 400 ✅
+- [x] Test document not found — document_id 99999 → 404 ✅
+- [x] Test persona alias — ly_thuyet→theory, thuc_te→enterprise, khat_khe→strict ✅
+- [x] Test generate với document thật (PDF) + persona "theory" → 200 + 10 questions ✅
+  - Provider: nvidia (multi-chunk) | Model: meta/llama-3.1-70b-instruct | Time: 23.6s
+- [x] Test GET /api/questions/{id} — assessment tồn tại → 200, 10 questions cached ✅
+- [x] Test GET /api/questions/{id} — assessment không tồn tại → 404 ✅
+- [ ] Test ZIP rejection — chưa test được (cần upload ZIP)
+- [ ] Test cached assessment (gọi lại generate cùng doc+persona) — chưa test
+- [ ] Test AI error handling — chưa test
+- _Ai làm: Quý (16/6)_
 
 ### Giai đoạn 3: Code Review — End-to-end
 - [ ] Hoàn thiện `routers/code_review.py` + `services/code_reviewer.py`
