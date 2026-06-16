@@ -17,9 +17,11 @@ class DocumentResponse(BaseModel):
     """Response khi lấy metadata 1 document."""
     id: int
     filename: str
+    file_type: str
     doc_type: DocType
     status: DocumentStatus
     file_path: str
+    content_hash: Optional[str] = None
     created_at: datetime
 
     class Config:
