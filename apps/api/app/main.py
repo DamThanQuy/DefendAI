@@ -5,9 +5,6 @@ Entry point cho FastAPI backend.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-<<<<<<< HEAD
-=======
 from app.core.config import settings
 # Import routers (mỗi module đăng ký 1 router)
 from app.routers import ai as ai_router
@@ -17,7 +14,6 @@ from app.routers import questions as questions_router
 # Khởi tạo AI gateway ngay khi import (sẽ log providers nào đã ready)
 from app.services.ai_client import ai_gateway
 
->>>>>>> 73a3644 ([FEAT]: Tich hop AI de scan file")
 app = FastAPI(
     title="AI Project Defense System API",
     description="Backend API cho hệ thống hỗ trợ bảo vệ đồ án bằng AI",
@@ -27,19 +23,12 @@ app = FastAPI(
 # Cấu hình CORS để frontend có thể gọi API
 app.add_middleware(
     CORSMiddleware,
-<<<<<<< HEAD
-    allow_origins=["http://localhost:3000"],  # Next.js dev server
-=======
-    allow_origins=["http://localhost:3000",
-                   "http://127.0.0.1:3000"],
->>>>>>> 73a3644 ([FEAT]: Tich hop AI de scan file")
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-<<<<<<< HEAD
-=======
 # ===== Register routers =====
 # AI Gateway endpoints (test, compare, list providers/models)
 app.include_router(ai_router.router)
@@ -51,7 +40,6 @@ app.include_router(questions_router.router)
 app.include_router(code_scan_router.router)
 
 
->>>>>>> 73a3644 ([FEAT]: Tich hop AI de scan file")
 @app.get("/")
 async def root():
     return {
@@ -65,23 +53,6 @@ async def health_check():
     """
     Health check endpoint để kiểm tra server và AI status (Real-time).
     """
-<<<<<<< HEAD
-    return {"status": "healthy"}
-
-from app.schemas.critique import CodeCritiqueRequest, CodeCritiqueResponse
-from app.services.ai_service import analyze_code_with_ai
-from app.routers import documents
-
-app.include_router(documents.router)
-
-@app.post("/api/ai/critique-code", response_model=CodeCritiqueResponse)
-async def critique_code(request: CodeCritiqueRequest):
-    """
-    Nhận Source Code và cấu trúc AST, sau đó gửi cho AI để nhận xét phản biện.
-    """
-    critique_text = await analyze_code_with_ai(request)
-    return CodeCritiqueResponse(critique=critique_text)
-=======
     import os
     
     # Kiểm tra trực tiếp RAM container xem Docker có truyền Key vào thật không
@@ -105,4 +76,3 @@ async def critique_code(request: CodeCritiqueRequest):
             "nvidia": nvidia_sys_ready
         }
     }
->>>>>>> 73a3644 ([FEAT]: Tich hop AI de scan file")
