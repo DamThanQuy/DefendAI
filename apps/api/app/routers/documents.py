@@ -83,10 +83,12 @@ async def upload_document(
 
     # Lưu file
     file_path = _save_file(content, file.filename or "unnamed")
+    file_type = Path(file.filename or "unnamed").suffix.lower().lstrip(".")
 
     # Tạo DB record
     doc = Document(
         filename=file.filename or "unnamed",
+        file_type=file_type,
         doc_type=doc_type,
         status=DocumentStatus.uploaded,
         file_path=file_path,

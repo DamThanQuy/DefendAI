@@ -4,7 +4,7 @@ import { API_BASE_URL } from "./constants";
 /** Axios instance mặc định trỏ tới backend API. */
 export const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 60_000,
+  timeout: 300000, 
   headers: { "Content-Type": "application/json" },
 });
 
@@ -56,12 +56,19 @@ export interface CodeIssue {
   file: string;
   line: number;
   description: string;
-  severity: "error" | "warning" | "info";
+  severity: "critical" | "high" | "medium" | "low" | "info";
   suggestion: string;
 }
 
 export interface CodeScanResponse {
+  analysis_id: number;
+  document_id: number;
+  document_name: string;
+  status: string;
   summary: string;
+  provider?: string;
+  model?: string;
+  files_scanned: number;
   issues: CodeIssue[];
   pass_rate: number;
 }
@@ -75,9 +82,9 @@ export function uploadDocument(file: File) {
   });
 }
 
-// Questions
 export function generateQuestions(documentId: number, persona: string) {
-  return api.post<{ questions: Question[] }>("/api/questions/generate", {
+  // Thêm provider và model vào kiểu trả về ở đây:
+  return api.post<{ questions: Question[]; provider?: string; model?: string }>("/api/questions/generate", {
     document_id: documentId,
     persona,
   });
