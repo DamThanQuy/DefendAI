@@ -142,7 +142,7 @@ class OpenAICompatibleProvider(ABC):
         # Call API
         start = time.perf_counter()
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(120.0)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(600.0)) as client:
                 response = await client.post(url, headers=headers, json=payload)
                 response.raise_for_status()
                 data = response.json()
@@ -155,7 +155,7 @@ class OpenAICompatibleProvider(ABC):
             )
             raise
         except Exception as e:
-            logger.error("[%s] Request failed: %s", self.provider_name, e)
+            logger.error("[%s] Request failed: %s", self.provider_name,repr(e))
             raise
 
         latency_ms = (time.perf_counter() - start) * 1000

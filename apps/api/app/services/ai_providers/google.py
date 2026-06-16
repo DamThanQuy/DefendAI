@@ -41,7 +41,7 @@ class GoogleProvider(OpenAICompatibleProvider):
             base_url=base_url or settings.google.base_url,
             provider_name="google",
         )
-        self._model = model or settings.google.model
+        self._model = "gemini-1.5-flash"
 
     def get_default_model(self) -> str:
         return self._model

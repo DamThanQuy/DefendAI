@@ -13,21 +13,13 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+
+    env_file:
+      - .env
+
     environment:
       # Database (trỏ về service "db" trong compose network)
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/defense_db
-
-      # ===== AI Providers =====
-      # NVIDIA NIM (model lớn - Step-3.7-Flash)
-      NVIDIA_API_KEY: "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"
-      NVIDIA_BASE_URL: https://integrate.api.nvidia.com/v1
-      NVIDIA_MODEL: stepfun-ai/Step-3.7-Flash
-
-      # Google AI Studio (model worker - Gemma 4 31B IT)
-      GOOGLE_API_KEY: "AQ.Ab8RN6JEdlfaIlMFSATT6GR2TkhRB-odGxAjIJTQiT88QWnxlA"
-      GOOGLE_BASE_URL: https://generativelanguage.googleapis.com/v1beta/openai
-      GOOGLE_MODEL: gemma-4-31b-it
-
       # Routing
       DEFAULT_PROVIDER: google
       ORCHESTRATOR_PROVIDER: nvidia

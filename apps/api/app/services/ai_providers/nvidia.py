@@ -33,7 +33,7 @@ class NVIDIAProvider(OpenAICompatibleProvider):
             base_url=base_url or settings.nvidia.base_url,
             provider_name="nvidia",
         )
-        self._model = model or settings.nvidia.model
+        self._model = "google/gemma-2-27b-it" 
 
     def get_default_model(self) -> str:
         return self._model

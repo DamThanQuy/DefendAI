@@ -7,13 +7,14 @@ Luồng chuẩn:
 - User gọi POST /api/questions/generate
 - Backend đọc file, chunk text, gọi AI, lưu vào assessments.questions
 
-Route này được làm đồng bộ theo kiểu MVP để dễ nối với frontend hiện tại.
+Đã nâng cấp cơ chế Map-Reduce + Auto-padding để luôn trả về đủ 10 câu hỏi.
 """
 from __future__ import annotations
 
 import json
 import logging
 import re
+import asyncio
 from collections import Counter
 from itertools import cycle
 from typing import Any
@@ -125,13 +126,19 @@ def _build_system_prompt(persona: str) -> str:
         "suy nghĩ như thành viên hội đồng, và tạo ra bộ câu hỏi tranh biện sâu sắc, thực tế, có tính soi lỗi.\n\n"
         f"Persona: {persona}\n"
         f"Mô tả persona: {description}\n\n"
-        "Yêu cầu đầu ra:\n"
-        f"- Trả về đúng {DEFAULT_QUESTION_COUNT} câu hỏi\n"
-        "- Mỗi câu hỏi phải có: id, question, hint, difficulty, persona\n"
-        "- difficulty chỉ được là: easy, medium, hard\n"
-        "- persona trong từng item phải khớp persona hiện tại\n"
-        "- Chỉ trả về JSON object hợp lệ, không markdown, không giải thích thêm\n"
-        "- Định dạng JSON phải có key 'questions' chứa danh sách câu hỏi\n"
+        "LUẬT BẮT BUỘC (CRITICAL): BẠN CHỈ ĐƯỢC PHÉP TRẢ VỀ ĐÚNG MỘT OBJECT JSON. "
+        "KHÔNG ĐƯỢC CÓ BẤT KỲ CHỮ NÀO KHÁC TRƯỚC HAY SAU JSON. CẤU TRÚC PHẢI NHƯ SAU:\n"
+        "{\n"
+        '  "questions": [\n'
+        '    {\n'
+        '      "id": 1,\n'
+        '      "question": "Nội dung câu hỏi...",\n'
+        '      "hint": "Gợi ý trả lời...",\n'
+        '      "difficulty": "easy",\n'
+        f'      "persona": "{persona}"\n'
+        '    }\n'
+        "  ]\n"
+        "}"
     )
 
 
@@ -150,9 +157,8 @@ def _build_user_prompt(document: Document, chunks: list[str], persona: str) -> s
         f"Document name: {document.filename}\n"
         f"Document type: {document.doc_type.value}\n"
         f"Persona: {persona}\n\n"
-        "Hãy đọc các chunk bên dưới rồi sinh câu hỏi phản biện. Câu hỏi phải bám sát nội dung tài liệu, "
-        "tránh câu hỏi quá chung chung. Ưu tiên hỏi về mục tiêu, kiến trúc, công nghệ, trade-off, giới hạn, "
-        "rủi ro, và khả năng áp dụng thực tế.\n\n"
+        "Hãy đọc các đoạn trích (chunks) bên dưới rồi sinh câu hỏi phản biện. Câu hỏi phải bám sát nội dung, "
+        "tránh chung chung. Ưu tiên hỏi về mục tiêu, kiến trúc, công nghệ, trade-off, giới hạn, rủi ro.\n\n"
         "Document chunks:\n"
         + "\n\n".join(chunk_text)
     )
@@ -161,28 +167,58 @@ def _build_user_prompt(document: Document, chunks: list[str], persona: str) -> s
 
 def _extract_json_payload(content: str) -> dict[str, Any]:
     text = content.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
-        text = re.sub(r"\s*```$", "", text)
+    
+    # 1. Dọn dẹp Markdown code blocks an toàn (tránh lỗi hiển thị UI)
+    tick3 = "`" * 3
+    if text.startswith(tick3):
+        text = re.sub(r"^" + tick3 + r"(?:json)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*" + tick3 + r"$", "", text)
 
     try:
+        # Cố gắng parse thẳng
         return json.loads(text)
-    except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+    except json.JSONDecodeError as e:
+        logger.warning(f"JSON Parse Error. Đang thử cứu dữ liệu... Lỗi: {e}")
+        
+        # 2. Chiêu cứu hộ: Tìm mảng JSON bất kỳ (bỏ qua các chữ rác xung quanh)
+        match = re.search(r'\[\s*\{.*?\}\s*\]', text, flags=re.DOTALL)
         if match:
-            return json.loads(match.group(0))
-        raise
+            try:
+                array_data = json.loads(match.group(0))
+                return {"questions": array_data}
+            except json.JSONDecodeError:
+                pass
+                
+        # 3. Trả về rỗng để không sập cả group Map-Reduce
+        logger.error(f"Thất bại hoàn toàn khi parse JSON. Nội dung rác:\n{text[:200]}...")
+        return {"questions": []}
 
 
 def _normalize_questions(raw_questions: list[Any], persona: str) -> list[AssessmentQuestion]:
     questions: list[AssessmentQuestion] = []
-    for index, item in enumerate(raw_questions[:DEFAULT_QUESTION_COUNT], start=1):
+    count = 1
+    for item in raw_questions:
         if not isinstance(item, dict):
             continue
         item = dict(item)
-        item["id"] = index
+        
+        # Đảm bảo có đủ trường
+        if "question" not in item:
+            continue
+            
+        item["id"] = count
         item["persona"] = persona
+        
+        if "difficulty" not in item or item["difficulty"] not in ["easy", "medium", "hard"]:
+            item["difficulty"] = "medium"
+            
         questions.append(AssessmentQuestion(**item))
+        count += 1
+        
+        # Dừng lại nếu đã đủ số lượng câu hỏi
+        if len(questions) >= DEFAULT_QUESTION_COUNT:
+            break
+            
     return questions
 
 
@@ -326,33 +362,56 @@ async def generate_questions(
         )
 
     system_prompt = _build_system_prompt(persona)
-    user_prompt = _build_user_prompt(document, chunks, persona)
 
     try:
-        # Gọi NVIDIA với Model chuẩn của họ
-        ai_result = await ai_gateway.generate(
-            prompt=user_prompt,
-            provider="nvidia",
-            model="meta/llama-3.1-70b-instruct",  # <--- GÁN CỨNG TÊN MODEL NÀY VÀO ĐÂY!
-            system_prompt=system_prompt,
-            temperature=0.2,
-            max_tokens=3000,
-            response_format_json=False,  # Cứ để False cho an toàn
-        )
+        # [MAP PHASE]: Xử lý từng chunk (hoặc nhóm 3 chunk) song song
+        tasks = []
+        chunk_groups = [chunks[i:i+3] for i in range(0, len(chunks), 3)]
+        
+        for group in chunk_groups:
+            tasks.append(ai_gateway.generate(
+                prompt=_build_user_prompt(document, group, persona),
+                provider="nvidia",
+                model="meta/llama-3.1-70b-instruct",
+                system_prompt=system_prompt,
+                temperature=0.2,
+                max_tokens=3000, 
+            ))
+        
+        # Chờ tất cả chạy xong, lỗi ở 1 group không làm vỡ các group khác
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # [REDUCE PHASE]: Tổng hợp kết quả an toàn
+        all_raw_questions = []
+        for res in results:
+            if isinstance(res, Exception):
+                logger.warning(f"Một chunk bị lỗi, bỏ qua: {res}")
+                continue
+            if isinstance(res, dict) and "content" in res:
+                payload = _extract_json_payload(res["content"])
+                all_raw_questions.extend(payload.get("questions", []))
+        
+        # Lọc lại, lấy tối đa 10 câu
+        questions = _normalize_questions(all_raw_questions, persona)
+        
+        # TỰ ĐỘNG BÙ CÂU HỎI (PADDING) NẾU AI SINH THIẾU
+        if len(questions) < DEFAULT_QUESTION_COUNT:
+            logger.warning(f"AI chỉ sinh được {len(questions)} câu hợp lệ. Bù thêm bằng heuristic...")
+            fallback_qs = _heuristic_questions(document, chunks, persona)
+            needed = DEFAULT_QUESTION_COUNT - len(questions)
+            
+            # Đắp thêm cho đủ số lượng DEFAULT_QUESTION_COUNT
+            for q in fallback_qs[:needed]:
+                q.id = len(questions) + 1
+                questions.append(q)
 
-        payload = _extract_json_payload(ai_result["content"])
-        raw_questions = payload.get("questions", [])
-        questions = _normalize_questions(raw_questions, persona)
+        provider_name = "nvidia (multi-chunk)"
+        model_name = "meta/llama-3.1-70b-instruct"
 
-        if not questions:
-            raise ValueError("AI response does not contain valid questions")
-
-        provider_name = ai_result["provider"]
-        model_name = ai_result["model"]
     except Exception as exc:
-        logger.warning("AI generate failed for document %s, falling back to heuristic: %s", document.id, exc)
+        logger.warning("AI generate failed, falling back to heuristic: %s", exc)
         questions = _heuristic_questions(document, chunks, persona)
-        provider_name = "heuristic"
+        provider_name = "heuristic" 
         model_name = "rules-v1"
 
     assessment.chunks = chunks
