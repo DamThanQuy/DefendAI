@@ -51,6 +51,7 @@ class Document(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String(255), nullable=False)
+    file_type = Column(String(50), nullable=False)
     doc_type = Column(SQLEnum(DocType), nullable=False)
     status = Column(SQLEnum(DocumentStatus), default=DocumentStatus.uploaded, nullable=False)
     file_path = Column(String(512), nullable=False)

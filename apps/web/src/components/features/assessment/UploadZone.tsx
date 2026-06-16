@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 
+
 export function UploadZone() {
   const router = useRouter();
   const [isDragging, setIsDragging] = useState(false);
@@ -18,6 +19,26 @@ export function UploadZone() {
     e.preventDefault();
     setIsDragging(true);
   };
+
+type Props = {
+  onFileSelected?: (file: File) => void;
+  title?: string;
+  description?: string;
+  accept?: string;
+  buttonLabel?: string;
+};
+
+/** UploadZone — chọn file rồi gọi callback. */
+export function UploadZone({
+  onFileSelected,
+  title,
+  description,
+  accept,
+  buttonLabel,
+}: Props) {
+  const [dragOver, setDragOver] = useState(false);
+  const [fileName, setFileName] = useState<string | null>(null);
+ ([FEAT]: Tich hop AI de scan file")
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
@@ -104,7 +125,12 @@ export function UploadZone() {
   };
 
   return (
+ feature/AI-integration
+
+    <div className="w-full">
+
     <div className="w-full relative h-full">
+
       <div
         className={`w-full h-full border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ease-in-out cursor-pointer flex flex-col items-center justify-center min-h-[460px] relative overflow-hidden bg-white ${
           isDragging
@@ -154,9 +180,43 @@ export function UploadZone() {
           </div>
         )}
         
+=======
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={onDrop}
+      className={[
+        "rounded-xl border-2 border-dashed p-10 text-center transition-colors",
+        dragOver ? "border-primary bg-muted" : "border-border",
+      ].join(" ")}
+    >
+      <p className="text-lg font-medium">
+        {title ?? "Kéo thả file PDF / DOCX / PPTX / ZIP vào đây"}
+      </p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        {description ?? "hoặc"}
+      </p>
+
+      <label className="mt-4 inline-block cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
+        {buttonLabel ?? "Chọn file"}
+ ([FEAT]: Tich hop AI de scan file")
         <input
+ feature/AI-integration
+          id="file-upload"
+          type="file"
+          accept={accept ?? ".pdf,.docx,.pptx,.zip"}
+          onChange={onChange}
+ ([FEAT]: Tich hop AI de scan file")
+          className="hidden"
+          onChange={handleFileChange}
+          accept=".pdf,.docx,.zip,.rar"
+
           id="file-upload" type="file" className="hidden"
           onChange={handleFileChange} accept=".pdf,.docx,.zip,.rar"
+
         />
       </div>
 
