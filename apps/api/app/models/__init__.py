@@ -1,30 +1,36 @@
-# Import tất cả models để đảm bảo chúng được register với SQLAlchemy Base
-from app.core.database import Base
+"""
+Register tất cả models với SQLAlchemy Base.
 
-# Import models từ entities.py (đã có đầy đủ: User, Document, Assessment, CodeAnalysis,
-# Meeting, MeetingMember, Evaluation, Report)
-from app.models.entities import (
-    User,
-    Document,
+IMPORT顺序 QUAN TRỌNG: phải import tất cả model trước khi tạo engine.
+"""
+from app.core.database import Base  # noqa: F401
+
+from app.models.user import User  # noqa: F401
+from app.models.document import Document, DocType, DocumentStatus  # noqa: F401
+from app.models.meeting import Meeting, MeetingMember, MeetingStatus, MemberRole  # noqa: F401
+from app.models.assessment import (  # noqa: F401
     Assessment,
+    AssessmentStatus,
     CodeAnalysis,
-    Meeting,
-    MeetingMember,
     Evaluation,
     Report,
 )
 
-# Import Session từ session.py
-from app.models.session import Session
+# Import Session (giữ nguyên)
+from app.models.session import Session  # noqa: F401
 
-# Export tất cả models
 __all__ = [
     "User",
     "Document",
+    "DocType",
+    "DocumentStatus",
     "Assessment",
+    "AssessmentStatus",
     "CodeAnalysis",
     "Meeting",
     "MeetingMember",
+    "MeetingStatus",
+    "MemberRole",
     "Evaluation",
     "Report",
     "Session",

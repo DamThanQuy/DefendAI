@@ -59,7 +59,15 @@ lerna-debug.log*
 *.sqlite
 *.sqlite3
 
+# Uploads
+apps/api/uploads/
+uploads/
+
+# Serena
+.serena/
+
 # Misc
 .cache/
 .temp/
 tmp/
+test_sample.pdf
