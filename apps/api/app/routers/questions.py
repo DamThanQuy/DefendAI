@@ -421,3 +421,41 @@ async def generate_questions(
         provider=provider_name,
         model=model_name,
     )
+
+
+@router.get(
+    "/{assessment_id}",
+    response_model=GenerateQuestionsResponse,
+    summary="Lấy kết quả assessment theo ID",
+)
+async def get_assessment(
+    assessment_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Lấy kết quả assessment (câu hỏi đã generate) theo ID."""
+    result = await db.execute(
+        select(Assessment).where(Assessment.id == assessment_id)
+    )
+    assessment = result.scalar_one_or_none()
+    if not assessment:
+        raise HTTPException(status_code=404, detail=f"Assessment {assessment_id} not found")
+
+    # Lấy document info
+    doc_result = await db.execute(select(Document).where(Document.id == assessment.document_id))
+    document = doc_result.scalar_one_or_none()
+    doc_name = document.filename if document else "unknown"
+
+    return GenerateQuestionsResponse(
+        assessment_id=assessment.id,
+        document_id=assessment.document_id,
+        document_name=doc_name,
+        persona=assessment.persona,
+        status=assessment.status.value,
+        chunks_count=len(assessment.chunks or []),
+        questions=[
+            AssessmentQuestion(**q) if isinstance(q, dict) else q
+            for q in (assessment.questions or [])
+        ],
+        provider="cached",
+        model="cached",
+    )
