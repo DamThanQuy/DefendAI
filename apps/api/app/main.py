@@ -10,6 +10,7 @@ from app.core.config import settings
 # Import routers (mỗi module đăng ký 1 router)
 from app.routers import ai as ai_router
 from app.routers import documents as documents_router
+from app.routers import questions as questions_router
 # Khởi tạo AI gateway ngay khi import (sẽ log providers nào đã ready)
 from app.services.ai_client import ai_gateway
 
@@ -32,6 +33,8 @@ app.add_middleware(
 app.include_router(ai_router.router)
 # Document upload endpoints (upload, get, list)
 app.include_router(documents_router.router)
+# Question generation endpoints (generate, get assessment)
+app.include_router(questions_router.router)
 
 
 @app.get("/")
