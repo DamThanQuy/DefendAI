@@ -6,7 +6,7 @@ export interface ButtonProps
   size?: "default" | "sm" | "lg" | "icon"
 }
 
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className = "", variant = "default", size = "default", ...props }, ref) => {
     
     const baseStyles = "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-50"
@@ -30,15 +30,39 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const variantStyles = variants[variant] || variants.default
     const sizeStyles = sizes[size] || sizes.default
 
+type Variant = keyof typeof variants;
+type Size = keyof typeof sizes;
+
+export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: Variant;
+  size?: Size;
+  asChild?: boolean;
+};
+
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  function Button(
+    { className, variant = "default", size = "md", asChild = false, children, ...props },
+    ref,
+  ) {
+    const classes = cn(base, variants[variant], sizes[size], className);
+
+    if (asChild && React.isValidElement(children)) {
+      return React.cloneElement(children, {
+        ...props,
+        className: cn(classes, (children.props as { className?: string }).className),
+      });
+    }
+
     return (
       <button
         ref={ref}
-        className={`${baseStyles} ${variantStyles} ${sizeStyles} ${className}`}
+        className={classes}
         {...props}
-      />
-    )
-  }
-)
-Button.displayName = "Button"
+      >
+        {children}
+      </button>
+    );
+  },
+);
 
 export { Button }
