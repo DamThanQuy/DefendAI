@@ -38,6 +38,9 @@ async def health_check():
 
 from app.schemas.critique import CodeCritiqueRequest, CodeCritiqueResponse
 from app.services.ai_service import analyze_code_with_ai
+from app.routers import documents
+
+app.include_router(documents.router)
 
 @app.post("/api/ai/critique-code", response_model=CodeCritiqueResponse)
 async def critique_code(request: CodeCritiqueRequest):
