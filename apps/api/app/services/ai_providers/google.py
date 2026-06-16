@@ -30,12 +30,18 @@ class GoogleProvider(OpenAICompatibleProvider):
     - gemini-2.0-flash, gemini-2.5-pro, gemini-3.5-flash (nếu cần)
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        model: str | None = None,
+    ) -> None:
         super().__init__(
-            api_key=settings.google.api_key,
-            base_url=settings.google.base_url,
+            api_key=api_key or settings.google.api_key,
+            base_url=base_url or settings.google.base_url,
             provider_name="google",
         )
+        self._model = "gemini-1.5-flash"
 
     def get_default_model(self) -> str:
-        return settings.google.model
+        return self._model

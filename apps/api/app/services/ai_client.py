@@ -28,6 +28,7 @@ Cách dùng:
     result = await ai_gateway.worker(prompt="Extract keywords...")
 """
 import logging
+import os
 from typing import Any
 
 from app.core.config import settings
@@ -50,46 +51,56 @@ class AIGateway:
 
     def _configure(self) -> None:
         """
-        Khởi tạo các provider có API key thật.
-        Bỏ qua nếu key là PLACEHOLDER (chưa inject).
+        Khởi tạo các provider từ biến môi trường.
         """
-        # NVIDIA NIM
-        if settings.nvidia.api_key and not self._is_placeholder(settings.nvidia.api_key):
-            try:
-                self.providers["nvidia"] = NVIDIAProvider()
-                logger.info(
-                    "✓ NVIDIA provider ready | model=%s | base_url=%s",
-                    settings.nvidia.model,
-                    settings.nvidia.base_url,
-                )
-            except Exception as e:
-                logger.warning("✗ NVIDIA provider failed to init: %s", e)
-        else:
-            logger.info("⊘ NVIDIA provider skipped (no API key or PLACEHOLDER)")
+        # Định nghĩa cấu hình cho các provider
+        # Nếu muốn thêm model mới, chỉ cần thêm 1 dòng vào đây
+        providers_meta = {
+            "nvidia": {
+                "class": NVIDIAProvider,
+                "api_key": os.getenv("NVIDIA_API_KEY"),
+                "base_url": os.getenv("NVIDIA_BASE_URL"),
+                "model": os.getenv("NVIDIA_MODEL")
+            },
+            "google": {
+                "class": GoogleProvider,
+                "api_key": os.getenv("GOOGLE_API_KEY"),
+                "base_url": os.getenv("GOOGLE_BASE_URL"),
+                "model": os.getenv("GOOGLE_MODEL")
+            }
+        }
 
-        # Google AI Studio
-        if settings.google.api_key and not self._is_placeholder(settings.google.api_key):
-            try:
-                self.providers["google"] = GoogleProvider()
-                logger.info(
-                    "✓ Google provider ready | model=%s | base_url=%s",
-                    settings.google.model,
-                    settings.google.base_url,
-                )
-            except Exception as e:
-                logger.warning("✗ Google provider failed to init: %s", e)
-        else:
-            logger.info("⊘ Google provider skipped (no API key or PLACEHOLDER)")
+        for name, meta in providers_meta.items():
+            key = meta["api_key"]
+            if key and not self._is_placeholder(key):
+                try:
+                    # Khởi tạo provider với đầy đủ thông số
+                    self.providers[name] = meta["class"](
+                        api_key=key,
+                        base_url=meta["base_url"],
+                        model=meta["model"]
+                    )
+                    logger.info(f"✓ {name.upper()} provider ready | model={meta['model']}")
+                except Exception as e:
+                    logger.warning(f"✗ {name.upper()} init failed: {e}")
+            else:
+                logger.info(f"⊘ {name.upper()} provider skipped (missing API Key)")
 
         if not self.providers:
-            logger.warning(
-                "⚠ No AI provider configured! Set NVIDIA_API_KEY and/or GOOGLE_API_KEY in .env"
-            )
+            logger.warning("⚠ No AI provider configured!")
 
     @staticmethod
     def _is_placeholder(value: str) -> bool:
         """Check xem value có phải placeholder không."""
         return "PLACEHOLDER" in value.upper() or not value.strip()
+
+    @staticmethod
+    def _env_value(name: str, default: str = "") -> str:
+        value = os.getenv(name)
+        # Nếu biến môi trường không tồn tại hoặc chỉ chứa chuỗi rỗng/khoảng trắng
+        if value is None or not value.strip():
+            return default
+        return value.strip()
 
     # ========== Public API ==========
 
