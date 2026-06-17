@@ -15,9 +15,9 @@ from app.routers import questions as questions_router
 from app.services.ai_client import ai_gateway
 
 app = FastAPI(
-    title="AI Project Defense System API",
+    title=settings.app_name,
     description="Backend API cho hệ thống hỗ trợ bảo vệ đồ án bằng AI",
-    version="0.1.0"
+    version=settings.version,
 )
 
 # Cấu hình CORS để frontend có thể gọi API
@@ -39,12 +39,11 @@ app.include_router(questions_router.router)
 # Code review endpoints (scan source code ZIP)
 app.include_router(code_scan_router.router)
 
-
 @app.get("/")
 async def root():
     return {
-        "message": "AI Project Defense System API",
-        "version": "0.1.0",
+        "message": settings.app_name,
+        "version": settings.version,
         "status": "running"
     }
 
@@ -54,19 +53,19 @@ async def health_check():
     Health check endpoint để kiểm tra server và AI status (Real-time).
     """
     import os
-    
+
     # Kiểm tra trực tiếp RAM container xem Docker có truyền Key vào thật không
     google_env = os.getenv("GOOGLE_API_KEY")
     nvidia_env = os.getenv("NVIDIA_API_KEY")
-    
+
     google_sys_ready = bool(google_env) and "PLACEHOLDER" not in google_env.upper()
     nvidia_sys_ready = bool(nvidia_env) and "PLACEHOLDER" not in nvidia_env.upper()
-    
+
     # Nếu trong bộ nhớ RAM container CÓ KEY, nhưng gateway vẫn báo TRỐNG -> Tiến hành tự động nạp lại (Auto-Heal)
     if (google_sys_ready or nvidia_sys_ready) and not ai_gateway.providers:
         print("🔄 [Auto-Heal] Phát hiện có API Key hệ thống nhưng Gateway bị kẹt Singleton rỗng. Đang nạp lại...")
         ai_gateway._configure()  # Ép gateway chạy lại hàm quét môi trường
-        
+
     return {
         "status": "healthy",
         "ai_providers": list(ai_gateway.providers.keys()),

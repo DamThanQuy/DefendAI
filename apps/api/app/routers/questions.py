@@ -33,10 +33,8 @@ from app.schemas.assessment import (
 from app.services.ai_client import ai_gateway
 from app.services.document_parser import DocumentParserError, parse_and_chunk
 
-
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/questions", tags=["Questions"])
-
 
 PERSONA_ALIASES = {
     "ly_thuyet": "theory",
@@ -113,11 +111,9 @@ GENERIC_TOPICS = {
     "method", "methods", "approach", "analysis", "implementation", "overview", "workflow",
 }
 
-
 def _normalize_persona(raw_persona: str) -> str:
     persona = (raw_persona or "theory").strip().lower()
     return PERSONA_ALIASES.get(persona, persona)
-
 
 def _build_system_prompt(persona: str) -> str:
     description = PERSONA_DESCRIPTIONS.get(persona, PERSONA_DESCRIPTIONS["theory"])
@@ -141,12 +137,10 @@ def _build_system_prompt(persona: str) -> str:
         "}"
     )
 
-
 def _truncate_text(text: str, max_chars: int = MAX_PROMPT_CHARS) -> str:
     if len(text) <= max_chars:
         return text
     return text[:max_chars] + "\n\n[... truncated because document is too long ...]"
-
 
 def _build_user_prompt(document: Document, chunks: list[str], persona: str) -> str:
     chunk_text = []
@@ -164,10 +158,9 @@ def _build_user_prompt(document: Document, chunks: list[str], persona: str) -> s
     )
     return _truncate_text(prompt)
 
-
 def _extract_json_payload(content: str) -> dict[str, Any]:
     text = content.strip()
-    
+
     # 1. Dọn dẹp Markdown code blocks an toàn (tránh lỗi hiển thị UI)
     tick3 = "`" * 3
     if text.startswith(tick3):
@@ -179,7 +172,7 @@ def _extract_json_payload(content: str) -> dict[str, Any]:
         return json.loads(text)
     except json.JSONDecodeError as e:
         logger.warning(f"JSON Parse Error. Đang thử cứu dữ liệu... Lỗi: {e}")
-        
+
         # 2. Chiêu cứu hộ: Tìm mảng JSON bất kỳ (bỏ qua các chữ rác xung quanh)
         match = re.search(r'\[\s*\{.*?\}\s*\]', text, flags=re.DOTALL)
         if match:
@@ -188,11 +181,10 @@ def _extract_json_payload(content: str) -> dict[str, Any]:
                 return {"questions": array_data}
             except json.JSONDecodeError:
                 pass
-                
+
         # 3. Trả về rỗng để không sập cả group Map-Reduce
         logger.error(f"Thất bại hoàn toàn khi parse JSON. Nội dung rác:\n{text[:200]}...")
         return {"questions": []}
-
 
 def _normalize_questions(raw_questions: list[Any], persona: str) -> list[AssessmentQuestion]:
     questions: list[AssessmentQuestion] = []
@@ -201,26 +193,25 @@ def _normalize_questions(raw_questions: list[Any], persona: str) -> list[Assessm
         if not isinstance(item, dict):
             continue
         item = dict(item)
-        
+
         # Đảm bảo có đủ trường
         if "question" not in item:
             continue
-            
+
         item["id"] = count
         item["persona"] = persona
-        
+
         if "difficulty" not in item or item["difficulty"] not in ["easy", "medium", "hard"]:
             item["difficulty"] = "medium"
-            
+
         questions.append(AssessmentQuestion(**item))
         count += 1
-        
+
         # Dừng lại nếu đã đủ số lượng câu hỏi
         if len(questions) >= DEFAULT_QUESTION_COUNT:
             break
-            
-    return questions
 
+    return questions
 
 def _extract_keywords(chunks: list[str], limit: int = 12) -> list[str]:
     words: list[str] = []
@@ -263,7 +254,6 @@ def _extract_keywords(chunks: list[str], limit: int = 12) -> list[str]:
     topics = deduped
     return topics
 
-
 def _topic_label(topic: str) -> str:
     cleaned = topic.strip()
     if not cleaned:
@@ -273,7 +263,6 @@ def _topic_label(topic: str) -> str:
     if len(cleaned.split()) == 1 and len(cleaned) <= 5:
         return "hướng tiếp cận này"
     return cleaned
-
 
 def _heuristic_questions(document: Document, chunks: list[str], persona: str) -> list[AssessmentQuestion]:
     templates = QUESTION_BLUEPRINTS.get(persona, QUESTION_BLUEPRINTS["theory"])
@@ -306,7 +295,6 @@ def _heuristic_questions(document: Document, chunks: list[str], persona: str) ->
         )
 
     return questions
-
 
 @router.post(
     "/generate",
@@ -367,7 +355,7 @@ async def generate_questions(
         # [MAP PHASE]: Xử lý từng chunk (hoặc nhóm 3 chunk) song song
         tasks = []
         chunk_groups = [chunks[i:i+3] for i in range(0, len(chunks), 3)]
-        
+
         for group in chunk_groups:
             tasks.append(ai_gateway.generate(
                 prompt=_build_user_prompt(document, group, persona),
@@ -375,12 +363,12 @@ async def generate_questions(
                 model="meta/llama-3.1-70b-instruct",
                 system_prompt=system_prompt,
                 temperature=0.2,
-                max_tokens=3000, 
+                max_tokens=3000,
             ))
-        
+
         # Chờ tất cả chạy xong, lỗi ở 1 group không làm vỡ các group khác
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # [REDUCE PHASE]: Tổng hợp kết quả an toàn
         all_raw_questions = []
         for res in results:
@@ -390,16 +378,16 @@ async def generate_questions(
             if isinstance(res, dict) and "content" in res:
                 payload = _extract_json_payload(res["content"])
                 all_raw_questions.extend(payload.get("questions", []))
-        
+
         # Lọc lại, lấy tối đa 10 câu
         questions = _normalize_questions(all_raw_questions, persona)
-        
+
         # TỰ ĐỘNG BÙ CÂU HỎI (PADDING) NẾU AI SINH THIẾU
         if len(questions) < DEFAULT_QUESTION_COUNT:
             logger.warning(f"AI chỉ sinh được {len(questions)} câu hợp lệ. Bù thêm bằng heuristic...")
             fallback_qs = _heuristic_questions(document, chunks, persona)
             needed = DEFAULT_QUESTION_COUNT - len(questions)
-            
+
             # Đắp thêm cho đủ số lượng DEFAULT_QUESTION_COUNT
             for q in fallback_qs[:needed]:
                 q.id = len(questions) + 1
@@ -411,7 +399,7 @@ async def generate_questions(
     except Exception as exc:
         logger.warning("AI generate failed, falling back to heuristic: %s", exc)
         questions = _heuristic_questions(document, chunks, persona)
-        provider_name = "heuristic" 
+        provider_name = "heuristic"
         model_name = "rules-v1"
 
     assessment.chunks = chunks
@@ -432,4 +420,42 @@ async def generate_questions(
         questions=questions,
         provider=provider_name,
         model=model_name,
+    )
+
+
+@router.get(
+    "/{assessment_id}",
+    response_model=GenerateQuestionsResponse,
+    summary="Lấy kết quả assessment theo ID",
+)
+async def get_assessment(
+    assessment_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Lấy kết quả assessment (câu hỏi đã generate) theo ID."""
+    result = await db.execute(
+        select(Assessment).where(Assessment.id == assessment_id)
+    )
+    assessment = result.scalar_one_or_none()
+    if not assessment:
+        raise HTTPException(status_code=404, detail=f"Assessment {assessment_id} not found")
+
+    # Lấy document info
+    doc_result = await db.execute(select(Document).where(Document.id == assessment.document_id))
+    document = doc_result.scalar_one_or_none()
+    doc_name = document.filename if document else "unknown"
+
+    return GenerateQuestionsResponse(
+        assessment_id=assessment.id,
+        document_id=assessment.document_id,
+        document_name=doc_name,
+        persona=assessment.persona,
+        status=assessment.status.value,
+        chunks_count=len(assessment.chunks or []),
+        questions=[
+            AssessmentQuestion(**q) if isinstance(q, dict) else q
+            for q in (assessment.questions or [])
+        ],
+        provider="cached",
+        model="cached",
     )

@@ -140,15 +140,15 @@ List tất cả documents, sắp xếp mới nhất lên đầu.
 
 ## Edge Cases
 
-> **Cập nhật ngày 14/6/2026** — Đối chiếu với code thực tế: `documents.py` (router), `document_parser.py` (service).
+> **Cập nhật ngày 15/6/2026** — Đối chiếu với code thực tế: `documents.py` (router), `document_parser.py` (service).
 
 ### Bảo mật
 
 | Trường hợp ngoại lệ | Rủi ro | Mức ưu tiên | Trạng thái | Ghi chú |
 |--------------------|--------|-------------|------------|---------|
 | **Zip bomb / giải nén bom** | File ZIP nén nhiều lớp, giải nén > 1TB → đầy disk | 🔴 Cao | ❌ Chưa giải quyết | Chưa có code xử lý ZIP trong upload router. Cần thêm giới hạn kích thước giải nén khi implement code parser cho ZIP. |
-| **Giả mạo phần mở rộng file** | Đổi đuôi `.exe` → `.pdf`, server vẫn lưu → mã độc | 🔴 Cao | ❌ Chưa giải quyết | Chỉ kiểm tra extension (`Path(filename).suffix`), chưa kiểm tra magic bytes. |
-| **Path traversal** | Tên file `../../../etc/passwd` ghi đè file hệ thống | 🔴 Cao | ⚠️ Chưa đầy đủ | `_save_file()` dùng `uuid + filename` để tạo tên unique, nhưng **không sanitize** tên file gốc (không filter `..`, `/`). Vì file chỉ lưu (không resolve lại theo user path) nên rủi ro thấp, nhưng chưa an toàn tuyệt đối. |
+| **Giả mạo phần mở rộng file** | Đổi đuôi `.exe` → `.pdf`, server vẫn lưu → mã độc | 🔴 Cao | ✅ Đã giải quyết | `_validate_magic_bytes()` kiểm tra 4 byte đầu có khớp extension. DOCX/PPTX (ZIP-based) được skip check đặc biệt. |
+| **Path traversal** | Tên file `../../../etc/passwd` ghi đè file hệ thống | 🔴 Cao | ✅ Đã giải quyết | `_sanitize_filename()` dùng `os.path.basename()` loại bỏ path traversal, filter null bytes, replace tên rỗng. |
 | **ZIP chứa file thực thi** | File `.exe` / `.bat` / `.sh` ẩn trong ZIP | 🟡 Trung bình | ❌ Chưa giải quyết | Chưa có code parse ZIP trong upload router. Cần whitelist extension khi implement ZIP parser. |
 
 ### Chất lượng tài liệu
@@ -158,7 +158,7 @@ List tất cả documents, sắp xếp mới nhất lên đầu.
 | **PDF scan / chỉ có ảnh** | Không có lớp text → AI không đọc được nội dung | 🔴 Cao | ✅ Đã giải quyết | `document_parser.py` có `MIN_TEXT_LENGTH_WARN = 50` → log warning khi text quá ngắn. OCR pipeline sẽ được thêm sau. |
 | **PDF chứa sơ đồ, ảnh minh họa** | Mất thông tin quan trọng (diagrams, charts) | 🟡 Trung bình | ❌ Chưa giải quyết | Cần Vision AI (GPT-4V / Gemini) cho MVP phase 2. |
 | **PDF có mật khẩu bảo vệ** | PyPDF2 báo lỗi → server crash | 🔴 Cao | ✅ Đã giải quyết | `_extract_pdf()` bắt lỗi qua try/except trong loop từng trang + `extract_text()` bắt lỗi chung → raise `DocumentParserError`, không crash server. |
-| **File rỗng (0 bytes)** | Upload thành công nhưng không dùng được | 🔴 Cao | ❌ Chưa giải quyết | Chưa kiểm tra `len(content) == 0` trong router. |
+| **File rỗng (0 bytes)** | Upload thành công nhưng không dùng được | 🔴 Cao | ✅ Đã giải quyết | Kiểm tra `len(content) == 0` → trả 400 Bad Request trước khi lưu. |
 | **File hỏng (corrupt)** | Parser crash khi đọc | 🟡 Trung bình | ✅ Đã giải quyết | `extract_text()` có try/except bao wrapping toàn bộ quá trình extract → raise `DocumentParserError` thay vì crash. |
 | **DOCX/PPTX chỉ có ảnh, không text** | Giống PDF scan — trích xuất được 0 ký tự | 🟡 Trung bình | ⚠️ Chưa đầy đủ | `MIN_TEXT_LENGTH_WARN` chỉ log warning cho PDF. Chưa áp dụng kiểm tra này cho DOCX/PPTX (cần thêm check sau khi extract ở router level). |
 
@@ -170,7 +170,7 @@ List tất cả documents, sắp xếp mới nhất lên đầu.
 | **ZIP chứa >1000 files** | Quá nhiều code, không đủ context window cho AI | 🟡 Trung bình | ❌ Chưa giải quyết | Chưa implement ZIP parser. |
 | **File code >2000 dòng** | Chưa implement chunking code | 🟡 Trung bình | ⚠️ Một phần | `chunk_text()` đã implement chunking text (~4000 chars/chunk), nhưng chưa áp dụng riêng cho file code (code parser chưa tích hợp). |
 | **Tên file Unicode đặc biệt** | Tiếng Việt có dấu, emoji, ký tự đặc biệt | 🟢 Thấp | ✅ Đã giải quyết | Python xử lý Unicode native, `String(255)` trong SQLAlchemy hỗ trợ UTF-8. |
-| **Tên file >255 ký tự** | Vượt giới hạn cột `String(255)` | 🟡 Trung bình | ❌ Chưa giải quyết | Chưa cắt tên file trước khi lưu DB. |
+| **Tên file >255 ký tự** | Vượt giới hạn cột `String(255)` | 🟡 Trung bình | ✅ Đã giải quyết | `_sanitize_filename()` truncate stem tại 200 ký tự (giữ extension), đảm bảo < 255. |
 
 ### Logic nghiệp vụ
 
@@ -186,9 +186,9 @@ List tất cả documents, sắp xếp mới nhất lên đầu.
 
 | Trạng thái | Số lượng |
 |------------|----------|
-| ✅ Đã giải quyết | **6** |
+| ✅ Đã giải quyết | **10** |
 | ⚠️ Chưa đầy đủ / Một phần | **3** |
-| ❌ Chưa giải quyết | **12** |
+| ❌ Chưa giải quyết | **8** |
 
 ---
 

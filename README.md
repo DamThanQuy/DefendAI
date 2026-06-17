@@ -45,42 +45,154 @@ EXE101/
 | **Dev B** | AI Engineer | `apps/api/` (AI Pipeline, Prompts) |
 | **Dev C** | Fullstack Integration | DB, Auth, WebSocket, DevOps |
 
-## Quick Start
+## Yêu cầu (Prerequisites)
 
-### 1. Clone & Setup
+Chọn **1 trong 2 cách**:
 
-```bash
+| Cách | Yêu cầu | Ghi chú |
+|------|---------|---------|
+| **A. Docker (Khuyên dùng)** | Docker Desktop | Không cần cài gì thêm |
+| **B. Manual** | Node 18+, Python 3.11+, PostgreSQL 15+ | Cài từng thứ riêng |
+
+---
+
+## Cách A: Chạy bằng Docker (Khuyên dùng cho người mới)
+
+Docker giúp bạn chạy toàn bộ hệ thống (FE + BE + DB) chỉ với 1 lệnh, không cần cài Node/Python/PostgreSQL thủ công.
+
+### 1. Cài Docker (nếu chưa có)
+
+| OS | Hướng dẫn |
+|----|-----------|
+| **Windows / Mac** | Tải [Docker Desktop](https://www.docker.com/products/docker-desktop/), cài đặt, khởi động |
+| **Linux** | `sudo apt install docker.io docker-compose-v2` |
+
+Kiểm tra đã cài xong:
+```powershell
+docker --version
+```
+Nếu ra số phiên bản là OK.
+
+### 2. Clone project
+
+```powershell
 git clone <repo-url>
-cd EXE101
-
-# Install dependencies
-cd apps/web && npm install
-cd ../api && pip install -r requirements.txt
+cd DefendAI
 ```
 
-### 2. Environment Variables
+### 3. Tạo file .env
 
-```bash
-# apps/web/.env.local
-NEXT_PUBLIC_API_URL=http://localhost:8000
+Copy file mẫu rồi điền API key:
+```powershell
+cp .env.example .env
+```
 
-# apps/api/.env
+Mở file `.env` và điền key:
+```
+NVIDIA_API_KEY=nvapi-xxx...
+GOOGLE_API_KEY=AIzaxxx...
+```
+
+### 4. Chạy toàn bộ hệ thống (lần đầu)
+
+```powershell
+docker compose up --build
+```
+- **Lần đầu chạy rất lâu** (vài phút) vì phải tải image + cài dependencies
+- Lần sau chỉ cần `docker compose up` (nhanh hơn)
+
+### 5. Chạy migration + seed database
+
+Mở terminal khác và gõ:
+```powershell
+docker compose exec api alembic upgrade head
+docker compose exec api python scripts/seed.py
+```
+
+### 6. Mở trình duyệt
+
+| Ứng dụng | URL |
+|----------|-----|
+| **Frontend** | http://localhost:3000 |
+| **API Docs (Swagger)** | http://localhost:8000/docs |
+| **Database** | localhost:5433 (user: postgres, pass: postgres) |
+
+### Docker commands thường dùng
+
+| Lệnh | Mô tả |
+|------|-------|
+| `docker compose up` | Chạy hệ thống |
+| `docker compose up -d` | Chạy ngầm (không log) |
+| `docker compose down` | Tắt toàn bộ |
+| `docker compose logs -f` | Xem log realtime |
+| `docker compose logs api -f` | Xem log riêng backend |
+| `docker compose exec api python scripts/seed.py` | Chạy lệnh trong container backend |
+
+---
+
+## Cách B: Chạy thủ công (Manual)
+
+Dành cho ai đã có sẵn Node, Python, PostgreSQL.
+
+### 1. Clone & Install
+
+```powershell
+git clone <repo-url>
+cd DefendAI/apps/web; npm install
+cd ../api; pip install -r requirements.txt
+```
+
+### 2. Tạo database PostgreSQL
+
+Mở pgAdmin hoặc command line:
+```sql
+CREATE DATABASE defense_db;
+```
+
+### 3. Environment Variables
+
+Tạo file `apps/api/.env`:
+```env
 DATABASE_URL=postgresql://user:pass@localhost:5432/defense_db
-OPENAI_API_KEY=sk-...
-GOOGLE_API_KEY=...
+NVIDIA_API_KEY=nvapi-xxx...
+GOOGLE_API_KEY=AIzaxxx...
+SECRET_KEY=your-secret-key
 ```
 
-### 3. Run Development
+Tạo file `apps/web/.env.local`:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
 
-```bash
+### 4. Migration & Seed
+
+```powershell
+cd apps/api; alembic upgrade head
+cd apps/api; python scripts/seed.py
+```
+
+### 5. Run
+
+```powershell
 # Terminal 1: Backend
-cd apps/api
-uvicorn app.main:app --reload --port 8000
+cd apps/api; uvicorn app.main:app --reload --port 8000
 
 # Terminal 2: Frontend
-cd apps/web
-npm run dev
+cd apps/web; npm run dev
 ```
+
+---
+
+## Troubleshooting (Lỗi thường gặp)
+
+| Lỗi | Nguyên nhân | Fix |
+|-----|------------|-----|
+| `port 3000/8000 already in use` | Port bị ứng dụng khác chiếm | Tắt app đó hoặc đổi port khác |
+| `'docker' is not recognized` | Chưa cài Docker | Cài Docker Desktop, khởi động lại terminal |
+| `Cannot connect to database` | DB chưa chạy hoặc sai URL | Kiểm tra `docker compose ps` hoặc DATABASE_URL |
+| `ModuleNotFoundError: ...` | Thiếu dependencies | Chạy `pip install -r requirements.txt` |
+
+---
 
 ## Luồng git workflow
 
@@ -113,3 +225,4 @@ Upload Đồ án → AI Phân tích → Mock Defense Room → Chấm điểm →
 ---
 
 *Xem chi tiết plan tại `MVP_PLAN.md`*
+*Xem các lệnh thường dùng tại `docs/DEV_NOTES.md`*

@@ -46,6 +46,52 @@ def _get_doc_type(filename: str) -> DocType:
     return EXTENSION_TO_DOCTYPE[ext]
 
 
+def _sanitize_filename(filename: str) -> str:
+    """Loại bỏ path traversal + truncate tên file."""
+    # Lấy basename — loại bỏ path traversal (../, ..\\, /etc/passwd)
+    filename = os.path.basename(filename)
+    # Loại bỏ null bytes
+    filename = filename.replace("\x00", "")
+    # Loại bỏ tên rỗng sau sanitize
+    if not filename or filename.startswith("."):
+        filename = "unnamed"
+    # Truncate nếu > 200 ký tự (giữ extension)
+    stem = Path(filename).stem
+    ext = Path(filename).suffix
+    if len(filename) > 200:
+        filename = stem[:200 - len(ext)] + ext
+    return filename
+
+# Magic bytes prefix cho file validation
+MAGIC_BYTES = {
+    b"%PDF": ".pdf",
+    b"PK\x03\x04": ".zip",  # ZIP (bao gồm DOCX/PPTX cũng là ZIP-based)
+    b"\xd0\xcf\x11\xe0": ".doc",  # OLE-based (legacy .doc/.ppt)
+    b"MZ": ".exe",  # PE executable
+}
+
+def _validate_magic_bytes(content: bytes, expected_ext: str) -> None:
+    """Kiểm tra magic bytes có khớp với extension không (basic check)."""
+    if len(content) < 4:
+        return  # File quá ngắn để check magic bytes
+    file_magic = content[:4]
+    detected_ext = None
+    for magic, ext in MAGIC_BYTES.items():
+        if file_magic.startswith(magic):
+            detected_ext = ext
+            break
+
+    # DOCX/PPTX là ZIP-based nên detected_ext sẽ là ".zip" — skip check
+    if detected_ext == ".zip" and expected_ext in (".docx", ".pptx", ".zip"):
+        return
+
+    # Nếu detect được magic bytes nhưng không khớp extension → reject
+    if detected_ext and detected_ext != expected_ext:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File content does not match extension '{expected_ext}'. Detected: '{detected_ext}'",
+        )
+
 def _save_file(file_content: bytes, filename: str) -> str:
     """Lưu file vào uploads/ với tên unique, trả về file path."""
     unique_name = f"{uuid.uuid4().hex[:12]}_{filename}"
@@ -75,20 +121,28 @@ async def upload_document(
 
     # Read file content + validate size
     content = await file.read()
+
+    # Validate empty file
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="File is empty (0 bytes)")
+
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=413,
             detail=f"File too large. Max size: {MAX_FILE_SIZE // (1024 * 1024)}MB",
         )
 
+    # Validate magic bytes
+    safe_filename = _sanitize_filename(file.filename or "unnamed")
+    _validate_magic_bytes(content, Path(safe_filename).suffix.lower())
+
     # Lưu file
-    file_path = _save_file(content, file.filename or "unnamed")
-    file_type = Path(file.filename or "unnamed").suffix.lower().lstrip(".")
+    file_path = _save_file(content, safe_filename)
 
     # Tạo DB record
     doc = Document(
-        filename=file.filename or "unnamed",
-        file_type=file_type,
+        filename=safe_filename,
+        file_type=Path(safe_filename).suffix.lower(),
         doc_type=doc_type,
         status=DocumentStatus.uploaded,
         file_path=file_path,
