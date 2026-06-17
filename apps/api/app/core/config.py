@@ -41,8 +41,8 @@ class Settings(BaseSettings):
     version: str = "0.1.0"
     debug: bool = True
     
-    # Database (Đọc chính xác DATABASE_URL từ hệ thống container)
-    database_url: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@db:5432/defense_db")
+    # Database (Đọc chính xác DATABASE_URL từ hệ thống)
+    database_url: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/defense_db")
     
     # Auth
     secret_key: str = os.getenv("SECRET_KEY", "change-me-in-production")
