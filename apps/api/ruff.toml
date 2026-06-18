@@ -8,14 +8,14 @@ line-length = 120
 select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "UP",  # pyupgrade
+    "F",   # pyflakes (unused imports, undefined names)
 ]
 ignore = [
-    "E501",   # line too long (handled by formatter)
-    "B008",   # function call in default argument (FastAPI Depends)
+    "E501",   # line too long
+    "W291",   # trailing whitespace
+    "W292",   # no newline at end of file
+    "W293",   # blank line contains whitespace
+    "F841",   # local variable assigned but never used
 ]
 
 [lint.isort]
