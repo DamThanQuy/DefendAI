@@ -49,7 +49,11 @@ git push -u origin main
 
 ---
 
-## Bước 1: CI/CD với GitHub Actions (Free)
+## Bước 1: CI/CD với GitHub Actions (Free) ✅ HOÀN THÀNH
+
+> **Status: ĐÃ HOÀN THÀNH** — CI pipeline đang chạy, tất cả jobs pass.
+> Repo: https://github.com/DamThanQuy/DefendAI/actions
+> Run gần nhất: `CI - Build & Test #4` — ✅ success
 
 CI/CD đảm bảo code mới được kiểm tra trước khi deploy, tránh break production. **Nên setup trước** để các bước deploy sau có auto deploy.
 
