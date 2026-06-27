@@ -1,0 +1,29 @@
+# Ruff config cho DefendAI Backend
+# https://docs.astral.sh/ruff/
+
+target-version = "py312"
+line-length = 120
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (unused imports, undefined names)
+]
+ignore = [
+    "E501",   # line too long
+    "E702",   # multiple statements on one line (semicolon)
+    "E741",   # ambiguous variable name
+    "W291",   # trailing whitespace
+    "W292",   # no newline at end of file
+    "W293",   # blank line contains whitespace
+    "F401",   # unused import
+    "F841",   # local variable assigned but never used
+]
+
+[lint.isort]
+known-first-party = ["app"]
+
+[format]
+quote-style = "double"
+indent-style = "space"

@@ -34,6 +34,8 @@ GitHub Actions:
 
 ## Related Documents
 
+- `../DEPLOY/DEPLOY_GUIDE.md` — Hướng dẫn deploy lên cloud (Vercel/Render/Supabase)
+- `../DEPLOY/DEPLOY_LOCAL_WINDOWS.md` — Hướng dẫn deploy lên máy cá nhân Windows
 - `04-folder-structure.md` — Dockerfile location
 - `02-tech-stack.md` — Technology choices
 - `14-scalability.md` — Scale plan
