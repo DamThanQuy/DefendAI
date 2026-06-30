@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 
 const navLinks = [
   { href: "/", label: "Trang chủ" },
+  { href: "/upload", label: "Tải tài liệu" },
   { href: "/questions", label: "Kết quả AI" },
   { href: "/code-review", label: "Code Review" },
   { href: "/room", label: "Mock Room" },
@@ -16,13 +17,13 @@ export function Navbar() {
   const pathname = usePathname();
 
   return (
-    <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
-      <div className="container mx-auto flex h-[72px] items-center justify-between px-4 lg:px-8">
-        <Link href="/" className="text-[22px] font-extrabold text-[#0f2e82] tracking-tight">
-          GraduAI
+    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/60 backdrop-blur-xl transition-all">
+      <div className="container mx-auto flex h-16 items-center justify-between px-4 lg:px-8">
+        <Link href="/" className="text-2xl font-extrabold tracking-tighter flex items-center gap-2 transition-transform hover:scale-105">
+          <span className="text-gradient">GraduAI</span>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-8 text-[15px] font-medium h-full">
+        <nav className="hidden md:flex items-center gap-8 text-sm font-medium h-full">
           {navLinks.map((link) => {
             const isActive = pathname === link.href;
             return (
@@ -30,24 +31,24 @@ export function Navbar() {
                 key={link.href}
                 href={link.href}
                 className={`relative flex items-center h-full transition-colors ${
-                  isActive ? "text-[#0f2e82] font-semibold" : "text-gray-500 hover:text-gray-900"
+                  isActive ? "text-primary font-semibold" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {link.label}
                 {isActive && (
-                  <span className="absolute bottom-0 left-0 w-full h-[3px] bg-[#0f2e82] rounded-t-full" />
+                  <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary rounded-t-full shadow-[0_0_8px_hsl(var(--primary))]" />
                 )}
               </Link>
             );
           })}
         </nav>
 
-        <div className="flex items-center gap-6">
-          <Link href="/login" className="text-sm font-semibold text-[#0f2e82] hover:text-[#0f2e82]/80 transition-colors">
+        <div className="flex items-center gap-4">
+          <Link href="/login" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
             Đăng nhập
           </Link>
           <Link href="/register">
-            <Button className="bg-[#0f2e82] hover:bg-[#0f2e82]/90 text-white font-medium rounded-md px-6 h-10 shadow-sm">
+            <Button size="sm" className="rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)] transition-all hover:scale-105">
               Bắt đầu
             </Button>
           </Link>
