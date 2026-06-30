@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 
 const navLinks = [
   { href: "/", label: "Trang chủ" },
+  { href: "/upload", label: "Tải tài liệu" },
   { href: "/questions", label: "Kết quả AI" },
   { href: "/code-review", label: "Code Review" },
   { href: "/room", label: "Mock Room" },

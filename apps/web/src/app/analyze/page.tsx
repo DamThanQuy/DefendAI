@@ -8,6 +8,30 @@ import { ArrowLeft, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import ReactMarkdown from 'react-markdown';
 
+function analyzeCodeLocal(code: string) {
+  const imports: any[] = [];
+  const exports: string[] = [];
+  const functions: string[] = [];
+  const classes: string[] = [];
+
+  const importRegex = /import\s+(?:{([^}]+)}|(\w+))\s+from\s+['"]([^'"]+)['"]/g;
+  let m: RegExpExecArray | null;
+  while ((m = importRegex.exec(code)) !== null) {
+    imports.push({ module: m[3], names: m[1] ? m[1].split(",").map((s: string) => s.trim()) : [m[2]] });
+  }
+
+  const exportRegex = /export\s+(?:default\s+)?(?:function|class|const|interface|type)\s+(\w+)/g;
+  while ((m = exportRegex.exec(code)) !== null) exports.push(m[1]);
+
+  const funcRegex = /(?:async\s+)?function\s+(\w+)/g;
+  while ((m = funcRegex.exec(code)) !== null) functions.push(m[1]);
+
+  const classRegex = /class\s+(\w+)/g;
+  while ((m = classRegex.exec(code)) !== null) classes.push(m[1]);
+
+  return { imports, exports, functions, classes };
+}
+
 export default function AnalyzePage() {
   const [code, setCode] = useState("");
   const [result, setResult] = useState<any>(null);
@@ -28,21 +52,10 @@ export default function AnalyzePage() {
     setCritique(null);
 
     try {
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ code }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Analysis failed");
-      }
-
-      setResult(data.ast);
+      // Phân tích AST client-side bằng ts-morph-like parsing đơn giản
+      // Tránh phụ thuộc vào route proxy /api/analyze
+      const astData = analyzeCodeLocal(code);
+      setResult(astData);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -57,7 +70,8 @@ export default function AnalyzePage() {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:8000/api/ai/critique-code", {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(`${API_BASE}/api/ai/critique-code`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

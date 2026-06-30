@@ -14,9 +14,10 @@ Endpoints (GĐ1):
 """
 import asyncio
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.schemas.ai import (
@@ -176,7 +177,58 @@ async def worker(req: AIRequest) -> AIResponse:
 
 
 # ============================================================
-# POST /api/ai/compare
+# POST /api/ai/critique-code
+# ============================================================
+
+class CritiqueCodeRequest(BaseModel):
+    source_code: str = Field(..., min_length=1, description="Source code cần AI critique")
+    ast_data: Optional[dict] = Field(None, description="AST analysis data (optional)")
+
+class CritiqueCodeResponse(BaseModel):
+    critique: str = Field(..., description="AI critique output")
+
+@router.post(
+    "/critique-code",
+    response_model=CritiqueCodeResponse,
+    summary="AI phân tích source code và đưa ra gợi ý cải thiện",
+    description="Nhận source code (và optional AST data), gọi AI gateway để critique.",
+)
+async def critique_code(req: CritiqueCodeRequest) -> CritiqueCodeResponse:
+    prompt_parts = [
+        "Bạn là chuyên gia code review. Hãy phân tích đoạn source code sau và đưa ra các gợi ý cải thiện về: kiến trúc, hiệu suất, bảo mật, readability, và best practices.",
+        "",
+        "Source code:",
+        "```",
+        req.source_code,
+        "```",
+    ]
+    if req.ast_data:
+        prompt_parts.extend([
+            "",
+            "AST metadata:",
+            str(req.ast_data),
+        ])
+    prompt_parts.extend([
+        "",
+        "Hãy trả lời bằng tiếng Việt, ngắn gọn nhưng đầy đủ.",
+    ])
+    prompt = "\n".join(prompt_parts)
+
+    try:
+        result = await ai_gateway.orchestrate(
+            prompt=prompt,
+            system_prompt="Bạn là AI code reviewer chuyên nghiệp. Trả lời ngắn gọn, tập trung vào các vấn đề thực tế.",
+            temperature=0.3,
+            max_tokens=2000,
+        )
+        return CritiqueCodeResponse(critique=result["content"])
+    except Exception as e:
+        logger.exception("Critique code failed")
+        raise HTTPException(status_code=500, detail=f"AI critique failed: {e}")
+
+
+# ============================================================
+# POST /api/ai/worker
 # ============================================================
 @router.post(
     "/compare",

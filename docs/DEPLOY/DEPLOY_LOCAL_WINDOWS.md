@@ -1,5 +1,11 @@
 # DefendAI - Hướng dẫn Deploy lên máy cá nhân Windows
 
+> **Cập nhật**: 2026-06-21
+> **Trạng thái**: Đã deploy thành công trên server (Intel Xeon E3-1245 V2, 6GB RAM, Win 10 Pro)
+> **Docker Backend**: WSL2, data lưu tại `F:\Docker\DockerDesktopWSL`
+> **Project**: `F:\DefendAI`
+> **Đã hoàn thành**: Bước 0-5 ✅ | Còn lại: Truy cập từ xa (Cloudflare Tunnel)
+
 ## Tổng quan kiến trúc
 
 ```
@@ -421,6 +427,179 @@ DefendAI/
 
 ---
 
+## Truy cập từ máy khác (Internet)
+
+Sau khi deploy trên máy cá nhân, bạn cần để các máy khác (trong mạng LAN hoặc qua Internet) truy cập được.
+
+### Phương án 1: Truy cập trong mạng LAN (Free, không cần tên miền)
+
+Tất cả máy tính cùng mạng WiFi/router đều truy cập được bằng IP local.
+
+**Bước 1: Tìm IP máy chủ**
+
+```powershell
+ipconfig
+```
+
+Tìm dòng `IPv4 Address`, ví dụ: `192.168.1.100`
+
+**Bước 2: Truy cập từ máy khác**
+
+```
+http://192.168.1.100:3000   (Frontend)
+http://192.168.1.100:8000   (Backend)
+```
+
+**Bước 3: Mở firewall cho Docker (nếu máy khác không truy cập được)**
+
+```powershell
+# Chạy PowerShell với quyền Admin
+netsh advfirewall firewall add rule name="DefendAI-FE" dir=in action=allow protocol=TCP localport=3000
+netsh advfirewall firewall add rule name="DefendAI-BE" dir=in action=allow protocol=TCP localport=8000
+```
+
+> **Ưu điểm**: Miễn phí, không cần Internet
+> **Nhược điểm**: Chỉ dùng được trong nhà, không truy cập từ ngoài
+
+### Phương án 2: Dùng Cloudflare Tunnel (Free, truy cập từ bất kỳ đâu)
+
+Cloudflare Tunnel tạo đường hầm miễn phí từ Internet → máy của bạn. **Không cần mua tên miền, không cần mở port router.**
+
+**Bước 1: Đăng ký Cloudflare**
+
+1. Vào https://dash.cloudflare.com/sign-up
+2. Đăng ký miễn phí (email + password)
+3. Không cần mua tên miền
+
+**Bước 2: Cài cloudflared**
+
+```powershell
+winget install Cloudflare.cloudflared
+```
+
+Hoặc tải từ: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
+
+**Bước 3: Đăng nhập**
+
+```powershell
+cloudflared tunnel login
+```
+
+Một browser sẽ mở → chọn tài khoản Cloudflare →Authorize
+
+**Bước 4: Tạo tunnel**
+
+```powershell
+cloudflared tunnel create defendai
+```
+
+Ghi lại Tunnel ID (dạng UUID, ví dụ: `a1b2c3d4-...`)
+
+**Bước 5: Cấu hình tunnel**
+
+Tạo file `config.yml`:
+
+```yaml
+tunnel: a1b2c3d4-your-tunnel-id
+credentials-file: C:\Users\QUYDAM\.cloudflared\a1b2c3d4-your-tunnel-id.json
+
+ingress:
+  # Frontend
+  - hostname: defendai.your-domain.com
+    service: http://localhost:3000
+  # Backend
+  - hostname: api-defendai.your-domain.com
+    service: http://localhost:8000
+  # Catch-all (bắt buộc)
+  - service: http_status:404
+```
+
+**Bước 6: Kết nối tunnel với DNS**
+
+Nếu có tên miền trên Cloudflare:
+
+```powershell
+cloudflared tunnel route dns defendai defendai.your-domain.com
+cloudflared tunnel route dns defendai api-defendai.your-domain.com
+```
+
+Nếu **không có tên miền**, dùng URL miễn phí của Cloudflare:
+
+```powershell
+cloudflared tunnel --url http://localhost:3000
+```
+
+Cloudflare sẽ cấp URL dạng: `https://random-name.trycloudflare.com`
+
+**Bước 7: Chạy tunnel**
+
+```powershell
+cloudflared tunnel run defendai
+```
+
+**Bước 8: Kiểm tra**
+
+Mở browser trên **máy khác** → truy cập URL đã cấu hình.
+
+> **Ưu điểm**: Miễn phí, truy cập từ bất kỳ đâu, không cần mở port router
+> **Nhược điểm**: URL miễn phí thay đổi mỗi lần restart. Muốn URL cố định → mua tên miền.
+
+### Phương án 3: Mua tên miền + Cloudflare Tunnel (Có phí, chuyên nghiệp nhất)
+
+Nếu muốn URL cố định kiểu `defendai.com.vn`:
+
+**Mua tên miền:**
+
+| Nền tảng | Giá rẻ nhất | Ghi chú |
+|----------|-------------|---------|
+| **Namecheap** | ~$1/năm (tên miền mới) | Thường có khuyến mãi |
+| **Cloudflare Registrar** | ~$8/năm | Giá gốc, không phí ẩn |
+| **Google Domains** | ~$10/năm | Đơn giản |
+| **Porkbun** | ~$1/năm | Rẻ nhất cho năm đầu |
+
+> **Tìm tên miền `.dev` giá rẻ**: Vào [TLD-list.com](https://tld-list.com/tlds-from-0-to-1) lọc tên miền giá $0-1/năm
+
+**Sau khi mua tên miền, cấu hình trên Cloudflare:**
+
+1. Thêm tên miền vào Cloudflare (follow wizard)
+2. Thay nameserver tại nơi đăng ký thành nameserver của Cloudflare
+3. Tạo tunnel như Phương án 2, dùng hostname thật
+
+**Ví dụ URL cuối cùng:**
+
+```
+https://defendai.your-domain.com       → Frontend (FE)
+https://api-defendai.your-domain.com   → Backend (BE)
+```
+
+### So sánh 3 phương án
+
+| | LAN | Cloudflare Tunnel | Tunnel + Tên miền |
+|--|-----|-------------------|-------------------|
+| **Chi phí** | Free | Free | ~$1-10/năm tên miền |
+| **Truy cập trong nhà** | ✅ | ✅ | ✅ |
+| **Truy cập từ ngoài** | ❌ | ✅ | ✅ |
+| **URL cố định** | IP:port | URL random mỗi lần restart | ✅ URL cố định |
+| **Cần mở port router** | Không | Không | Không |
+| **Phù hợp cho** | Demo nội bộ | Test/Presentation | Sản phẩm thật |
+
+### Khuyến nghị cho đồ án
+
+**Dùng Cloudflare Tunnel (Phương án 2)** là đủ cho đồ án:
+- Miễn phí
+- Truy cập từ bất kỳ đâu
+- Presentation cho giảng viên bằng URL公网
+- Không cần mua tên miền
+
+```powershell
+# Lệnh nhanh: tạo临时 URL
+cloudflared tunnel --url http://localhost:3000
+# → Xuất hiện dòng: https://xxx.trycloudflare.com
+# → Gửi URL đó cho người khác truy cập
+```
+
+---
+
 ## Chi phí
 
 | Service | Chi phí |
@@ -429,7 +608,10 @@ DefendAI/
 | PostgreSQL | $0 (trong Docker) |
 | Backend | $0 (chạy local) |
 | Frontend | $0 (chạy local) |
-| **Tổng** | **$0** |
+| Cloudflare Tunnel | $0 (Free) |
+| Tên miền (tuỳ chọn) | ~$1-10/năm |
+| **Tổng (không tên miền)** | **$0** |
+| **Tổng (có tên miền)** | **~$1-10/năm** |
 
 ---
 
@@ -456,3 +638,185 @@ docker compose down
 # Reset data
 docker compose down -v
 ```
+
+---
+
+## Các cách khác để chạy trên Windows (ngoài Docker)
+
+Nếu máy không dùng được Docker hoặc lỗi DISM như trên, có nhiều cách thay thế:
+
+### Cách A: Chạy thủ công bằng Python + Node + PostgreSQL (Khuyến nghị)
+
+Cài thủ công:
+
+```text
+Python 3.10 - 3.11
+Node.js 18
+PostgreSQL 14 hoặc 15
+```
+
+#### 1. Cài Python
+
+Tải: https://www.python.org/downloads/
+
+**Lưu ý**: khi cài nhớ tích **Add Python to PATH**.
+
+#### 2. Cài Node.js 18
+
+Tải: https://nodejs.org/dist/v18.x.x/node-v18.x-x64.msi
+
+#### 3. Cài PostgreSQL
+
+Tải: https://www.postgresql.org/download/windows/
+
+Sau khi cài, tạo database:
+
+```cmd
+psql -U postgres
+```
+
+```sql
+CREATE DATABASE defense_db;
+\q
+```
+
+#### 4. Chạy Backend
+
+```cmd
+cd d:\STUDY\KY7\EXE101\DefendAI\apps\api
+
+# Tạo venv
+python -m venv venv
+venv\Scripts\activate
+
+# Cài deps
+pip install -r requirements.txt
+```
+
+Tạo file `.env` từ template (đã có ở root project):
+
+```cmd
+cd d:\STUDY\KY7\EXE101\DefendAI
+copy .env.example .env
+notepad .env
+```
+
+Sửa `DATABASE_URL`:
+
+```env
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/defense_db
+```
+
+Chạy migration:
+
+```cmd
+cd d:\STUDY\KY7\EXE101\DefendAI\apps\api
+set DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/defense_db
+alembic upgrade head
+```
+
+Chạy backend:
+
+```cmd
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+#### 5. Chạy Frontend (terminal khác)
+
+```cmd
+cd d:\STUDY\KY7\EXE101\DefendAI\apps\web
+npm install
+npm run dev
+```
+
+Sau đó mở browser:
+
+```text
+http://localhost:3000
+```
+
+**Ưu điểm**:
+
+- Không cần Docker
+- Không cần WSL2 / Virtualization
+- Chạy được trên Win 7/8/10/11
+
+**Nhược điểm**:
+
+- Cài nhiều thứ
+- Có thể gặp lỗi version Python/Node
+
+---
+
+### Cách B: WSL2 (Ubuntu) trên Windows
+
+Nếu bật được WSL2, có thể chạy Docker trong WSL2. Tuy nhiên vẫn cần bật **Virtual Machine Platform** trước.
+
+Cài Ubuntu từ Microsoft Store:
+
+```cmd
+wsl --install -d Ubuntu-22.04
+```
+
+Sau đó trong Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install -y docker.io docker-compose-v2
+```
+
+Dùng `docker compose` như bình thường.
+
+---
+
+### Cách C: Rancher Desktop (thay thế Docker Desktop)
+
+Rancher Desktop có thể dùng thay Docker Desktop và **một số phiên bản ít cần quyền admin hơn**.
+
+Tải: https://rancherdesktop.io/
+
+Cài xong dùng `docker compose` như bình thường.
+
+---
+
+### Cách D: Podman Desktop (thay thế Docker Desktop)
+
+Tải: https://podman-desktop.io/
+
+Tương tự Docker, một số máy chạy được khi Docker lỗi.
+
+---
+
+### Cách E: Cloud free (không cần chạy trên máy cá nhân)
+
+| Service | Nền tảng | Free |
+|---------|----------|------|
+| Frontend | Vercel | Free |
+| Backend | Render | Free |
+| Database | Supabase / Neon | Free |
+
+Máy chỉ cần mở browser để test. **Không cần cài gì trên máy**.
+
+---
+
+## So sánh các cách
+
+| Cách | Cần cài | RAM dùng | Độ khó | Phù hợp |
+|------|---------|----------|--------|---------|
+| Docker Compose | Docker Desktop | ~4-6GB | Dễ | Nếu Docker chạy được |
+| Chạy thủ công (Python + Node + PG) | Python, Node, PostgreSQL | ~1-2GB | Trung bình | Khi không có Docker |
+| WSL2 + Docker | Docker trong WSL | ~3-4GB | Khó hơn | Khi host cần môi trường Linux |
+| Rancher Desktop | Rancher Desktop | ~3-4GB | Dễ | Khi Docker Desktop lỗi |
+| Podman Desktop | Podman Desktop | ~2-3GB | Trung bình | Khi Docker Desktop lỗi |
+| Cloud free (Vercel/Render) | Không | Gần 0 | Dễ | Khi máy yếu hoặc muốn URL cố định |
+
+## Khuyến nghị
+
+| Tình huống | Cách dùng |
+|-----------|-----------|
+| Docker Desktop chạy OK | Docker Compose |
+| Docker Desktop lỗi DISM / virtualization | Cách A: chạy thủ công |
+| Cần môi trường Linux | Cách B: WSL2 |
+| Docker Desktop lỗi nhẹ | Thử Cách C: Rancher hoặc Cách D: Podman |
+| Máy yếu, cần URL cố định | Cách E: cloud free |
+| Demo/presentation nhanh | Cách E: cloud free |

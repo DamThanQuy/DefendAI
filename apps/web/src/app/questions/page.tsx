@@ -1,16 +1,51 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 
+interface Question {
+  id: number;
+  question: string;
+  difficulty: string;
+  suggestion: string;
+  persona?: string;
+}
+
+const difficultyStyle: Record<string, { bg: string; text: string; label: string }> = {
+  "Khó": { bg: "bg-red-50", text: "text-[#d32f2f]", label: "Cốt lõi / Khó" },
+  "Trung bình": { bg: "bg-blue-50", text: "text-blue-600", label: "Kiến trúc / Trung bình" },
+  "Dễ": { bg: "bg-green-50", text: "text-green-700", label: "Hiệu năng / Dễ" },
+};
+
 export default function QuestionsPage() {
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem("questionsData");
+    if (stored) {
+      try {
+        setQuestions(JSON.parse(stored));
+      } catch (e) {
+        console.error("Lỗi parse questionsData:", e);
+      }
+    }
+  }, []);
+
+  const filtered = questions.filter((q) => {
+    if (filter !== "all" && q.difficulty !== filter) return false;
+    if (search && !q.question.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
   return (
     <div className="min-h-screen bg-[#f8f9fa] pb-16">
       <div className="container mx-auto px-4 lg:px-8 pt-6 max-w-[1100px]">
         {/* Breadcrumb */}
         <div className="flex items-center text-[13px] text-gray-500 font-medium mb-4">
           <Link href="/" className="hover:text-[#0f2e82] transition-colors">Trang chủ</Link>
-          <span className="mx-2">›</span>
+          <span className="mx-2">&rsaquo;</span>
           <span className="text-[#0f2e82] font-semibold">Kết quả phân tích (AI Results)</span>
         </div>
 
@@ -19,7 +54,7 @@ export default function QuestionsPage() {
           <div className="max-w-2xl">
             <h1 className="text-[28px] font-bold text-[#0f2e82] mb-3">Kết quả phân tích (AI Results)</h1>
             <p className="text-[#5f6368] text-[14px] leading-relaxed">
-              Dựa trên nội dung đồ án của bạn, AI đã phân tích và dự đoán danh sách các câu hỏi mà hội đồng phản biện có khả năng cao sẽ đặt ra. Hãy chuẩn bị kỹ lưỡng để đạt kết quả tốt nhất.
+              Dựa trên nội dung đồ án của bạn, AI đã phân tích và dự đoán danh sách các câu hỏi mà hội đồng phản biện có khả năng cao sẽ đặt ra.
             </p>
           </div>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex items-center gap-4 min-w-[280px]">
@@ -29,213 +64,83 @@ export default function QuestionsPage() {
               </svg>
             </div>
             <div>
-              <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Trạng thái tổng quan</div>
-              <div className="text-[18px] font-bold text-green-600">Đã chuẩn bị tốt</div>
+              <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Tổng số câu hỏi</div>
+              <div className="text-[18px] font-bold text-green-600">{questions.length} câu hỏi</div>
             </div>
           </div>
         </div>
 
-        {/* Filters Row */}
+        {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-3 mb-8">
-          <div className="relative flex-1 max-w-sm">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <input 
-              type="text" 
-              placeholder="Tìm kiếm câu hỏi..." 
-              className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-full text-[14px] placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0f2e82] focus:border-[#0f2e82] bg-white shadow-sm transition-shadow"
-            />
-          </div>
+          <input
+            type="text"
+            placeholder="Tìm kiếm câu hỏi..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="block flex-1 max-w-sm px-4 py-2 border border-gray-200 rounded-full text-[14px] placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#0f2e82] bg-white shadow-sm"
+          />
           <div className="flex gap-3">
-            <button className="flex items-center gap-2 px-5 py-2 bg-white border border-gray-200 rounded-full text-[13px] font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              Độ khó
-            </button>
-            <button className="flex items-center gap-2 px-5 py-2 bg-white border border-gray-200 rounded-full text-[13px] font-semibold text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
-              </svg>
-              Mới nhất
-            </button>
-          </div>
-        </div>
-
-        {/* Cards Grid Top (1 Wide, 1 Narrow) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          
-          {/* Card 1 (Wide) */}
-          <div className="md:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
-            <div>
-              <div className="flex justify-between items-start mb-4">
-                <span className="px-3 py-1 bg-red-50 text-[#d32f2f] text-[12px] font-bold rounded-full">Cốt lõi / Khó</span>
-                <span className="text-gray-500 text-[12px] font-semibold flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
-                  Độ ưu tiên cao
-                </span>
-              </div>
-              <h3 className="text-[18px] font-bold text-[#0f2e82] mb-3 leading-snug">
-                Làm thế nào để hệ thống đảm bảo tính bảo mật và quyền riêng tư của dữ liệu người dùng khi tích hợp AI thể hệ thứ ba?
-              </h3>
-              <p className="text-gray-600 text-[14px] mb-6">
-                Hội đồng thường xoáy sâu vào khâu lưu trữ và truyền tải dữ liệu nhạy cảm của sinh viên. Đây là điểm yếu phổ biến trong các đồ án EdTech.
-              </p>
-              
-              <div className="bg-[#f8f9fa] rounded-xl p-5 mb-6">
-                <div className="flex items-center gap-2 mb-2 text-[#0f2e82] font-semibold text-[13px]">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                  Gợi ý từ AI:
-                </div>
-                <p className="text-gray-700 text-[14px] italic leading-relaxed">
-                  "Tập trung vào giải pháp mã hóa AES-256 cho dữ liệu tĩnh và TLS 1.3 cho dữ liệu đang truyền tải. Nhấn mạnh việc loại bỏ PII (Thông tin định danh cá nhân) trước khi đưa vào mô hình AI."
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-between items-center mt-2 border-t border-gray-50 pt-4">
-              <span className="px-3 py-1.5 bg-green-50 text-green-700 text-[12px] font-semibold rounded-md flex items-center gap-1">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                Đã sẵn sàng
-              </span>
-              <button className="text-[#0f2e82] font-bold text-[13px] flex items-center gap-1 hover:underline">
-                Xem chi tiết <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+            {[
+              { value: "all", label: "Tất cả" },
+              { value: "Khó", label: "Khó" },
+              { value: "Trung bình", label: "TB" },
+              { value: "Dễ", label: "Dễ" },
+            ].map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                className={`px-4 py-2 rounded-full text-[13px] font-semibold border transition-colors ${
+                  filter === f.value
+                    ? "bg-[#0f2e82] text-white border-[#0f2e82]"
+                    : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {f.label}
               </button>
-            </div>
-          </div>
-
-          {/* Card 2 (Narrow) */}
-          <div className="md:col-span-1 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
-            <div>
-              <div className="mb-4">
-                <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[12px] font-bold rounded-full">Kiến trúc / Trung bình</span>
-              </div>
-              <h3 className="text-[16px] font-bold text-[#0f2e82] mb-5 leading-snug">
-                Tại sao bạn chọn kiến trúc Microservices thay vì Monolith cho dự án này?
-              </h3>
-              
-              <div className="bg-[#f8f9fa] rounded-xl p-4 mb-6 flex-1">
-                <div className="flex items-center gap-2 mb-2 text-[#0f2e82] font-semibold text-[13px]">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                  Gợi ý:
-                </div>
-                <p className="text-gray-600 text-[13px] leading-relaxed">
-                  Giải thích dựa trên khả năng mở rộng (scalability) và khả năng triển khai độc lập các module AI tiêu tốn nhiều tài nguyên.
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-between items-center mt-2 border-t border-gray-50 pt-4">
-              <span className="px-3 py-1.5 bg-orange-50 text-orange-600 text-[12px] font-semibold rounded-md">
-                Cần xem lại
-              </span>
-              <button className="text-[#0f2e82] font-bold text-[13px] hover:underline">
-                Xem chi tiết
-              </button>
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* Cards Grid Bottom (3 Narrow) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          
-          {/* Card 3 */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
-            <div>
-              <div className="mb-4">
-                <span className="px-3 py-1 bg-green-50 text-green-700 text-[12px] font-bold rounded-full">Hiệu năng / Dễ</span>
-              </div>
-              <h3 className="text-[16px] font-bold text-[#0f2e82] mb-5 leading-snug">
-                Làm thế nào để tối ưu hóa thời gian phản hồi của chatbot AI khi có nhiều người dùng cùng lúc?
-              </h3>
-              
-              <div className="bg-[#f8f9fa] rounded-xl p-4 mb-6">
-                <div className="flex items-center gap-2 mb-2 text-[#0f2e82] font-semibold text-[13px]">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                  Gợi ý:
+        {/* Questions Grid */}
+        {questions.length === 0 ? (
+          <div className="text-center py-20 text-gray-500">
+            <p className="text-lg font-medium">Chưa có câu hỏi nào.</p>
+            <p className="text-sm mt-2">Hãy upload tài liệu trên trang chủ để AI sinh câu hỏi.</p>
+            <Link href="/" className="inline-block mt-4 px-6 py-2 bg-[#0f2e82] text-white rounded-full text-sm font-semibold hover:bg-[#0f2e82]/90 transition-colors">
+              Về trang chủ
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+            {filtered.map((q) => {
+              const ds = difficultyStyle[q.difficulty] || difficultyStyle["Trung bình"];
+              return (
+                <div key={q.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start mb-4">
+                      <span className={`px-3 py-1 ${ds.bg} ${ds.text} text-[12px] font-bold rounded-full`}>
+                        {ds.label}
+                      </span>
+                      <span className="text-gray-400 text-[12px] font-semibold">#{q.id}</span>
+                    </div>
+                    <h3 className="text-[16px] font-bold text-[#0f2e82] mb-4 leading-snug">{q.question}</h3>
+                    {q.suggestion && (
+                      <div className="bg-[#f8f9fa] rounded-xl p-4">
+                        <div className="flex items-center gap-2 mb-2 text-[#0f2e82] font-semibold text-[13px]">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                          </svg>
+                          Gợi ý:
+                        </div>
+                        <p className="text-gray-600 text-[13px] leading-relaxed italic">{q.suggestion}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <p className="text-gray-600 text-[13px] leading-relaxed">
-                  Sử dụng Redis cho caching, triển khai Queue (RabbitMQ/Kafka) để xử lý các yêu cầu không đồng bộ.
-                </p>
-              </div>
-            </div>
-            <button className="w-full border border-gray-300 text-[#0f2e82] font-semibold text-[13px] py-2.5 rounded-full hover:bg-gray-50 transition-colors mt-auto">
-              Xem chi tiết
-            </button>
+              );
+            })}
           </div>
-
-          {/* Card 4 */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
-            <div>
-              <div className="mb-4">
-                <span className="px-3 py-1 bg-purple-50 text-purple-700 text-[12px] font-bold rounded-full">Đánh giá / Trung bình</span>
-              </div>
-              <h3 className="text-[16px] font-bold text-[#0f2e82] mb-5 leading-snug">
-                Bạn đã đánh giá độ chính xác của các đề xuất AI bằng phương pháp nào?
-              </h3>
-              
-              <div className="bg-[#f8f9fa] rounded-xl p-4 mb-6">
-                <div className="flex items-center gap-2 mb-2 text-[#0f2e82] font-semibold text-[13px]">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                  Gợi ý:
-                </div>
-                <p className="text-gray-600 text-[13px] leading-relaxed">
-                  Trình bày về độ đo F1-Score và quá trình User Acceptance Testing (UAT) với nhóm đối tượng sinh viên thử nghiệm.
-                </p>
-              </div>
-            </div>
-            <button className="w-full border border-gray-300 text-[#0f2e82] font-semibold text-[13px] py-2.5 rounded-full hover:bg-gray-50 transition-colors mt-auto">
-              Xem chi tiết
-            </button>
-          </div>
-
-          {/* Card 5 */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
-            <div>
-              <div className="mb-4">
-                <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[12px] font-bold rounded-full">Phát triển / Dễ</span>
-              </div>
-              <h3 className="text-[16px] font-bold text-[#0f2e82] mb-5 leading-snug">
-                Kế hoạch mở rộng hệ thống để hỗ trợ các ngôn ngữ lập trình khác trong tương lai?
-              </h3>
-              
-              <div className="bg-[#f8f9fa] rounded-xl p-4 mb-6">
-                <div className="flex items-center gap-2 mb-2 text-[#0f2e82] font-semibold text-[13px]">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                  Gợi ý:
-                </div>
-                <p className="text-gray-600 text-[13px] leading-relaxed">
-                  Sử dụng tính trừu tượng trong mã nguồn để dễ dàng tích hợp các bộ parser mới mà không thay đổi logic lõi.
-                </p>
-              </div>
-            </div>
-            <button className="w-full border border-gray-300 text-[#0f2e82] font-semibold text-[13px] py-2.5 rounded-full hover:bg-gray-50 transition-colors mt-auto">
-              Xem chi tiết
-            </button>
-          </div>
-
-        </div>
-
-        {/* Bottom Banner */}
-        <div className="bg-[#244bba] rounded-2xl p-10 flex flex-col items-start justify-center shadow-md overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-[0.03] rounded-full -mr-10 -mt-10 pointer-events-none"></div>
-          <div className="absolute bottom-0 right-40 w-40 h-40 bg-white opacity-[0.03] rounded-full -mb-10 pointer-events-none"></div>
-          
-          <h2 className="text-[26px] font-bold text-white mb-3 relative z-10">Bạn muốn thử luyện tập trực tiếp?</h2>
-          <p className="text-blue-100 text-[15px] max-w-xl mb-8 relative z-10 leading-relaxed font-medium">
-            Vào Mock Room để thực hành trả lời các câu hỏi này với hội đồng AI ảo. Hệ thống sẽ chấm điểm và chỉnh sửa giọng điệu, phong thái của bạn.
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4 relative z-10">
-            <button className="px-8 py-3 bg-white text-[#244bba] font-bold text-[14px] rounded-lg shadow-sm hover:bg-blue-50 transition-colors">
-              Bắt đầu luyện tập ngay
-            </button>
-            <button className="px-8 py-3 bg-transparent border border-blue-200/40 text-white font-semibold text-[14px] rounded-lg hover:bg-white/10 transition-colors">
-              Tải danh sách PDF
-            </button>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

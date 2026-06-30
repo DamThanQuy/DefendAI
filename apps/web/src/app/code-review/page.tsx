@@ -16,6 +16,62 @@ export default function CodeReviewPage() {
       } catch (e) {
         console.error("Lỗi khi parse dữ liệu scan:", e);
       }
+    } else {
+      // Fake data
+      setScanData({
+        stats: { critical: 2, warnings: 5, optimizations: 8 },
+        backendData: { pass_rate: 0.75 },
+        details: [
+          {
+            severity: "critical",
+            type: "SQL Injection",
+            description: "Đầu vào người dùng không được kiểm tra và làm sạch trước khi đưa vào truy vấn SQL.",
+            suggestion: "Sử dụng Parameterized Queries hoặc ORM (như Prisma, TypeORM) để thay thế cho việc nối chuỗi.",
+            file: "apps/api/src/controllers/user.ts",
+            line: 45
+          },
+          {
+            severity: "high",
+            type: "Hardcoded Secret",
+            description: "Phát hiện chuỗi giống JWT Secret hoặc API Key được code cứng trong file.",
+            suggestion: "Sử dụng biến môi trường (process.env) thay vì để trực tiếp trong mã nguồn.",
+            file: "apps/api/src/config/auth.ts",
+            line: 12
+          },
+          {
+            severity: "medium",
+            type: "Thiếu xử lý ngoại lệ (Try/Catch)",
+            description: "Hàm bất đồng bộ (async) không có khối try/catch bắt lỗi.",
+            suggestion: "Bọc logic trong try/catch hoặc sử dụng middleware xử lý lỗi tập trung.",
+            file: "apps/api/src/services/payment.ts",
+            line: 88
+          },
+          {
+            severity: "medium",
+            type: "Unused Import",
+            description: "Import thư viện 'lodash' nhưng không sử dụng.",
+            suggestion: "Xóa import không dùng để giảm kích thước bundle.",
+            file: "apps/web/src/components/Header.tsx",
+            line: 3
+          },
+          {
+            severity: "low",
+            type: "Console Log",
+            description: "Phát hiện console.log() trong mã nguồn frontend.",
+            suggestion: "Xóa các dòng console.log() trước khi build production.",
+            file: "apps/web/src/app/page.tsx",
+            line: 105
+          },
+          {
+            severity: "low",
+            type: "Thiếu Type (any)",
+            description: "Biến 'data' đang sử dụng kiểu 'any'.",
+            suggestion: "Định nghĩa interface/type cụ thể cho 'data' thay vì dùng 'any'.",
+            file: "apps/web/src/utils/fetcher.ts",
+            line: 22
+          }
+        ]
+      });
     }
   }, []);
 

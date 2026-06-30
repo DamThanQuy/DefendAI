@@ -8,21 +8,47 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing documentId or persona' }, { status: 400 });
     }
 
-    // Giả lập AI generate delay
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Map persona FE → persona BE
+    const personaMap: Record<string, string> = {
+      normal: 'theory',
+      hard: 'strict',
+      tech: 'enterprise',
+    };
 
-    const questions = Array.from({ length: 10 }).map((_, i) => ({
-      id: i + 1,
-      question: `Dưới góc độ ${persona === 'hard' ? 'Hội đồng phản biện khó tính' : persona === 'tech' ? 'Chuyên gia kỹ thuật sâu' : 'Giảng viên hướng dẫn'}, bạn hãy giải thích chi tiết về phần cốt lõi số ${i + 1} trong hệ thống?`,
-      difficulty: i < 3 ? 'Dễ' : i < 7 ? 'Trung bình' : 'Khó',
-      suggestion: 'Tập trung vào ưu điểm, nhược điểm của công nghệ sử dụng và so sánh với các giải pháp khác. Có thể trình bày thêm quy trình xử lý dữ liệu thực tế.'
+    const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+    const res = await fetch(`${backendUrl}/api/questions/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        document_id: Number(documentId),
+        persona: personaMap[persona] || persona,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Backend error' }));
+      return NextResponse.json({ error: 'Question generation failed', details: err }, { status: res.status });
+    }
+
+    const data = await res.json();
+
+    // Map BE response → FE format
+    const questions = (data.questions || []).map((q: any) => ({
+      id: q.id,
+      question: q.question,
+      difficulty: q.difficulty === 'easy' ? 'Dễ' : q.difficulty === 'medium' ? 'Trung bình' : 'Khó',
+      suggestion: q.hint,
+      persona: q.persona,
     }));
 
     return NextResponse.json({
       success: true,
-      questions
+      questions,
+      provider: data.provider,
+      model: data.model,
     });
-  } catch (error) {
-    return NextResponse.json({ error: 'Generation failed' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Question generation proxy error:', error);
+    return NextResponse.json({ error: 'Generation failed', message: error.message }, { status: 500 });
   }
 }

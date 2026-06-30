@@ -1,89 +1,114 @@
 "use client";
 
 import React from "react";
-import { UploadZone } from "@/components/features/assessment/UploadZone";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
-export default function HomePage() {
+export default function LandingPage() {
   return (
-    <div className="min-h-[calc(100vh-4.5rem)] bg-[#f8f9fa] flex flex-col items-center">
-      <div className="container mx-auto px-4 lg:px-8 py-16 lg:py-24 flex flex-col items-center w-full max-w-[1100px]">
-        <div className="text-center mb-16 max-w-3xl">
-          <h1 className="text-[40px] font-bold tracking-tight text-[#0f2e82] mb-5">
-            Tải tài liệu - GraduAI
-          </h1>
-          <p className="text-[17px] text-[#5f6368] leading-relaxed max-w-2xl mx-auto font-medium">
-            Nâng cao chất lượng luận văn và bài nghiên cứu của bạn với trí tuệ nhân tạo chuyên sâu dành cho học thuật.
-          </p>
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full">
-          {/* Left Column - Upload Zone */}
-          <div className="lg:col-span-2 flex w-full">
-            <UploadZone />
+    <div className="min-h-[calc(100vh-4.5rem)] bg-white flex flex-col font-sans">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden bg-[#f8f9fa] pt-24 pb-32">
+        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-center opacity-5"></div>
+        <div className="container relative z-10 mx-auto px-4 lg:px-8 max-w-[1100px] text-center">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-sm font-semibold mb-8">
+            <span className="flex h-2 w-2 rounded-full bg-blue-600"></span>
+            Hệ thống chấm điểm & phản biện AI
           </div>
           
-          {/* Right Column - Info Cards */}
-          <div className="flex flex-col gap-6">
-            {/* Criteria Card */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 flex flex-col">
-              <h3 className="text-[#0f2e82] font-bold text-[13px] tracking-wider uppercase mb-7">Tiêu chuẩn tệp</h3>
-              
-              <div className="space-y-7">
-                <div className="flex gap-4">
-                  <div className="mt-0.5">
-                    <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h4 className="text-gray-900 font-semibold text-[15px] mb-1">Định dạng phù hợp</h4>
-                    <p className="text-[13px] text-gray-500 leading-relaxed font-medium">Chỉ chấp nhận các tệp văn bản .pdf hoặc .docx</p>
-                  </div>
-                </div>
-                
-                <div className="flex gap-4">
-                  <div className="mt-0.5">
-                    <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h4 className="text-gray-900 font-semibold text-[15px] mb-1">Dung lượng tệp</h4>
-                    <p className="text-[13px] text-gray-500 leading-relaxed font-medium">Kích thước tệp dưới 50MB để đảm bảo tốc độ</p>
-                  </div>
-                </div>
-                
-                <div className="flex gap-4">
-                  <div className="mt-0.5">
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h4 className="text-gray-900 font-semibold text-[15px] mb-1">Bảo mật dữ liệu</h4>
-                    <p className="text-[13px] text-gray-500 leading-relaxed font-medium">Tài liệu của bạn được mã hóa và không chia sẻ</p>
-                  </div>
-                </div>
+          <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-8 leading-[1.15]">
+            Chuẩn bị bảo vệ đồ án <br className="hidden md:block" />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#0f2e82] to-[#2563eb]">
+              tự tin và hoàn hảo hơn
+            </span>
+          </h1>
+          
+          <p className="text-lg md:text-xl text-slate-600 leading-relaxed max-w-2xl mx-auto font-medium mb-12">
+            GraduAI giúp bạn phân tích luận văn, tạo phòng bảo vệ thử nghiệm với AI và cung cấp báo cáo đánh giá chi tiết chuẩn học thuật.
+          </p>
+          
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link href="/upload">
+              <Button className="bg-[#0f2e82] hover:bg-[#081a4a] text-white font-semibold text-lg px-8 py-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 w-full sm:w-auto h-auto">
+                Trải nghiệm ngay
+                <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </Button>
+            </Link>
+            <Link href="#features">
+              <Button variant="outline" className="text-slate-700 border-slate-300 hover:bg-slate-50 font-semibold text-lg px-8 py-6 rounded-xl transition-all duration-300 w-full sm:w-auto h-auto">
+                Tìm hiểu thêm
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section id="features" className="py-24 bg-white">
+        <div className="container mx-auto px-4 lg:px-8 max-w-[1100px]">
+          <div className="text-center mb-20">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Tính năng nổi bật</h2>
+            <p className="text-slate-600 max-w-2xl mx-auto text-lg">Mọi công cụ bạn cần để đạt điểm tối đa cho buổi bảo vệ đồ án.</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+            {/* Feature 1 */}
+            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:shadow-lg transition-shadow duration-300 group">
+              <div className="w-14 h-14 rounded-xl bg-blue-100 text-[#0f2e82] flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
               </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Phân Tích Chuyên Sâu</h3>
+              <p className="text-slate-600 leading-relaxed">
+                Tải lên PDF/DOCX đồ án của bạn. AI sẽ tự động phân tích, trích xuất cấu trúc và đưa ra các câu hỏi dự đoán mà hội đồng có thể hỏi.
+              </p>
             </div>
             
-            {/* Support Card */}
-            <div className="bg-[#0f2e82] rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative flex-1 min-h-[180px] flex flex-col justify-end p-6">
-              {/* Image Overlay */}
-              <div 
-                className="absolute inset-0 z-0 bg-cover bg-center opacity-40 mix-blend-overlay"
-                style={{ backgroundImage: "url('https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1000&auto=format&fit=crop')" }}
-              ></div>
-              <div className="absolute inset-0 bg-gradient-to-t from-[#051442] via-[#051442]/80 to-transparent z-10"></div>
-              
-              <div className="relative z-20">
-                <h4 className="text-white font-bold mb-1.5 text-[15px]">Cần hỗ trợ?</h4>
-                <p className="text-blue-100/80 text-[13px] leading-relaxed font-medium pr-4">Xem hướng dẫn định dạng tài liệu chuẩn IEEE/APA</p>
+            {/* Feature 2 */}
+            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:shadow-lg transition-shadow duration-300 group">
+              <div className="w-14 h-14 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
               </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Mock Defense Room</h3>
+              <p className="text-slate-600 leading-relaxed">
+                Mô phỏng buổi bảo vệ đồ án thực tế với đồng hồ bấm giờ, các vòng phản biện và giám khảo AI thông minh để luyện tập kỹ năng thuyết trình.
+              </p>
+            </div>
+            
+            {/* Feature 3 */}
+            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:shadow-lg transition-shadow duration-300 group">
+              <div className="w-14 h-14 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Báo Cáo & Chấm Điểm</h3>
+              <p className="text-slate-600 leading-relaxed">
+                Nhận điểm số đánh giá toàn diện, phân tích biểu đồ radar điểm mạnh/điểm yếu và xuất báo cáo PDF chuẩn mực sau mỗi buổi luyện tập.
+              </p>
             </div>
           </div>
         </div>
-      </div>
+      </section>
+      
+      {/* CTA Section */}
+      <section className="py-20 bg-[#0f2e82] relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-900 to-[#0f2e82]"></div>
+        <div className="container relative z-10 mx-auto px-4 text-center max-w-3xl">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">Sẵn sàng bảo vệ đồ án xuất sắc?</h2>
+          <p className="text-blue-100 text-lg mb-10 opacity-90">Tham gia cùng hàng nghìn sinh viên đã sử dụng GraduAI để nâng cao chất lượng báo cáo và kỹ năng phản biện.</p>
+          <Link href="/upload">
+            <Button className="bg-white text-[#0f2e82] hover:bg-slate-100 font-bold text-lg px-10 py-6 rounded-xl shadow-xl transition-transform hover:scale-105 h-auto">
+              Tải tài liệu lên ngay
+            </Button>
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }
