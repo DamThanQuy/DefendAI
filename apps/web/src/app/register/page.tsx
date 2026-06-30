@@ -33,7 +33,7 @@ export default function RegisterPage() {
           </p>
         </div>
 
-        <Card className="border-0 shadow-xl bg-card/50 backdrop-blur-sm ring-1 ring-primary/10">
+        <Card className="glass-card border-0">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl">Đăng ký mới 🚀</CardTitle>
             <CardDescription>

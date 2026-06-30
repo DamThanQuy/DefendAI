@@ -3,110 +3,133 @@
 import React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
+import { FileText, MonitorPlay, Award, ArrowRight } from "lucide-react";
 
 export default function LandingPage() {
   return (
-    <div className="min-h-[calc(100vh-4.5rem)] bg-white flex flex-col font-sans">
+    <div className="flex flex-col min-h-screen relative overflow-hidden">
+      {/* Background decorations */}
+      <div className="absolute top-0 -left-1/4 w-[150%] h-full bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,0.15),transparent_50%)] pointer-events-none" />
+      
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-[#f8f9fa] pt-24 pb-32">
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-center opacity-5"></div>
-        <div className="container relative z-10 mx-auto px-4 lg:px-8 max-w-[1100px] text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-sm font-semibold mb-8">
-            <span className="flex h-2 w-2 rounded-full bg-blue-600"></span>
-            Hệ thống chấm điểm & phản biện AI
+      <section className="relative pt-32 pb-24 lg:pt-48 lg:pb-32 px-4 z-10 flex flex-col items-center justify-center min-h-[85vh]">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="container mx-auto text-center max-w-4xl"
+        >
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-semibold mb-8 backdrop-blur-sm">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+            </span>
+            Hệ thống AI Mock Defense thế hệ mới
           </div>
           
-          <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-8 leading-[1.15]">
-            Chuẩn bị bảo vệ đồ án <br className="hidden md:block" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#0f2e82] to-[#2563eb]">
-              tự tin và hoàn hảo hơn
-            </span>
+          <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-[1.1] text-foreground">
+            Bảo vệ đồ án với <br />
+            <span className="text-gradient">sự tự tin tuyệt đối</span>
           </h1>
           
-          <p className="text-lg md:text-xl text-slate-600 leading-relaxed max-w-2xl mx-auto font-medium mb-12">
-            GraduAI giúp bạn phân tích luận văn, tạo phòng bảo vệ thử nghiệm với AI và cung cấp báo cáo đánh giá chi tiết chuẩn học thuật.
+          <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto font-medium mb-12">
+            Trải nghiệm nền tảng AI thông minh giúp phân tích, tạo câu hỏi phản biện và mô phỏng phòng bảo vệ đồ án như thật.
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/upload">
-              <Button className="bg-[#0f2e82] hover:bg-[#081a4a] text-white font-semibold text-lg px-8 py-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 w-full sm:w-auto h-auto">
-                Trải nghiệm ngay
-                <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
+              <Button className="rounded-full h-14 px-8 text-lg shadow-[0_0_20px_hsl(var(--primary)/0.5)] transition-all hover:scale-105 group relative overflow-hidden">
+                <span className="relative z-10 flex items-center gap-2">
+                  Trải nghiệm ngay
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-primary to-accent opacity-0 group-hover:opacity-100 transition-opacity z-0" />
               </Button>
             </Link>
             <Link href="#features">
-              <Button variant="outline" className="text-slate-700 border-slate-300 hover:bg-slate-50 font-semibold text-lg px-8 py-6 rounded-xl transition-all duration-300 w-full sm:w-auto h-auto">
-                Tìm hiểu thêm
+              <Button variant="outline" className="rounded-full h-14 px-8 text-lg backdrop-blur-md bg-background/50 border-border hover:bg-background/80 transition-all">
+                Khám phá tính năng
               </Button>
             </Link>
           </div>
-        </div>
+        </motion.div>
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-24 bg-white">
-        <div className="container mx-auto px-4 lg:px-8 max-w-[1100px]">
+      <section id="features" className="py-24 relative z-10">
+        <div className="container mx-auto px-4 lg:px-8 max-w-6xl">
           <div className="text-center mb-20">
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Tính năng nổi bật</h2>
-            <p className="text-slate-600 max-w-2xl mx-auto text-lg">Mọi công cụ bạn cần để đạt điểm tối đa cho buổi bảo vệ đồ án.</p>
+            <h2 className="text-3xl md:text-5xl font-bold mb-4">Tính năng nổi bật</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
+              Mọi công cụ bạn cần để đạt điểm tối đa.
+            </p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Feature 1 */}
-            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:shadow-lg transition-shadow duration-300 group">
-              <div className="w-14 h-14 rounded-xl bg-blue-100 text-[#0f2e82] flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+            <motion.div 
+              whileHover={{ y: -10 }}
+              className="glass rounded-3xl p-8 relative overflow-hidden group"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-[50px] rounded-full group-hover:bg-primary/20 transition-colors" />
+              <div className="w-14 h-14 rounded-2xl bg-primary/20 text-primary flex items-center justify-center mb-6 shadow-inner">
+                <FileText className="w-7 h-7" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">Phân Tích Chuyên Sâu</h3>
-              <p className="text-slate-600 leading-relaxed">
-                Tải lên PDF/DOCX đồ án của bạn. AI sẽ tự động phân tích, trích xuất cấu trúc và đưa ra các câu hỏi dự đoán mà hội đồng có thể hỏi.
+              <h3 className="text-xl font-bold mb-3">Phân Tích AI Sâu</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Tự động trích xuất nội dung, tìm ra lỗ hổng logic và dự đoán hàng loạt câu hỏi hội đồng có thể đặt ra cho đồ án của bạn.
               </p>
-            </div>
+            </motion.div>
             
             {/* Feature 2 */}
-            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:shadow-lg transition-shadow duration-300 group">
-              <div className="w-14 h-14 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
+            <motion.div 
+              whileHover={{ y: -10 }}
+              className="glass rounded-3xl p-8 relative overflow-hidden group"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-accent/10 blur-[50px] rounded-full group-hover:bg-accent/20 transition-colors" />
+              <div className="w-14 h-14 rounded-2xl bg-accent/20 text-accent flex items-center justify-center mb-6 shadow-inner">
+                <MonitorPlay className="w-7 h-7" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">Mock Defense Room</h3>
-              <p className="text-slate-600 leading-relaxed">
-                Mô phỏng buổi bảo vệ đồ án thực tế với đồng hồ bấm giờ, các vòng phản biện và giám khảo AI thông minh để luyện tập kỹ năng thuyết trình.
+              <h3 className="text-xl font-bold mb-3">Mock Room</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Giả lập phòng bảo vệ thực tế với đồng hồ bấm giờ, không khí hội đồng và phản biện trực tiếp từ giám khảo AI.
               </p>
-            </div>
+            </motion.div>
             
             {/* Feature 3 */}
-            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:shadow-lg transition-shadow duration-300 group">
-              <div className="w-14 h-14 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
+            <motion.div 
+              whileHover={{ y: -10 }}
+              className="glass rounded-3xl p-8 relative overflow-hidden group"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 blur-[50px] rounded-full group-hover:bg-purple-500/20 transition-colors" />
+              <div className="w-14 h-14 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center mb-6 shadow-inner">
+                <Award className="w-7 h-7" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">Báo Cáo & Chấm Điểm</h3>
-              <p className="text-slate-600 leading-relaxed">
-                Nhận điểm số đánh giá toàn diện, phân tích biểu đồ radar điểm mạnh/điểm yếu và xuất báo cáo PDF chuẩn mực sau mỗi buổi luyện tập.
+              <h3 className="text-xl font-bold mb-3">Chấm Điểm & Báo Cáo</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Hệ thống chấm điểm chuẩn mực theo rubric, cung cấp file PDF báo cáo chi tiết giúp bạn cải thiện ngay lập tức.
               </p>
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>
       
       {/* CTA Section */}
-      <section className="py-20 bg-[#0f2e82] relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-900 to-[#0f2e82]"></div>
-        <div className="container relative z-10 mx-auto px-4 text-center max-w-3xl">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">Sẵn sàng bảo vệ đồ án xuất sắc?</h2>
-          <p className="text-blue-100 text-lg mb-10 opacity-90">Tham gia cùng hàng nghìn sinh viên đã sử dụng GraduAI để nâng cao chất lượng báo cáo và kỹ năng phản biện.</p>
-          <Link href="/upload">
-            <Button className="bg-white text-[#0f2e82] hover:bg-slate-100 font-bold text-lg px-10 py-6 rounded-xl shadow-xl transition-transform hover:scale-105 h-auto">
-              Tải tài liệu lên ngay
-            </Button>
-          </Link>
+      <section className="py-24 relative z-10">
+        <div className="container mx-auto px-4 max-w-5xl">
+          <div className="glass rounded-[3rem] p-12 md:p-20 text-center relative overflow-hidden border-primary/20 shadow-[0_0_50px_rgba(99,102,241,0.1)]">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10 pointer-events-none" />
+            <h2 className="text-3xl md:text-5xl font-bold mb-6">Sẵn sàng toả sáng?</h2>
+            <p className="text-muted-foreground text-lg mb-10 max-w-2xl mx-auto">
+              Hàng ngàn sinh viên đã chuẩn bị hoàn hảo với GraduAI. Đừng để sự cố nhỏ làm hỏng điểm số của bạn.
+            </p>
+            <Link href="/upload">
+              <Button size="lg" className="rounded-full h-14 px-10 text-lg shadow-[0_0_20px_hsl(var(--primary)/0.6)] hover:scale-105 transition-transform">
+                Bắt đầu hoàn toàn miễn phí
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
     </div>
