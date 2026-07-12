@@ -17,10 +17,10 @@ export function Navbar() {
   const pathname = usePathname();
 
   return (
-    <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
+    <header className="bg-background/80 backdrop-blur-md border-b border-border sticky top-0 z-50">
       <div className="container mx-auto flex h-[72px] items-center justify-between px-4 lg:px-8">
-        <Link href="/" className="text-[22px] font-extrabold text-[#0f2e82] tracking-tight">
-          GraduAI
+        <Link href="/" className="text-[22px] font-extrabold text-teal-400 tracking-tight">
+          Gradu<span className="text-foreground">AI</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-8 text-[15px] font-medium h-full">
@@ -30,13 +30,13 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`relative flex items-center h-full transition-colors ${
-                  isActive ? "text-[#0f2e82] font-semibold" : "text-gray-500 hover:text-gray-900"
+                className={`relative flex items-center h-full transition-colors duration-200 ${
+                  isActive ? "text-teal-400 font-semibold" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {link.label}
                 {isActive && (
-                  <span className="absolute bottom-0 left-0 w-full h-[3px] bg-[#0f2e82] rounded-t-full" />
+                  <span className="absolute bottom-0 left-0 w-full h-[3px] bg-teal-500 rounded-t-full shadow-glow" />
                 )}
               </Link>
             );
@@ -44,11 +44,11 @@ export function Navbar() {
         </nav>
 
         <div className="flex items-center gap-6">
-          <Link href="/login" className="text-sm font-semibold text-[#0f2e82] hover:text-[#0f2e82]/80 transition-colors">
+          <Link href="/login" className="text-sm font-semibold text-teal-400 hover:brightness-110 transition-all duration-200">
             Đăng nhập
           </Link>
           <Link href="/register">
-            <Button className="bg-[#0f2e82] hover:bg-[#0f2e82]/90 text-white font-medium rounded-md px-6 h-10 shadow-sm">
+            <Button className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-medium rounded-md px-6 h-10 hover:brightness-110 active:scale-[0.98] shadow-glow transition-all duration-200">
               Bắt đầu
             </Button>
           </Link>

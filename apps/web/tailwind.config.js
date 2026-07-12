@@ -5,27 +5,35 @@ module.exports = {
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  darkMode: "class",
   theme: {
     extend: {
       colors: {
-        primary: {
-          DEFAULT: "#2563eb",
-          foreground: "#ffffff",
-        },
-        background: "#ffffff",
-        foreground: "#0f172a",
+        // Deep dark base (CodeRabbit.ai style)
+        background: "#09090B",
+        surface: "#161B26",
+        foreground: "#E4E4E7",
         muted: {
-          DEFAULT: "#f1f5f9",
-          foreground: "#64748b",
+          DEFAULT: "#18181B",
+          foreground: "#A1A1AA",
         },
-        border: "#e2e8f0",
-        destructive: {
-          DEFAULT: "#dc2626",
-          foreground: "#ffffff",
+        border: "#27272A",
+        // Teal brand accent
+        primary: {
+          DEFAULT: "#0D9488",
+          foreground: "#ECFEFF",
         },
+        // Status (muted dark vibe)
+        critical: { DEFAULT: "#F87171", bg: "#450A0A", border: "#7F1D1D" },
+        warning: { DEFAULT: "#FBBF24", bg: "#422006", border: "#78350F" },
+        success: { DEFAULT: "#2DD4BF", bg: "#042F2E", border: "#134E4A" },
       },
       fontFamily: {
-        sans: ["system-ui", "Segoe UI", "Roboto", "sans-serif"],
+        sans: ["Inter", "system-ui", "Segoe UI", "Roboto", "sans-serif"],
+        mono: ["JetBrains Mono", "Fira Code", "ui-monospace", "monospace"],
+      },
+      boxShadow: {
+        glow: "0 0 20px rgba(13,148,136,0.05)",
       },
     },
   },
