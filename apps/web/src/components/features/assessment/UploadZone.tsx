@@ -2,6 +2,8 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import { uploadDocumentWithProgress } from "@/lib/api";
+import { ACCEPTED_EXTENSIONS, FILE_INPUT_ACCEPT, MAX_FILE_SIZE } from "@/lib/constants";
 
 type Props = {
   onFileSelected?: (file: File) => void;
@@ -14,19 +16,32 @@ type Props = {
 export function UploadZone({
   onFileSelected,
   title = "Kéo thả hoặc chọn tệp",
-  description = "Hỗ trợ định dạng PDF, DOCX, ZIP, RAR (Tối đa 50MB)",
-  accept = ".pdf,.docx,.zip,.rar",
+  description = "Hỗ trợ định dạng PDF, DOCX, PPTX, ZIP (Tối đa 100MB)",
+  accept = FILE_INPUT_ACCEPT,
   buttonLabel = "Chọn từ máy tính",
 }: Props) {
   const router = useRouter();
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusText, setStatusText] = useState("");
+  const [progressPct, setProgressPct] = useState(0);
+  const [errorMsg, setErrorMsg] = useState("");
   const [showPersonaModal, setShowPersonaModal] = useState(false);
   const [documentId, setDocumentId] = useState("");
   const [persona, setPersona] = useState("normal");
+
+  const validateFile = (f: File): string | null => {
+    const ext = "." + (f.name.split(".").pop() || "").toLowerCase();
+    if (!(ACCEPTED_EXTENSIONS as readonly string[]).includes(ext)) {
+      return `Định dạng ${ext} không được hỗ trợ`;
+    }
+    if (f.size > MAX_FILE_SIZE) {
+      return "Tệp vượt quá 100MB";
+    }
+    return null;
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -41,12 +56,14 @@ export function UploadZone({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    setErrorMsg("");
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       setFile(e.dataTransfer.files[0]);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setErrorMsg("");
     if (e.target.files && e.target.files.length > 0) {
       setFile(e.target.files[0]);
     }
@@ -55,12 +72,20 @@ export function UploadZone({
   const processFile = async () => {
     if (!file) return;
 
+    const validationError = validateFile(file);
+    if (validationError) {
+      setErrorMsg(validationError);
+      setIsProcessing(false);
+      return;
+    }
+
     if (onFileSelected) {
       onFileSelected(file);
     }
 
-    const isZip = file.name.endsWith('.zip') || file.name.endsWith('.rar');
+    const isZip = file.name.endsWith(".zip");
     setIsProcessing(true);
+    setErrorMsg("");
 
     if (isZip) {
       setStatusText("Đang quét source code...");
@@ -69,31 +94,29 @@ export function UploadZone({
         formData.append("file", file);
         const res = await fetch("/api/code/scan", { method: "POST", body: formData });
         const data = await res.json();
-        
+
         if (data.success) {
           sessionStorage.setItem("codeReviewData", JSON.stringify(data));
           router.push("/code-review");
+        } else {
+          setErrorMsg(data.error || "Quét source code thất bại");
+          setIsProcessing(false);
         }
       } catch (error) {
         console.error(error);
-      } finally {
+        setErrorMsg("Lỗi mạng khi quét source code");
         setIsProcessing(false);
       }
     } else {
       setStatusText("Đang tải tài liệu lên...");
       try {
-        const formData = new FormData();
-        formData.append("file", file);
-        const res = await fetch("/api/documents/upload", { method: "POST", body: formData });
-        const data = await res.json();
-        
-        if (data.success) {
-          setDocumentId(data.documentId);
-          setIsProcessing(false);
-          setShowPersonaModal(true);
-        }
-      } catch (error) {
+        const result = await uploadDocumentWithProgress(file, setProgressPct);
+        setDocumentId(String(result.documentId));
+        setIsProcessing(false);
+        setShowPersonaModal(true);
+      } catch (error: any) {
         console.error(error);
+        setErrorMsg(error?.message || "Tải tài liệu thất bại");
         setIsProcessing(false);
       }
     }
@@ -175,11 +198,36 @@ export function UploadZone({
         <input id="file-upload" type="file" className="hidden" onChange={handleFileChange} accept={accept} />
       </div>
 
-      {/* Loading Overlay */}
-      {isProcessing && (
+      {/* Loading / Error Overlay */}
+      {isProcessing && !errorMsg && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/90 backdrop-blur-sm rounded-2xl animate-in fade-in border border-border">
           <div className="w-14 h-14 border-[3px] border-border border-t-teal-500 rounded-full animate-spin mb-6"></div>
-          <h3 className="text-[17px] font-bold text-foreground">{statusText}</h3>
+          <h3 className="text-[17px] font-bold text-foreground mb-4">{statusText}</h3>
+          <div className="w-64 h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-teal-500 to-cyan-600 transition-all duration-200"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <p className="text-[13px] text-muted-foreground mt-2 font-mono">{progressPct}%</p>
+        </div>
+      )}
+
+      {errorMsg && !isProcessing && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/90 backdrop-blur-sm rounded-2xl animate-in fade-in border border-border px-6 text-center">
+          <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center mb-4">
+            <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-8.48 14.7A1 1 0 002.74 21h18.52a1 1 0 00.87-1.44l-8.48-14.7a1 1 0 00-1.74 0z" />
+            </svg>
+          </div>
+          <h3 className="text-[16px] font-bold text-foreground mb-2">Đã xảy ra lỗi</h3>
+          <p className="text-[14px] text-red-400 mb-6 max-w-xs">{errorMsg}</p>
+          <button
+            onClick={() => { setErrorMsg(""); processFile(); }}
+            className="px-8 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-600 hover:brightness-110 text-white font-semibold rounded-full shadow-glow transition-all duration-200 text-sm"
+          >
+            Thử lại
+          </button>
         </div>
       )}
 
