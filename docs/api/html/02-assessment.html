@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>02 — Assessment API</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 0 auto; padding: 2rem; line-height: 1.6; background: #ffffff; color: #1f2937; }
+    html { scroll-behavior: smooth; }
+    h2[id], h3[id], h4[id] { scroll-margin-top: 1.5rem; }
+    /* Scrollspy TOC — sticky top bar, giống Google Docs */
+    .toc { position: sticky; top: 0; z-index: 10; background: white; border-bottom: 1px solid #e0e0e0; padding: .5rem 0; margin-bottom: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; overflow-x: auto; }
+    .toc a { white-space: nowrap; font-size: .85rem; color: #6b7280; padding: .2rem .5rem; border-radius: 4px; }
+    .toc a.active { color: #2563eb; background: #eff6ff; font-weight: 600; }
+    .toc a:hover { color: #2563eb; background: #f0f0f0; }
+    @media (max-width: 1100px) { .toc { gap: .5rem; font-size: .75rem; } }
+    h1 { border-bottom: 2px solid #e0e0e0; padding-bottom: .5rem; }
+    h2 { margin-top: 2rem; }
+    h3 { margin-top: 1.5rem; }
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th, td { border: 1px solid #d0d0d0; padding: .5rem .75rem; text-align: left; }
+    th { background: #f5f5f5; }
+    code { background: #f0f0f0; padding: .15em .4em; border-radius: 3px; font-size: .9em; }
+    pre { background: #f4f4f5; color: #1f2937; padding: 1rem; border-radius: 6px; border: 1px solid #e5e7eb; overflow-x: auto; }
+    blockquote { border-left: 4px solid #2563eb; margin: 1rem 0; padding: .5rem 1rem; background: #f8fafc; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 2rem 0; }
+    .anchor { color: #6b7280; font-size: .85em; margin-right: .5rem; }
+</style>
+</head>
+<body>
+
+<nav class="toc" id="toc">
+  <strong>Mục lục</strong>
+  <a href="#overview">Overview</a>
+  <a href="#endpoints">Endpoints</a>
+  <a href="#generate-questions">Generate Questions</a>
+  <a href="#get-job">GET job</a>
+  <a href="#edge-cases">Edge Cases</a>
+  <a href="#related">Related</a>
+</nav>
+<script>
+  // Scrollspy
+  const toc = document.getElementById('toc');
+  const links = toc.querySelectorAll('a');
+  const targets = [];
+  links.forEach(l => {
+    const id = l.getAttribute('href').slice(1);
+    const el = document.getElementById(id);
+    if (el) targets.push({ el, link: l });
+  });
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const match = targets.find(t => t.el === e.target);
+        if (match) match.link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-80px 0px -60%' });
+  targets.forEach(t => observer.observe(t.el));
+</script>
+
+<h1 id="title">02 — Assessment API</h1>
+
+<blockquote>AI phân tích tài liệu và sinh câu hỏi phản biện theo persona.</blockquote>
+
+<h2 id="overview">Overview</h2>
+<p>Module nhận <code>document_id</code> + <code>persona</code> → chạy AI pipeline async (parse → chunk → prompt → call AI) → trả về 10 câu hỏi. Dùng polling pattern để check job status.</p>
+
+<h2 id="endpoints">Endpoints</h2>
+<table>
+  <tr><th>Method</th><th>Path</th><th>Mô tả</th></tr>
+  <tr><td>POST</td><td><code>/api/assessment/generate-questions</code></td><td>AI sinh 10 câu hỏi</td></tr>
+  <tr><td>GET</td><td><code>/api/assessment/jobs/{job_id}</code></td><td>Kiểm tra trạng thái job</td></tr>
+</table>
+
+<hr>
+
+<h2 id="generate-questions">POST <code>/api/assessment/generate-questions</code></h2>
+<p>Gửi <code>document_id</code> + <code>persona</code> → tạo job → chạy AI pipeline async.</p>
+
+<h3 id="request">Request</h3>
+<pre><code class="language-json">{
+  "document_id": 1,
+  "persona": "theory"
+}
+</code></pre>
+<table>
+  <tr><th>Field</th><th>Type</th><th>Required</th><th>Giá trị</th></tr>
+  <tr><td><code>document_id</code></td><td>int</td><td>✅</td><td>ID document đã upload</td></tr>
+  <tr><td><code>persona</code></td><td>string</td><td>✅</td><td><code>theory</code>, <code>enterprise</code>, <code>strict</code></td></tr>
+</table>
+
+<h3 id="response-202">Response (202 Accepted)</h3>
+<pre><code class="language-json">{
+  "job_id": "abc123",
+  "status": "pending",
+  "document_id": 1,
+  "persona": "theory"
+}
+</code></pre>
+
+<h3 id="flow">Flow</h3>
+<pre><code>POST /api/assessment/generate-questions { document_id, persona }
+        ↓
+Tạo job_id, save job record (status: pending)
+        ↓
+[BackgroundTasks] chạy AI pipeline async:
+    1. Load document from DB
+    2. Parse document (PDF/DOCX/PPTX) → text
+    3. Chunk text (~1000 tokens/chunk)
+    4. Load persona prompt
+    5. Build prompt (system + chunks + persona)
+    6. Call AI via AIGateway
+    7. Parse JSON response → 10 questions
+    8. Save to assessments table
+    9. Update job status → completed
+        ↓
+Frontend polls GET /api/assessment/jobs/{job_id} mỗi 2s
+        ↓
+Job completed → render 10 questions
+</code></pre>
+
+<h3 id="error-cases">Error Cases</h3>
+<table>
+  <tr><th>Status</th><th>Message</th><th>Nguyên nhân</th></tr>
+  <tr><td>404</td><td>Document not found</td><td><code>document_id</code> không tồn tại</td></tr>
+  <tr><td>400</td><td>Invalid persona</td><td>Persona không phải <code>theory</code>/<code>enterprise</code>/<code>strict</code></td></tr>
+  <tr><td>422</td><td>Document too short</td><td>Tài liệu quá ngắn, AI không sinh được câu hỏi</td></tr>
+</table>
+
+<hr>
+
+<h2 id="get-job">GET <code>/api/assessment/jobs/{job_id}</code></h2>
+<p>Kiểm tra trạng thái của AI processing job.</p>
+
+<h3 id="response-pending">Response (200 OK) — Pending</h3>
+<pre><code class="language-json">{
+  "job_id": "abc123",
+  "status": "processing",
+  "document_id": 1,
+  "persona": "theory"
+}
+</code></pre>
+
+<h3 id="response-completed">Response (200 OK) — Completed</h3>
+<pre><code class="language-json">{
+  "job_id": "abc123",
+  "status": "completed",
+  "document_id": 1,
+  "persona": "theory",
+  "questions": [
+    {
+      "id": 1,
+      "question": "Bạn có thể giải thích cách hệ thống xử lý...",
+      "suggestion": "Nên đề cập đến...",
+      "category": "security"
+    },
+    ...
+  ]
+}
+</code></pre>
+
+<hr>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<table>
+  <tr><th>Trường hợp ngoại lệ</th><th>Mức ưu tiên</th><th>Trạng thái</th><th>Ghi chú</th></tr>
+  <tr><td>Document không tồn tại</td><td>🔴 Cao</td><td>✅ Đã giải quyết</td><td>Validate <code>document_id</code> trước khi tạo job</td></tr>
+  <tr><td>Persona không hợp lệ</td><td>🔴 Cao</td><td>✅ Đã giải quyết</td><td>Validate enum persona</td></tr>
+  <tr><td>AI provider timeout</td><td>🔴 Cao</td><td>❌ Chưa giải quyết</td><td>Cần retry logic + fallback provider</td></tr>
+  <tr><td>AI trả về JSON invalid</td><td>🟡 Trung bình</td><td>❌ Chưa giải quyết</td><td>Cần parse validation + retry</td></tr>
+  <tr><td>Document quá ngắn (< 50 chars)</td><td>🟡 Trung bình</td><td>✅ Đã giải quyết</td><td>Kiểm tra text length trước khi generate</td></tr>
+  <tr><td>Concurrent jobs cho cùng document</td><td>🟢 Thấp</td><td>❌ Chưa giải quyết</td><td>Có thể skip hoặc queue</td></tr>
+  <tr><td>Job chưa exist</td><td>🟡 Trung bình</td><td>✅ Đã giải quyết</td><td>Return 404</td></tr>
+</table>
+
+<hr>
+
+<h2 id="related">Related</h2>
+<ul>
+  <li>Architecture: <code>07-ai-architecture.md</code> — AI Gateway</li>
+  <li>Architecture: <code>08-rag.md</code> — RAG pipeline</li>
+  <li>Flow: <code>FLOW.md</code> — Main Flow, Persona Flow</li>
+</ul>
+
+</body>
+</html>

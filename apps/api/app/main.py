@@ -42,6 +42,17 @@ app.include_router(questions_router.router)
 # Code review endpoints (scan source code ZIP)
 app.include_router(code_scan_router.router)
 
+@app.on_event("startup")
+async def _ensure_storage() -> None:
+    """Tạo MinIO bucket nếu chưa tồn tại (idempotent)."""
+    from app.services.storage import ensure_bucket
+    try:
+        await ensure_bucket()
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("MinIO bucket init skipped: %s", exc)
+
+
 @app.get("/")
 async def root():
     return {

@@ -28,11 +28,6 @@ services:
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 30
-    volumes:
-      # Mount code để dev có hot-reload
-      - ./apps/api:/app
-      # Exclude __pycache__ để tận dụng Docker layer
-      - /app/__pycache__
     depends_on:
       db:
         condition: service_healthy
@@ -90,11 +85,39 @@ services:
       retries: 5
 
 # ========================================================================
+  # Object Storage (MinIO) — file uploads thay cho disk local
+  # ========================================================================
+  minio:
+    image: minio/minio
+    container_name: defense-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Console UI
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_DOMAIN: localhost
+    volumes:
+      - ./data/minio:/data
+    networks:
+      - defense-net
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+# ========================================================================
 # Volumes (persistent data)
 # ========================================================================
 volumes:
   postgres_data:
     name: defense_postgres_data
+  minio_data:
+    name: defense_minio_data
 
 # ========================================================================
 # Networks

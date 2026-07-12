@@ -20,7 +20,7 @@ class DocumentResponse(BaseModel):
     file_type: str
     doc_type: DocType
     status: DocumentStatus
-    file_path: str
+    storage_key: str
     content_hash: Optional[str] = None
     created_at: datetime
 

@@ -6,11 +6,14 @@ import logging
 import re
 import zipfile
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 from app.models.entities import DocType, Document
 from app.services.ai_client import ai_gateway
+from app.core.config import settings
+from app.services.storage import get_doc
 
 
 logger = logging.getLogger(__name__)
@@ -103,19 +106,22 @@ def _sort_key(file: ScannedFile) -> tuple[int, str]:
     return priority.get(Path(file.path).suffix.lower(), 99), file.path.lower()
 
 
-def extract_code_files(document: Document) -> list[ScannedFile]:
+async def extract_code_files(document: Document) -> list[ScannedFile]:
+    """Read ZIP from MinIO, extract code files. async."""
     if document.doc_type != DocType.ZIP:
         raise CodeScanError("Code review chỉ hỗ trợ file .zip source code")
 
-    zip_path = Path(document.file_path)
-    if not zip_path.exists():
-        raise CodeScanError(f"File not found on disk: {zip_path}")
+    storage_key = document.storage_key
+
+    raw = await get_doc(storage_key, bucket=settings.minio.bucket)
+    if not raw:
+        raise CodeScanError(f"File not found in MinIO: {storage_key}")
 
     scanned: list[ScannedFile] = []
     total_uncompressed = 0
 
     try:
-        with zipfile.ZipFile(zip_path) as archive:
+        with zipfile.ZipFile(BytesIO(raw)) as archive:
             infos = archive.infolist()
             if len(infos) > MAX_ZIP_FILES:
                 raise CodeScanError(f"ZIP contains too many files ({len(infos)} > {MAX_ZIP_FILES})")
@@ -202,7 +208,7 @@ def build_prompt(files: list[ScannedFile]) -> tuple[str, str]:
         "  ],\n"
         '  "strengths": ["string"],\n'
         '  "improvement_suggestions": ["string"]\n'
-        "}"
+        "}\n"
     )
 
     chunks: list[str] = []
@@ -360,7 +366,7 @@ def _heuristic_scan(files: list[ScannedFile]) -> dict[str, Any]:
 
 
 async def analyze_code_document(document: Document, provider: str | None = None, model: str | None = None) -> dict[str, Any]:
-    files = extract_code_files(document)
+    files = await extract_code_files(document)
     system_prompt, user_prompt = build_prompt(files)
 
     try:

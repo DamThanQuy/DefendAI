@@ -21,7 +21,7 @@ Tham khảo:
     python-docx:  https://python-docx.readthedocs.io
     python-pptx:  https://python-pptx.readthedocs.io
 """
-from __future__ import annotations
+from io import BytesIO
 
 import logging
 from pathlib import Path
@@ -31,7 +31,8 @@ from PyPDF2 import PdfReader
 from docx import Document as DocxDocument
 from pptx import Presentation
 
-from app.models.entities import Document, DocType
+from app.models.document import DocType, Document
+from app.services.storage import get_doc
 
 logger = logging.getLogger(__name__)
 
@@ -54,9 +55,9 @@ class DocumentParserError(Exception):
 # ---------------------------------------------------------------------------
 # Extractors — mỗi loại file một hàm riêng
 # ---------------------------------------------------------------------------
-def _extract_pdf(file_path: Path) -> str:
-    """Trích xuất text từ PDF. Trả về text của tất cả các trang, nối bằng 2 newline."""
-    reader = PdfReader(str(file_path))
+def _extract_pdf(src) -> str:
+    """Trích xuất text từ PDF. Nhận str path hoặc file-like object."""
+    reader = PdfReader(src)
     pages: List[str] = []
     for idx, page in enumerate(reader.pages):
         try:
@@ -68,9 +69,9 @@ def _extract_pdf(file_path: Path) -> str:
     return "\n\n".join(pages).strip()
 
 
-def _extract_docx(file_path: Path) -> str:
-    """Trích xuất text từ DOCX, bao gồm paragraph + text trong table cells."""
-    doc = DocxDocument(str(file_path))
+def _extract_docx(src) -> str:
+    """Trích xuất text từ DOCX. Nhận str path hoặc file-like object."""
+    doc = DocxDocument(src)
 
     parts: List[str] = [p.text for p in doc.paragraphs if p.text]
 
@@ -83,9 +84,9 @@ def _extract_docx(file_path: Path) -> str:
     return "\n".join(parts).strip()
 
 
-def _extract_pptx(file_path: Path) -> str:
-    """Trích xuất text từ PPTX, mỗi slide một block có tiêu đề 'Slide N'."""
-    prs = Presentation(str(file_path))
+def _extract_pptx(src) -> str:
+    """Trích xuất text từ PPTX. Nhận str path hoặc file-like object."""
+    prs = Presentation(src)
     blocks: List[str] = []
     for slide_idx, slide in enumerate(prs.slides, start=1):
         slide_lines: List[str] = []
@@ -110,12 +111,12 @@ _EXTRACTORS = {
 # ---------------------------------------------------------------------------
 # Public API — dùng từ router / service khác
 # ---------------------------------------------------------------------------
-def extract_text(document: Document) -> str:
+async def extract_text(document) -> str:
     """
-    Đọc file từ disk theo document.doc_type và trích xuất toàn bộ text.
+    Đọc file từ MinIO theo document.doc_type và trích xuất toàn bộ text.
 
     Args:
-        document: ORM Document (cần doc_type + file_path).
+        document: ORM Document (cần doc_type + storage_key).
 
     Returns:
         Text thô, đã strip. Trả về "" nếu file không có text.
@@ -127,23 +128,32 @@ def extract_text(document: Document) -> str:
     if extractor is None:
         raise DocumentParserError(f"Unsupported doc_type: {document.doc_type}")
 
-    file_path = Path(document.file_path)
-    if not file_path.exists():
-        raise DocumentParserError(f"File not found on disk: {file_path}")
+    storage_key = document.storage_key
+    if not storage_key:
+        raise DocumentParserError(f"Document {document.id} has no storage key")
 
     try:
-        text = extractor(file_path)
+        data = await get_doc(storage_key)
+    except Exception as exc:
+        logger.exception("Failed to download %s from MinIO", storage_key)
+        raise DocumentParserError(f"Download failed for {storage_key}: {exc}") from exc
+
+    # Chuyển bytes → file-like object để parser đọc
+    file_io = BytesIO(data)
+
+    try:
+        text = extractor(file_io)
     except DocumentParserError:
         raise
     except Exception as exc:
-        logger.exception("Failed to extract text from %s", file_path)
-        raise DocumentParserError(f"Extract failed for {file_path.name}: {exc}") from exc
+        logger.exception("Failed to extract text from %s", storage_key)
+        raise DocumentParserError(f"Extract failed for {storage_key}: {exc}") from exc
 
     if len(text) < MIN_TEXT_LENGTH_WARN:
         logger.warning(
             "Extracted text is suspiciously short (%s chars) from %s "
             "(file có thể là scan, ảnh, hoặc rỗng).",
-            len(text), file_path.name,
+            len(text), storage_key,
         )
 
     return text
@@ -235,7 +245,7 @@ def _split_sentences(text: str) -> List[str]:
 # ---------------------------------------------------------------------------
 # Convenience — gọi 1 lần để parse + chunk
 # ---------------------------------------------------------------------------
-def parse_and_chunk(document: Document,
+async def parse_and_chunk(document,
                     chunk_size: int = CHUNK_SIZE_CHARS,
                     overlap: int = CHUNK_OVERLAP_CHARS) -> List[str]:
     """
@@ -243,5 +253,5 @@ def parse_and_chunk(document: Document,
 
     Đây là hàm router/service khác sẽ gọi trực tiếp khi tạo Assessment.
     """
-    text = extract_text(document)
+    text = await extract_text(document)
     return chunk_text(text, chunk_size=chunk_size, overlap=overlap)

@@ -2,22 +2,26 @@
 
 ## Tổng quan
 
+<a id="overview"></a>
 Các endpoint RESTful cho tất cả modules. Prefix: `/api/v1`
 
 ## Danh sách Endpoint
 
+<a id="assessment"></a>
 ### Đánh giá (Assessment)
 | Phương thức | Endpoint | Mô tả |
 |------------|----------|-------|
 | POST | `/api/v1/assessment/generate-questions` | AI sinh 10 câu hỏi |
 | GET | `/api/v1/assessment/jobs/{job_id}` | Kiểm tra trạng thái job |
 
+<a id="code-analysis"></a>
 ### Phân tích mã nguồn (Code Analysis)
 | Phương thức | Endpoint | Mô tả |
 |------------|----------|-------|
 | POST | `/api/v1/code/scan` | AI quét mã nguồn |
 | GET | `/api/v1/code/jobs/{job_id}` | Kiểm tra trạng thái job |
 
+<a id="documents"></a>
 ### Tài liệu (Documents)
 | Phương thức | Endpoint | Mô tả |
 |------------|----------|-------|
@@ -25,6 +29,7 @@ Các endpoint RESTful cho tất cả modules. Prefix: `/api/v1`
 | GET | `/api/v1/documents/{id}` | Lấy thông tin tài liệu |
 | GET | `/api/v1/documents` | Danh sách tài liệu |
 
+<a id="meeting"></a>
 ### Phòng họp (Meeting)
 | Phương thức | Endpoint | Mô tả |
 |------------|----------|-------|
@@ -32,23 +37,27 @@ Các endpoint RESTful cho tất cả modules. Prefix: `/api/v1`
 | GET | `/api/v1/meeting/rooms/{id}` | Lấy thông tin phòng |
 | WS | `/api/v1/meeting/ws/{room_id}` | WebSocket |
 
+<a id="evaluation"></a>
 ### Đánh giá điểm (Evaluation)
 | Phương thức | Endpoint | Mô tả |
 |------------|----------|-------|
 | POST | `/api/v1/evaluation/scores` | Gửi điểm |
 | GET | `/api/v1/evaluation/sessions/{id}/results` | Lấy kết quả |
 
+<a id="report"></a>
 ### Báo cáo (Report)
 | Phương thức | Endpoint | Mô tả |
 |------------|----------|-------|
 | POST | `/api/v1/report/generate` | Tạo báo cáo PDF |
 | GET | `/api/v1/report/{id}/pdf` | Tải PDF |
 
+<a id="health"></a>
 ### Kiểm tra sức khỏe (Health)
 | Phương thức | Endpoint | Mô tả |
 |------------|----------|-------|
 | GET | `/health` | Kiểm tra server |
 
+<a id="response-format"></a>
 ## Định dạng Response
 
 ```json
@@ -62,6 +71,7 @@ Các endpoint RESTful cho tất cả modules. Prefix: `/api/v1`
 }
 ```
 
+<a id="error-format"></a>
 ## Định dạng Lỗi
 
 ```json
@@ -77,6 +87,7 @@ Các endpoint RESTful cho tất cả modules. Prefix: `/api/v1`
 
 ---
 
+<a id="group-detail"></a>
 ## Chi tiết từng Group API
 
 > Xem chi tiết request/response/edge cases tại [`docs/api/`](../api/):
