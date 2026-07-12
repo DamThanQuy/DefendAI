@@ -49,10 +49,10 @@ from __future__ import annotations
 import logging
 from typing import Optional, TYPE_CHECKING
 
+from app.core.config import settings
+
 if TYPE_CHECKING:
     import aioboto3
-
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 

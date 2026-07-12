@@ -120,7 +120,7 @@ export default function AnalyzePage() {
               value={code}
               onChange={(e) => setCode(e.target.value)}
             />
-            {error && <p className="text-sm text-destructive font-medium">{error}</p>}
+            {error && <p className="text-sm text-critical font-medium">{error}</p>}
             <Button onClick={handleAnalyze} disabled={isLoading || isAiLoading} className="w-full">
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Analyze Code
@@ -143,10 +143,10 @@ export default function AnalyzePage() {
                  <pre className="text-xs font-mono flex-1 overflow-auto">
                   {JSON.stringify(result, null, 2)}
                 </pre>
-                <Button 
-                  onClick={handleCritique} 
-                  disabled={isAiLoading || isLoading} 
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                <Button
+                  onClick={handleCritique}
+                  disabled={isAiLoading || isLoading}
+                  className="w-full"
                 >
                   {isAiLoading ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -164,17 +164,17 @@ export default function AnalyzePage() {
           </CardContent>
         </Card>
 
-        <Card className="flex flex-col h-[800px] lg:col-span-1 border-blue-200 shadow-sm">
-          <CardHeader className="bg-blue-50/50 rounded-t-xl">
-            <CardTitle className="text-blue-800 flex items-center">
-              <Sparkles className="mr-2 h-5 w-5 text-blue-600" />
+        <Card className="flex flex-col h-[800px] lg:col-span-1 border-teal-900/50 shadow-glow">
+          <CardHeader className="bg-teal-950/30 rounded-t-xl border-b border-teal-900/30">
+            <CardTitle className="text-teal-400 flex items-center font-mono">
+              <Sparkles className="mr-2 h-5 w-5 text-teal-500" />
               AI Critique
             </CardTitle>
-            <CardDescription className="text-blue-600/80">
+            <CardDescription className="text-teal-400/80">
               Insightful feedback from GPT-4o based on AST
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex-1 overflow-auto p-6 prose prose-sm prose-blue dark:prose-invert max-w-none">
+          <CardContent className="flex-1 overflow-auto p-6 prose prose-sm prose-invert max-w-none">
             {critique ? (
               <ReactMarkdown>{critique}</ReactMarkdown>
             ) : (
