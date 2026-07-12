@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import {
   Mic, MicOff, Video, VideoOff, ScreenShare, MessageSquare,
   Users, PhoneOff, Settings, MoreHorizontal, Hand, Sparkles,
-  Subtitles, Signal, Wifi, Clock
+  Subtitles, Signal, Clock
 } from "lucide-react";
 
 type Participant = {
@@ -14,10 +14,13 @@ type Participant = {
   speaking: boolean;
 };
 
+type Tab = "chat" | "people" | "captions";
+
 export default function MockRoomPage() {
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
-  const [chatOpen, setChatOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState<Tab>("chat");
   const [seconds, setSeconds] = useState(0);
 
   useEffect(() => {
@@ -73,7 +76,7 @@ export default function MockRoomPage() {
 
       {/* Main Area */}
       <div className="flex-1 flex relative overflow-hidden">
-        {/* Stage — video grid */}
+        {/* Stage — video grid (full height, no subtitle strip) */}
         <div className="flex-1 p-3 lg:p-4 flex flex-col gap-3 relative">
           {/* Speaker tiles */}
           <div className={`flex-1 grid gap-3 ${speakers.length === 1 ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2"}`}>
@@ -118,21 +121,8 @@ export default function MockRoomPage() {
             ))}
           </div>
 
-          {/* Subtitle / Live transcript strip (Meet captions style) */}
-          <div className="bg-black/80 backdrop-blur-md border border-teal-900/40 rounded-xl px-5 py-4 flex items-start gap-3 shadow-glow">
-            <div className="shrink-0 w-8 h-8 rounded-full bg-teal-950/40 border border-teal-900/50 flex items-center justify-center">
-              <Subtitles className="w-4 h-4 text-teal-400" />
-            </div>
-            <div className="flex-1">
-              <div className="text-[10px] font-bold text-teal-400 uppercase tracking-widest mb-1 font-mono">Phụ đề trực tiếp — PGS.TS Nguyễn Văn B</div>
-              <p className="text-white text-[15px] leading-relaxed">
-                &ldquo;Bạn có thể giải thích rõ hơn về kiến trúc <span className="text-teal-400 font-semibold">Microservices</span> mà bạn đã đề cập trong chương 3 không? Cụ thể là cách xử lý đồng bộ giữa các service.&rdquo;
-              </p>
-            </div>
-          </div>
-
           {/* Self-view (PIP, Meet style) */}
-          <div className="absolute bottom-3 right-3 lg:bottom-28 lg:right-4 w-40 lg:w-48 aspect-video bg-[#161B26] rounded-xl border border-border shadow-glow overflow-hidden z-10">
+          <div className="absolute bottom-3 right-3 w-40 lg:w-48 aspect-video bg-[#161B26] rounded-xl border border-border shadow-glow overflow-hidden z-10">
             {camOn ? (
               <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
                 <div className="w-16 h-16 rounded-full bg-teal-950/40 border border-teal-900/50 flex items-center justify-center">
@@ -151,90 +141,218 @@ export default function MockRoomPage() {
           </div>
         </div>
 
-        {/* Sidebar — Chat / People */}
-        {chatOpen && (
+        {/* Sidebar — Chat / People / Captions */}
+        {sidebarOpen && (
           <div className="w-full lg:w-[360px] bg-background border-l border-border flex flex-col shrink-0">
             {/* Tabs */}
             <div className="flex border-b border-border shrink-0">
-              <button className="flex-1 py-3 text-[13px] font-semibold text-teal-400 border-b-2 border-teal-500 font-mono uppercase tracking-wider flex items-center justify-center gap-2">
+              <button
+                onClick={() => setActiveTab("chat")}
+                className={`flex-1 py-3 text-[12px] font-semibold font-mono uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors duration-200 ${
+                  activeTab === "chat"
+                    ? "text-teal-400 border-b-2 border-teal-500"
+                    : "text-muted-foreground hover:text-foreground border-b-2 border-transparent"
+                }`}
+              >
                 <MessageSquare className="w-4 h-4" /> Trò chuyện
               </button>
-              <button className="flex-1 py-3 text-[13px] font-semibold text-muted-foreground hover:text-foreground border-b-2 border-transparent font-mono uppercase tracking-wider flex items-center justify-center gap-2 transition-colors duration-200">
-                <Users className="w-4 h-4" /> Mọi người ({participants.length})
+              <button
+                onClick={() => setActiveTab("people")}
+                className={`flex-1 py-3 text-[12px] font-semibold font-mono uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors duration-200 ${
+                  activeTab === "people"
+                    ? "text-teal-400 border-b-2 border-teal-500"
+                    : "text-muted-foreground hover:text-foreground border-b-2 border-transparent"
+                }`}
+              >
+                <Users className="w-4 h-4" /> Mọi người
+              </button>
+              <button
+                onClick={() => setActiveTab("captions")}
+                className={`flex-1 py-3 text-[12px] font-semibold font-mono uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors duration-200 ${
+                  activeTab === "captions"
+                    ? "text-teal-400 border-b-2 border-teal-500"
+                    : "text-muted-foreground hover:text-foreground border-b-2 border-transparent"
+                }`}
+              >
+                <Subtitles className="w-4 h-4" /> Phụ đề
               </button>
             </div>
 
-            {/* Chat list */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              <div className="text-center text-[10px] text-muted-foreground font-mono uppercase tracking-wider py-2">
-                — Phiên bắt đầu lúc 14:32 —
-              </div>
+            {/* Chat tab */}
+            {activeTab === "chat" && (
+              <>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  <div className="text-center text-[10px] text-muted-foreground font-mono uppercase tracking-wider py-2">
+                    — Phiên bắt đầu lúc 14:32 —
+                  </div>
 
-              <div className="flex gap-2.5">
-                <div className="w-8 h-8 shrink-0 rounded-full bg-gradient-to-br from-teal-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold">
-                  NB
+                  <div className="flex gap-2.5">
+                    <div className="w-8 h-8 shrink-0 rounded-full bg-gradient-to-br from-teal-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold">
+                      NB
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-baseline gap-2 mb-1">
+                        <span className="text-[12px] font-semibold text-foreground">PGS.TS Nguyễn Văn B</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">14:32</span>
+                      </div>
+                      <p className="text-[13px] text-muted-foreground leading-relaxed">
+                        Chào bạn, chúng ta bắt đầu buổi bảo vệ nhé. Hãy tóm tắt về đồ án của bạn trong 3 phút.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2.5">
+                    <div className="w-8 h-8 shrink-0 rounded-full bg-indigo-500/20 border border-indigo-900/50 flex items-center justify-center text-indigo-300 text-xs font-bold">
+                      TC
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-baseline gap-2 mb-1">
+                        <span className="text-[12px] font-semibold text-foreground">TS Trần Thị C</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">14:33</span>
+                      </div>
+                      <p className="text-[13px] text-muted-foreground leading-relaxed">
+                        Tốt. Mình sẽ chú ý phần phân tích kết quả thực nghiệm nhé.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2.5">
+                    <div className="w-8 h-8 shrink-0 rounded-full bg-teal-950/40 border border-teal-900/50 flex items-center justify-center text-teal-300 text-xs font-bold">
+                      B
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-baseline gap-2 mb-1">
+                        <span className="text-[12px] font-semibold text-foreground">Bạn</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">14:34</span>
+                      </div>
+                      <p className="text-[13px] text-muted-foreground leading-relaxed">
+                        Dạ vâng, thưa hội đồng. Đồ án của em tập trung vào việc ứng dụng AI trong phân tích mã nguồn...
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1">
+
+                {/* Chat input */}
+                <div className="p-3 border-t border-border shrink-0">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Gửi tin nhắn tới mọi người..."
+                      className="flex-1 bg-surface border border-border rounded-full px-4 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                    />
+                    <button className="w-9 h-9 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 text-white flex items-center justify-center hover:brightness-110 active:scale-[0.98] shadow-glow transition-all duration-200">
+                      <MessageSquare className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* People tab */}
+            {activeTab === "people" && (
+              <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest font-mono px-2 py-2">
+                  Giám khảo AI (2)
+                </div>
+                {speakers.map((p) => (
+                  <div key={p.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-muted transition-colors duration-200">
+                    <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${
+                      p.id === "ai-1" ? "from-teal-500 via-cyan-500 to-indigo-600" : "from-indigo-500 via-purple-500 to-teal-500"
+                    } flex items-center justify-center shrink-0`}>
+                      <Sparkles className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-semibold text-foreground truncate">{p.name}</div>
+                      <div className="text-[10px] text-teal-400 font-mono uppercase tracking-wider">AI · {p.speaking ? "Đang nói" : "Sẵn sàng"}</div>
+                    </div>
+                    {p.speaking && (
+                      <div className="flex gap-0.5 items-end">
+                        <span className="w-1 h-3 bg-teal-400 rounded-full animate-pulse" />
+                        <span className="w-1 h-4 bg-teal-400 rounded-full animate-pulse [animation-delay:100ms]" />
+                        <span className="w-1 h-2 bg-teal-400 rounded-full animate-pulse [animation-delay:200ms]" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest font-mono px-2 py-2 mt-4">
+                  Thành viên ({1})
+                </div>
+                <div className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-muted transition-colors duration-200">
+                  <div className="w-9 h-9 rounded-full bg-teal-950/40 border border-teal-900/50 flex items-center justify-center text-teal-300 text-xs font-bold shrink-0">
+                    B
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-semibold text-foreground truncate">Bạn (Sinh viên)</div>
+                    <div className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider">Host · Sinh viên</div>
+                  </div>
+                  <Mic className="w-4 h-4 text-teal-400" />
+                </div>
+              </div>
+            )}
+
+            {/* Captions tab */}
+            {activeTab === "captions" && (
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="flex items-center justify-between px-1 mb-2">
+                  <div className="flex items-center gap-2 text-[10px] font-bold text-teal-400 uppercase tracking-widest font-mono">
+                    <Subtitles className="w-3.5 h-3.5" /> Phụ đề trực tiếp
+                  </div>
+                  <span className="text-[10px] text-muted-foreground font-mono flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
+                    ON
+                  </span>
+                </div>
+
+                {/* Current live caption */}
+                <div className="bg-teal-950/30 border border-teal-900/50 rounded-xl p-4 shadow-glow">
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <span className="text-[11px] font-bold text-teal-300 font-mono">14:35</span>
+                    <span className="text-[11px] font-semibold text-foreground">PGS.TS Nguyễn Văn B</span>
+                  </div>
+                  <p className="text-[14px] text-foreground leading-relaxed">
+                    Bạn có thể giải thích rõ hơn về kiến trúc <span className="text-teal-400 font-semibold">Microservices</span> mà bạn đã đề cập trong chương 3 không? Cụ thể là cách xử lý đồng bộ giữa các service.
+                  </p>
+                </div>
+
+                {/* Past captions */}
+                <div className="border-l-2 border-border pl-4 py-1">
                   <div className="flex items-baseline gap-2 mb-1">
-                    <span className="text-[12px] font-semibold text-foreground">PGS.TS Nguyễn Văn B</span>
-                    <span className="text-[10px] text-muted-foreground font-mono">14:32</span>
+                    <span className="text-[11px] font-bold text-muted-foreground font-mono">14:34</span>
+                    <span className="text-[11px] font-semibold text-muted-foreground">TS Trần Thị C</span>
+                  </div>
+                  <p className="text-[13px] text-muted-foreground leading-relaxed">
+                    Tốt. Mình sẽ chú ý phần phân tích kết quả thực nghiệm nhé.
+                  </p>
+                </div>
+
+                <div className="border-l-2 border-border pl-4 py-1">
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="text-[11px] font-bold text-muted-foreground font-mono">14:33</span>
+                    <span className="text-[11px] font-semibold text-muted-foreground">Bạn</span>
+                  </div>
+                  <p className="text-[13px] text-muted-foreground leading-relaxed">
+                    Dạ vâng, thưa hội đồng. Đồ án của em tập trung vào việc ứng dụng AI trong phân tích mã nguồn, cụ thể là tự động sinh câu hỏi phản biện từ tài liệu kỹ thuật...
+                  </p>
+                </div>
+
+                <div className="border-l-2 border-border pl-4 py-1">
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="text-[11px] font-bold text-muted-foreground font-mono">14:32</span>
+                    <span className="text-[11px] font-semibold text-muted-foreground">PGS.TS Nguyễn Văn B</span>
                   </div>
                   <p className="text-[13px] text-muted-foreground leading-relaxed">
                     Chào bạn, chúng ta bắt đầu buổi bảo vệ nhé. Hãy tóm tắt về đồ án của bạn trong 3 phút.
                   </p>
                 </div>
               </div>
-
-              <div className="flex gap-2.5">
-                <div className="w-8 h-8 shrink-0 rounded-full bg-indigo-500/20 border border-indigo-900/50 flex items-center justify-center text-indigo-300 text-xs font-bold">
-                  TC
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-baseline gap-2 mb-1">
-                    <span className="text-[12px] font-semibold text-foreground">TS Trần Thị C</span>
-                    <span className="text-[10px] text-muted-foreground font-mono">14:33</span>
-                  </div>
-                  <p className="text-[13px] text-muted-foreground leading-relaxed">
-                    Tốt. Mình sẽ chú ý phần phân tích kết quả thực nghiệm nhé.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-2.5">
-                <div className="w-8 h-8 shrink-0 rounded-full bg-teal-950/40 border border-teal-900/50 flex items-center justify-center text-teal-300 text-xs font-bold">
-                  B
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-baseline gap-2 mb-1">
-                    <span className="text-[12px] font-semibold text-foreground">Bạn</span>
-                    <span className="text-[10px] text-muted-foreground font-mono">14:34</span>
-                  </div>
-                  <p className="text-[13px] text-muted-foreground leading-relaxed">
-                    Dạ vâng, thưa hội đồng. Đồ án của em tập trung vào việc ứng dụng AI trong phân tích mã nguồn...
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Chat input */}
-            <div className="p-3 border-t border-border shrink-0">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Gửi tin nhắn tới mọi người..."
-                  className="flex-1 bg-surface border border-border rounded-full px-4 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
-                />
-                <button className="w-9 h-9 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 text-white flex items-center justify-center hover:brightness-110 active:scale-[0.98] shadow-glow transition-all duration-200">
-                  <MessageSquare className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Bottom Controls Bar — Google Meet style */}
-      <div className="h-20 bg-background border-t border-border flex items-center justify-center gap-2 px-4 shrink-0">
+      <div className="h-20 bg-background border-t border-border flex items-center justify-center gap-2 px-4 shrink-0 relative">
         <div className="flex items-center gap-2">
           {/* Mic */}
           <button
@@ -283,18 +401,49 @@ export default function MockRoomPage() {
 
         <div className="w-px h-8 bg-border mx-2" />
 
-        {/* Chat toggle */}
-        <button
-          onClick={() => setChatOpen(!chatOpen)}
-          className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 ${
-            chatOpen
-              ? "bg-teal-950/40 border border-teal-900/50 text-teal-400 shadow-glow"
-              : "bg-surface border border-border text-foreground hover:border-teal-700 hover:text-teal-400"
-          }`}
-          title="Trò chuyện"
-        >
-          <MessageSquare className="w-5 h-5" />
-        </button>
+        {/* Sidebar toggle (rotates through open/close) */}
+        <div className="flex items-center gap-1 bg-muted rounded-full p-1 border border-border">
+          <button
+            onClick={() => { setSidebarOpen(true); setActiveTab("chat"); }}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
+              sidebarOpen && activeTab === "chat"
+                ? "bg-teal-950/40 text-teal-400 shadow-glow"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            title="Trò chuyện"
+          >
+            <MessageSquare className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => { setSidebarOpen(true); setActiveTab("people"); }}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
+              sidebarOpen && activeTab === "people"
+                ? "bg-teal-950/40 text-teal-400 shadow-glow"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            title="Mọi người"
+          >
+            <Users className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => { setSidebarOpen(true); setActiveTab("captions"); }}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
+              sidebarOpen && activeTab === "captions"
+                ? "bg-teal-950/40 text-teal-400 shadow-glow"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            title="Phụ đề"
+          >
+            <Subtitles className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground transition-all duration-200"
+            title={sidebarOpen ? "Đóng sidebar" : "Mở sidebar"}
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+        </div>
 
         <div className="absolute right-4 lg:right-8 flex items-center gap-2">
           {/* Leave — Red button (Meet style) */}
@@ -304,11 +453,6 @@ export default function MockRoomPage() {
           </button>
         </div>
       </div>
-
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272A; border-radius: 3px; }
-      `}</style>
     </div>
   );
 }
