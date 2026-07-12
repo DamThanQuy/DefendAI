@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DefendAI — Upload &amp; AI Analysis Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; color: #1f2937; min-height: 100vh; padding: 2rem 1rem; }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .header { text-align: center; margin-bottom: 2.5rem; }
+    .header h1 { font-size: 32px; font-weight: 800; color: #0f2e82; letter-spacing: -.5px; }
+    .header p { color: #5f6368; font-size: 15px; margin-top: 8px; max-width: 600px; margin-inline: auto; }
+    .tabs { display: flex; gap: 4px; background: #e8effd; padding: 4px; border-radius: 14px; width: fit-content; margin: 0 auto 2rem; }
+    .tab { padding: 10px 22px; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; color: #5f6368; transition: all .2s; border: none; background: transparent; }
+    .tab.active { background: white; color: #0f2e82; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; align-items: start; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+    .upload-zone { background: white; border: 2px dashed #d1d5db; border-radius: 24px; min-height: 460px; padding: 2rem; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all .3s; position: relative; overflow: hidden; }
+    .upload-zone.dragging { border-color: #0f2e82; background: #e8effd33; }
+    .upload-icon { width: 72px; height: 72px; border-radius: 50%; background: #e8effd; display: flex; align-items: center; justify-content: center; margin-bottom: 1.5rem; }
+    .upload-icon svg { width: 32px; height: 32px; color: #0f2e82; }
+    .btn-primary { background: #0f2e82; color: white; font-weight: 600; font-size: 14px; padding: 12px 32px; border-radius: 999px; border: none; cursor: pointer; transition: background .2s; }
+    .btn-primary:hover { background: #0f2e82aa; }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+    .file-card { width: 100%; max-width: 380px; text-align: left; }
+    .file-row { display: flex; align-items: center; gap: 12px; padding: 14px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 1.2rem; }
+    .file-type-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: white; flex-shrink: 0; }
+    .ft-pdf { background: #dc2626; } .ft-docx { background: #2563eb; } .ft-zip { background: #059669; }
+    .file-meta { flex: 1; min-width: 0; }
+    .file-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-size { font-size: 12px; color: #6b7280; }
+    .file-remove { background: none; border: none; color: #9ca3af; cursor: pointer; font-size: 20px; padding: 4px; }
+    .file-remove:hover { color: #dc2626; }
+    .persona-block { width: 100%; max-width: 380px; margin-bottom: 1.5rem; }
+    .persona-title { font-size: 13px; font-weight: 700; color: #0f2e82; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; }
+    .persona-opt { padding: 12px 14px; border: 2px solid #e5e7eb; border-radius: 12px; cursor: pointer; margin-bottom: 8px; transition: all .2s; }
+    .persona-opt:hover { border-color: #0f2e8255; }
+    .persona-opt.active { border-color: #0f2e82; background: #e8effd; }
+    .persona-opt h4 { font-size: 14px; font-weight: 700; color: #111827; }
+    .persona-opt.active h4 { color: #0f2e82; }
+    .persona-opt p { font-size: 12px; color: #6b7280; margin-top: 2px; }
+    .stepper { width: 100%; max-width: 400px; text-align: left; }
+    .step { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 1rem; }
+    .step-dot { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+    .step-todo .step-dot { background: #e5e7eb; color: #9ca3af; }
+    .step-active .step-dot { background: #0f2e82; color: white; animation: pulse 1.5s infinite; }
+    .step-done .step-dot { background: #059669; color: white; }
+    .step-label { font-size: 14px; font-weight: 500; padding-top: 3px; }
+    .step-todo .step-label { color: #9ca3af; }
+    .step-active .step-label { color: #0f2e82; font-weight: 700; }
+    .step-done .step-label { color: #111827; }
+    .step-detail { font-size: 12px; color: #6b7280; margin-top: 2px; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+    .error-box { background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 14px; width: 100%; max-width: 400px; text-align: left; margin-top: 1rem; }
+    .error-box p { color: #dc2626; font-weight: 600; font-size: 13px; }
+    .error-retry { margin-top: 8px; font-size: 13px; color: #dc2626; text-decoration: underline; cursor: pointer; background: none; border: none; }
+    .info-card { background: white; border: 1px solid #f0f0f0; border-radius: 16px; padding: 1.5rem; margin-bottom: 1rem; }
+    .info-card h3 { font-size: 13px; font-weight: 700; color: #0f2e82; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 1rem; }
+    .info-item { display: flex; gap: 10px; margin-bottom: 1rem; }
+    .info-item svg { width: 20px; height: 20px; flex-shrink: 0; }
+    .info-item h4 { font-size: 14px; font-weight: 600; color: #111827; }
+    .info-item p { font-size: 13px; color: #6b7280; }
+    .hidden { display: none !important; }
+    .code-paste { width: 100%; max-width: 460px; min-height: 200px; font-family: ui-monospace, monospace; font-size: 13px; padding: 14px; border: 1px solid #e5e7eb; border-radius: 12px; resize: vertical; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <h1>DefendAI — Upload &amp; AI Analysis Demo</h1>
+    <p>UI cải tiến: stepper rõ ràng, file preview, persona inline, error states. Click để trải nghiệm flow.</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="doc">📄 Tài liệu</button>
+    <button class="tab" data-tab="code">💻 Source Code</button>
+  </div>
+
+  <div class="grid">
+    <!-- LEFT -->
+    <div class="upload-zone" id="dropZone">
+      <!-- Initial state -->
+      <div id="initialState" class="text-center">
+        <div class="upload-icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+        </div>
+        <h3 style="font-size:22px;font-weight:700;margin-bottom:10px;" id="dropTitle">Chọn tệp đồ án</h3>
+        <p style="color:#5f6368;font-size:15px;margin-bottom:16px;" id="dropDesc">PDF, DOCX, ZIP — tối đa 10 tệp</p>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+          <button class="btn-primary" style="background:#dc2626;" id="choosePdfBtn">📄 Chọn PDF</button>
+          <button class="btn-primary" style="background:#2563eb;" id="chooseDocxBtn">📝 Chọn DOCX</button>
+          <button class="btn-primary" style="background:#6366f1;" id="chooseZipBtn">📦 Chọn ZIP</button>
+        </div>
+        <input type="file" id="fileInputPdf" accept=".pdf,.PDF" multiple class="hidden">
+        <input type="file" id="fileInputDocx" accept=".docx" multiple class="hidden">
+        <input type="file" id="fileInputZip" accept=".zip,.tar,.gz" multiple class="hidden">
+      </div>
+
+      <!-- Preview + persona state -->
+      <div id="previewState" class="hidden" style="width:100%;">
+        <div id="fileList" style="width:100%;max-width:460px;"></div>
+        <div style="display:flex;gap:8px;align-items:center;padding:10px 14px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;margin:8px 0;width:100%;max-width:460px;">
+          <span style="font-size:13px;font-weight:700;color:#0f2e82;">📊</span>
+          <span style="font-size:13px;color:#6b7280;" id="fileCount">3 tệp</span>
+          <span style="font-size:13px;color:#6b7280;">·</span>
+          <span style="font-size:13px;color:#6b7280;" id="fileTotal">5.3 MB</span>
+          <button class="file-remove" id="addMoreBtn" style="margin-left:auto;font-size:12px;background:none;border:none;color:#2563eb;text-decoration:underline;cursor:pointer;">+ Thêm</button>
+        </div>
+        <div class="persona-block" id="personaBlock">
+          <div class="persona-title">Chọn Giám Khảo AI</div>
+          <div class="persona-opt active" data-persona="normal"><h4>Giảng viên hướng dẫn</h4><p>Hỏi bao quát, mang tính chất xây dựng.</p></div>
+          <div class="persona-opt" data-persona="hard"><h4>Hội đồng phản biện khó tính</h4><p>Soi xét kỹ các lỗ hổng, hỏi xoáy.</p></div>
+          <div class="persona-opt" data-persona="tech"><h4>Chuyên gia kỹ thuật sâu</h4><p>Đi sâu vào architecture, performance.</p></div>
+        </div>
+        <button class="btn-primary" id="analyzeBtn" style="width:100%;max-width:460px;">🚀 Bắt đầu phân tích (3 tệp)</button>
+      </div>
+
+      <!-- Code paste state -->
+      <div id="codeState" class="hidden">
+        <div class="file-card">
+          <div class="file-row">
+            <div class="file-type-icon" style="background:#6366f1;font-size:12px;width:40px;height:40px;border-radius:8px;">ZIP</div>
+            <div class="file-meta">
+              <div class="file-name">src-bundle.zip</div>
+              <div class="file-size">128 KB</div>
+            </div>
+            <button class="file-remove" id="codeRemoveBtn" style="font-size:20px;padding:4px;background:none;border:none;color:#9ca3af;cursor:pointer;">×</button>
+          </div>
+        </div>
+        <textarea class="code-paste" id="codeInput" placeholder="Paste source code TypeScript/React để AI critique code..."></textarea>
+        <div style="display:flex;gap:8px;margin-top:12px;width:100%;max-width:460px;">
+          <button class="btn-primary" id="fakeUploadBtn" style="flex:1;padding:12px 16px;font-size:13px;background:#e8effd;color:#0f2e82;border:1px solid #d1d5db;">📦 Chọn file .zip minh họa</button>
+          <button class="btn-primary" id="analyzeCodeBtn" style="flex:1;">⚡ Phân tích &amp; AI Critique</button>
+        </div>
+        <input type="file" id="codeFileInput" class="hidden" accept=".zip">
+      </div>
+
+      <!-- Stepper state -->
+      <div id="stepperState" class="hidden">
+        <div class="stepper" id="stepper"></div>
+      </div>
+
+      <!-- Error state -->
+      <div id="errorState" class="hidden">
+        <div class="error-box">
+          <p id="errorMsg">⚠️ Không thể kết nối đến máy chủ AI.</p>
+          <button class="error-retry" id="retryBtn">↻ Thử lại</button>
+        </div>
+        <button class="btn-primary" id="backBtn" style="margin-top:1rem;">← Quay lại</button>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div>
+      <div class="info-card">
+        <h3>Tiêu chuẩn tệp</h3>
+        <div class="info-item">
+          <svg class="w-5 h-5 text-green-500" fill="none" stroke="#059669" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <div><h4>Định dạng phù hợp</h4><p>Chỉ chấp nhận .pdf hoặc .docx</p></div>
+        </div>
+        <div class="info-item">
+          <svg class="w-5 h-5 text-green-500" fill="none" stroke="#059669" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <div><h4>Dung lượng tệp</h4><p>Kích thước dưới 50MB</p></div>
+        </div>
+        <div class="info-item">
+          <svg class="w-5 h-5" fill="none" stroke="#9ca3af" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <div><h4>Bảo mật dữ liệu</h4><p>Tài liệu mã hóa, không chia sẻ</p></div>
+        </div>
+      </div>
+      <div class="info-card" style="background:#0f2e82;border:none;color:white;">
+        <h3 style="color:#a5b8f0;">Cần hỗ trợ?</h3>
+        <p style="font-size:13px;color:#cdd9f5;line-height:1.6;">Xem hướng dẫn định dạng tài liệu chuẩn IEEE/APA để tăng độ chính xác khi AI phân tích.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const dropZone = $('dropZone');
+  const initialState = $('initialState');
+  const previewState = $('previewState');
+  const codeState = $('codeState');
+  const stepperState = $('stepperState');
+  const errorState = $('errorState');
+  let currentTab = 'doc';
+  let persona = 'normal';
+
+  // Tab switch
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      currentTab = t.dataset.tab;
+      resetAll();
+      if (currentTab === 'doc') {
+        initialState.classList.remove('hidden');
+        $('dropTitle').textContent = 'Kéo thả hoặc chọn tệp';
+        $('dropDesc').textContent = 'Hỗ trợ PDF, DOCX (dưới 50MB)';
+      } else {
+        codeState.classList.remove('hidden');
+      }
+    });
+  });
+
+  function hideAll() {
+    [initialState, previewState, codeState, stepperState, errorState].forEach(s => s.classList.add('hidden'));
+  }
+  function resetAll() {
+    hideAll();
+    errorState.classList.add('hidden');
+    if (currentTab === 'doc') { initialState.classList.remove('hidden'); }
+    else { codeState.classList.remove('hidden'); }
+  }
+
+  // File select (simulate)
+  $('choosePdfBtn').addEventListener('click', () => showMultiPreview(['Báo cáo đồ án.pdf','Phụ lục.pdf'], ['2.4 MB','1.1 MB'], ['PDF','PDF']));
+  $('chooseDocxBtn').addEventListener('click', () => showMultiPreview(['Đề cương.docx','Sơ đồ.docx'], ['1.8 MB','340 KB'], ['DOCX','DOCX']));
+  $('chooseZipBtn').addEventListener('click', () => showMultiPreview(['src-bundle.zip'], ['2.3 MB'], ['ZIP']));
+  ['fileInputPdf','fileInputDocx','fileInputZip'].forEach(id => {
+    $(id).addEventListener('change', (e) => {
+      const files = Array.from(e.target.files);
+      if (!files.length) return;
+      const names = files.map(f => f.name), sizes = files.map(f => (f.size/1024/1024).toFixed(2)+' MB'), exts = files.map(f => f.name.split('.').pop().toUpperCase());
+      showMultiPreview(names, sizes, exts);
+    });
+  });
+  // Code zip select (simulate)
+  $('fakeUploadBtn').addEventListener('click', () => {
+    $('codeFileInput').click();
+  });
+  $('codeFileInput').addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (f) {
+      $('codeInput').placeholder = 'Hoặc paste code vào đây...';
+      const row = document.querySelector('#codeState .file-row');
+      if (row) {
+        row.querySelector('.file-name').textContent = f.name;
+        row.querySelector('.file-size').textContent = (f.size/1024/1024).toFixed(2)+' MB';
+        row.querySelector('.file-type-icon').textContent = 'ZIP';
+      }
+    }
+  });
+  $('codeRemoveBtn').addEventListener('click', () => {
+    const row = document.querySelector('#codeState .file-row');
+    if (row) { row.querySelector('.file-name').textContent = 'src-bundle.zip'; row.querySelector('.file-size').textContent = '128 KB'; }
+    $('codeInput').value = '';
+    $('codeInput').placeholder = 'Paste source code TypeScript/React để AI critique code...';
+  });
+
+  function showMultiPreview(names, sizes, types) {
+    if (currentTab === 'code') { codeState.classList.remove('hidden'); return; }
+    hideAll();
+    previewState.classList.remove('hidden');
+    // Build file list
+    const list = document.getElementById('fileList');
+    list.innerHTML = '';
+    names.forEach((n, i) => {
+      const row = document.createElement('div');
+      row.className = 'file-row';
+      row.innerHTML = '<div class="file-type-icon ft-' + types[i].toLowerCase() + '">' + types[i].slice(0,3) + '</div><div class="file-meta"><div class="file-name">' + n + '</div><div class="file-size">' + sizes[i] + '</div></div><button class="file-remove" style="background:none;border:none;color:#9ca3af;font-size:20px;padding:4px;cursor:pointer;">×</button>';
+      list.appendChild(row);
+    });
+    $('fileCount').textContent = names.length + ' tệp';
+    $('fileTotal').textContent = sizes.reduce((a,b) => a + parseFloat(b), 0).toFixed(1) + ' MB';
+    persona = 'normal';
+    document.querySelectorAll('.persona-opt').forEach(p => p.classList.remove('active'));
+    document.querySelector('.persona-opt[data-persona="normal"]').classList.add('active');
+  }
+
+  // Persona select
+  document.querySelectorAll('.persona-opt').forEach(p => {
+    p.addEventListener('click', () => {
+      document.querySelectorAll('.persona-opt').forEach(x => x.classList.remove('active'));
+      p.classList.add('active');
+      persona = p.dataset.persona;
+    });
+  });
+
+  // File remove (each x button)
+  document.querySelector('#previewState').addEventListener('click', (e) => {
+    if (e.target.closest('.file-remove') && !e.target.closest('#addMoreBtn')) {
+      const row = e.target.closest('.file-row');
+      if (row) { row.remove();
+        const cnt = document.querySelectorAll('#fileList .file-row').length;
+        if (!cnt) { resetAll(); return; }
+        $('fileCount').textContent = cnt + ' tệp';
+      }
+    }
+  });
+  document.querySelector('#codeState').addEventListener('click', (e) => {
+    if (e.target.closest('.file-remove') && !e.target.closest('#addMoreBtn')) {
+      const row = e.target.closest('.file-row');
+      if (row) { row.remove(); $('codeInput').value = ''; }
+    }
+  });
+  // Add more
+  $('addMoreBtn').addEventListener('click', () => $('fileInputPdf').click());
+  // Reset
+  document.querySelectorAll('[id="removeBtn"]').forEach(b => b?.addEventListener('click', resetAll));
+
+  // Drag events
+  ['dragover','dragenter'].forEach(ev => dropZone.addEventListener(ev, (e) => { e.preventDefault(); dropZone.classList.add('dragging'); }));
+  ['dragleave','drop'].forEach(ev => dropZone.addEventListener(ev, (e) => { e.preventDefault(); dropZone.classList.remove('dragging'); }));
+  dropZone.addEventListener('drop', (e) => {
+    const f = e.dataTransfer.files[0];
+    if (f) {
+      const ext = f.name.split('.').pop().toUpperCase();
+      if (currentTab === 'doc' && ['PDF','DOCX'].includes(ext)) showPreview(f.name, (f.size/1024/1024).toFixed(2)+' MB', ext);
+    }
+  });
+
+  // Analyze flow (doc)
+  $('analyzeBtn').addEventListener('click', () => {
+    hideAll();
+    stepperState.classList.remove('hidden');
+    runStepper([
+      { label: 'Tải file lên', detail: 'Đang upload đến MinIO...' },
+      { label: 'Trích xuất nội dung', detail: 'Đang parse PDF (12 trang, ~4500 từ)...' },
+      { label: 'AI phân tích', detail: 'Đang tạo câu hỏi phản biện với persona: ' + personaLabel() },
+      { label: 'Hoàn tất', detail: 'Chuyển hướng đến trang câu hỏi...' },
+    ], () => {
+      // simulate success -> show "done" then loop back for demo
+      setTimeout(() => { alert('✅ Phân tích xong! (Demo) Chuyển đến /questions'); resetAll(); }, 1200);
+    });
+  });
+
+  function personaLabel() {
+    return { normal: 'Giảng viên hướng dẫn', hard: 'Hội đồng khó tính', tech: 'Chuyên gia kỹ thuật' }[persona];
+  }
+
+  // Code analyze flow
+  $('analyzeCodeBtn').addEventListener('click', () => {
+    const code = $('codeInput').value.trim();
+    if (!code) { $('codeInput').focus(); return; }
+    hideAll();
+    stepperState.classList.remove('hidden');
+    runStepper([
+      { label: 'Phân tích AST', detail: 'Đang trích xuất imports/functions/classes...' },
+      { label: 'Gửi đến AI Gateway', detail: 'Đang gọi GPT-4o critique...' },
+      { label: 'Hoàn tất', detail: 'Hiển thị kết quả review...' },
+    ], () => {
+      setTimeout(() => { alert('✅ Code review xong! (Demo)'); resetAll(); }, 1200);
+    });
+  });
+
+  // Stepper engine
+  function runStepper(steps, onDone) {
+    const el = $('stepper');
+    el.innerHTML = '';
+    steps.forEach((s, i) => {
+      const d = document.createElement('div');
+      d.className = 'step step-todo';
+      d.innerHTML = `<div class="step-dot">${i+1}</div><div><div class="step-label">${s.label}</div><div class="step-detail">${s.detail}</div></div>`;
+      el.appendChild(d);
+    });
+    let i = 0;
+    const tick = () => {
+      const nodes = el.querySelectorAll('.step');
+      if (i > 0) nodes[i-1].classList.replace('step-active','step-done'), nodes[i-1].querySelector('.step-dot').textContent = '✓';
+      if (i >= nodes.length) { onDone(); return; }
+      nodes[i].classList.replace('step-todo','step-active');
+      i++;
+      setTimeout(tick, 1100);
+    };
+    tick();
+  }
+
+  // Error demo: simulate fail at AI step
+  // (attached to retry/back)
+  $('retryBtn').addEventListener('click', () => { resetAll(); });
+  $('backBtn').addEventListener('click', () => { resetAll(); });
+
+  // Demo error trigger: double-click dropZone title text in preview to simulate error
+  // (kept simple — user can refresh to retry)
+</script>
+</body>
+</html>
