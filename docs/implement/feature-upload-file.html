@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plan Implement — Upload File (FE → API)</title>
+  <style>
+    :root {
+      --bg: #f7f9fb;
+      --surface: #ffffff;
+      --border: #d8dee6;
+      --teal: #0d9488;
+      --teal-dim: #0f766e;
+      --text: #1a2330;
+      --muted: #5b6776;
+      --warn: #b45309;
+      --danger: #dc2626;
+      --ok: #15803d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 32px 16px 80px;
+    }
+    .wrap { max-width: 980px; margin: 0 auto; }
+    h1 { font-size: 30px; margin: 0 0 4px; }
+    h2 { font-size: 21px; margin: 40px 0 12px; color: var(--teal); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    h3 { font-size: 16px; margin: 22px 0 8px; color: var(--text); }
+    .sub { color: var(--muted); margin: 0 0 8px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin: 14px 0; }
+    .meta { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+    .chip { background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--muted); }
+    .chip b { color: var(--teal); }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    code { background: #eef2f6; padding: 2px 6px; border-radius: 6px; font-size: 13px; color: #0f766e; }
+    pre { background: #f1f4f8; border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; overflow: auto; font-size: 13px; line-height: 1.5; }
+    pre .c { color: var(--muted); }
+    ul, ol { padding-left: 22px; }
+    li { margin: 6px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+    th { color: var(--teal); font-weight: 600; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; letter-spacing: .03em; }
+    .tag.need { background: #ccfbf1; color: #0f766e; }
+    .tag.fix  { background: #ffedd5; color: #9a3412; }
+    .tag.warn { background: #fef3c7; color: #92400e; }
+    .tag.ok   { background: #dcfce7; color: #15803d; }
+    .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0; }
+    .flow .node { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-size: 13px; }
+    .flow .arrow { color: var(--muted); }
+    .note { border-left: 3px solid var(--warn); background: #fffbeb; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 14px; }
+    .note b { color: var(--warn); }
+    .okbox { border-left: 3px solid var(--ok); background: #f0fdf4; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+    .file { color: var(--teal); }
+    .check { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Plan Implement — Upload File lên FE &amp; kéo API</h1>
+  <p class="sub">Dự án DefendAI · chức năng: nộp tài liệu (PDF/DOCX/PPTX/ZIP) từ giao diện, gọi API backend, lấy <code>documentId</code>.</p>
+
+  <div class="meta">
+    <span class="chip">Module: <b>Documents Upload</b></span>
+    <span class="chip">FE: <b>apps/web (Next.js)</b></span>
+    <span class="chip">BE: <b>apps/api (FastAPI)</b></span>
+    <span class="chip">Ngày: <b>2026-07-12</b></span>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Mục tiêu</h3>
+    <ul>
+      <li>Chuẩn hóa luồng upload FE: drag-drop + chọn file → validate client → gửi API → xử lý tiến trình/lỗi → nhận <code>documentId</code>.</li>
+      <li>FE gọi qua route proxy Next <code>/api/documents/upload</code> (đã có) để tránh CORS và ẩn URL backend.</li>
+      <li>Loại bỏ code lệch chuẩn: <code>UploadZone</code> đang dùng <code>fetch</code> thô thay vì <code>lib/api.ts</code>, và accept <code>.rar</code> dù BE không hỗ trợ.</li>
+    </ul>
+  </div>
+
+  <h2>1. Hiện trạng (đã đọc code)</h2>
+  <table>
+    <tr><th>Vị trí</th><th>Trạng thái</th><th>Ghi chú</th></tr>
+    <tr>
+      <td class="file">apps/web/src/components/features/assessment/UploadZone.tsx</td>
+      <td><span class="tag ok">Sẵn có</span></td>
+      <td>Đã có drag-drop, nhưng gọi <code>fetch("/api/documents/upload")</code> và <code>fetch("/api/code/scan")</code> trực tiếp, không dùng <code>api.ts</code>. Accept <code>.rar</code> (BE từ chối).</td>
+    </tr>
+    <tr>
+      <td class="file">apps/web/src/app/api/documents/upload/route.ts</td>
+      <td><span class="tag ok">Sẵn có</span></td>
+      <td>Proxy POST multipart sang <code>FastAPI /api/documents/upload</code>. Trả về <code>{ success, documentId, backendData }</code>.</td>
+    </tr>
+    <tr>
+      <td class="file">apps/api/app/routers/documents.py</td>
+      <td><span class="tag ok">Sẵn có</span></td>
+      <td>Nhận multipart, validate ext (pdf/docx/pptx/zip), magic-bytes, max 100MB, lưu DB. Response <code>DocumentResponse</code> có trường <code>id</code>.</td>
+    </tr>
+    <tr>
+      <td class="file">apps/web/src/lib/api.ts</td>
+      <td><span class="tag fix">Chưa dùng</span></td>
+      <td>Có sẵn <code>uploadDocument(file)</code> dùng axios → baseURL <code>NEXT_PUBLIC_API_URL</code> (bỏ qua proxy Next).</td>
+    </tr>
+    <tr>
+      <td class="file">apps/web/src/lib/constants.ts</td>
+      <td><span class="tag need">Cần chuẩn hóa</span></td>
+      <td><code>ACCEPTED_EXTENSIONS</code> chưa gồm <code>.rar</code> nhưng <code>UploadZone</code> accept có <code>.rar</code> → mâu thuẫn.</td>
+    </tr>
+  </table>
+
+  <h2>2. Luồng dữ liệu</h2>
+  <div class="flow">
+    <span class="node">User chọn / kéo file</span>
+    <span class="arrow">→</span>
+    <span class="node">FE validate (ext, size)</span>
+    <span class="arrow">→</span>
+    <span class="node">POST /api/documents/upload (Next proxy)</span>
+    <span class="arrow">→</span>
+    <span class="node">FastAPI validate + lưu DB</span>
+    <span class="arrow">→</span>
+    <span class="node">trả documentId</span>
+    <span class="arrow">→</span>
+    <span class="node">FE mở modal chọn persona</span>
+    <span class="arrow">→</span>
+    <span class="node">POST /api/questions/generate</span>
+  </div>
+
+  <h2>3. Các bước implement</h2>
+
+  <div class="card">
+    <h3 style="margin-top:0">Bước 1 — Chuẩn hóa constants <span class="tag need">Cần</span></h3>
+    <p class="sub">File: <span class="file">apps/web/src/lib/constants.ts</span></p>
+    <ul>
+      <li>Đồng bộ danh sách extension với BE (<code>pdf, docx, pptx, zip</code>). Bỏ <code>.rar</code> khỏi <code>UploadZone.accept</code> hoặc thêm vào BE — ưu tiên bỏ <code>.rar</code> bên FE (đơn giản, đúng thực tế BE).</li>
+      <li>Thêm hằng progress / timeout nếu cần. <code>MAX_FILE_SIZE = 100MB</code> đã khớp với BE.</li>
+    </ul>
+    <pre><span class="c">// constants.ts — đồng bộ với ALLOWED_EXTENSIONS của FastAPI</span>
+export const ACCEPTED_EXTENSIONS = [".pdf", ".docx", ".pptx", ".zip"] as const;
+export const FILE_INPUT_ACCEPT = ACCEPTED_EXTENSIONS.join(","); <span class="c">// ".pdf,.docx,.pptx,.zip"</span>
+export const MAX_FILE_SIZE = 100 * 1024 * 1024; <span class="c">// 100MB, khớp BE</span></pre>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Bước 2 — Thêm helper upload có progress vào <span class="file">lib/api.ts</span> <span class="tag need">Cần</span></h3>
+    <p class="sub">Giữ <code>uploadDocument</code> cũ, thêm hàm gọi qua proxy Next + báo tiến trình (XMLHttpRequest).</p>
+    <pre>export interface UploadResult {
+  documentId: number;
+  filename: string;
+}
+
+<span class="c">// Upload qua Next route proxy (ẩn URL backend, tránh CORS)</span>
+export function uploadDocumentWithProgress(
+  file: File,
+  onProgress?: (pct: number) =&gt; void,
+): Promise&lt;UploadResult&gt; {
+  return new Promise((resolve, reject) =&gt; {
+    const xhr = new XMLHttpRequest();
+    const form = new FormData();
+    form.append("file", file);
+
+    xhr.upload.onprogress = (e) =&gt; {
+      if (e.lengthComputable &amp;&amp; onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    xhr.onload = () =&gt; {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status &gt;= 200 &amp;&amp; xhr.status &lt; 300 &amp;&amp; data.success) {
+          resolve({ documentId: data.documentId, filename: file.name });
+        } else {
+          reject(new Error(data.error || "Upload failed"));
+        }
+      } catch {
+        reject(new Error("Invalid response"));
+      }
+    };
+    xhr.onerror = () =&gt; reject(new Error("Network error"));
+    xhr.open("POST", "/api/documents/upload");
+    xhr.send(form);
+  });
+}</pre>
+    <div class="note"><b>Lưu ý:</b> Next proxy route hiện <code>await backendResponse.json()</code> rồi mới trả — nên progress upload từ FE tới Next là thực, còn Next→FastAPI là nội bộ. Đủ để hiển thị thanh tiến trình cho user.</div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Bước 3 — Refactor <span class="file">UploadZone.tsx</span> <span class="tag fix">Sửa</span></h3>
+    <ul>
+      <li>Thay <code>fetch("/api/documents/upload")</code> bằng <code>uploadDocumentWithProgress</code>, truyền <code>onProgress</code> để cập nhật thanh %.</li>
+      <li>Validate client trước khi gửi: kiểm tra extension nằm trong <code>ACCEPTED_EXTENSIONS</code> và <code>file.size &lt;= MAX_FILE_SIZE</code> → báo lỗi sớm, đỡ request rác.</li>
+      <li>Đồng bộ <code>accept={FILE_INPUT_ACCEPT}</code> (bỏ <code>.rar</code>).</li>
+      <li>Xử lý lỗi: bắt reject, hiển thị message lỗi (thay vì chỉ <code>console.error</code>).</li>
+      <li>Giữ nguyên luồng zip → <code>/api/code/scan</code> (tách riêng, không đổi scope).</li>
+    </ul>
+    <pre><span class="c">// validate nhanh ở FE</span>
+const ext = "." + file.name.split(".").pop()?.toLowerCase();
+if (!ACCEPTED_EXTENSIONS.includes(ext as any)) {
+  setStatusText(`Định dạng ${ext} không được hỗ trợ`);
+  setIsProcessing(false);
+  return;
+}
+if (file.size &gt; MAX_FILE_SIZE) {
+  setStatusText("Tệp vượt quá 100MB");
+  setIsProcessing(false);
+  return;
+}
+
+<span class="c">// gọi API có progress</span>
+const result = await uploadDocumentWithProgress(file, setProgressPct);
+setDocumentId(String(result.documentId));
+setShowPersonaModal(true);</pre>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Bước 4 — Hiển thị progress &amp; lỗi trên UI <span class="tag need">Cần</span></h3>
+    <ul>
+      <li>Thêm state <code>progressPct</code> (0–100). Trong overlay loading, hiện thanh <code>progressPct%</code> thay vì chỉ spinner khi đang upload.</li>
+      <li>Thêm state <code>errorMsg</code>; nếu upload lỗi → hiện text đỏ, cho phép "Thử lại".</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Bước 5 — Verify route proxy Next <span class="tag ok">Đã có</span></h3>
+    <p>File <span class="file">app/api/documents/upload/route.ts</span> đã đúng: nhận <code>formData.file</code> → forward sang <code>FastAPI /api/documents/upload</code> → map <code>data.id → documentId</code>. <b>Không cần sửa</b>, chỉ cần BE chạy (port 8000) và <code>BACKEND_URL</code> đúng.</p>
+  </div>
+
+  <h2>4. Checklist kiểm thử</h2>
+  <div class="card check">
+    <span class="tag ok">✓</span><span>BE FastAPI chạy trên <code>http://127.0.0.1:8000</code>, bảng <code>documents</code> đã migrate.</span>
+    <span class="tag need">□</span><span>Upload PDF hợp lệ → nhận <code>documentId</code>, DB có record mới, thanh progress chạy 0→100%.</span>
+    <span class="tag need">□</span><span>Upload file &gt;100MB → FE bắt lỗi trước, không gửi request.</span>
+    <span class="tag need">□</span><span>Upload <code>.exe</code> / <code>.rar</code> → FE từ chối (ext không trong danh sách).</span>
+    <span class="tag need">□</span><span>Upload file giả (magic-bytes sai) → BE trả 400, FE hiện message lỗi.</span>
+    <span class="tag need">□</span><span>BE tắt → FE bắt network error, hiển thị "Thử lại".</span>
+    <span class="tag need">□</span><span>Luồng zip → code-review và pdf → questions vẫn hoạt động như cũ.</span>
+  </div>
+
+  <h2>5. File touch / tạo mới</h2>
+  <table>
+    <tr><th>File</th><th>Hành động</th><th>Lý do</th></tr>
+    <tr><td class="file">apps/web/src/lib/constants.ts</td><td>Sửa</td><td>Đồng bộ extension (bỏ .rar), dùng chung <code>FILE_INPUT_ACCEPT</code>, <code>MAX_FILE_SIZE</code>.</td></tr>
+    <tr><td class="file">apps/web/src/lib/api.ts</td><td>Sửa</td><td>Thêm <code>uploadDocumentWithProgress</code> (XHR + progress).</td></tr>
+    <tr><td class="file">apps/web/src/components/features/assessment/UploadZone.tsx</td><td>Sửa</td><td>Dùng helper mới, validate FE, progress UI, error UI, bỏ .rar.</td></tr>
+    <tr><td class="file">apps/web/src/app/api/documents/upload/route.ts</td><td>Giữ nguyên</td><td>Proxy đã đúng.</td></tr>
+  </table>
+
+  <div class="okbox">
+    <b>Phân tích YAGNI:</b> Không cần viết lại BE (đã đủ). Không cần thêm thư viện upload (XHR native đủ làm progress). Không cần auth (MVP ADR-005: no-auth). Giữ route proxy Next để tránh CORS.
+  </div>
+
+  <h2>6. Rủi ro &amp; lưu ý</h2>
+  <ul>
+    <li><b>CORS:</b> gọi thẳng FastAPI từ browser sẽ lỗi → luôn qua Next proxy <code>/api/documents/upload</code>.</li>
+    <li><b>Timeout:</b> file 100MB có thể lâu; Next route không set timeout riêng, BE default có thể cắt. Cân nhắc thêm <code>export const maxDuration = 60;</code> trong route nếu deploy Vercel.</li>
+    <li><b>Magic-bytes:</b> BE chỉ check 4 byte đầu; file PDF/DOCX giả vẫn qua được FE nhưng BE sẽ bắt. FE validate chỉ là UX, không thay thế BE.</li>
+  </ul>
+
+</div>
+</body>
+</html>

@@ -71,3 +71,8 @@ uploads/
 .temp/
 tmp/
 test_sample.pdf
+# MinIO runtime data (docker volume mount ./data/minio:/data)
+/data/
+
+# TS build cache
+*.tsbuildinfo
