@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DefendAI — Deploy Backend</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#c9d1d9;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922;--purple:#bc8cff;--code-bg:#0d1117}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;font-size:16px}
+.md{max-width:980px;margin:0 auto;padding:2rem 1.5rem}
+
+/* Headings */
+h1{font-size:2rem;font-weight:700;border-bottom:1px solid var(--border);padding-bottom:.5rem;margin-bottom:1rem}
+h2{font-size:1.4rem;font-weight:600;margin-top:2rem;margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem}
+h3{font-size:1.15rem;font-weight:600;margin-top:1.5rem;margin-bottom:.5rem}
+h4{font-size:1rem;font-weight:600;margin-top:1rem;margin-bottom:.4rem}
+
+/* Inline */
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:'Cascadia Code',Consolas,'Courier New',monospace;font-size:.85em;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:.15em .4em;color:var(--accent)}
+strong{color:#f0f6fc;font-weight:600}
+em{color:var(--muted)}
+
+/* Blockquote > ... */
+blockquote{border-left:4px solid var(--accent);padding:.75rem 1rem;margin:.75rem 0;background:rgba(88,166,255,.04);border-radius:0 6px 6px 0;color:var(--text)}
+blockquote p{margin:.25rem 0}
+blockquote strong{color:var(--yellow)}
+blockquote em{color:var(--muted);font-style:normal}
+
+/* Code blocks ```...``` */
+pre{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:1rem;overflow-x:auto;font-family:'Cascadia Code',Consolas,'Courier New',monospace;font-size:.82rem;color:var(--green);margin:.75rem 0;line-height:1.5}
+pre code{background:none;border:none;padding:0;color:inherit;font-size:inherit}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;margin:.75rem 0}
+th,td{padding:.5rem .75rem;border:1px solid var(--border);text-align:left}
+th{background:var(--surface);color:var(--accent);font-size:.8rem;text-transform:uppercase;font-weight:600}
+td{color:var(--text)}
+.cost{color:var(--green);font-weight:600}
+
+/* Lists */
+ul,ol{margin:.5rem 0 .5rem 1.5rem}
+li{margin:.25rem 0}
+
+/* HR *** */
+hr{border:none;border-top:2px solid var(--border);margin:2rem 0}
+
+/* Progress */
+.progress{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.5rem}
+.progress .row{display:flex;justify-content:space-between;font-weight:600;margin-bottom:.5rem;font-size:.9rem}
+.progress-bar{height:10px;background:var(--bg);border-radius:999px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--accent));border-radius:999px;transition:width .4s;width:0%}
+
+/* Checklist — markdown-like */
+.checklist{margin:.75rem 0}
+.check-item{display:flex;align-items:flex-start;gap:.5rem;padding:.35rem 0;cursor:pointer}
+.check-item:hover .label{text-decoration:none}
+.check-item input[type=checkbox]{width:1.1rem;height:1.1rem;margin-top:.25rem;accent-color:var(--green);flex-shrink:0;cursor:pointer}
+.check-item.checked .label{text-decoration:line-through;color:var(--muted)}
+.label{flex:1}
+.label .cmd{display:block;font-family:'Cascadia Code',Consolas,monospace;font-size:.8rem;color:var(--accent);margin-top:.2rem}
+.label .note{display:block;font-size:.8rem;color:var(--yellow);margin-top:.15rem}
+.tag{display:inline-block;font-size:.65rem;padding:.1rem .45rem;border-radius:999px;font-weight:600;margin-left:.5rem;vertical-align:middle}
+.tag-sw{background:rgba(88,166,255,.12);color:var(--accent)}
+.tag-svc{background:rgba(188,140,255,.12);color:var(--purple)}
+.tag-key{background:rgba(210,153,34,.12);color:var(--yellow)}
+.tag-cfg{background:rgba(63,185,80,.12);color:var(--green)}
+.tag-ok{background:rgba(63,185,80,.15);color:var(--green)}
+
+/* Accordion steps */
+.step{border:1px solid var(--border);border-radius:6px;margin-bottom:.75rem;overflow:hidden}
+.step-header{padding:.75rem 1rem;display:flex;align-items:center;gap:.6rem;cursor:pointer;user-select:none;background:var(--surface)}
+.step-header:hover{background:rgba(88,166,255,.06)}
+.step-num{background:var(--accent);color:var(--bg);font-weight:700;width:1.6rem;height:1.6rem;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.8rem}
+.step-title{font-weight:600;flex:1;font-size:.95rem}
+.step-arrow{transition:transform .2s;color:var(--muted);font-size:.7rem}
+.step.open .step-arrow{transform:rotate(180deg)}
+.step-body{padding:1rem;display:none}
+.step.open .step-body{display:block}
+.step-body pre{margin:.5rem 0}
+.step-body p{color:var(--muted);margin:.5rem 0}
+.step-body .warn{background:rgba(210,153,34,.1);border-left:4px solid var(--yellow);padding:.6rem 1rem;border-radius:0 6px 6px 0;font-size:.85rem;margin:.5rem 0}
+
+/* Footer */
+.footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border)}
+
+/* Print */
+@media print{body{background:#fff;color:#000}pre{background:#f5f5f5;color:#333}code{background:#f0f0f0;color:#333}}
+</style>
+</head>
+<body>
+<div class="md">
+
+<h1>DefendAI — Hướng dẫn Deploy Backend</h1>
+
+<blockquote>
+<p><strong>File này chỉ hướng dẫn deploy BACKEND (FastAPI)</strong></p>
+<p>| Thành phần | Trạng thái | Platform |</p>
+<p>| <strong>Frontend (FE)</strong> | ✅ Đã deploy sẵn | Vercel |</p>
+<p>| <strong>Database (DB)</strong> | ✅ Đã deploy sẵn | Supabase |</p>
+<p>| <strong>Backend (BE)</strong> | ⏳ CẦN DEPLOY | <strong>Local Windows + Docker</strong> ← file này hướng dẫn |</p>
+</blockquote>
+
+<h2>Tổng quan kiến trúc</h2>
+
+<pre>
+┌──────────────────┐         ┌────────────────────────┐         ┌──────────────────┐
+│  FE (Vercel)     │  HTTPS  │  Máy Windows Local     │  port   │  DB (Supabase)   │
+│  Next.js 14      │ tunnel  │  ┌──────────────────┐  │  6543   │  PostgreSQL      │
+│  defend-ai       │────────▶│  │  BE (FastAPI)    │──│────────▶│                  │
+│  .vercel.app     │◀────────│  │  Docker container│  │         │  Supabase Cloud  │
+│                  │         │  │  localhost:8000  │  │         │                  │
+└──────────────────┘         │  └──────────────────┘  │         └──────────────────┘
+                             │   ngrok / Cloudflare   │
+                             │   Tunnel (expose BE)   │
+                             └────────────────────────┘</pre>
+
+<table>
+<tr><th>Service</th><th>Platform</th><th>Trạng thái</th></tr>
+<tr><td><strong>Frontend</strong></td><td>Vercel (cloud, free)</td><td>✅ Đã deploy</td></tr>
+<tr><td><strong>Backend</strong></td><td>Windows + Docker (local)</td><td>⏳ Cần deploy</td></tr>
+<tr><td><strong>Database</strong></td><td>Supabase (cloud, free)</td><td>✅ Đã deploy</td></tr>
+<tr><td><strong>Expose BE</strong></td><td>Cloudflare Tunnel / ngrok</td><td>⏳ Cần setup</td></tr>
+<tr><td><strong>CI/CD</strong></td><td>GitHub Actions (free)</td><td>✅ Đang chạy</td></tr>
+</table>
+
+<h3>Tại sao deploy BE trên máy local?</h3>
+
+<ul>
+<li><strong>Không cold start</strong> — Server chạy liên tục, không sleep như Render Free</li>
+<li><strong>RAM/CPU tùy ý</strong> — Không giới hạn 512 MB như Render Free</li>
+<li><strong>Không tốn phí</strong> — Miễn là máy bạn luôn bật</li>
+<li><strong>Phù hợp đồ án</strong> — Đủ ổn định cho demo/bảo vệ</li>
+</ul>
+
+<hr>
+
+<!-- ============ PROGRESS ============ -->
+<div class="progress">
+  <div class="row">
+    <span>Tiến độ checklist</span>
+    <span id="progress-text">0 / 13</span>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-fill" id="progress-fill"></div>
+  </div>
+</div>
+
+<!-- ============ CHECKLIST ============ -->
+<h2>Checklist công nghệ cần kiểm tra trước khi chạy BE</h2>
+
+<div class="checklist">
+
+<label class="check-item checked" onclick="setTimeout(updateProgress,0)">
+  <input type="checkbox" data-group="tech" checked>
+  <div class="label">
+    <strong>Docker Desktop</strong> — Đã cài đặt <span class="tag tag-ok">OK</span>
+    <span class="cmd">docker --version && docker compose version</span>
+    <span class="note">✔ Đã cài Docker Desktop.</span>
+  </div>
+</label>
+
+<label class="check-item checked" onclick="setTimeout(updateProgress,0)">
+  <input type="checkbox" data-group="tech" checked>
+  <div class="label">
+    <strong>Docker Engine Running</strong> — Đã chạy <span class="tag tag-ok">OK</span>
+    <span class="cmd">docker ps</span>
+    <span class="note">✔ Docker engine đang chạy.</span>
+  </div>
+</label>
+
+<label class="check-item" onclick="setTimeout(updateProgress,0)">
+  <input type="checkbox" data-group="tech">
+  <div class="label">
+    <strong>Git</strong> — v2.55.0 ✅ (PATH đã set vĩnh viễn) <span class="tag tag-ok">OK</span>
+    <span class="cmd">git --version → git version 2.55.0.windows.1</span>
+    <span class="note">✔ Đã verify. Dùng git pull (cập nhật code BE) và git push (trigger Vercel deploy FE).</span>
+  </div>
+</label>
+
+<label class="check-item checked" onclick="setTimeout(updateProgress,0)">
+  <input type="checkbox" data-group="tech" checked>
+  <div class="label">
+    <strong>Python 3.12</strong> — Có sẵn trong Docker image (không cần cài local) <span class="tag tag-ok">OK</span>
+    <span class="cmd">python --version &nbsp; # hoặc: docker run --rm python:3.12-slim python --version</span>
+    <span class="note">✔ Dùng Docker image python:3.12-slim, không cần Python local.</span>
+  </div>
+</label>
+
+<label class="check-item" onclick="setTimeout(updateProgress,0)">
+  <input type="checkbox" data-group="tech">
+  <div class="label">
+    <strong>FastAPI + Uvicorn</strong> — Web framework & ASGI server <span class="tag tag-sw">Dependency</span>
+    <span class="cmd">fastapi>=0.111.0 &nbsp; uvicorn[standard]>=0.30.0</span>
+    <span class="note">Cài tự động qua requirements.txt trong Docker image.</span>
+  </div>
+</label>
+
+<label class="check-item" onclick="setTimeout(updateProgress,0)">
+  <input type="checkbox" data-group="tech">
+  <div class="label">
+    <strong>Supabase (PostgreSQL)</strong> — DB phải active & reachable <span class="tag tag-svc">Service</span>
+    <span class="cmd">DATABASE_URL=postgresql+asyncpg://postgres.xxxxx:[PWD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres</span>
+    <span class="note">Port 6543 (Transaction mode). Kiểm tra Supabase Dashboard → project Active.</span>
+  </div>
+</label>
+
+<label class="check-item" onclick="setTimeout(updateProgress,0)">
+  <input type="checkbox" data-group="tech">
+  <div class="label">
+    <strong>Google AI API Key</strong> — AI provider chính (60 req/phút free) <span class="tag tag-key">API Key</span>
+    <span class="cmd">GOOGLE_API_KEY=AIza...</span>
+    <span class="note">Lấy tại https://aistudio.google.com/apikey — Cần ít nhất 1 trong 2 key.</span>
+  </div>
+</label>
+
+<label class="check-item" onclick="setTimeout(updateProgress,0)">
+  <input type="checkbox" data-group="tech">
+  <div class="label">
+    <strong>NVIDIA NIM API Key</strong> — AI provider phụ (orchestrator) <span class="tag tag-key">API Key</span>
+    <span class="cmd">NVIDIA_API_KEY=nvapi-...</span>
+    <span class="note">Lấy tại https://build.nvidia.com/ — Free credits. Có thể chỉ dùng Google nếu không có.</span>
+  </div>
+</label>
+
+<label class="check-item" onclick="setTimeout(updateProgress,0)">
+  <input type="checkbox" data-group="tech">
+  <div class="label">
+    <strong>SECRET_KEY</strong> — JWT signing key (64 hex chars ngẫu nhiên) <span class="tag tag-cfg">Config</span>
+    <span class="cmd">python -c "import secrets; print(secrets.token_hex(32))"</span>
+    <span class="note">Tạo key, paste vào .env. Không dùng giá trị mặc định.</span>
+  </div>
+</label>
+
+<label class="check-item" onclick="setTimeout(updateProgress,0)">
+  <input type="checkbox" data-group="tech">
+  <div class="label">
+    <strong>.env file</strong> — File cấu hình đã điền đủ giá trị <span class="tag tag-cfg">Config</span>
+    <span class="cmd">Copy-Item .env.example .env</span>
+    <span class="note">Điền DATABASE_URL, API keys, SECRET_KEY. File nằm tại apps/api/.env</span>
+  </div>
+</label>
+
+<label class="check-item" onclick="setTimeout(updateProgress,0)">
+  <input type="checkbox" data-group="tech">
+  <div class="label">
+    <strong>Tunnel (ngrok / Cloudflare)</strong> — Expose localhost ra internet cho FE Vercel gọi <span class="tag tag-svc">Service</span>
+    <span class="cmd">ngrok http http://localhost:8000 &nbsp; HOẶC &nbsp; cloudflared tunnel --url http://localhost:8000</span>
+    <span class="note">FE chạy trên Vercel (cloud) → cần tunnel để gọi BE (localhost). Bắt buộc nếu FE ở Vercel.</span>
+  </div>
+</label>
+
+<label class="check-item" onclick="setTimeout(updateProgress,0)">
+  <input type="checkbox" data-group="tech">
+  <div class="label">
+    <strong>Vercel Env Var</strong> — NEXT_PUBLIC_API_URL trỏ về tunnel URL <span class="tag tag-cfg">Config</span>
+    <span class="cmd">NEXT_PUBLIC_API_URL=https://xxx.ngrok-free.app</span>
+    <span class="note">Vercel Dashboard → Settings → Environment Variables. Save → auto redeploy.</span>
+  </div>
+</label>
+
+<label class="check-item" onclick="setTimeout(updateProgress,0)">
+  <input type="checkbox" data-group="tech">
+  <div class="label">
+    <strong>CORS Config</strong> — allow_origins trong main.py <span class="tag tag-cfg">Config</span>
+    <span class="note">Thêm tunnel URL + FE Vercel URL vào allow_origins. Hoặc dùng allow_origins=["*"] cho dev.</span>
+  </div>
+</label>
+
+</div><!-- checklist -->
+
+<hr>
+
+<!-- ============ STEPS ============ -->
+<h2>Hướng dẫn từng bước</h2>
+
+<!-- Step 0 -->
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">0</div>
+    <div class="step-title">Xác nhận FE & DB đã deploy</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <blockquote>File này <strong>CHỈ</strong> hướng dẫn deploy BE. Giả định FE và DB đã chạy ổn định.</blockquote>
+
+    <h4>0.1 Kiểm tra FE đã deploy trên Vercel</h4>
+    <ol>
+      <li>Vào https://vercel.com/dashboard → Project <code>defend-ai</code></li>
+      <li>Kiểm tra URL: <code>https://defend-ai.vercel.app</code></li>
+      <li>Mở browser → đăng ký/đăng nhập thử → nếu lỗi kết nối tới API → chưa có BE → cần làm tiếp</li>
+    </ol>
+
+    <h4>0.2 Kiểm tra DB đã deploy trên Supabase</h4>
+    <ol>
+      <li>Vào https://supabase.com/dashboard → Project <code>defendai-db</code></li>
+      <li><strong>Table Editor</strong> → kiểm tra có <strong>9 bảng</strong> (<code>users</code>, <code>documents</code>, <code>questions</code>, <code>code_scans</code>, <code>assessments</code>...)</li>
+      <li><strong>Settings</strong> → <strong>Database</strong> → <strong>Connection string</strong> → tab <strong>URI</strong>:</li>
+    </ol>
+    <pre>postgresql://postgres.xxxxx:[YOUR-PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres</pre>
+
+    <h4>0.3 Lấy API Keys (Google AI / NVIDIA)</h4>
+    <ul>
+      <li><strong>Google AI Studio</strong>: https://aistudio.google.com/apikey (60 req/phút free)</li>
+      <li><strong>NVIDIA NIM</strong>: https://build.nvidia.com/ (free credits)</li>
+    </ul>
+    <blockquote>Cần <strong>ít nhất 1 trong 2 key</strong> để AI hoạt động.</blockquote>
+  </div>
+</div>
+
+<!-- Step 1 -->
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">1</div>
+    <div class="step-title">Cài Docker Desktop trên Windows</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <blockquote>Yêu cầu: Windows 10 Pro+ 64-bit, RAM >= 4GB (server hiện tại 6GB)</blockquote>
+    <ol>
+      <li>Download: https://www.docker.com/products/docker-desktop/</li>
+      <li>Cài đặt → <strong>Restart máy</strong> nếu được yêu cầu</li>
+      <li>Mở Docker Desktop → đợi icon Docker ở system tray chuyển <strong>xanh</strong> (không loading)</li>
+      <li>Verify:</li>
+    </ol>
+    <pre>docker --version
+# Docker version 27.x.x+
+
+docker compose version
+# Docker Compose version v2.x.x+</pre>
+    <blockquote>Docker Desktop yêu cầu <strong>WSL2</strong>. Installer sẽ tự bật nếu chưa có.</blockquote>
+  </div>
+</div>
+
+<!-- Step 2 -->
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">2</div>
+    <div class="step-title">Cấu hình Backend (.env)</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <h4>2.1 Vào thư mục API</h4>
+    <pre>cd d:\STUDY\KY7\EXE101\DefendAI\apps\api</pre>
+
+    <h4>2.2 Tạo file .env từ template</h4>
+    <pre>Copy-Item .env.example .env
+notepad .env</pre>
+
+    <h4>2.3 Điền các giá trị</h4>
+    <pre># ====== Database (Supabase — ĐÃ DEPLOY SẴN) ======
+DATABASE_URL=postgresql+asyncpg://postgres.xxxxx:[YOUR-PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
+
+# ====== AI API Keys (lấy từ Bước 0.3) ======
+GOOGLE_API_KEY=your-google-api-key-here
+NVIDIA_API_KEY=your-nvidia-api-key-here
+
+# ====== Routing ======
+DEFAULT_PROVIDER=google
+ORCHESTRATOR_PROVIDER=nvidia
+
+# ====== Auth ======
+# Tạo SECRET_KEY ngẫu nhiên:
+#   python -c "import secrets; print(secrets.token_hex(32))"
+#   Hoặc PowerShell (nếu chưa cài Python local):
+#   [BitConverter]::ToString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).Replace("-","").ToLower()
+SECRET_KEY=paste-random-key-vào-đây
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30</pre>
+
+    <div class="warn">⚠️ <strong>Quan trọng</strong>: Dùng port <strong>6543</strong> (Transaction mode), không phải 5432. <code>[YOUR-PASSWORD]</code> → thay bằng password thật của Supabase. Phải có ít nhất 1 trong 2 AI key.</div>
+
+    <h4>2.4 Verify kết nối DB (không bắt buộc)</h4>
+    <pre>$env:DATABASE_URL="postgresql+asyncpg://postgres.xxxxx:[YOUR-PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres"
+python -c "import asyncio, asyncpg; asyncio.run(asyncpg.connect('$env:DATABASE_URL'.replace('postgresql+asyncpg://', 'postgresql://')))"
+# Không lỗi = OK</pre>
+  </div>
+</div>
+
+<!-- Step 3 -->
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">3</div>
+    <div class="step-title">Build & chạy Docker container</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <blockquote>File <code>Dockerfile</code> đã có sẵn ở <code>apps/api/Dockerfile</code>.</blockquote>
+
+    <h4>3.1 Build image</h4>
+    <pre>cd d:\STUDY\KY7\EXE101\DefendAI\apps\api
+docker build -t defendai-api .</pre>
+    <p>Quá trình build mất ~2-5 phút (cài Python deps).</p>
+
+    <h4>3.2 Chạy container</h4>
+    <pre>docker run -d `
+  --name defendai-api `
+  --restart unless-stopped `
+  -p 8000:8000 `
+  --env-file .env `
+  defendai-api</pre>
+
+    <table>
+      <tr><th>Flag</th><th>Ý nghĩa</th></tr>
+      <tr><td><code>-d</code></td><td>Chạy nền (detached)</td></tr>
+      <tr><td><code>--name defendai-api</code></td><td>Tên container</td></tr>
+      <tr><td><code>--restart unless-stopped</code></td><td>Tự khởi động lại khi reboot</td></tr>
+      <tr><td><code>-p 8000:8000</code></td><td>Map port host → container</td></tr>
+      <tr><td><code>--env-file .env</code></td><td>Load biến môi trường</td></tr>
+    </table>
+
+    <h4>3.3 Verify</h4>
+    <pre># Xem container đang chạy
+docker ps
+# -> Có defendai-api, status "Up"
+
+# Health check
+curl http://localhost:8000/health
+# Kết quả: {"status":"healthy","ai_providers":["google","nvidia"],"ai_ready":true}
+
+# Swagger UI
+# Mở browser: http://localhost:8000/docs</pre>
+
+    <p>✅ <strong>BE đã chạy thành công trên localhost:8000!</strong></p>
+
+    <h4>3.4 Lệnh quản lý container</h4>
+    <pre># Xem logs realtime
+docker logs -f defendai-api
+
+# Dừng
+docker stop defendai-api
+
+# Khởi động lại
+docker start defendai-api
+
+# Restart (sau khi sửa env)
+docker restart defendai-api
+
+# Xóa container
+docker rm -f defendai-api
+
+# Xem resource usage
+docker stats defendai-api</pre>
+
+    <h4>3.5 Khi code thay đổi</h4>
+    <pre>cd d:\STUDY\KY7\EXE101\DefendAI\apps\api
+git pull
+
+# Rebuild image
+docker build -t defendai-api .
+
+# Xóa container cũ + chạy container mới
+docker rm -f defendai-api
+docker run -d --name defendai-api --restart unless-stopped -p 8000:8000 --env-file .env defendai-api</pre>
+  </div>
+</div>
+
+<!-- Step 4 -->
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">4</div>
+    <div class="step-title">Expose Backend ra Internet (Tunnel)</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <blockquote>FE trên Vercel (cloud) cần gọi BE trên máy local → cần <strong>tunnel</strong>.</blockquote>
+
+    <pre>FE (Vercel, internet) ──HTTPS──▶ ??? ──▶ BE (localhost:8000)
+                                  ↑
+                            Cần tunnel</pre>
+
+    <table>
+      <tr><th></th><th>Cloudflare Tunnel</th><th>ngrok</th></tr>
+      <tr><td><strong>Giá</strong></td><td>Free</td><td>Free</td></tr>
+      <tr><td><strong>URL</strong></td><td>Ổn định hơn (có thể mua domain)</td><td>Thay đổi mỗi lần restart (free tier)</td></tr>
+      <tr><td><strong>Tốc độ</strong></td><td>Nhanh</td><td>Trung bình</td></tr>
+      <tr><td><strong>Cài đặt</strong></td><td><code>winget install Cloudflare.cloudflared</code></td><td>Download .exe từ ngrok.com</td></tr>
+    </table>
+
+    <h4>Phương án A: Cloudflare Tunnel (khuyến nghị)</h4>
+    <pre># 1. Cài cloudflared
+winget install Cloudflare.cloudflared
+
+# 2. Đăng nhập Cloudflare (mở browser)
+cloudflared tunnel login
+
+# 3. Tạo tunnel
+cloudflared tunnel create defendai
+
+# 4. Chạy tunnel (URL miễn phí *.trycloudflare.com)
+cloudflared tunnel --url http://localhost:8000</pre>
+    <p>Cloudflare sẽ cấp URL dạng: <code>https://random-name.trycloudflare.com</code> — <strong>Copy URL này</strong>, dùng cho Bước 5.</p>
+
+    <h4>Phương án B: ngrok (nhanh, tạm thời)</h4>
+    <pre># 1. Đăng ký tài khoản tại https://ngrok.com
+# 2. Download ngrok.exe cho Windows
+# 3. Mở PowerShell trong thư mục chứa ngrok.exe
+
+# 4. Authenticate
+ngrok config add-authtoken YOUR_AUTH_TOKEN
+
+# 5. Chạy tunnel
+ngrok http http://localhost:8000</pre>
+    <p>Output: <code>Forwarding https://xxxx-xxx-xxx.ngrok-free.app -> http://localhost:8000</code> — <strong>Copy URL này</strong>, dùng cho Bước 5.</p>
+
+    <blockquote><strong>Khuyến nghị</strong>: Demo vài giờ → ngrok. Demo lâu/bảo vệ → Cloudflare Tunnel + mua domain (~1-10$/năm).</blockquote>
+  </div>
+</div>
+
+<!-- Step 5 -->
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">5</div>
+    <div class="step-title">Cập nhật FE trỏ về BE</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <blockquote>FE trên Vercel cần biết URL của BE để gọi API.</blockquote>
+
+    <h4>5.1 Cập nhật biến môi trường trên Vercel</h4>
+    <ol>
+      <li>Vào https://vercel.com/dashboard → Project <code>defend-ai</code></li>
+      <li><strong>Settings</strong> → <strong>Environment Variables</strong></li>
+      <li>Sửa <code>NEXT_PUBLIC_API_URL</code>:</li>
+    </ol>
+    <pre>NEXT_PUBLIC_API_URL = https://xxxx-xxx-xxx.ngrok-free.app</pre>
+    <p>4. <strong>Save</strong> → Vercel tự redeploy (~1-2 phút)</p>
+
+    <h4>5.2 Cập nhật CORS trên Backend</h4>
+    <p>Sửa file <code>apps/api/app/main.py</code>:</p>
+    <pre>app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://defend-ai.vercel.app",         # FE trên Vercel
+        "https://xxxx-xxx-xxx.ngrok-free.app",  # ngrok URL
+        "https://api.defendai.example.com",     # Cloudflare URL (nếu có)
+        "http://localhost:3000",                # dev local
+    ],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)</pre>
+    <p>Sau đó rebuild container:</p>
+    <pre>cd d:\STUDY\KY7\EXE101\DefendAI\apps\api
+docker build -t defendai-api .
+docker rm -f defendai-api
+docker run -d --name defendai-api --restart unless-stopped -p 8000:8000 --env-file .env defendai-api</pre>
+    <div class="warn">💡 <strong>Mẹo</strong>: Dùng <code>allow_origins=["*"]</code> cho dev → không cần sửa mỗi lần đổi URL tunnel.</div>
+
+    <h4>5.3 Cập nhật lại khi URL tunnel thay đổi</h4>
+    <p>Nếu dùng ngrok free tier, mỗi lần restart sẽ có URL mới:</p>
+    <ol>
+      <li>Restart ngrok → copy URL mới</li>
+      <li>Vào Vercel → cập nhật <code>NEXT_PUBLIC_API_URL</code> → Save (auto redeploy)</li>
+      <li>Sửa <code>allow_origins</code> trong <code>main.py</code> → rebuild container</li>
+    </ol>
+    <p><strong>Hoặc dùng ngrok domain cố định:</strong></p>
+    <pre>ngrok http --domain=your-fixed-name.ngrok-free.app http://localhost:8000</pre>
+  </div>
+</div>
+
+<!-- Step 6 -->
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">6</div>
+    <div class="step-title">Verify toàn bộ hệ thống</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <table>
+      <tr><th>#</th><th>Kiểm tra</th><th>Cách</th><th>Kết quả</th></tr>
+      <tr><td>1</td><td>Docker Engine</td><td>Docker Desktop system tray</td><td>"Engine running"</td></tr>
+      <tr><td>2</td><td>Container BE</td><td><code>docker ps</code></td><td><code>defendai-api</code> status <code>Up</code></td></tr>
+      <tr><td>3</td><td>BE health local</td><td><code>curl http://localhost:8000/health</code></td><td><code>{"status":"healthy"}</code></td></tr>
+      <tr><td>4</td><td>BE qua tunnel</td><td>Browser: <code>{tunnel-url}/health</code></td><td><code>{"status":"healthy"}</code></td></tr>
+      <tr><td>5</td><td>Swagger UI</td><td>Browser: <code>{tunnel-url}/docs</code></td><td>Hiển thị</td></tr>
+      <tr><td>6</td><td>FE → BE</td><td>F12 Console trên Vercel URL</td><td>Không CORS error</td></tr>
+      <tr><td>7</td><td>Login flow</td><td>Đăng ký + đăng nhập trên FE</td><td>Thành công</td></tr>
+      <tr><td>8</td><td>DB có data</td><td>Upload tài liệu → Supabase Table Editor</td><td>Có row mới</td></tr>
+    </table>
+
+    <h4>Test flow</h4>
+    <ol>
+      <li>Mở FE trên Vercel → đăng ký tài khoản</li>
+      <li>Đăng nhập</li>
+      <li>Upload tài liệu (PDF/DOCX)</li>
+      <li>Generate câu hỏi</li>
+      <li>Scan code</li>
+      <li>Vào Supabase → kiểm tra data được lưu</li>
+    </ol>
+  </div>
+</div>
+
+<hr>
+
+<!-- ============ TROUBLESHOOTING ============ -->
+<h2>Troubleshooting</h2>
+
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">!</div>
+    <div class="step-title">BE không start được (container crash ngay)</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <pre>docker logs defendai-api</pre>
+    <p>Lỗi thường: thiếu env var, DATABASE_URL sai, API key sai, SECRET_KEY chưa tạo.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">!</div>
+    <div class="step-title">BE không kết nối được Supabase</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <ul>
+      <li>Kiểm tra port <strong>6543</strong> (không phải 5432)</li>
+      <li>Password đúng (không có ký tự đặc biệt chưa escape)</li>
+      <li>Supabase project đang <strong>"Active"</strong> (không pause)</li>
+      <li>Nếu dùng IPv6, có thể cần thêm <code>?sslmode=require</code></li>
+    </ul>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">!</div>
+    <div class="step-title">FE không gọi được BE (CORS Error)</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <ol>
+      <li>Tunnel đang chạy? (ngrok/cloudflared terminal chưa tắt)</li>
+      <li>Vercel <code>NEXT_PUBLIC_API_URL</code> đã đúng URL tunnel chưa?</li>
+      <li><code>allow_origins</code> trong <code>main.py</code> đã có domain FE + domain tunnel chưa?</li>
+      <li>Sau khi sửa → rebuild container</li>
+    </ol>
+    <pre>docker rm -f defendai-api
+docker run -d --name defendai-api --restart unless-stopped -p 8000:8000 --env-file .env defendai-api</pre>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">!</div>
+    <div class="step-title">AI không hoạt động (ai_ready=false)</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <pre>curl http://localhost:8000/health</pre>
+    <p>Nếu <code>"ai_ready": false</code> → API key sai hoặc hết quota.</p>
+    <ul>
+      <li>Google: https://aistudio.google.com/apikey (check quota)</li>
+      <li>NVIDIA: https://build.nvidia.com/ (check credits)</li>
+    </ul>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">!</div>
+    <div class="step-title">Docker container tự tắt (OOM Exit 137)</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <pre>docker inspect defendai-api --format='{{.State.ExitCode}}'
+# 137 = OOM (RAM không đủ)</pre>
+    <ol>
+      <li>Đóng app khác để giải phóng RAM</li>
+      <li>Tăng RAM Docker Desktop → Settings → Resources</li>
+      <li>Restart container: <code>docker start defendai-api</code></li>
+    </ol>
+  </div>
+</div>
+
+<hr>
+
+<!-- ============ WORKFLOW ============ -->
+<h2>Workflow khi phát triển</h2>
+
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">⟳</div>
+    <div class="step-title">Flow deploy & cập nhật code</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <pre># 1. Code trên máy Windows (VS Code / Trae IDE)
+
+# 2. Sửa code BE xong → rebuild image
+cd d:\STUDY\KY7\EXE101\DefendAI\apps\api
+git pull
+docker build -t defendai-api .
+docker rm -f defendai-api
+docker run -d --name defendai-api --restart unless-stopped -p 8000:8000 --env-file .env defendai-api
+
+# 3. Sửa code FE xong → push lên GitHub → Vercel tự rebuild
+cd d:\STUDY\KY7\EXE101\DefendAI\apps\web
+git add .
+git commit -m "feat: ..."
+git push origin main
+# → Vercel auto-detect và redeploy (~1-2 phút)</pre>
+
+    <table>
+      <tr><th>Component</th><th>Auto deploy?</th><th>Cần làm gì?</th></tr>
+      <tr><td>FE (Vercel)</td><td>✅ Tự động</td><td>Push code → Vercel auto-rebuild</td></tr>
+      <tr><td>DB (Supabase)</td><td>✅ Cloud managed</td><td>Không cần làm gì</td></tr>
+      <tr><td><strong>BE (Docker local)</strong></td><td>❌ Thủ công</td><td><code>docker build</code> + <code>docker run</code></td></tr>
+      <tr><td><strong>Tunnel (ngrok/CF)</strong></td><td>❌ Thủ công</td><td>Restart khi cần, update Vercel env</td></tr>
+      <tr><td>CI (GitHub Actions)</td><td>✅ Tự động</td><td>Push code → CI pass</td></tr>
+    </table>
+  </div>
+</div>
+
+<hr>
+
+<!-- ============ COST ============ -->
+<h2>Chi phí tổng kết</h2>
+
+<table>
+<tr><th>Service</th><th>Platform</th><th>Chi phí/tháng</th></tr>
+<tr><td>CI/CD</td><td>GitHub Actions</td><td class="cost">$0 (2000 mins/tháng free)</td></tr>
+<tr><td>Frontend</td><td>Vercel</td><td class="cost">$0 (hobby)</td></tr>
+<tr><td>Backend</td><td>Máy local (Docker)</td><td class="cost">$0</td></tr>
+<tr><td>Database</td><td>Supabase</td><td class="cost">$0 (500MB free)</td></tr>
+<tr><td>Expose BE</td><td>ngrok / Cloudflare Tunnel</td><td class="cost">$0 (free tier)</td></tr>
+<tr><td>AI API</td><td>Google AI / NVIDIA</td><td class="cost">$0 (free tier)</td></tr>
+<tr><td colspan="2"><strong>Tổng</strong></td><td class="cost"><strong>$0</strong></td></tr>
+</table>
+
+<blockquote>Nếu mua tên miền cho Cloudflare Tunnel, thêm ~1-10$/năm.</blockquote>
+
+<hr>
+
+<!-- ============ ENV SUMMARY ============ -->
+<h2>Cấu trúc env summary</h2>
+
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">📋</div>
+    <div class="step-title">Backend .env — CẦN ĐIỀN</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <pre># Database (Supabase - đã deploy)
+DATABASE_URL=postgresql+asyncpg://postgres.xxxxx:password@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
+
+# AI API Keys
+GOOGLE_API_KEY=<your key>
+NVIDIA_API_KEY=<your key>
+
+# Routing
+DEFAULT_PROVIDER=google
+ORCHESTRATOR_PROVIDER=nvidia
+
+# Auth
+SECRET_KEY=<random hex 64 chars>
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30</pre>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">📋</div>
+    <div class="step-title">Frontend (Vercel env vars) — CẦN ĐIỀN</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <pre>NEXT_PUBLIC_API_URL=https://xxxx-xxx-xxx.ngrok-free.app</pre>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">📋</div>
+    <div class="step-title">Backend CORS (main.py) — CẦN SỬA</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <pre>allow_origins=[
+    "https://defend-ai.vercel.app",
+    "https://xxxx-xxx-xxx.ngrok-free.app",   # hoặc Cloudflare URL
+    "http://localhost:3000",                  # dev
+]</pre>
+  </div>
+</div>
+
+<hr>
+
+<!-- ============ DEPS ============ -->
+<h2>Python Dependencies (requirements.txt)</h2>
+
+<div class="step">
+  <div class="step-header" onclick="toggleStep(this)">
+    <div class="step-num">📦</div>
+    <div class="step-title">Xem danh sách packages</div>
+    <div class="step-arrow">▼</div>
+  </div>
+  <div class="step-body">
+    <table>
+      <tr><th>Package</th><th>Version</th><th>Mục đích</th></tr>
+      <tr><td>fastapi</td><td>≥0.111.0</td><td>Web framework</td></tr>
+      <tr><td>uvicorn[standard]</td><td>≥0.30.0</td><td>ASGI server</td></tr>
+      <tr><td>sqlalchemy</td><td>≥2.0.30</td><td>ORM</td></tr>
+      <tr><td>alembic</td><td>≥1.13.0</td><td>DB migrations</td></tr>
+      <tr><td>asyncpg</td><td>≥0.30.0</td><td>Async PostgreSQL driver</td></tr>
+      <tr><td>pydantic / pydantic-settings</td><td>≥2.10 / ≥2.2</td><td>Validation & settings</td></tr>
+      <tr><td>python-jose[cryptography]</td><td>≥3.3.0</td><td>JWT tokens</td></tr>
+      <tr><td>passlib[bcrypt]</td><td>≥1.7.4</td><td>Password hashing</td></tr>
+      <tr><td>httpx</td><td>≥0.27.0</td><td>Async HTTP client (healthcheck)</td></tr>
+      <tr><td>openai</td><td>≥1.30.0</td><td>OpenAI API</td></tr>
+      <tr><td>google-generativeai</td><td>≥0.5.0</td><td>Google AI / Gemini</td></tr>
+      <tr><td>PyPDF2 / python-docx / python-pptx</td><td>≥3.0 / ≥1.1 / ≥1.0</td><td>File parsing</td></tr>
+      <tr><td>websockets</td><td>≥12.0</td><td>WebSocket support</td></tr>
+      <tr><td>psycopg2-binary</td><td>≥2.9.0</td><td>Synchronous PG driver (Alembic)</td></tr>
+    </table>
+  </div>
+</div>
+
+<hr>
+
+<!-- ============ LINKS ============ -->
+<h2>Liên kết tham khảo</h2>
+
+<ul>
+  <li><strong>GitHub repo</strong>: https://github.com/DamThanQuy/DefendAI</li>
+  <li><strong>GitHub Actions</strong>: https://github.com/DamThanQuy/DefendAI/actions</li>
+  <li><strong>Supabase Dashboard</strong>: https://supabase.com/dashboard</li>
+  <li><strong>Vercel Dashboard</strong>: https://vercel.com/dashboard</li>
+  <li><strong>Cloudflare Tunnel</strong>: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/</li>
+  <li><strong>ngrok</strong>: https://ngrok.com</li>
+</ul>
+
+<!-- ============ TASK LIST ============ -->
+<h2>Các task cần làm để deploy thành công</h2>
+
+<table>
+<thead>
+<tr>
+  <th>#</th>
+  <th>Task</th>
+  <th>Cách làm</th>
+  <th>Ghi chú</th>
+  <th>Tài liệu</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>1</td>
+  <td>Tạo file .env cho BE (API)</td>
+  <td><code>Copy-Item .env.example .env</code></td>
+  <td>Sao chép từ template có sẵn</td>
+  <td>apps/api/.env.example</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td>Điền DATABASE_URL</td>
+  <td><code>postgresql+asyncpg://postgres.xxxxx:[PWD]@...:6543/postgres</code></td>
+  <td>Lấy từ Supabase → Connection string → URI</td>
+  <td><a href="https://supabase.com/dashboard">Supabase Dashboard</a></td>
+</tr>
+<tr>
+  <td>3</td>
+  <td>Điền GOOGLE_API_KEY</td>
+  <td><code>GOOGLE_API_KEY=AIza...</code></td>
+  <td>60 req/phút free</td>
+  <td><a href="https://aistudio.google.com/apikey">Google AI Studio</a></td>
+</tr>
+<tr>
+  <td>4</td>
+  <td>Điền NVIDIA_API_KEY</td>
+  <td><code>NVIDIA_API_KEY=nvapi-...</code></td>
+  <td>Free credits</td>
+  <td><a href="https://build.nvidia.com/">NVIDIA Build</a></td>
+</tr>
+<tr>
+  <td>5</td>
+  <td>Sinh SECRET_KEY (64 hex)</td>
+  <td><code>python -c "import secrets; print(secrets.token_hex(32))"</code></td>
+  <td>Hoặc PowerShell: <code>[BitConverter]::ToString([RNG]::GetBytes(32)).Replace("-","").ToLower()</code></td>
+  <td>—</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td>Xoá artifact defensai.db</td>
+  <td><code>Remove-Item apps\api\defendai.db -Force</code></td>
+  <td>File corrupt 48KB, dùng PostgreSQL</td>
+  <td>apps/api/defendai.db</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td>Build Docker image</td>
+  <td><code>docker build -t defendai-api .</code></td>
+  <td>Chạy tại <code>apps\api</code></td>
+  <td>Dockerfile</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td>Run container</td>
+  <td><code>docker run -d --name defendai-api --restart unless-stopped -p 8000:8000 --env-file .env defendai-api</code></td>
+  <td>Map port 8000, load env</td>
+  <td>—</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td>Kiểm tra health</td>
+  <td><code>curl http://localhost:8000/health</code></td>
+  <td>Phải trả <code>{"status":"healthy","ai_ready":true}</code></td>
+  <td>—</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td>Mở Swagger UI</td>
+  <td><code>http://localhost:8000/docs</code></td>
+  <td>Xem API docs</td>
+  <td>—</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td>Setup tunnel</td>
+  <td><code>ngrok http http://localhost:8000</code></td>
+  <td>Copy URL</td>
+  <td>ngrok / Cloudflare</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td>Cập nhật Vercel env</td>
+  <td><code>NEXT_PUBLIC_API_URL = {tunnel-url}</code></td>
+  <td>Vercel Dashboard → Settings → Environment Variables</td>
+  <td><a href="https://vercel.com/dashboard">Vercel Dashboard</a></td>
+</tr>
+<tr>
+  <td>13</td>
+  <td>Cập nhật CORS</td>
+  <td><code>allow_origins=["*"]</code></td>
+  <td>Hoặc thêm tunnel URL + Vercel URL</td>
+  <td>apps/api/app/main.py</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td>Verify toàn bộ</td>
+  <td><code>docker ps</code> + <code>curl /health</code> + F12 Console</td>
+  <td>BE chạy, healthy, không CORS lỗi</td>
+  <td>—</td>
+</tr>
+</tbody>
+</table>
+
+<div class="footer">
+  DefendAI Deploy Guide — Generated from DEPLOY_GUIDE.md — 2026
+</div>
+
+</div><!-- .md -->
+
+<script>
+function toggleStep(header) {
+  header.parentElement.classList.toggle('open');
+}
+
+function updateProgress() {
+  const boxes = document.querySelectorAll('.check-item input[type=checkbox]');
+  const total = boxes.length;
+  const checked = [...boxes].filter(b => b.checked).length;
+  const pct = Math.round((checked / total) * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-text').textContent = checked + ' / ' + total;
+  boxes.forEach(cb => {
+    cb.closest('.check-item').classList.toggle('checked', cb.checked);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', updateProgress);
+</script>
+</body>
+</html>

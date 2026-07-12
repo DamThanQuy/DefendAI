@@ -30,7 +30,7 @@ class Document(Base):
     file_type = Column(String(50), nullable=False)  # extension: .pdf, .docx, ...
     doc_type = Column(SQLEnum(DocType), nullable=False)
     status = Column(SQLEnum(DocumentStatus), default=DocumentStatus.uploaded, nullable=False)
-    file_path = Column(String(512), nullable=False)
+    storage_key = Column(String(256), nullable=False)
     content_hash = Column(String(64), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 

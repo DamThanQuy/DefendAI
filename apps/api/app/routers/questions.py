@@ -332,7 +332,7 @@ async def generate_questions(
     await db.refresh(assessment)
 
     try:
-        chunks = parse_and_chunk(document)
+        chunks = await parse_and_chunk(document)
     except DocumentParserError as exc:
         document.status = DocumentStatus.failed
         assessment.status = AssessmentStatus.failed

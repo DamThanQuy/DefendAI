@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Deploy — Database (Supabase + PostgreSQL)</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#c9d1d9;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922;--purple:#bc8cff;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;font-size:16px}
+.md{max-width:980px;margin:0 auto;padding:2rem 1.5rem}
+h1{font-size:2rem;font-weight:700;border-bottom:1px solid var(--border);padding-bottom:.5rem;margin-bottom:1rem}
+h2{font-size:1.4rem;font-weight:600;margin-top:2rem;margin-bottom:.75rem}
+h3{font-size:1.15rem;font-weight:600;margin-top:1.5rem;margin-bottom:.5rem}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:'Cascadia Code',Consolas,'Courier New',monospace;font-size:.85em;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:.15em .4em;color:var(--accent)}
+pre{background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:1rem;overflow-x:auto;font-family:'Cascadia Code',Consolas,'Courier New',monospace;font-size:.82rem;color:var(--green)}
+pre code{background:none;border:none;padding:0;color:inherit;font-size:inherit}
+table{width:100%;border-collapse:collapse;margin:.75rem 0}
+th,td{padding:.5rem .75rem;border:1px solid var(--border);text-align:left}
+th{background:var(--surface);color:var(--accent);font-size:.8rem;text-transform:uppercase;font-weight:600}
+td{color:var(--text)}
+strong{color:#f0f6fc;font-weight:600}
+.tag{display:inline-block;font-size:.65rem;padding:.1rem .45rem;border-radius:999px;font-weight:600;margin-left:.5rem;vertical-align:middle}
+.tag-ok{background:rgba(63,185,80,.15);color:var(--green)}
+.tag-warn{background:rgba(210,153,34,.12);color:var(--yellow)}
+.tag-block{background:rgba(248,81,73,.12);color:var(--red)}
+ul,ol{margin:.5rem 0 .5rem 1.5rem}
+li{margin:.25rem 0}
+blockquote{border-left:4px solid var(--accent);padding:.75rem 1rem;margin:.75rem 0;background:rgba(88,166,255,.04);border-radius:0 6px 6px 0}
+blockquote p{margin:.25rem 0}
+blockquote strong{color:var(--yellow)}
+.footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="md">
+
+<h1>Task Deploy — Database (Supabase + PostgreSQL)</h1>
+
+<table>
+<tr><th>Mục</th><th>Thông tin</th></tr>
+<tr><td>Tên task</td><td><strong>Deploy Database (Supabase PostgreSQL)</strong></td></tr>
+<tr><td>Người phụ trách</td><td><strong>QUYDAM</strong></td></tr>
+<tr><td>Platform</td><td>Supabase Cloud (free tier)</td></tr>
+<tr><td>Thời gian bắt đầu</td><td>2026-06 (đã deploy sẵn)</td></tr>
+<tr><td>Thời gian kết thúc dự kiến</td><td>2026-06 (hoàn thành)</td></tr>
+<tr><td>Trạng thái</td><td><span class="tag tag-ok">✅ Đã deploy</span></td></tr>
+</table>
+
+<hr>
+
+<h2>Mô tả</h2>
+<p>PostgreSQL database trên Supabase cloud — 9 bảng (users, documents, assessments, code_scans, questions, sessions, entities, meetings). Kết nối từ BE qua <code>asyncpg</code> port 6543 (Transaction mode).</p>
+
+<ul>
+  <li><strong>Provider</strong>: Supabase (free tier)</li>
+  <li><strong>Version</strong>: PostgreSQL 15.x</li>
+  <li><strong>Storage</strong>: 500MB free</li>
+  <li><strong>Auth</strong>: Row Level Security (RLS) — không dùng cho MVP</li>
+  <li><strong>Migration</strong>: Alembic</li>
+</ul>
+
+<hr>
+
+<h2>Các bước đã thực hiện</h2>
+
+<table>
+<thead>
+<tr><th>#</th><th>Bước</th><th>Lệnh / Cách</th><th>Trạng thái</th><th>Thời gian</th><th>Ghi chú</th></tr>
+</thead>
+<tbody>
+<tr>
+  <td>1</td>
+  <td>Tạo Supabase project</td>
+  <td><code>https://supabase.com → New Project</code></td>
+  <td><span class="tag tag-ok">✅ Xong</span></td>
+  <td>5 phút</td>
+  <td>Project: <code>defendai-db</code></td>
+</tr>
+<tr>
+  <td>2</td>
+  <td>Tạo 9 bảng (migration)</td>
+  <td><code>alembic upgrade head</code></td>
+  <td><span class="tag tag-ok">✅ Xong</span></td>
+  <td>10 phút</td>
+  <td>Bảng: users, documents, questions, code_scans, assessments, sessions, entities, meetings</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td>Cấu hình connection string</td>
+  <td><code>DATABASE_URL = postgresql+asyncpg://...@pooler.supabase.com:6543/postgres</code></td>
+  <td><span class="tag tag-ok">✅ Xong</span></td>
+  <td>3 phút</td>
+  <td>Port 6543, Transaction mode</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td>Verify bảng</td>
+  <td><code>Supabase Table Editor → 9 bảng hiển thị</code></td>
+  <td><span class="tag tag-ok">✅ Xong</span></td>
+  <td>2 phút</td>
+  <td>Đầy đủ cột</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td>Kiểm tra kết nối từ BE</td>
+  <td><code>python -c "import asyncpg; ..."</code></td>
+  <td><span class="tag tag-ok">✅ Xong</span></td>
+  <td>3 phút</td>
+  <td>Không lỗi</td>
+</tr>
+</tbody>
+</table>
+
+<hr>
+
+<h2>Danh sách bảng</h2>
+
+<table>
+<thead>
+<tr><th>#</th><th>Tên bảng</th><th>Mục đích</th><th>Ghi chú</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td><code>users</code></td><td>Người dùng</td><td>Email, password hash, role</td></tr>
+<tr><td>2</td><td><code>documents</code></td><td>Tài liệu upload</td><td>PDF/DOCX/PPTX</td></tr>
+<tr><td>3</td><td><code>questions</code></td><td>Câu hỏi</td><td>Generated từ AI</td></tr>
+<tr><td>4</td><td><code>code_scans</code></td><td>Kết quả scan code</td><td>Issue, severity</td></tr>
+<tr><td>5</td><td><code>assessments</code></td><td>Bài đánh giá</td><td>Kết quả AI</td></tr>
+<tr><td>6</td><td><code>sessions</code></td><td>Session học tập</td><td>Meeting log</td></tr>
+<tr><td>7</td><td><code>entities</code></td><td>Thực thể</td><td>Entity extraction</td></tr>
+<tr><td>8</td><td><code>meetings</code></td><td>Meeting</td><td>Transcript, note</td></tr>
+</tbody>
+</table>
+
+<hr>
+
+<h2>Các bước cần làm (khi có thay đổi)</h2>
+
+<table>
+<thead>
+<tr><th>#</th><th>Bước</th><th>Lệnh</th><th>Khi nào</th></tr>
+</thead>
+<tbody>
+<tr>
+  <td>1</td>
+  <td>Tạo migration mới</td>
+  <td><code>cd apps\api && alembic revision --autogenerate -m "message"</code></td>
+  <td>Khi thêm bảng/cột</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td>Apply migration</td>
+  <td><code>alembic upgrade head</code></td>
+  <td>Sau khi tạo migration</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td>Verify migration</td>
+  <td><code>alembic current</code></td>
+  <td>Kiểm tra version</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td>Seed data (nếu cần)</td>
+  <td><code>python scripts\seed.py</code></td>
+  <td>Khi cần test data</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td>Kiểm tra Supabase Dashboard</td>
+  <td>Table Editor → xem bảng + data</td>
+  <td>Sau mỗi lần migrate</td>
+</tr>
+</tbody>
+</table>
+
+<hr>
+
+<h2>Phụ thuộc (Dependencies)</h2>
+
+<table>
+<thead>
+<tr><th>Phụ thuộc</th><th>Trạng thái</th><th>Chi tiết</th></tr>
+</thead>
+<tbody>
+<tr>
+  <td>Supabase account</td>
+  <td><span class="tag tag-ok">✅ Active</span></td>
+  <td>danthanchanem@gmail.com</td>
+</tr>
+<tr>
+  <td>PostgreSQL 15</td>
+  <td><span class="tag tag-ok">✅ Cloud</span></td>
+  <td>Supabase quản lý</td>
+</tr>
+<tr>
+  <td>asyncpg</td>
+  <td><span class="tag tag-ok">✅ Trong deps</span></td>
+  <td>Driver async</td>
+</tr>
+<tr>
+  <td>Alembic</td>
+  <td><span class="tag tag-ok">✅ Cài sẵn</span></td>
+  <td>Migration tool</td>
+</tr>
+</tbody>
+</table>
+
+<hr>
+
+<h2>Công cụ sử dụng</h2>
+
+<table>
+<thead>
+<tr><th>Công cụ</th><th>Phiên bản</th><th>Mục đích</th><th>Link</th></tr>
+</thead>
+<tbody>
+<tr><td>Supabase</td><td>—</td><td>PostgreSQL cloud</td><td><a href="https://supabase.com">supabase.com</a></td></tr>
+<tr><td>pgAdmin / DBeaver</td><td>—</td><td>Quản lý DB</td><td>—</td></tr>
+<tr><td>Alembic</td><td>≥1.13</td><td>DB migration</td><td>—</td></tr>
+<tr><td>asyncpg</td><td>≥0.30</td><td>PG driver</td><td>—</td></tr>
+<tr><td>psycopg2-binary</td><td>≥2.9</td><td>Synchronous (Alembic)</td><td>—</td></tr>
+</tbody>
+</table>
+
+<hr>
+
+<h2>Lưu ý quan trọng</h2>
+
+<blockquote>
+<strong>🔴 Cảnh báo:</strong> <code>defendai.db</code> (file local 48KB) <strong>không phải database thật</strong> — là artifact cũ. DB thật là Supabase cloud. Cần xoá file này.
+</blockquote>
+
+<ol>
+  <li><strong>Connection:</strong> Dùng <code>asyncpg</code> (async), không phải <code>psycopg2</code></li>
+  <li><strong>Port:</strong> Luôn dùng <strong>6543</strong> (Transaction pooler), không phải 5432</li>
+  <li><strong>URL:</strong> Dùng <code>postgresql+asyncpg://</code> prefix (không <code>postgresql://</code>)</li>
+  <li><strong>Migration:</strong> <code>alembic upgrade head</code> trước khi chạy app</li>
+  <li><strong>RLS:</strong> Không dùng trong MVP, để <code>disabled</code></li>
+  <li><strong>Backup:</strong> Supabase tự backup (Point-in-time recovery)</li>
+</ol>
+
+<hr>
+
+<h2>Output dự kiến</h2>
+
+<pre>✅ supabase.com → Table Editor → 9 bảng hiển thị
+✅ python -c "import asyncpg; asyncio.run(asyncpg.connect(...))" → không lỗi
+✅ docker logs → không có "connection refused"
+✅ api gọi → lưu được vào DB</pre>
+
+<hr>
+
+<div class="footer">
+  DefendAI — Task Deploy Database | 2026-07-03
+</div>
+
+</div>
+</body>
+</html>
