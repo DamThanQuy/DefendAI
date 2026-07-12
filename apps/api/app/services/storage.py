@@ -47,7 +47,10 @@ object storage (MinIO local / AWS S3). Dùng aioboto3 để giữ async context.
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import aioboto3
 
 from app.core.config import settings
 
