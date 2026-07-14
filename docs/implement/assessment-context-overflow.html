@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vấn đề: Upload SV vượt context window LLM (>200K)</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({ startOnLoad: true, theme: "base", themeVariables: { background: "#ffffff", primaryColor: "#eef2ff", primaryBorderColor: "#2563eb", lineColor: "#1e293b", fontFamily: "-apple-system, Segoe UI, Roboto, sans-serif" } });</script>
+  <style>
+    html, body { background: #ffffff; }
+    body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 900px; margin: 32px auto; padding: 0 20px; line-height: 1.6; color: #1a1a1a; }
+    h1 { font-size: 1.6rem; border-bottom: 2px solid #2563eb; padding-bottom: 8px; }
+    h2 { font-size: 1.2rem; margin-top: 32px; color: #1e3a8; }
+    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+    table { border-collapse: collapse; width: 100%; margin-top: 12px; font-size: 0.92rem; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: #2563eb; color: #fff; }
+    tr:nth-child(even) { background: #f8fafc; }
+    .mermaid { margin-top: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+    ul { padding-left: 20px; }
+  </style>
+</head>
+<body>
+
+  <h1>Vấn đề: Upload SV vượt context window LLM (&gt;200K)</h1>
+
+  <h2>1. Vấn đề (Issue)</h2>
+  <ul>
+    <li><code>code_scanner.build_prompt()</code> giới hạn <code>MAX_TOTAL_CHARS = 200000</code>. Codebase sinh viên vượt mức → <strong>truncate im lặng</strong> → LLM chỉ thấy 1 phần → assessment sai, không báo lỗi.</li>
+    <li>Đồ án SV lớn (full-stack, monorepo, nhiều file) dễ vượt 200K.</li>
+    <li>Hướng RAG (retrieve chunk) giải quyết scale NHƯNG mất holistic view → giảm accuracy khi đánh giá tổng thể.</li>
+  </ul>
+
+  <h2>2. Plan / Solution</h2>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Hạng mục</th><th>Vấn đề hiện tại</th><th>Giải pháp</th><th>Ưu tiên</th><th>Ghi chú</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td>Context cap</td><td>Truncate im lặng &gt;200K</td><td>Threshold 150K → switch mode</td><td>Cao</td><td>Phát hiện sớm</td></tr>
+      <tr><td>2</td><td>Đồ án nhỏ (&lt;150K)</td><td>—</td><td>Full-context (giữ nguyên)</td><td>—</td><td>95% case, accuracy cao nhất</td></tr>
+      <tr><td>3</td><td>Đồ án lớn (&gt;150K)</td><td>Truncate → sai</td><td>Split by module → parallel assess → merge coordinator</td><td>Cao</td><td>Multi-pass, không cần embedding</td></tr>
+      <tr><td>4</td><td>Chunk storage</td><td><code>document_chunks</code> unused</td><td>Populate lúc upload</td><td>TB</td><td>Citation (sources[]) + fallback</td></tr>
+      <tr><td>5</td><td>RAG / embedding</td><td>None</td><td>Defer</td><td>Thấp</td><td>Chỉ khi &gt;300K cực lớn</td></tr>
+      <tr><td>6</td><td>Read module</td><td><code>extract_code_files</code> OK</td><td>Reuse nguyên</td><td>—</td><td>DRY, ingest + assess cùng dùng</td></tr>
+      <tr><td>7</td><td>Question-gen</td><td>Inline dup + dead</td><td>Consolidate sau</td><td>TB</td><td>Refactor riêng</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Flow</h2>
+  <div class="mermaid">
+flowchart TD
+    U[Tải lên] --> P[Phân tích & tách đoạn]
+    P --> C[(Kho đoạn)]
+    P --> D{Tổng ký tự ≤ 150K ?}
+    D -- "CÓ" --> F[Prompt toàn cảnh]
+    F --> A[Đánh giá]
+    D -- "KHÔNG" --> S[Chia theo module]
+    S --> SEC[phần_1, phần_2, ...]
+    SEC --> PA[Đánh giá song song]
+    PA --> M[Tổng hợp kết quả]
+    M --> A
+  </div>
+
+  <h2>4. Quyết định kiến trúc</h2>
+  <ul>
+    <li><strong>Full-context</strong> = default (accuracy cao nhất cho đồ án nhỏ).</li>
+    <li><strong>Multi-pass</strong> = fallback cho đồ án lớn (xử lý được mà không cần embedding service).</li>
+    <li><strong>RAG / embedding</strong> = defer đến khi repo cực lớn (&gt;300K).</li>
+    <li><code>document_chunks</code> luôn populate → sẵn sàng cho citation + RAG sau.</li>
+  </ul>
+
+</body>
+</html>
