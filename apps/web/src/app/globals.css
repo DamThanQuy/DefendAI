@@ -4,33 +4,34 @@
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
+    /* Deep dark SaaS — CodeRabbit palette */
+    --background: 0 0% 3.5%;          /* #09090B pitch-black */
+    --foreground: 0 0% 93%;            /* near-white */
 
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
+    --card: 215 20% 13%;              /* #182030 — lighter for readability */
+    --card-foreground: 0 0% 93%;
 
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 215 25% 12%;
+    --popover-foreground: 0 0% 93%;
 
-    --primary: 250 100% 65%;
+    --primary: 174 84% 32%;           /* teal-600 #0D9488 */
     --primary-foreground: 0 0% 98%;
 
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 240 3.7% 12%;        /* zinc-900 */
+    --secondary-foreground: 0 0% 93%;
 
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
+    --muted: 240 3.7% 12%;
+    --muted-foreground: 210 5% 72%;
 
-    --accent: 280 80% 60%;
+    --accent: 160 84% 39%;            /* mint green #10B981 */
     --accent-foreground: 0 0% 98%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 250 100% 65%;
+    --border: 240 3.7% 18%;           /* crisp dark border */
+    --input: 240 3.7% 15%;
+    --ring: 174 84% 32%;
 
     --radius: 0.75rem;
   }
@@ -42,25 +43,38 @@
   }
   body {
     @apply bg-background text-foreground;
-    background-image: 
-      radial-gradient(at 0% 0%, hsla(250, 100%, 65%, 0.15) 0px, transparent 50%), 
-      radial-gradient(at 100% 0%, hsla(280, 80%, 60%, 0.15) 0px, transparent 50%);
+    background-image:
+      radial-gradient(at 0% 0%, hsla(174, 84%, 32%, 0.08) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(220, 80%, 50%, 0.06) 0px, transparent 50%);
     background-attachment: fixed;
     min-height: 100vh;
   }
 }
 
 @layer utilities {
-  .glass {
-    @apply backdrop-blur-xl border border-white/10 shadow-2xl;
-    background-color: hsl(var(--background) / 0.6);
+  /* Dark SaaS card — crisp border + subtle teal glow, no blur/shadow */
+  .dark-card {
+    @apply rounded-xl border border-zinc-800/60;
+    background-color: hsl(var(--card));
+    transition: all 200ms ease;
   }
+  .dark-card:hover {
+    @apply border-zinc-700;
+    box-shadow: 0 0 24px rgba(13, 148, 136, 0.06);
+  }
+
+  /* Feature card — inherits dark-card + padding/overflow for landing */
+  .feature-card {
+    @apply dark-card rounded-2xl p-8 relative overflow-hidden;
+  }
+
+  /* Glass card — for login form */
   .glass-card {
-    @apply backdrop-blur-xl border border-white/10 shadow-2xl;
-    background-color: hsl(var(--card) / 0.6);
+    @apply dark-card;
   }
+
   .text-gradient {
-    background-image: linear-gradient(to right, hsl(var(--primary)), hsl(var(--accent)));
+    background-image: linear-gradient(135deg, hsl(174, 84%, 32%), hsl(200, 80%, 50%), hsl(220, 80%, 60%));
     -webkit-background-clip: text;
     color: transparent;
   }

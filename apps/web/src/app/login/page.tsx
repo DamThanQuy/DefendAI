@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,9 +14,48 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.detail || "Đăng nhập thất bại");
+        return;
+      }
+
+      // Lưu token + user info
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      // Báo Navbar (cùng tab) cập nhật trạng thái login
+      window.dispatchEvent(new Event("storage"));
+
+      router.push("/");
+    } catch {
+      setError("Không thể kết nối server");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="container relative mx-auto flex flex-col items-center justify-center min-h-[80vh] px-4">
       <Link
@@ -40,48 +83,68 @@ export default function LoginPage() {
               Tiếp tục hành trình bảo vệ đồ án của bạn
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="m@example.com"
-                className="bg-background/50 focus:bg-background transition-colors"
-              />
-            </div>
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Mật khẩu</Label>
-                <Link
-                  href="/forgot-password"
-                  className="text-sm font-medium text-primary hover:underline"
-                >
-                  Quên mật khẩu?
-                </Link>
+          <form onSubmit={handleSubmit}>
+            <CardContent className="grid gap-4">
+              {error && (
+                <div className="rounded-md bg-destructive/15 px-4 py-3 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="m@example.com"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="bg-background/50 focus:bg-background transition-colors"
+                />
               </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                className="bg-background/50 focus:bg-background transition-colors"
-              />
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-4">
-            <Button className="w-full h-11 text-base font-semibold shadow-md transition-transform hover:-translate-y-0.5">
-              Đăng nhập
-            </Button>
-            <p className="text-center text-sm text-muted-foreground mt-2">
-              Chưa có tài khoản?{" "}
-              <Link
-                href="/register"
-                className="font-semibold text-primary hover:underline"
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Mật khẩu</Label>
+                  <Link
+                    href="/forgot-password"
+                    className="text-sm font-medium text-primary hover:underline"
+                  >
+                    Quên mật khẩu?
+                  </Link>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="bg-background/50 focus:bg-background transition-colors"
+                />
+              </div>
+            </CardContent>
+            <CardFooter className="flex flex-col gap-4">
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full h-11 text-base font-semibold shadow-md transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Đăng ký ngay
-              </Link>
-            </p>
-          </CardFooter>
+                {loading ? (
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                ) : null}
+                Đăng nhập
+              </Button>
+              <p className="text-center text-sm text-muted-foreground mt-2">
+                Chưa có tài khoản?{" "}
+                <Link
+                  href="/register"
+                  className="font-semibold text-primary hover:underline"
+                >
+                  Đăng ký ngay
+                </Link>
+              </p>
+            </CardFooter>
+          </form>
         </Card>
       </div>
     </div>

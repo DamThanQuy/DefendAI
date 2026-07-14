@@ -15,7 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.models.entities import Document, DocType, DocumentStatus
+from app.core.deps import get_current_user
+from app.models.entities import Document, DocType, DocumentStatus, User
 from app.schemas.document import DocumentResponse, DocumentListResponse
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
@@ -106,6 +107,7 @@ def _save_file(file_content: bytes, filename: str) -> str:
 @router.post("/upload", response_model=DocumentResponse, status_code=201)
 async def upload_document(
     file: UploadFile = File(..., description="File upload (PDF/DOCX/PPTX/ZIP, max 100MB)"),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -146,6 +148,7 @@ async def upload_document(
         doc_type=doc_type,
         status=DocumentStatus.uploaded,
         file_path=file_path,
+        uploaded_by=user.id,
     )
     db.add(doc)
     
