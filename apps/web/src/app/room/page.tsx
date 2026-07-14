@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { 
   Mic, 
@@ -11,7 +14,144 @@ import {
   Send
 } from "lucide-react";
 
+type Message = {
+  id?: number;
+  sender_name: string;
+  sender_role: string;
+  content: string;
+  created_at?: string;
+};
+
 export default function MockRoomPage() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputValue, setInputValue] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const isIntentionalStopRef = useRef(false);
+  const meetingId = 1; // Temporary hardcoded for demo
+
+  useEffect(() => {
+    const fetchMessages = async () => {
+      try {
+        const res = await fetch(`http://localhost:8000/api/meetings/${meetingId}/messages`);
+        if (res.ok) {
+          const data = await res.json();
+          setMessages(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch messages", err);
+      }
+    };
+    fetchMessages();
+    
+    // Auto-refresh (simple polling)
+    const interval = setInterval(fetchMessages, 3000);
+    return () => clearInterval(interval);
+  }, [meetingId]);
+
+  useEffect(() => {
+    // Initialize SpeechRecognition once
+    if (typeof window !== "undefined" && ("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.lang = "vi-VN";
+
+      recognition.onresult = async (event: any) => {
+        const transcript = event.results[event.results.length - 1][0].transcript.trim();
+        if (transcript) {
+          const newMsg = {
+            sender_name: "Bạn",
+            sender_role: "student",
+            content: transcript
+          };
+          
+          setMessages(prev => [...prev, newMsg]);
+          
+          try {
+            await fetch(`http://localhost:8000/api/meetings/${meetingId}/messages`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(newMsg)
+            });
+          } catch (err) {
+            console.error("Failed to send transcript", err);
+          }
+        }
+      };
+
+      recognition.onend = () => {
+        if (!isIntentionalStopRef.current) {
+          try { recognition.start(); } catch (e) {} // Keep continuous running
+        } else {
+          setIsRecording(false);
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          isIntentionalStopRef.current = true;
+          setIsRecording(false);
+        }
+      };
+
+      recognitionRef.current = recognition;
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        isIntentionalStopRef.current = true;
+        recognitionRef.current.stop();
+      }
+    };
+  }, [meetingId]);
+
+  const handleToggleRecord = () => {
+    if (!recognitionRef.current) {
+      alert("Trình duyệt của bạn không hỗ trợ nhận dạng giọng nói tự động. Vui lòng sử dụng Google Chrome hoặc Edge.");
+      return;
+    }
+
+    if (isRecording) {
+      isIntentionalStopRef.current = true;
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    } else {
+      isIntentionalStopRef.current = false;
+      try {
+        recognitionRef.current.start();
+        setIsRecording(true);
+      } catch (err) {
+        console.error("Failed to start recording", err);
+      }
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!inputValue.trim()) return;
+    const newMsg = {
+      sender_name: "Bạn",
+      sender_role: "student",
+      content: inputValue
+    };
+    
+    // Optimistic update
+    setMessages(prev => [...prev, newMsg]);
+    setInputValue("");
+    
+    try {
+      await fetch(`http://localhost:8000/api/meetings/${meetingId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newMsg)
+      });
+    } catch (err) {
+      console.error("Failed to send message", err);
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] bg-[#0A0A0A] text-white font-sans overflow-hidden">
       
@@ -142,7 +282,14 @@ export default function MockRoomPage() {
             <div className="w-32"></div> {/* Spacer */}
             
             <div className="flex items-center gap-3">
-              <button className="w-11 h-11 rounded-full bg-[#202020] hover:bg-[#2A2A2A] flex items-center justify-center text-gray-300 transition-colors">
+              <button 
+                onClick={handleToggleRecord}
+                className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
+                  isRecording 
+                    ? "bg-red-500/20 border border-red-500 text-red-500 animate-pulse" 
+                    : "bg-[#202020] hover:bg-[#2A2A2A] text-gray-300"
+                }`}
+              >
                 <Mic className="w-5 h-5" />
               </button>
               <button className="w-11 h-11 rounded-full bg-[#202020] hover:bg-[#2A2A2A] flex items-center justify-center text-gray-300 transition-colors">
@@ -191,58 +338,38 @@ export default function MockRoomPage() {
             
             <div className="flex items-center gap-4">
               <div className="h-px bg-gray-800 flex-1"></div>
-              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Phiên bắt đầu lúc 14:32</span>
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Phiên bắt đầu</span>
               <div className="h-px bg-gray-800 flex-1"></div>
             </div>
 
-            {/* Message 1 */}
-            <div className="flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex-shrink-0 flex items-center justify-center text-xs font-bold text-white shadow-sm mt-1">
-                NB
-              </div>
-              <div className="flex-1">
-                <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-sm font-semibold text-gray-200">PGS.TS Nguyễn Văn B</span>
-                  <span className="text-xs text-gray-500">14:32</span>
+            {messages.map((msg, index) => {
+              const isStudent = msg.sender_role === "student";
+              const avatarColor = isStudent 
+                ? "bg-teal-900/60 text-teal-300 border-teal-800/50" 
+                : "bg-blue-600 text-white border-blue-600";
+              const initials = msg.sender_name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+              
+              return (
+                <div key={msg.id || index} className="flex gap-3">
+                  <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-sm mt-1 border ${avatarColor}`}>
+                    {initials}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-baseline gap-2 mb-1">
+                      <span className="text-sm font-semibold text-gray-200">{msg.sender_name}</span>
+                      {msg.created_at && (
+                        <span className="text-xs text-gray-500">
+                          {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                    </div>
+                    <p className={`text-sm leading-relaxed ${isStudent ? 'text-gray-400 italic' : 'text-gray-300'}`}>
+                      {msg.content}
+                    </p>
+                  </div>
                 </div>
-                <p className="text-sm text-gray-300 leading-relaxed">
-                  Chào bạn, chúng ta bắt đầu buổi bảo vệ nhé. Hãy tóm tắt về đồ án của bạn trong 3 phút.
-                </p>
-              </div>
-            </div>
-
-            {/* Message 2 */}
-            <div className="flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-indigo-900 flex-shrink-0 flex items-center justify-center text-xs font-bold text-indigo-200 shadow-sm mt-1 border border-indigo-800">
-                TC
-              </div>
-              <div className="flex-1">
-                <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-sm font-semibold text-gray-200">TS Trần Thị C</span>
-                  <span className="text-xs text-gray-500">14:33</span>
-                </div>
-                <p className="text-sm text-gray-300 leading-relaxed">
-                  Tốt. Mình sẽ chú ý phần phân tích kết quả thực nghiệm nhé.
-                </p>
-              </div>
-            </div>
-
-            {/* Message 3 */}
-            <div className="flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-teal-900/60 flex-shrink-0 flex items-center justify-center text-xs font-bold text-teal-300 shadow-sm mt-1 border border-teal-800/50">
-                B
-              </div>
-              <div className="flex-1">
-                <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-sm font-semibold text-gray-200">Bạn</span>
-                  <span className="text-xs text-gray-500">14:34</span>
-                </div>
-                <p className="text-sm text-gray-400 leading-relaxed italic">
-                  Dạ vâng, thưa hội đồng. Đồ án của em tập trung vào việc ứng dụng AI trong phân tích mã nguồn...
-                </p>
-              </div>
-            </div>
-
+              );
+            })}
           </div>
 
           {/* Chat Input */}
@@ -252,8 +379,16 @@ export default function MockRoomPage() {
                 type="text" 
                 placeholder="Gửi tin nhắn tới mọi người..." 
                 className="w-full bg-[#1A1A1A] border border-gray-700/50 rounded-full py-3 pl-4 pr-12 text-sm text-gray-200 focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 transition-all placeholder:text-gray-600"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSendMessage();
+                }}
               />
-              <button className="absolute right-1.5 top-1.5 w-9 h-9 rounded-full bg-teal-600 hover:bg-teal-500 flex items-center justify-center text-white transition-colors">
+              <button 
+                onClick={handleSendMessage}
+                className="absolute right-1.5 top-1.5 w-9 h-9 rounded-full bg-teal-600 hover:bg-teal-500 flex items-center justify-center text-white transition-colors"
+              >
                 <Send className="w-4 h-4 ml-0.5" />
               </button>
             </div>
