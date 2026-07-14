@@ -1,69 +1,266 @@
 import { Button } from "@/components/ui/button";
+import { 
+  Mic, 
+  Video, 
+  MonitorUp, 
+  Hand, 
+  MoreHorizontal, 
+  MessageSquare,
+  Settings,
+  Users,
+  Send
+} from "lucide-react";
 
 export default function MockRoomPage() {
   return (
-    <div className="flex-1 flex flex-col min-h-[calc(100vh-4rem)] bg-black animate-in fade-in duration-500">
-      <div className="flex-1 flex flex-col lg:flex-row relative">
-        {/* Main Video/Avatar Area */}
-        <div className="flex-1 flex items-center justify-center p-4 lg:p-8 relative">
-          <div className="w-full max-w-5xl aspect-video bg-gray-900 rounded-3xl border border-gray-800 shadow-[0_0_100px_rgba(0,0,0,0.5)] flex flex-col items-center justify-center relative overflow-hidden">
-            {/* Background effects */}
-            <div className="absolute inset-0 bg-gradient-to-b from-blue-900/10 to-transparent"></div>
-            
-            {/* AI Avatar Placeholder */}
-            <div className="w-32 h-32 lg:w-40 lg:h-40 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-full flex items-center justify-center shadow-[0_0_60px_rgba(59,130,246,0.6)] animate-pulse relative z-10 border-4 border-blue-400/30">
-              <span className="text-5xl lg:text-6xl drop-shadow-md">🤖</span>
-            </div>
-            <div className="mt-8 text-center relative z-10">
-              <h2 className="text-3xl font-bold text-white mb-3 tracking-wide">Giám khảo AI</h2>
-              <p className="text-green-400 flex items-center justify-center gap-2 font-medium bg-green-900/20 px-4 py-1.5 rounded-full border border-green-500/30">
-                <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping"></span> Đang lắng nghe...
-              </p>
-            </div>
-            
-            {/* Subtitles / AI Speech */}
-            <div className="absolute bottom-8 left-8 right-8 bg-black/70 backdrop-blur-md p-5 rounded-2xl border border-white/10 text-center shadow-2xl">
-              <p className="text-white text-lg lg:text-xl font-medium leading-relaxed">
-                "Bạn có thể giải thích rõ hơn về kiến trúc <span className="text-blue-400">Microservices</span> mà bạn đã đề cập trong chương 3 không?"
-              </p>
+    <div className="flex flex-col h-[calc(100vh-64px)] bg-[#0A0A0A] text-white font-sans overflow-hidden">
+      
+      {/* Sub-Header */}
+      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-800/60 bg-[#0f0f0f]">
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+            <span className="text-xs font-bold tracking-wider text-gray-300">LIVE</span>
+          </div>
+          <div className="flex flex-col">
+            <h2 className="text-sm font-semibold text-gray-100">Phòng bảo vệ đồ án — AI Mock Defense</h2>
+            <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5">
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-3 h-3 rounded-full border border-gray-500 flex items-center justify-center text-[8px]">⏱</span>
+                00:03
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="flex gap-[1px] h-3 items-end">
+                  <span className="w-0.5 h-1.5 bg-green-500"></span>
+                  <span className="w-0.5 h-2 bg-green-500"></span>
+                  <span className="w-0.5 h-2.5 bg-green-500"></span>
+                  <span className="w-0.5 h-3 bg-gray-600"></span>
+                </span>
+                240 kbps
+              </span>
             </div>
           </div>
         </div>
+        
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-[#1A1A1A] px-3 py-1.5 rounded-full border border-gray-800">
+            <Users className="w-4 h-4 text-teal-400" />
+            <span className="text-xs font-medium text-gray-300">3 / 8</span>
+          </div>
+          <button className="p-2 rounded-full hover:bg-gray-800 text-gray-400 transition-colors">
+            <Settings className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
 
-        {/* Sidebar Controls */}
-        <div className="w-full lg:w-[400px] bg-gray-950 border-l border-gray-800 p-6 flex flex-col z-20 shadow-[-20px_0_50px_rgba(0,0,0,0.5)]">
-          <h3 className="text-white text-xl font-semibold mb-6 flex items-center gap-3 border-b border-gray-800 pb-4">
-            <span className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]"></span> Live Session
-          </h3>
+      {/* Main Workspace */}
+      <div className="flex flex-1 overflow-hidden relative">
+        
+        {/* Left Column (Video Grid + Captions + Bottom Toolbar) */}
+        <div className="flex-1 flex flex-col p-4 relative h-full">
           
-          <div className="flex-1 overflow-y-auto space-y-5 mb-6 pr-2 custom-scrollbar">
-            <div className="bg-gray-800/60 p-4 rounded-2xl rounded-tl-sm border border-gray-700/50 shadow-sm">
-              <p className="text-xs font-semibold text-gray-400 mb-1.5 uppercase tracking-wider">Giám khảo AI</p>
-              <p className="text-sm text-gray-200 leading-relaxed">Chào bạn, chúng ta bắt đầu buổi bảo vệ nhé. Hãy tóm tắt về đồ án của bạn trong 3 phút.</p>
+          {/* Video Grid */}
+          <div className="flex-1 grid grid-cols-2 gap-4 pb-24 relative">
+            
+            {/* Card 1: Giám khảo 1 */}
+            <div className="bg-[#121212] rounded-2xl border border-teal-900/40 relative overflow-hidden flex flex-col items-center justify-center group">
+              <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50">
+                AI
+              </div>
+              
+              <div className="w-32 h-32 rounded-full bg-gradient-to-br from-teal-400 to-blue-600 flex items-center justify-center relative shadow-[0_0_50px_rgba(45,212,191,0.2)]">
+                <span className="text-5xl text-white opacity-90 drop-shadow-lg">✨</span>
+                {/* Speaking indicator */}
+                <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-teal-400 border-2 border-[#121212] shadow-[0_0_10px_rgba(45,212,191,0.8)]"></span>
+              </div>
+              
+              <div className="mt-6 text-center">
+                <h3 className="text-lg font-bold text-gray-100 mb-2">PGS.TS Nguyễn Văn B</h3>
+                <span className="inline-flex items-center gap-1.5 text-xs text-teal-400 bg-teal-950/40 px-3 py-1 rounded-full border border-teal-800/50">
+                  <span>🤖</span> AI Giám khảo
+                </span>
+              </div>
+
+              <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/5">
+                <Mic className="w-3.5 h-3.5 text-gray-300" />
+                <span className="text-xs text-gray-300 font-medium">PGS.TS Nguyễn Văn B</span>
+              </div>
             </div>
-            <div className="bg-blue-900/40 p-4 rounded-2xl rounded-tr-sm border border-blue-800/50 ml-8 shadow-sm">
-              <p className="text-xs font-semibold text-blue-400 mb-1.5 uppercase tracking-wider text-right">Bạn (Transcript)</p>
-              <p className="text-sm text-blue-100 leading-relaxed">Dạ vâng, thưa hội đồng. Đồ án của em tập trung vào việc ứng dụng AI trong...</p>
+
+            {/* Card 2: Giám khảo 2 */}
+            <div className="bg-[#121212] rounded-2xl border border-purple-900/30 relative overflow-hidden flex flex-col items-center justify-center group">
+              <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50">
+                AI
+              </div>
+              
+              <div className="w-32 h-32 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center relative shadow-[0_0_50px_rgba(168,85,247,0.15)]">
+                <span className="text-5xl text-white opacity-90 drop-shadow-lg">✨</span>
+              </div>
+              
+              <div className="mt-6 text-center">
+                <h3 className="text-lg font-bold text-gray-100 mb-2">TS Trần Thị C</h3>
+                <span className="inline-flex items-center gap-1.5 text-xs text-teal-400 bg-teal-950/40 px-3 py-1 rounded-full border border-teal-800/50">
+                  <span>🤖</span> AI Giám khảo
+                </span>
+              </div>
+
+              <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/5">
+                <Mic className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-xs text-gray-400 font-medium">TS Trần Thị C</span>
+              </div>
+            </div>
+
+            {/* Floating User Picture-in-Picture */}
+            <div className="absolute bottom-28 right-4 w-48 aspect-[4/3] bg-[#1a1a1a] rounded-xl border border-gray-700/50 shadow-2xl flex flex-col items-center justify-center overflow-hidden z-10">
+              <div className="w-12 h-12 rounded-full bg-indigo-900/50 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+                <Users className="w-5 h-5" />
+              </div>
+              <div className="absolute bottom-2 left-2 bg-black/70 backdrop-blur-md px-2 py-1 rounded flex items-center gap-1.5">
+                <Mic className="w-3 h-3 text-red-400" />
+                <span className="text-[10px] text-gray-300">Bạn (Sinh viên)</span>
+              </div>
+            </div>
+
+            {/* Live Captions */}
+            <div className="absolute bottom-4 left-0 right-0 px-4">
+              <div className="bg-[#0f1513] border border-teal-900/50 rounded-xl p-4 shadow-xl backdrop-blur-md">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="bg-teal-900/60 p-1 rounded text-teal-400">
+                    <MessageSquare className="w-3 h-3" />
+                  </div>
+                  <span className="text-[10px] font-bold text-teal-500 tracking-wider uppercase">PHỤ ĐỀ TRỰC TIẾP — PGS.TS Nguyễn Văn B</span>
+                </div>
+                <p className="text-gray-200 text-sm font-medium leading-relaxed">
+                  "Bạn có thể giải thích rõ hơn về kiến trúc <span className="text-teal-400">Microservices</span> mà bạn đã đề cập trong chương 3 không? Cụ thể là cách xử lý đồng bộ giữa các service."
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="space-y-6 bg-gray-900/50 p-6 rounded-2xl border border-gray-800">
-            <div className="flex justify-center gap-5">
-              <button className="w-14 h-14 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-white border border-gray-700 hover:border-gray-500 shadow-lg transition-all hover:scale-105 group">
-                <span className="text-xl group-hover:text-blue-400 transition-colors">🎤</span>
+          {/* Bottom Toolbar */}
+          <div className="absolute bottom-0 left-0 right-0 h-20 bg-[#0A0A0A] border-t border-gray-800/40 flex items-center justify-between px-6 z-20">
+            <div className="w-32"></div> {/* Spacer */}
+            
+            <div className="flex items-center gap-3">
+              <button className="w-11 h-11 rounded-full bg-[#202020] hover:bg-[#2A2A2A] flex items-center justify-center text-gray-300 transition-colors">
+                <Mic className="w-5 h-5" />
               </button>
-              <button className="w-14 h-14 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-white border border-gray-700 hover:border-gray-500 shadow-lg transition-all hover:scale-105 group">
-                <span className="text-xl group-hover:text-blue-400 transition-colors">📹</span>
+              <button className="w-11 h-11 rounded-full bg-[#202020] hover:bg-[#2A2A2A] flex items-center justify-center text-gray-300 transition-colors">
+                <Video className="w-5 h-5" />
               </button>
-              <button className="w-14 h-14 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center text-white shadow-lg transition-all hover:scale-105 border border-red-500">
-                <span className="text-xl font-bold">✕</span>
+              <button className="w-11 h-11 rounded-full bg-[#202020] hover:bg-[#2A2A2A] flex items-center justify-center text-gray-300 transition-colors">
+                <MonitorUp className="w-5 h-5" />
+              </button>
+              <button className="w-11 h-11 rounded-full bg-[#202020] hover:bg-[#2A2A2A] flex items-center justify-center text-gray-300 transition-colors">
+                <Hand className="w-5 h-5" />
+              </button>
+              <button className="w-11 h-11 rounded-full bg-[#202020] hover:bg-[#2A2A2A] flex items-center justify-center text-gray-300 transition-colors">
+                <MoreHorizontal className="w-5 h-5" />
+              </button>
+              <button className="w-11 h-11 rounded-xl bg-teal-900/30 border border-teal-800/50 hover:bg-teal-900/50 flex items-center justify-center text-teal-400 transition-colors ml-2">
+                <MessageSquare className="w-5 h-5" />
               </button>
             </div>
-            <Button className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-6 rounded-xl text-lg font-bold shadow-xl hover:shadow-blue-500/25 transition-all border-none">
-              Kết thúc & Xem báo cáo
-            </Button>
+            
+            <div className="flex items-center justify-end w-32">
+              <Button className="bg-[#EF4444] hover:bg-[#DC2626] text-white rounded-full px-6 h-10 font-semibold shadow-lg shadow-red-900/20">
+                <Hand className="w-4 h-4 mr-2" />
+                Rời phòng
+              </Button>
+            </div>
           </div>
         </div>
+
+        {/* Right Sidebar (Chat) */}
+        <div className="w-[340px] bg-[#0A0A0A] border-l border-gray-800/60 flex flex-col h-full">
+          
+          {/* Tabs */}
+          <div className="flex border-b border-gray-800/60">
+            <button className="flex-1 py-4 text-xs font-bold text-teal-400 border-b-2 border-teal-500 flex items-center justify-center gap-2">
+              <MessageSquare className="w-4 h-4" />
+              TRÒ CHUYỆN
+            </button>
+            <button className="flex-1 py-4 text-xs font-bold text-gray-500 hover:text-gray-300 transition-colors flex items-center justify-center gap-2">
+              <Users className="w-4 h-4" />
+              MỌI NGƯỜI (3)
+            </button>
+          </div>
+
+          {/* Chat Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
+            
+            <div className="flex items-center gap-4">
+              <div className="h-px bg-gray-800 flex-1"></div>
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Phiên bắt đầu lúc 14:32</span>
+              <div className="h-px bg-gray-800 flex-1"></div>
+            </div>
+
+            {/* Message 1 */}
+            <div className="flex gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex-shrink-0 flex items-center justify-center text-xs font-bold text-white shadow-sm mt-1">
+                NB
+              </div>
+              <div className="flex-1">
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span className="text-sm font-semibold text-gray-200">PGS.TS Nguyễn Văn B</span>
+                  <span className="text-xs text-gray-500">14:32</span>
+                </div>
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  Chào bạn, chúng ta bắt đầu buổi bảo vệ nhé. Hãy tóm tắt về đồ án của bạn trong 3 phút.
+                </p>
+              </div>
+            </div>
+
+            {/* Message 2 */}
+            <div className="flex gap-3">
+              <div className="w-8 h-8 rounded-full bg-indigo-900 flex-shrink-0 flex items-center justify-center text-xs font-bold text-indigo-200 shadow-sm mt-1 border border-indigo-800">
+                TC
+              </div>
+              <div className="flex-1">
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span className="text-sm font-semibold text-gray-200">TS Trần Thị C</span>
+                  <span className="text-xs text-gray-500">14:33</span>
+                </div>
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  Tốt. Mình sẽ chú ý phần phân tích kết quả thực nghiệm nhé.
+                </p>
+              </div>
+            </div>
+
+            {/* Message 3 */}
+            <div className="flex gap-3">
+              <div className="w-8 h-8 rounded-full bg-teal-900/60 flex-shrink-0 flex items-center justify-center text-xs font-bold text-teal-300 shadow-sm mt-1 border border-teal-800/50">
+                B
+              </div>
+              <div className="flex-1">
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span className="text-sm font-semibold text-gray-200">Bạn</span>
+                  <span className="text-xs text-gray-500">14:34</span>
+                </div>
+                <p className="text-sm text-gray-400 leading-relaxed italic">
+                  Dạ vâng, thưa hội đồng. Đồ án của em tập trung vào việc ứng dụng AI trong phân tích mã nguồn...
+                </p>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Chat Input */}
+          <div className="p-4 border-t border-gray-800/60">
+            <div className="relative">
+              <input 
+                type="text" 
+                placeholder="Gửi tin nhắn tới mọi người..." 
+                className="w-full bg-[#1A1A1A] border border-gray-700/50 rounded-full py-3 pl-4 pr-12 text-sm text-gray-200 focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 transition-all placeholder:text-gray-600"
+              />
+              <button className="absolute right-1.5 top-1.5 w-9 h-9 rounded-full bg-teal-600 hover:bg-teal-500 flex items-center justify-center text-white transition-colors">
+                <Send className="w-4 h-4 ml-0.5" />
+              </button>
+            </div>
+          </div>
+
+        </div>
+
       </div>
     </div>
   );
