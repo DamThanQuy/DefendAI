@@ -32,6 +32,7 @@ class Meeting(Base):
 
     members = relationship("MeetingMember", back_populates="meeting", cascade="all, delete-orphan")
     evaluations = relationship("Evaluation", back_populates="meeting", cascade="all, delete-orphan")
+    messages = relationship("MeetingMessage", back_populates="meeting", cascade="all, delete-orphan")
 
 
 class MeetingMember(Base):
@@ -44,3 +45,16 @@ class MeetingMember(Base):
     joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     meeting = relationship("Meeting", back_populates="members")
+
+class MeetingMessage(Base):
+    __tablename__ = "meeting_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    meeting_id = Column(Integer, ForeignKey("meetings.id"), nullable=False, index=True)
+    sender_name = Column(String(100), nullable=False)
+    sender_role = Column(String(50), nullable=False) # e.g. student, ai_reviewer
+    content = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    meeting = relationship("Meeting", back_populates="messages")
+

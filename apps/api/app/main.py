@@ -11,6 +11,7 @@ from app.routers import ai as ai_router
 from app.routers import code_scan as code_scan_router
 from app.routers import documents as documents_router
 from app.routers import questions as questions_router
+from app.routers import meeting as meeting_router
 # Khởi tạo AI gateway ngay khi import (sẽ log providers nào đã ready)
 from app.services.ai_client import ai_gateway
 
@@ -38,6 +39,8 @@ app.include_router(documents_router.router)
 app.include_router(questions_router.router)
 # Code review endpoints (scan source code ZIP)
 app.include_router(code_scan_router.router)
+# Meeting / Chat endpoints
+app.include_router(meeting_router.router)
 
 @app.get("/")
 async def root():
