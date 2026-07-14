@@ -21,7 +21,7 @@ def get_database_url():
     # 2) Nếu không có env var, đọc từ file .env
     env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
     if os.path.exists(env_path):
-        with open(env_path, 'r') as f:
+        with open(env_path, 'r', encoding='utf-8') as f:
             for line in f:
                 if line.startswith('DATABASE_URL='):
                     url = line.strip().split('=', 1)[1]
@@ -45,6 +45,7 @@ from app.models.entities import (
     Evaluation,
     Report,
 )
+from app.models.document_chunk import DocumentChunk
 from app.models.session import Session
 
 # Metadata cho autogenerate

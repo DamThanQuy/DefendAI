@@ -9,12 +9,12 @@ import os
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.models.entities import Document, DocType, DocumentStatus
+from app.models.entities import Document, DocType, DocumentStatus, DocumentPurpose
 from app.schemas.document import DocumentResponse, DocumentListResponse
 from app.services.storage import save_doc
 
@@ -98,6 +98,7 @@ def _validate_magic_bytes(content: bytes, expected_ext: str) -> None:
 @router.post("/upload", response_model=DocumentResponse, status_code=201)
 async def upload_document(
     file: UploadFile = File(..., description="File upload (PDF/DOCX/PPTX/ZIP, max 100MB)"),
+    purpose: DocumentPurpose = Form(DocumentPurpose.student_project, description="student_project / staff_reference"),
     db: AsyncSession = Depends(get_db),
 ):
     """Upload 1 file lên hệ thống."""
@@ -126,6 +127,7 @@ async def upload_document(
         doc_type=doc_type,
         storage_key=storage_key,
         status=DocumentStatus.uploaded,
+        purpose=purpose,
     )
     db.add(doc)
 
