@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>01 — Documents API</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 0 auto; padding: 2rem; line-height: 1.6; }
+  html { scroll-behavior: smooth; }
+  h2[id], h3[id], h4[id] { scroll-margin-top: 1.5rem; }
+  /* Scrollspy TOC — sticky top bar, giống Google Docs */
+  .toc { position: sticky; top: 0; z-index: 10; background: white; border-bottom: 1px solid #e0e0e0; padding: .5rem 0; margin-bottom: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; overflow-x: auto; }
+  .toc a { white-space: nowrap; font-size: .85rem; color: #6b7280; padding: .2rem .5rem; border-radius: 4px; }
+  .toc a.active { color: #2563eb; background: #eff6ff; font-weight: 600; }
+  .toc a:hover { color: #2563eb; background: #f0f0f0; }
+  @media (max-width: 1100px) { .toc { gap: .5rem; font-size: .75rem; } }
+  h1 { border-bottom: 2px solid #e0e0e0; padding-bottom: .5rem; }
+  h2 { margin-top: 2rem; }
+  h3 { margin-top: 1.5rem; }
+  a { color: #2563eb; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #d0d0d0; padding: .5rem .75rem; text-align: left; }
+  th { background: #f5f5f5; }
+  code { background: #f0f0f0; padding: .15em .4em; border-radius: 3px; font-size: .9em; }
+  pre { background: #f4f4f5; color: #1f2937; padding: 1rem; border-radius: 6px; border: 1px solid #e5e7eb; overflow-x: auto; }
+  blockquote { border-left: 4px solid #2563eb; margin: 1rem 0; padding: .5rem 1rem; background: #f8fafc; }
+  hr { border: none; border-top: 1px solid #e0e0e0; margin: 2rem 0; }
+  .anchor { color: #6b7280; font-size: .85em; margin-right: .5rem; }
+</style>
+</head>
+<body>
+
+<nav class="toc" id="toc">
+  <strong>Mục lục</strong>
+  <a href="#overview">Overview</a>
+  <a href="#endpoints">Endpoints</a>
+  <a href="#upload">Upload</a>
+  <a href="#get-doc">GET document</a>
+  <a href="#list-docs">List</a>
+  <a href="#edge-cases">Edge Cases</a>
+  <a href="#plans">Plans</a>
+  <a href="#migration-plan">MinIO</a>
+  <a href="#related">Related</a>
+</nav>
+<script>
+  // Scrollspy
+  const toc = document.getElementById('toc');
+  const links = toc.querySelectorAll('a');
+  const targets = [];
+  links.forEach(l => {
+    const id = l.getAttribute('href').slice(1);
+    const el = document.getElementById(id);
+    if (el) targets.push({ el, link: l });
+  });
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const match = targets.find(t => t.el === e.target);
+        if (match) match.link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-80px 0px -60%' });
+  targets.forEach(t => observer.observe(t.el));
+</script>
+
+<h1 id="title">01 — Documents API</h1>
+
+<blockquote>Upload, lưu trữ và quản lý tài liệu (PDF/DOCX/PPTX/ZIP).</blockquote>
+
+<h2 id="overview">Overview</h2>
+<p>Module xử lý file upload từ user. File binary lưu trên disk (<code>uploads/</code>), metadata lưu trong PostgreSQL table <code>documents</code>.</p>
+
+<h2 id="endpoints">Endpoints</h2>
+<table>
+  <tr><th>Method</th><th>Path</th><th>Mô tả</th></tr>
+  <tr><td>POST</td><td><code>/api/documents/upload</code></td><td>Upload file (multipart)</td></tr>
+  <tr><td>GET</td><td><code>/api/documents/{id}</code></td><td>Lấy metadata 1 document</td></tr>
+  <tr><td>GET</td><td><code>/api/documents</code></td><td>Danh sách tất cả documents</td></tr>
+</table>
+
+<hr>
+
+<h2 id="upload">POST <code>/api/documents/upload</code></h2>
+<p>Upload 1 file lên hệ thống. Validate extension + size, lưu disk + DB.</p>
+
+<h3 id="request">Request</h3>
+<pre><code>Content-Type: multipart/form-data</code></pre>
+<table>
+  <tr><th>Field</th><th>Type</th><th>Required</th><th>Mô tả</th></tr>
+  <tr><td><code>file</code></td><td>File</td><td>✅</td><td>File upload (PDF/DOCX/PPTX/ZIP, max 100MB)</td></tr>
+</table>
+
+<h3 id="config">Config</h3>
+<pre><code class="language-python">ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".zip"}
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+
+EXTENSION_TO_DOCTYPE = {
+    ".pdf": DocType.PDF,
+    ".docx": DocType.DOCX,
+    ".pptx": DocType.PPTX,
+    ".zip": DocType.ZIP,
+}
+</code></pre>
+
+<h3 id="response-201">Response (201 Created)</h3>
+<pre><code class="language-json">{
+  "id": 1,
+  "filename": "report.pdf",
+  "doc_type": "pdf",
+  "status": "uploaded",
+  "file_path": "uploads/a1b2c3d4e5f6_report.pdf",
+  "created_at": "2026-06-14T12:00:00Z"
+}
+</code></pre>
+
+<h3 id="db-schema">DB Record (<code>documents</code> table)</h3>
+<table>
+  <tr><th>Field</th><th>Type</th><th>Ví dụ</th></tr>
+  <tr><td><code>id</code></td><td>int (PK)</td><td>1</td></tr>
+  <tr><td><code>filename</code></td><td>string(255)</td><td><code>report.pdf</code></td></tr>
+  <tr><td><code>doc_type</code></td><td>enum</td><td><code>pdf</code>, <code>docx</code>, <code>pptx</code>, <code>zip</code></td></tr>
+  <tr><td><code>status</code></td><td>enum</td><td><code>uploaded</code>, <code>processing</code>, <code>completed</code>, <code>failed</code></td></tr>
+  <tr><td><code>file_path</code></td><td>string(512)</td><td><code>uploads/a1b2c3d4e5f6_report.pdf</code></td></tr>
+  <tr><td><code>created_at</code></td><td>datetime</td><td><code>2026-06-14 12:00:00</code></td></tr>
+</table>
+
+<h3 id="flow">Flow</h3>
+<pre><code>User upload file (.pdf/.docx/.pptx/.zip)
+        ↓
+POST /api/documents/upload (multipart)
+        ↓
+┌─────────────────────────────────────────────────┐
+│ 1. Validate extension (.pdf/.docx/.pptx/.zip)   │
+│ 2. Read file content + validate size (≤100MB)   │
+│ 3. Lưu file binary → disk (uploads/uuid_name)   │
+│ 4. Tạo Document record trong DB                 │
+│ 5. Return DocumentResponse                      │
+└─────────────────────────────────────────────────┘
+</code></pre>
+
+<hr>
+
+<h2 id="get-doc">GET <code>/api/documents/{doc_id}</code></h2>
+<p>Lấy metadata của 1 document theo ID.</p>
+<h3>Response (200 OK)</h3>
+<pre><code class="language-json">{
+  "id": 1,
+  "filename": "report.pdf",
+  "doc_type": "pdf",
+  "status": "uploaded",
+  "file_path": "uploads/a1b2c3d4e5f6_report.pdf",
+  "created_at": "2026-06-14T12:00:00Z"
+}
+</code></pre>
+<h3>Error (404 Not Found)</h3>
+<pre><code class="language-json">{
+  "detail": "Document 1 not found"
+}
+</code></pre>
+
+<hr>
+
+<h2 id="list-docs">GET <code>/api/documents/</code></h2>
+<p>List tất cả documents, sắp xếp mới nhất lên đầu.</p>
+<h3>Response (200 OK)</h3>
+<pre><code class="language-json">{
+  "total": 5,
+  "items": [
+    {
+      "id": 5,
+      "filename": "slides.pptx",
+      "doc_type": "pptx",
+      "status": "uploaded",
+      "file_path": "uploads/...",
+      "created_at": "2026-06-14T12:00:00Z"
+    },
+    ...
+  ]
+}
+</code></pre>
+
+<hr>
+
+<h2 id="edge-cases">Edge Cases</h2>
+<blockquote><strong>Cập nhật ngày 15/6/2026</strong> — Đối chiếu với code thực tế: <code>documents.py</code> (router), <code>document_parser.py</code> (service).</blockquote>
+
+<h3 id="security">Bảo mật</h3>
+<table>
+  <tr><th>Trường hợp ngoại lệ</th><th>Rủi ro</th><th>Mức ưu tiên</th><th>Trạng thái</th><th>Ghi chú</th></tr>
+  <tr><td><strong>Zip bomb / giải nén bom</strong></td><td>File ZIP nén nhiều lớp, giải nén &gt; 1TB → đầy disk</td><td>🔴 Cao</td><td>❌ Chưa giải quyết</td><td><a href="#zip-bomb">→ #zip-bomb</a></td></tr>
+  <tr><td><strong>Giả mạo phần mở rộng file</strong></td><td>Đổi đuôi <code>.exe</code> → <code>.pdf</code>, server vẫn lưu → mã độc</td><td>🔴 Cao</td><td>✅ Đã giải quyết</td><td><a href="#magic-bytes">→ #magic-bytes</a></td></tr>
+  <tr><td><strong>Path traversal</strong></td><td>Tên file <code>../../../etc/passwd</code> ghi đè file hệ thống</td><td>🔴 Cao</td><td>✅ Đã giải quyết</td><td><a href="#path-traversal">→ #path-traversal</a></td></tr>
+  <tr><td><strong>ZIP chứa file thực thi</strong></td><td>File <code>.exe</code> / <code>.bat</code> / <code>.sh</code> ẩn trong ZIP</td><td>🟡 Trung bình</td><td>❌ Chưa giải quyết</td><td><a href="#zip-executables">→ #zip-executables</a></td></tr>
+</table>
+
+<h3 id="quality">Chất lượng tài liệu</h3>
+<table>
+  <tr><th>Trường hợp ngoại lệ</th><th>Vấn đề</th><th>Mức ưu tiên</th><th>Trạng thái</th><th>Ghi chú</th></tr>
+  <tr><td><strong>PDF scan / chỉ có ảnh</strong></td><td>Không có lớp text → AI không đọc được nội dung</td><td>🔴 Cao</td><td>✅ Đã giải quyết</td><td><a href="#pdf-scan">→ #pdf-scan</a></td></tr>
+  <tr><td><strong>PDF chứa sơ đồ, ảnh minh họa</strong></td><td>Mất thông tin quan trọng (diagrams, charts)</td><td>🟡 Trung bình</td><td>❌ Chưa giải quyết</td><td><a href="#pdf-diagrams">→ #pdf-diagrams</a></td></tr>
+  <tr><td><strong>PDF có mật khẩu bảo vệ</strong></td><td>PyPDF2 báo lỗi → server crash</td><td>🔴 Cao</td><td>✅ Đã giải quyết</td><td><a href="#pdf-password">→ #pdf-password</a></td></tr>
+  <tr><td><strong>File rỗng (0 bytes)</strong></td><td>Upload thành công nhưng không dùng được</td><td>🔴 Cao</td><td>✅ Đã giải quyết</td><td><a href="#empty-file">→ #empty-file</a></td></tr>
+  <tr><td><strong>File hỏng (corrupt)</strong></td><td>Parser crash khi đọc</td><td>🟡 Trung bình</td><td>✅ Đã giải quyết</td><td><a href="#corrupt-file">→ #corrupt-file</a></td></tr>
+  <tr><td><strong>DOCX/PPTX chỉ có ảnh, không text</strong></td><td>Giống PDF scan — trích xuất được 0 ký tự</td><td>🟡 Trung bình</td><td>⚠️ Chưa đầy đủ</td><td><a href="#no-text-docx">→ #no-text-docx</a></td></tr>
+</table>
+
+<h3 id="size-structure">Kích thước &amp; Cấu trúc</h3>
+<table>
+  <tr><th>Trường hợp ngoại lệ</th><th>Vấn đề</th><th>Mức ưu tiên</th><th>Trạng thái</th><th>Ghi chú</th></tr>
+  <tr><td><strong>ZIP quá sâu (thư mục lồng nhau)</strong></td><td>Đường dẫn dài <code>a/b/c/.../file.py</code> vượt giới hạn OS</td><td>🟡 Trung bình</td><td>❌ Chưa giải quyết</td><td><a href="#zip-nested">→ #zip-nested</a></td></tr>
+  <tr><td><strong>ZIP chứa &gt;1000 files</strong></td><td>Quá nhiều code, không đủ context window cho AI</td><td>🟡 Trung bình</td><td>❌ Chưa giải quyết</td><td><a href="#zip-1000">→ #zip-1000</a></td></tr>
+  <tr><td><strong>File code &gt;2000 dòng</strong></td><td>Chưa implement chunking code</td><td>🟡 Trung bình</td><td>⚠️ Một phần</td><td><a href="#code-2000">→ #code-2000</a></td></tr>
+  <tr><td><strong>Tên file Unicode đặc biệt</strong></td><td>Tiếng Việt có dấu, emoji, ký tự đặc biệt</td><td>🟢 Thấp</td><td>✅ Đã giải quyết</td><td><a href="#unicode-filename">→ #unicode-filename</a></td></tr>
+  <tr><td><strong>Tên file &gt;255 ký tự</strong></td><td>Vượt giới hạn cột <code>String(255)</code></td><td>🟡 Trung bình</td><td>✅ Đã giải quyết</td><td><a href="#long-filename">→ #long-filename</a></td></tr>
+</table>
+
+<h3 id="business-logic">Logic nghiệp vụ</h3>
+<table>
+  <tr><th>Trường hợp ngoại lệ</th><th>Vấn đề</th><th>Mức ưu tiên</th><th>Trạng thái</th><th>Ghi chú</th></tr>
+  <tr><td><strong>Upload trùng lặp (cùng 1 file)</strong></td><td>Lãng phí DB record + dung lượng disk</td><td>🟡 Trung bình</td><td>❌ Chưa giải quyết</td><td><a href="#dedup">→ #dedup</a></td></tr>
+  <tr><td><strong>File không liên quan (video/audio/binary)</strong></td><td>Extension không khớp, nhưng trong ZIP thì không kiểm tra</td><td>🟡 Trung bình</td><td>❌ Chưa giải quyết</td><td><a href="#unrelated-file">→ #unrelated-file</a></td></tr>
+  <tr><td><strong>Tài liệu quá ngắn (&lt; 50 ký tự)</strong></td><td>AI không sinh được câu hỏi hữu ích</td><td>🟢 Thấp</td><td>✅ Đã giải quyết</td><td><a href="#short-doc">→ #short-doc</a></td></tr>
+  <tr><td><strong>Tài liệu hỗn hợp ngôn ngữ</strong></td><td>Tiếng Việt + Anh + code → chunking sai ranh giới</td><td>🟢 Thấp</td><td>❌ Chưa giải quyết</td><td><a href="#mixed-lang">→ #mixed-lang</a></td></tr>
+  <tr><td><strong>Bảng biểu phức tạp trong PDF</strong></td><td>Ô merge, nhiều dòng → text extract sai thứ tự</td><td>🟢 Thấp</td><td>❌ Chưa giải quyết</td><td><a href="#complex-table">→ #complex-table</a></td></tr>
+</table>
+
+<table>
+  <tr><th>Trạng thái</th><th>Số lượng</th></tr>
+  <tr><td>✅ Đã giải quyết</td><td><strong>10</strong></td></tr>
+  <tr><td>⚠️ Chưa đầy đủ / Một phần</td><td><strong>3</strong></td></tr>
+  <tr><td>❌ Chưa giải quyết</td><td><strong>8</strong></td></tr>
+</table>
+
+<hr>
+
+<h2 id="plans">Plans — Hướng dẫn giải quyết từng trường hợp</h2>
+<blockquote>Mỗi section dưới có <code>&lt;a id="..."&gt;</code>. Bấm vào → #xxx ở bảng trên để nhảy xuống trực tiếp.</blockquote>
+
+<h3 id="zip-bomb">Zip bomb / Giải nén bom</h3>
+<p><strong>Vấn đề:</strong> File ZIP nén nhiều lớp → giải nén &gt; 1 TB → đầy disk.</p>
+<p><strong>Giải pháp:</strong> Kiểm tra tỷ lệ <code>compress_size</code> / <code>uncompress_size</code> từ ZIP Central Directory (header), không giải nén toàn bộ. Nếu ratio &gt; 50x, reject.</p>
+<pre><code class="language-python">def _check_zip_bomb(file_path: str) -> None:
+    with zipfile.ZipFile(file_path, 'r') as zf:
+        total_uncompressed = sum(f.file_size for f in zf.infolist())
+        total_compressed = sum(f.compress_size for f in zf.infolist())
+        ratio = total_uncompressed / (total_compressed or 1)
+        if ratio > 50:
+            os.remove(file_path)
+            raise HTTPException(400, "Zip bomb detected: ratio > 50x")
+</code></pre>
+<p><strong>Trạng thái:</strong> ❌ Chưa giải quyết.</p>
+
+<hr>
+
+<h3 id="magic-bytes">Giả mạo phần mở rộng file — Magic bytes</h3>
+<p><strong>Vấn đề:</strong> Đổi đuôi <code>.exe</code> → <code>.pdf</code>, server lưu → mã độc.</p>
+<p><strong>Giải pháp:</strong> <code>_validate_magic_bytes()</code> kiểm tra 4 byte đầu. DOCX/PPTX (ZIP-based) skip check.</p>
+<p><strong>Trạng thái:</strong> ✅ Đã giải quyết.</p>
+
+<hr>
+
+<h3 id="path-traversal">Path traversal</h3>
+<p><strong>Vấn đề:</strong> Tên file <code>../../../etc/passwd</code> → ghi đè file hệ thống.</p>
+<p><strong>Giải pháp:</strong> <code>_sanitize_filename()</code> dùng <code>os.path.basename()</code> + filter null bytes.</p>
+<p><strong>Trạng thái:</strong> ✅ Đã giải quyết.</p>
+
+<hr>
+
+<h3 id="zip-executables">ZIP chứa file thực thi</h3>
+<p><strong>Vấn đề:</strong> File <code>.exe</code> / <code>.bat</code> trong ZIP → không kiểm tra extension.</p>
+<p><strong>Giải pháp:</strong> Khi parse ZIP, duyệt từng file entry → chỉ cho phép extension trong whitelist (<code>.py</code>, <code>.js</code>, <code>.md</code>, ...). File không khớp → skip + log warning.</p>
+<p><strong>Trạng thái:</strong> ❌ Chưa giải quyết.</p>
+
+<hr>
+
+<h3 id="pdf-scan">PDF scan / chỉ có ảnh</h3>
+<p><strong>Vấn đề:</strong> PDF chỉ có ảnh scan → AI đọc được 0 text.</p>
+<p><strong>Giải pháp:</strong> <code>MIN_TEXT_LENGTH_WARN = 50</code> → log warning. OCR pipeline phase sau.</p>
+<p><strong>Trạng thái:</strong> ✅ Đã giải quyết.</p>
+
+<hr>
+
+<h3 id="pdf-diagrams">PDF chứa sơ đồ, ảnh minh họa</h3>
+<p><strong>Vấn đề:</strong> Mất thông tin diagrams/charts khi chỉ extract text.</p>
+<p><strong>Giải pháp:</strong> Cần Vision AI (GPT-4V / Gemini) cho phase 2. Hiện tại chỉ log + pass.</p>
+<p><strong>Trạng thái:</strong> ❌ Chưa giải quyết.</p>
+
+<hr>
+
+<h3 id="pdf-password">PDF có mật khẩu bảo vệ</h3>
+<p><strong>Vấn đề:</strong> PyPDF2 crash khi gặp PDF password.</p>
+<p><strong>Giải pháp:</strong> <code>_extract_pdf()</code> bắt lỗi qua try/except, không crash server.</p>
+<p><strong>Trạng thái:</strong> ✅ Đã giải quyết.</p>
+
+<hr>
+
+<h3 id="empty-file">File rỗng (0 bytes)</h3>
+<p><strong>Vấn đề:</strong> Upload thành công nhưng không dùng được.</p>
+<p><strong>Giải pháp:</strong> Kiểm tra <code>len(content) == 0</code> → trả 400 trước khi lưu.</p>
+<p><strong>Trạng thái:</strong> ✅ Đã giải quyết.</p>
+
+<hr>
+
+<h3 id="corrupt-file">File hỏng (corrupt)</h3>
+<p><strong>Vấn đề:</strong> Parser crash khi đọc file corrupt.</p>
+<p><strong>Giải pháp:</strong> <code>extract_text()</code> bao trong try/except → raise <code>DocumentParserError</code>.</p>
+<p><strong>Trạng thái:</strong> ✅ Đã giải quyết.</p>
+
+<hr>
+
+<h3 id="no-text-docx">DOCX/PPTX chỉ có ảnh, không text</h3>
+<p><strong>Vấn đề:</strong> Trích xuất 0 ký tự → giống PDF scan.</p>
+<p><strong>Giải pháp:</strong> Mở rộng <code>MIN_TEXT_LENGTH_WARN</code> cho DOCX/PPTX. Thêm check ở router level sau khi extract.</p>
+<p><strong>Trạng thái:</strong> ⚠️ Chưa đầy đủ.</p>
+
+<hr>
+
+<h3 id="zip-nested">ZIP quá sâu (thư mục lồng nhau)</h3>
+<p><strong>Vấn đề:</strong> Đường dẫn ZIP <code>a/b/c/.../z/file.py</code> &gt; 255 ký tự, vượt OS.</p>
+<p><strong>Giải pháp:</strong> Giới hạn độ sâu 10 cấp khi parse ZIP. Nếu vượt → skip + log.</p>
+<p><strong>Trạng thái:</strong> ❌ Chưa giải quyết.</p>
+
+<hr>
+
+<h3 id="zip-1000">ZIP chứa &gt; 1000 files</h3>
+<p><strong>Vấn đề:</strong> Quá nhiều file → không đủ context cho AI.</p>
+<p><strong>Giải pháp:</strong> Giới hạn 100 files / ZIP. Nếu vượt → chọn top 100 files quan trọng nhất (ưu tiên <code>.py</code>, <code>.md</code>).</p>
+<p><strong>Trạng thái:</strong> ❌ Chưa giải quyết.</p>
+
+<hr>
+
+<h3 id="code-2000">File code &gt; 2000 dòng</h3>
+<p><strong>Vấn đề:</strong> Chưa có chunking code riêng.</p>
+<p><strong>Giải pháp:</strong> <code>chunk_text()</code> đã có split ~4000 ký tự. Cần tạo <code>CodeChunker</code> riêng (chunk theo function boundary thay vì ký tự).</p>
+<p><strong>Trạng thái:</strong> ⚠️ Một phần.</p>
+
+<hr>
+
+<h3 id="unicode-filename">Tên file Unicode đặc biệt</h3>
+<p><strong>Vấn đề:</strong> Tiếng Việt có dấu, emoji → SQLAlchemy có hỗ trợ không?</p>
+<p><strong>Giải pháp:</strong> Python <code>String(255)</code> + UTF-8 native. Không cần action.</p>
+<p><strong>Trạng thái:</strong> ✅ Đã giải quyết.</p>
+
+<hr>
+
+<h3 id="long-filename">Tên file &gt; 255 ký tự</h3>
+<p><strong>Vấn đề:</strong> Vượt <code>String(255)</code>.</p>
+<p><strong>Giải pháp:</strong> <code>_sanitize_filename()</code> truncate stem tại 200, giữ extension.</p>
+<p><strong>Trạng thái:</strong> ✅ Đã giải quyết.</p>
+
+<hr>
+
+<h3 id="dedup">Upload trùng lặp (cùng 1 file)</h3>
+<p><strong>Vấn đề:</strong> Mỗi upload tạo 1 DB record → lãng phí disk.</p>
+<p><strong>Giải pháp:</strong> Tính <code>content_hash = hashlib.sha256(content)</code> trước khi lưu. Nếu hash tồn tại → return existing.</p>
+<p><strong>Trạng thái:</strong> ❌ Chưa giải quyết.</p>
+
+<hr>
+
+<h3 id="unrelated-file">File không liên quan (video/audio/binary)</h3>
+<p><strong>Vấn đề:</strong> Extension không khớp, nhưng trong ZIP thì không kiểm tra.</p>
+<p><strong>Giải pháp:</strong> Mở rộng magic bytes check cho từng file trong ZIP (không chỉ file gốc).</p>
+<p><strong>Trạng thái:</strong> ❌ Chưa giải quyết.</p>
+
+<hr>
+
+<h3 id="short-doc">Tài liệu quá ngắn (&lt; 50 ký tự)</h3>
+<p><strong>Vấn đề:</strong> AI không sinh được câu hỏi.</p>
+<p><strong>Giải pháp:</strong> <code>MIN_TEXT_LENGTH_WARN = 50</code> → log + return ngắn.</p>
+<p><strong>Trạng thái:</strong> ✅ Đã giải quyết.</p>
+
+<hr>
+
+<h3 id="mixed-lang">Tài liệu hỗn hợp ngôn ngữ</h3>
+<p><strong>Vấn đề:</strong> Tiếng Việt + Anh + code → chunking sai ranh giới.</p>
+<p><strong>Giải pháp:</strong> Không cần cho MVP. Dùng code-aware chunker sau này.</p>
+<p><strong>Trạng thái:</strong> ❌ Chưa giải quyết.</p>
+
+<hr>
+
+<h3 id="complex-table">Bảng biểu phức tạp trong PDF</h3>
+<p><strong>Vấn đề:</strong> Ô merge, nhiều dòng → text extract sai.</p>
+<p><strong>Giải pháp:</strong> Nâng cấp lên <code>pdfplumber</code> (giữ layout) hoặc OCR PDF sau MVP.</p>
+<p><strong>Trạng thái:</strong> ❌ Chưa giải quyết.</p>
+
+<hr>
+
+<h2 id="migration-plan">Migration Plan: Local uploads → MinIO</h2>
+<blockquote>Chuyển đổi từ lưu file trực tiếp trên disk (<code>uploads/</code>) sang object storage (MinIO). Giữ nguyên code logic, chỉ thay backend storage layer.</blockquote>
+
+<h3 id="current-state">Hiện tại</h3>
+<pre><code># documents.py
+def _save_file(file_content: bytes, filename: str) -> str:
+    unique_name = f"{uuid.uuid4().hex[:12]}_{filename}"
+    file_path = UPLOAD_DIR / unique_name
+    file_path.write_bytes(file_content)  # ← ghi ra disk
+    return str(file_path)
+
+# DB: chỉ lưu file_path string (đường dẫn local)
+</code></pre>
+
+<h3 id="target-state">Mục tiêu</h3>
+<pre><code># Thay bằng S3 client (MinIO / AWS S3)
+async def _save_to_s3(file_content: bytes, filename: str) -> str:
+    import aioboto3
+    session = aioboto3.Session(
+        aws_access_key_id="minioadmin",
+        aws_secret_access_key="minioadmin",
+    )
+    async with session.client("s3",
+        endpoint_url="http://minio:9000",
+    ) as s3:
+        key = f"documents/{uuid.uuid4().hex}_{filename}"
+        await s3.put_object(
+            Bucket="defend-files",
+            Key=key,
+            Body=file_content,
+            ContentType=ContentType=determine_mime(filename))
+    return key  # DB chỉ lưu key này, không cần đường dẫn local
+</code></pre>
+
+<h3 id="what-changes">Thay đổi</h3>
+<table>
+  <tr><th>Layer</th><th>Before</th><th>After</th></tr>
+  <tr><td><strong>Binary file</strong></td><td><code>uploads/a1b2c3.pdf</code> (disk)</td><td><code>minio:9000/defend-files/a1b2c3.pdf</code> (object)</td></tr>
+  <tr><td><strong>DB column</strong></td><td><code>file_path</code> → <code>String(512)</code></td><td><code>storage_key</code> → <code>String(256)</code> (key, không cần full path)</td></tr>
+  <tr><td><strong>Upload endpoint</strong></td><td>upload to disk → return path</td><td>upload to S3 → return key</td></tr>
+  <tr><td><strong>Docker volume</strong></td><td><code>uploads/</code> (tạm, mất khi rebuild)</td><td><code>minio_data/</code> (persistent, ra ngoài container)</td></tr>
+</table>
+
+<h3 id="migration-steps">Các bước chuyển đổi</h3>
+<table>
+  <tr><th>#</th><th>Bước</th><th>Mô tả</th><th>Trạng thái</th></tr>
+  <tr><td>1</td><td><strong>Thêm MinIO vào docker-compose</strong></td><td>image <code>minio/minio</code>, port 9000, volume <code>minio_data</code></td><td>✅ Đã thực hiện</td></tr>
+  <tr><td>2</td><td><strong>Tạo client S3 helper</strong></td><td><code>app/services/storage.py</code>, init aioboto3 với <code>endpoint_url=http://minio:9000</code></td><td>✅ Đã thực hiện</td></tr>
+  <tr><td>3</td><td><strong>Đổi <code>_save_file()</code> → <code>_save_to_s3()</code></strong></td><td><code>save_doc()</code> trong <code>storage.py</code></td><td>✅ Đã thực hiện</td></tr>
+  <tr><td>4</td><td><strong>Đổi <code>file_path</code> → <code>storage_key</code></strong></td><td>DB không lưu đường dẫn nữa, chỉ lưu key</td><td>✅ Đã thực hiện</td></tr>
+  <tr><td>5</td><td><strong>Giữ <code>uploads/</code> làm fallback</strong></td><td>file cũ không cần migrate, chỉ lưu key cho file mới</td><td>✅ Không cần</td></tr>
+  <tr><td>6</td><td><strong>Env mới</strong></td><td>thêm <code>MINIO_ENDPOINT</code>, <code>MINIO_ACCESS_KEY</code>, <code>MINIO_SECRET_KEY</code></td><td>✅ Đã thực hiện</td></tr>
+</table>
+
+<h3 id="why-minio-not-s3">Tại sao chọn MinIO thay vì AWS S3</h3>
+<table>
+  <tr><th>MinIO</th><th>AWS S3</th></tr>
+  <tr><td>Chạy local, không cần internet</td><td>Cần kết nối AWS</td></tr>
+  <tr><td>Chi phí 0 (self-hosted)</td><td>Trả phí theo dung lượng</td></tr>
+  <tr><td>S3 API giống hệt</td><td>S3 API chuẩn</td></tr>
+  <tr><td>Phù hợp cho dev/MVP</td><td>Phù hợp cho production</td></tr>
+</table>
+<p><strong>kết luận:</strong> MinIO cho dev, lên production thì đổi endpoint → AWS S3, không đổi code.</p>
+
+<hr>
+
+<h2 id="related">Related</h2>
+<ul>
+  <li>Code: <code>apps/api/app/routers/documents.py</code></li>
+  <li>Code: <code>apps/api/app/services/document_parser.py</code></li>
+  <li>Code: <code>apps/api/app/schemas/document.py</code></li>
+  <li>Code: <code>apps/api/app/models/entities.py</code> — <code>Document</code>, <code>DocType</code>, <code>DocumentStatus</code></li>
+  <li>Frontend: <code>apps/web/src/lib/api.ts</code> — <code>uploadDocument()</code></li>
+  <li>Architecture: <code>12-api-design.md</code> — Overview</li>
+  <li>Flow: <code>FLOW.md</code> — Main Flow</li>
+</ul>
+
+</body>
+</html>

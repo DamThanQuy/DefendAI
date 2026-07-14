@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Deploy — Backend (FastAPI + Docker)</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#c9d1d9;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922;--purple:#bc8cff;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;font-size:16px}
+.md{max-width:980px;margin:0 auto;padding:2rem 1.5rem}
+h1{font-size:2rem;font-weight:700;border-bottom:1px solid var(--border);padding-bottom:.5rem;margin-bottom:1rem}
+h2{font-size:1.4rem;font-weight:600;margin-top:2rem;margin-bottom:.75rem}
+h3{font-size:1.15rem;font-weight:600;margin-top:1.5rem;margin-bottom:.5rem}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:'Cascadia Code',Consolas,'Courier New',monospace;font-size:.85em;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:.15em .4em;color:var(--accent)}
+pre{background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:1rem;overflow-x:auto;font-family:'Cascadia Code',Consolas,'Courier New',monospace;font-size:.82rem;color:var(--green)}
+pre code{background:none;border:none;padding:0;color:inherit;font-size:inherit}
+table{width:100%;border-collapse:collapse;margin:.75rem 0}
+th,td{padding:.5rem .75rem;border:1px solid var(--border);text-align:left}
+th{background:var(--surface);color:var(--accent);font-size:.8rem;text-transform:uppercase;font-weight:600}
+td{color:var(--text)}
+strong{color:#f0f6fc;font-weight:600}
+.tag{display:inline-block;font-size:.65rem;padding:.1rem .45rem;border-radius:999px;font-weight:600;margin-left:.5rem;vertical-align:middle}
+.tag-ok{background:rgba(63,185,80,.15);color:var(--green)}
+.tag-warn{background:rgba(210,153,34,.12);color:var(--yellow)}
+.tag-block{background:rgba(248,81,73,.12);color:var(--red)}
+.tag-info{background:rgba(88,166,255,.12);color:var(--accent)}
+ul,ol{margin:.5rem 0 .5rem 1.5rem}
+li{margin:.25rem 0}
+blockquote{border-left:4px solid var(--accent);padding:.75rem 1rem;margin:.75rem 0;background:rgba(88,166,255,.04);border-radius:0 6px 6px 0}
+blockquote p{margin:.25rem 0}
+.footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="md">
+
+<h1>Task Deploy — Backend (FastAPI + Docker)</h1>
+
+<table>
+<tr><th>Mục</th><th>Thông tin</th></tr>
+<tr><td>Tên task</td><td><strong>Deploy Backend API (FastAPI)</strong></td></tr>
+<tr><td>Người phụ trách</td><td><strong>QUYDAM</strong> (local) / <strong>TKMX3</strong> (server)</td></tr>
+<tr><td>Server</td><td><code>TKMX3</code> — Win + Docker</td></tr>
+<tr><td>Thời gian bắt đầu</td><td>2026-07-03</td></tr>
+<tr><td>Thời gian kết thúc dự kiến</td><td>2026-07-03 (hoàn thành trong ngày)</td></tr>
+<tr><td>Trạng thái</td><td><span class="tag tag-warn">⏳ Chưa deploy</span></td></tr>
+</table>
+
+<hr>
+
+<h2>Mô tả</h2>
+<p>FastAPI backend chạy trong Docker container trên Windows server, kết nối Supabase PostgreSQL (đã deploy), expose ra internet qua ngrok/Cloudflare Tunnel.</p>
+
+<ul>
+  <li><strong>Framework</strong>: FastAPI (Python 3.12)</li>
+  <li><strong>Server</strong>: Uvicorn (ASGI)</li>
+  <li><strong>Port</strong>: <code>8000</code> (container) → <code>8000</code> (host)</li>
+  <li><strong>DB</strong>: PostgreSQL qua <code>asyncpg</code> (port 6543)</li>
+  <li><strong>Auth</strong>: JWT (mật khẩu hash bcrypt, không cần auth cho MVP)</li>
+</ul>
+
+<hr>
+
+<h2>Các bước thực hiện chi tiết</h2>
+
+<table>
+<thead>
+<tr><th>#</th><th>Bước</th><th>Lệnh</th><th>Thời gian</th><th>Phụ thuộc</th><th>Ghi chú</th></tr>
+</thead>
+<tbody>
+<tr>
+  <td>0</td>
+  <td>Kiểm tra SSH kết nối server</td>
+  <td><code>Test-NetConnection 192.168.88.232 -Port 22</code></td>
+  <td>2 phút</td>
+  <td>—</td>
+  <td>Mạng LAN cần cùng subnet</td>
+</tr>
+<tr>
+  <td>1</td>
+  <td>Tạo file .env</td>
+  <td><code>Copy-Item .env.example .env</code></td>
+  <td>3 phút</td>
+  <td>.env.example có sẵn</td>
+  <td>Điền DATABASE_URL + API keys</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td>Xoá artifact cũ</td>
+  <td><code>Remove-Item .\apps\api\defendai.db -Force</code></td>
+  <td>30 giây</td>
+  <td>—</td>
+  <td>File corrupt 48KB</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td>Kiểm tra Docker</td>
+  <td><code>docker --version</code></td>
+  <td>1 phút</td>
+  <td>Docker Desktop cài sẵn</td>
+  <td>WSL2 + Docker engine</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td>Pull code mới nhất</td>
+  <td><code>git pull origin main</code></td>
+  <td>2 phút</td>
+  <td>Git + remote origin</td>
+  <td>Đảm bảo code mới</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td>Build Docker image</td>
+  <td><code>docker build -t defendai-api .</code></td>
+  <td>5–10 phút</td>
+  <td>Dockerfile có sẵn</td>
+  <td>Cài Python deps</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td>Run container</td>
+  <td><code>docker run -d --name defendai-api --restart unless-stopped -p 8000:8000 --env-file .env defendai-api</code></td>
+  <td>2 phút</td>
+  <td>Image + .env</td>
+  <td>Map port + env file</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td>Kiểm tra health</td>
+  <td><code>curl http://localhost:8000/health</code></td>
+  <td>1 phút</td>
+  <td>Container đang chạy</td>
+  <td>Phải trả <code>{"ai_ready":true}</code></td>
+</tr>
+<tr>
+  <td>8</td>
+  <td>Kiểm tra DB kết nối</td>
+  <td><code>docker logs defendai-api | grep "db"</code></td>
+  <td>2 phút</td>
+  <td>Supabase active</td>
+  <td>Không lỗi kết nối</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td>Setup tunnel</td>
+  <td><code>ngrok http http://localhost:8000</code></td>
+  <td>5 phút</td>
+  <td>ngrok.exe + token</td>
+  <td>Copy URL tunnel</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td>Kiểm tra qua tunnel</td>
+  <td><code>curl {tunnel-url}/health</code></td>
+  <td>2 phút</td>
+  <td>Tunnel + container</td>
+  <td>Phải reachable</td>
+</tr>
+</tbody>
+</table>
+
+<hr>
+
+<h2>Phụ thuộc (Dependencies)</h2>
+
+<table>
+<thead>
+<tr><th>Phụ thuộc</th><th>Trạng thái</th><th>Mô tả</th></tr>
+</thead>
+<tbody>
+<tr>
+  <td>Docker Desktop</td>
+  <td><span class="tag tag-ok">✅ Đã cài</span></td>
+  <td>WSL2 backend, engine running</td>
+</tr>
+<tr>
+  <td>Python 3.12</td>
+  <td><span class="tag tag-ok">✅ Trong image</span></td>
+  <td>Docker image <code>python:3.12-slim</code></td>
+</tr>
+<tr>
+  <td>Supabase DB</td>
+  <td><span class="tag tag-ok">✅ Đã deploy</span></td>
+  <td>9 bảng, port 6543, đã migrate</td>
+</tr>
+<tr>
+  <td>API keys</td>
+  <td><span class="tag tag-warn">⏳ Cần điền</span></td>
+  <td>Google + NVIDIA (trong .env)</td>
+</tr>
+<tr>
+  <td>ngrok/Cloudflare</td>
+  <td><span class="tag tag-warn">⏳ Chưa setup</span></td>
+  <td>Cần cài + auth token</td>
+</tr>
+<tr>
+  <td>Git</td>
+  <td><span class="tag tag-ok">✅ v2.55</span></td>
+  <td>PATH đã set</td>
+</tr>
+</tbody>
+</table>
+
+<hr>
+
+<h2>Công cụ sử dụng</h2>
+
+<table>
+<thead>
+<tr><th>Công cụ</th><th>Phiên bản</th><th>Mục đích</th><th>Link</th></tr>
+</thead>
+<tbody>
+<tr><td>Docker</td><td>27.x+</td><td>Container runtime</td><td><a href="https://docker.com">docker.com</a></td></tr>
+<tr><td>FastAPI</td><td>≥0.111</td><td>Web framework</td><td><a href="https://fastapi.tiangolo.com">fastapi.tiangolo.com</a></td></tr>
+<tr><td>Uvicorn</td><td>≥0.30</td><td>ASGI server</td><td>—</td></tr>
+<tr><td>asyncpg</td><td>≥0.30</td><td>PG driver</td><td>—</td></tr>
+<tr><td>ngrok</td><td>3.x</td><td>Tunnel</td><td><a href="https://ngrok.com">ngrok.com</a></td></tr>
+<tr><td>Cloudflare Tunnel</td><td>—</td><td>Alternate tunnel</td><td><a href="https://developers.cloudflare.com">cloudflare.com</a></td></tr>
+</tbody>
+</table>
+
+<hr>
+
+<h2>Lưu ý quan trọng</h2>
+
+<blockquote>
+<strong>🔴 Cảnh báo:</strong> Không dùng <code>d:\STUDY\KY7\EXE101\...\</code> trên server. Đường dẫn thật là <code>C:\Users\TKMX3\DefendAI\</code> (hoặc theo <code>pwd</code>).
+</blockquote>
+
+<ol>
+  <li><strong>Port:</strong> Container dùng <code>8000:8000</code>, không conflict với cổng khác</li>
+  <li><strong>Database:</strong> Dùng <code>asyncpg</code> (async) không phải <code>psycopg2</code>. Port 6543 (Transaction mode)</li>
+  <li><strong>Env:</strong> File .env phải ở <strong>cùng thư mục với Dockerfile</strong> (<code>apps/api</code>)</li>
+  <li><strong>Restart:</strong> <code>--restart unless-stopped</code> — container tự chạy lại khi reboot</li>
+  <li><strong>Health:</strong> Kiểm tra <code>ai_ready: true</code> (không false = thiếu key)</li>
+  <li><strong>CORS:</strong> Dùng <code>["*"]</code> cho dev để tránh lỗi khi đổi URL tunnel</li>
+  <li><strong>Logs:</strong> <code>docker logs defendai-api -f</code> khi debug</li>
+</ol>
+
+<blockquote>
+<strong>💡 Mẹo:</strong> Nếu không có 2 API key (Google + NVIDIA), chỉ cần 1 key là đủ. Set <code>DEFAULT_PROVIDER=google</code> và <code>ORCHESTRATOR_PROVIDER=google</code> (bỏ qua NVIDIA).
+</blockquote>
+
+<hr>
+
+<h2>Output dự kiến</h2>
+
+<pre>✅ docker ps → defendai-api Up
+✅ curl localhost:8000/health → {"status":"healthy","ai_providers":["google"],"ai_ready":true}
+✅ curl localhost:8000/docs → Swagger UI (200 OK)
+✅ {tunnel-url}/health → reachable từ internet</pre>
+
+<hr>
+
+<div class="footer">
+  DefendAI — Task Deploy Backend | 2026-07-03
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Workflow — Upload &amp; Xử lý file (DefendAI)</title>
+  <style>
+    :root {
+      --bg: #f7f9fb; --surface: #ffffff; --border: #d8dee6;
+      --teal: #0d9488; --text: #1a2330; --muted: #5b6776;
+      --warn: #b45309; --danger: #dc2626; --ok: #15803d; --info: #2563eb;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.6; padding: 32px 16px 80px; }
+    .wrap { max-width: 1040px; margin: 0 auto; }
+    h1 { font-size: 30px; margin: 0 0 4px; }
+    h2 { font-size: 21px; margin: 40px 0 12px; color: var(--teal); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    h3 { font-size: 16px; margin: 22px 0 8px; }
+    .sub { color: var(--muted); margin: 0 0 8px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin: 14px 0; }
+    .meta { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+    .chip { background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--muted); }
+    .chip b { color: var(--teal); }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    code { background: #eef2f6; padding: 2px 6px; border-radius: 6px; font-size: 13px; color: #0f766e; }
+    pre { background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 14px 16px; overflow: auto; font-size: 13px; line-height: 1.45; }
+    ul, ol { padding-left: 22px; } li { margin: 6px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--teal); font-weight: 600; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; letter-spacing: .03em; }
+    .tag.pdf { background: #fee2e2; color: #b91c1c; }
+    .tag.doc { background: #dbeafe; color: #1d4ed8; }
+    .tag.ppt { background: #fef3c7; color: #b45309; }
+    .tag.zip { background: #dcfce7; color: #15803d; }
+    .tag.folder { background: #f3e8ff; color: #7e22ce; }
+    .tag.note { background: #fef3c7; color: #92400e; }
+
+    /* Mermaid diagram container */
+    .diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin: 14px 0; }
+    .mermaid { display: flex; justify-content: center; }
+    .note { border-left: 3px solid var(--warn); background: #fffbeb; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 14px; }
+    .note b { color: var(--warn); }
+    .okbox { border-left: 3px solid var(--ok); background: #f0fdf4; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+    .file { color: var(--teal); }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>window.addEventListener("DOMContentLoaded", () => mermaid.initialize({ startOnLoad: true, theme: "base", themeVariables: { primaryColor: "#ccfbf1", lineColor: "#0d9488", fontFamily: "ui-sans-serif" } }));</script>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Workflow — Upload &amp; Xử lý file (DefendAI)</h1>
+  <p class="sub">Giải thích hệ thống làm gì sau khi user upload file. Đọc code thực tế ở <span class="file">apps/api/app/routers/documents.py</span>, <span class="file">code_scan.py</span>, <span class="file">services/document_parser.py</span>, <span class="file">code_scanner.py</span>.</p>
+
+  <div class="meta">
+    <span class="chip">Module: <b>Upload Pipeline</b></span>
+    <span class="chip">BE: <b>apps/api (FastAPI)</b></span>
+    <span class="chip">Ngày: <b>2026-07-12</b></span>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Tóm tắt nhanh (đọc trước)</h3>
+    <ul>
+      <li><b>Chỉ nhận file đơn lẻ</b>, không nhận folder. Hỗ trợ: <code>.pdf</code> <code>.docx</code> <code>.pptx</code> <code>.zip</code>.</li>
+      <li>Upload xong → file được lưu vào <b>MinIO</b> (object storage), metadata lưu vào <b>Postgres</b>. File <b>không parse ngay</b>.</li>
+      <li><b>PDF/DOCX/PPTX</b> → dùng cho sinh câu hỏi phản biện (AI đọc nội dung).</li>
+      <li><b>ZIP</b> → chỉ dùng cho quét source code (code review), <b>không sinh câu hỏi</b>.</li>
+      <li><b>Folder</b> → ❌ không hỗ trợ. Phải nén thành <code>.zip</code> (cho code) hoặc upload từng file (cho tài liệu).</li>
+    </ul>
+  </div>
+
+  <!-- ============ MAIN DIAGRAM ============ -->
+  <h2>1. Sơ đồ tổng thể — từ upload đến output</h2>
+  <div class="diagram">
+    <div class="mermaid">
+flowchart TD
+    U["👤 User upload file<br/>(FE UploadZone)"] --> PROXY["Next.js proxy<br/>/api/documents/upload"]
+    PROXY --> API["FastAPI POST /api/documents/upload<br/>documents.py:98"]
+
+    API --> V1{"Validate<br/>ext + magic-bytes<br/>+ size ≤100MB"}
+    V1 -- "Sai" --> ERR["❌ 400/413<br/>từ chối"]
+    V1 -- "Đúng" --> SAVE["Lưu bytes → MinIO<br/>(storage.save_doc)"]
+    SAVE --> META["Lưu metadata → Postgres<br/>documents table<br/>status=uploaded"]
+    META --> DEC{"doc_type là gì?"}
+
+    DEC -- "PDF / DOCX / PPTX" --> Q["📝 Sinh câu hỏi<br/>POST /api/questions/generate"]
+    DEC -- "ZIP" --> C["💻 Quét code<br/>POST /api/code/scan"]
+
+    Q --> QP["parse_and_chunk → text<br/>→ AI Map-Reduce → 10 câu hỏi<br/>→ assessments table"]
+    C --> CP["extract_code_files (ZIP)<br/>→ AI review → issues<br/>→ code_analyses table"]
+
+    QP --> OUT1["FE /questions<br/>(câu hỏi + hint)"]
+    CP --> OUT2["FE /code-review<br/>(issues + pass_rate)"]
+
+    classDef pdf fill:#fee2e2,stroke:#b91c1c;
+    classDef zip fill:#dcfce7,stroke:#15803d;
+    class Q,QP,OUT1 pdf;
+    class C,CP,OUT2 zip;
+    </div>
+  </div>
+
+  <!-- ============ PER TYPE ============ -->
+  <h2>2. Chi tiết từng loại file</h2>
+
+  <h3>2.1 PDF / DOCX / PPTX <span class="tag pdf">Tài liệu</span></h3>
+  <div class="diagram">
+    <div class="mermaid">
+sequenceDiagram
+    participant U as User
+    participant FE as UploadZone
+    participant API as /api/documents/upload
+    participant MIN as MinIO
+    participant DB as Postgres
+    participant Q as /api/questions/generate
+    participant P as document_parser
+    participant AI as AI (NVIDIA)
+
+    U->>FE: chọn PDF/DOCX/PPTX
+    FE->>API: POST multipart
+    API->>MIN: save_doc(bytes)
+    API->>DB: Document(status=uploaded, doc_type=PDF/DOCX/PPTX)
+    U->>FE: chọn persona → "Tạo câu hỏi"
+    FE->>Q: POST {document_id, persona}
+    Q->>P: parse_and_chunk(document)
+    P->>MIN: get_doc(storage_key)
+    MIN-->>P: bytes
+    P-->>Q: chunks (text)
+    Q->>AI: Map-Reduce: nhóm 3 chunk → sinh câu hỏi
+    AI-->>Q: 10 questions + hint (JSON)
+    Q->>DB: Assessment(status=completed)
+    Q-->>FE: questions
+    FE->>U: hiển thị /questions
+    </div>
+  </div>
+  <ul>
+    <li>Parse text: <code>document_parser.py</code> — PDF qua <code>PyPDF2</code>, DOCX qua <code>python-docx</code>, PPTX qua <code>python-pptx</code>.</li>
+    <li>Chunk ~4000 ký tự/chunk, overlap 600 (giữ ngữ cảnh).</li>
+    <li>AI Map-Reduce: chia chunks theo nhóm 3 → gọi song song → tổng hợp 10 câu. Thiếu thì bù bằng heuristic.</li>
+  </ul>
+
+  <h3>2.2 ZIP <span class="tag zip">Source code</span></h3>
+  <div class="diagram">
+    <div class="mermaid">
+sequenceDiagram
+    participant U as User
+    participant FE as UploadZone
+    participant API as /api/documents/upload
+    participant MIN as MinIO
+    participant DB as Postgres
+    participant SC as /api/code/scan
+    participant Z as code_scanner
+    participant AI as AI (NVIDIA)
+
+    U->>FE: chọn ZIP (source code)
+    FE->>API: POST multipart
+    API->>MIN: save_doc(bytes)
+    API->>DB: Document(status=uploaded, doc_type=ZIP)
+    U->>FE: "Bắt đầu phân tích"
+    FE->>SC: POST {document_id}
+    SC->>Z: analyze_code_document(document)
+    Z->>MIN: get_doc(storage_key)
+    Z->>Z: extract_code_files (giải nén, lọc .git/node_modules)
+    Z->>AI: review code → JSON issues
+    AI-->>Z: summary, pass_rate, issues[]
+    Z->>DB: CodeAnalysis(status=completed)
+    SC-->>FE: issues + pass_rate
+    FE->>U: hiển thị /code-review
+    </div>
+  </div>
+  <ul>
+    <li>Giải nén ZIP → lọc folder rác (<code>.git</code>, <code>node_modules</code>, <code>dist</code>...), chỉ lấy file code (.py/.ts/.js/...).</li>
+    <li>Giới hạn: tối đa 500 file trong zip, 50 file scan, 20MB giải nén.</li>
+    <li>AI trả issues có <code>file</code> + <code>line</code> thật. Nếu AI lỗi → fallback heuristic (regex bắt secret/TODO/exec) — là sự thật deterministic.</li>
+    <li><b>ZIP không dùng để sinh câu hỏi</b> (<code>question_generator</code> từ chối doc_type=ZIP).</li>
+  </ul>
+
+  <h3>2.3 Folder <span class="tag folder">Không hỗ trợ</span></h3>
+  <div class="diagram">
+    <div class="mermaid">
+flowchart LR
+    F["📁 Folder"] --> CHK{"upload folder?"}
+    CHK -- "HTML input<br/>webkitdirectory" --> REJ["⚠️ Browser gửi từng file<br/>FE hiện tại KHÔNG bật<br/>→ backend nhận 1 file"}
+    CHK -- "1 folder = 1 request?" --> REJ2["❌ 400<br/>_get_doc_type: folder<br/>không có ext hợp lệ"]
+    classDef bad fill:#fce7f3,stroke:#db2777;
+    class REJ,REJ2 bad;
+    </div>
+  </div>
+  <ul>
+    <li>Backend <code>ALLOWED_EXTENSIONS = {pdf, docx, pptx, zip}</code> — folder không có extension → <code>400 File type not supported</code>.</li>
+    <li><b>Muốn upload thư mục code</b> → nén thành <code>.zip</code> rồi upload (hệ thống tự giải nén).</li>
+    <li><b>Muốn upload nhiều tài liệu</b> → upload từng file, hoặc gom vào 1 PDF/PPTX.</li>
+  </ul>
+
+  <!-- ============ TABLE ============ -->
+  <h2>3. Bảng so sánh nhanh</h2>
+  <table>
+    <tr><th>Loại</th><th>Validate</th><th>Lưu đâu</th><th>Xử lý</th><th>Output</th></tr>
+    <tr><td><span class="tag pdf">PDF</span> <span class="tag doc">DOCX</span> <span class="tag ppt">PPTX</span></td>
+        <td>ext + magic-bytes + ≤100MB</td><td>MinIO + Postgres</td><td>parse text → chunk → AI sinh câu hỏi</td><td>10 câu hỏi + hint</td></tr>
+    <tr><td><span class="tag zip">ZIP</span></td>
+        <td>ext + magic-bytes + ≤100MB</td><td>MinIO + Postgres</td><td>giải nén → quét code → AI review</td><td>issues + pass_rate</td></tr>
+    <tr><td><span class="tag folder">Folder</span></td>
+        <td>❌ không qua validate</td><td>—</td><td>—</td><td>❌ 400 rejected</td></tr>
+  </table>
+
+  <div class="note"><b>Lưu ý MinIO drift:</b> ổ đĩa MinIO từng bị hỏng (lần fix upload 500), reformat làm mất object của doc id 4–8. Metadata vẫn còn trong Postgres nhưng file gốc mất → sinh câu hỏi cho doc cũ sẽ lỗi <code>NoSuchKey</code>. Cần re-upload hoặc cleanup.</div>
+
+  <h2>4. File này nên để ở đâu</h2>
+  <div class="okbox">
+    <b>Vị trí chuẩn:</b> <span class="file">docs/diagrams/workflow-upload-processing.html</span><br/>
+    Dự án đã có thư mục <code>docs/diagrams/</code> dành riêng cho sơ đồ. Các file plan implement để ở <code>docs/implement/</code>, doc API ở <code>docs/api/html/</code>. Workflow này là sơ đồ kiến trúc → đúng <code>docs/diagrams/</code>.
+  </div>
+  <ul>
+    <li><code>docs/diagrams/</code> — sơ đồ dòng chảy, sequence, architecture (file này).</li>
+    <li><code>docs/implement/</code> — plan triển khai tính năng (feature-upload-file.html, feature-rag-trust.html).</li>
+    <li><code>docs/api/html/</code> — tài liệu endpoint API (01-documents.html, 02-assessment.html).</li>
+    <li><code>docs/architecture/</code>, <code>docs/decisions/</code> — ADR, quyết định thiết kế dài hạn.</li>
+  </ul>
+
+</div>
+</body>
+</html>

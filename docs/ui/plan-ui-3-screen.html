@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DefendAI — Plan: UI 3 Màn Hình</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; color: #1f2937; padding: 2rem 1rem; }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    h1 { font-size: 28px; font-weight: 800; color: #0f2e82; margin-bottom: .5rem; }
+    .sub { color: #5f6368; font-size: 14px; margin-bottom: 2rem; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 2rem 0; }
+
+    /* Section card */
+    .section { background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .section h2 { font-size: 18px; font-weight: 700; color: #0f2e82; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px; }
+    .section h2 .badge { font-size: 11px; background: #0f2e82; color: white; padding: 2px 10px; border-radius: 999px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    /* Card preview */
+    .preview { background: #f0f4ff; border-radius: 12px; padding: 1.5rem; margin-top: 1rem; }
+    .preview h3 { font-size: 14px; font-weight: 700; color: #0f2e82; margin-bottom: 1rem; }
+    .mock { display: flex; align-items: center; gap: 12px; background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; margin-bottom: 8px; }
+    .mock-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 10px; color: white; }
+    .mock-icon.pdf { background: #dc2626; }
+    .mock-icon.docx { background: #2563eb; }
+    .mock-icon.zip { background: #059669; }
+    .mock-text { font-size: 13px; font-weight: 500; }
+    .mock-meta { font-size: 11px; color: #6b7280; }
+
+    /* Persona card */
+    .persona-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+    .persona-card { background: white; border: 2px solid #e5e7eb; border-radius: 14px; padding: 1rem; text-align: center; cursor: default; transition: all .2s; }
+    .persona-card.active { border-color: #0f2e82; background: #e8effd; }
+    .persona-card .avatar { width: 48px; height: 48px; border-radius: 50%; background: #e8effd; margin: 0 auto .75rem; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .persona-card h4 { font-size: 13px; font-weight: 700; color: #111827; }
+    .persona-card p { font-size: 11px; color: #6b7280; margin-top: 4px; }
+    .persona-card .tag { font-size: 10px; background: #e5e7eb; padding: 2px 8px; border-radius: 999px; margin-top: 6px; display: inline-block; }
+
+    /* Stepper */
+    .stepper-demo { display: flex; align-items: center; gap: 8px; justify-content: center; margin: 1.5rem 0; }
+    .step-item { display: flex; align-items: center; gap: 6px; }
+    .step-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+    .step-dot.done { background: #059669; color: white; }
+    .step-dot.active { background: #0f2e82; color: white; }
+    .step-dot.todo { background: #e5e7eb; color: #9ca3af; }
+    .step-label { font-size: 13px; font-weight: 600; }
+    .step-label.done { color: #059669; }
+    .step-label.active { color: #0f2e82; }
+    .step-label.todo { color: #9ca3af; }
+    .arrow { color: #d1d5db; font-size: 18px; }
+
+    /* Loading animation mock */
+    .loading-bar { height: 6px; background: #e5e7eb; border-radius: 999px; margin: 1rem 0; overflow: hidden; }
+    .loading-fill { height: 100%; width: 0; background: linear-gradient(90deg, #0f2e82, #6366f1); border-radius: 999px; animation: load 2.5s ease-in-out infinite; }
+    @keyframes load { 0% { width: 0; } 50% { width: 70%; } 100% { width: 100%; } }
+
+    /* Results tabs */
+    .tab-bar { display: flex; gap: 4px; background: #e8effd; padding: 4px; border-radius: 12px; width: fit-content; margin-bottom: 1rem; }
+    .tab-item { padding: 8px 18px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: default; }
+    .tab-item.active { background: white; color: #0f2e82; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .tab-item.inactive { color: #5f6368; }
+
+    /* Question list */
+    .q-group { margin-bottom: 1rem; }
+    .q-group h4 { font-size: 12px; font-weight: 700; color: #0f2e82; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; padding: 4px 10px; background: #e8effd; border-radius: 6px; display: inline-block; }
+    .q-item { padding: 12px; background: white; border: 1px solid #e5e7eb; border-radius: 10px; margin-bottom: 6px; }
+    .q-item p { font-size: 13px; }
+    .q-item .hint-btn { font-size: 11px; color: #2563eb; background: none; border: none; text-decoration: underline; cursor: default; margin-top: 4px; display: inline-block; }
+
+    /* Code review */
+    .code-review { display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; }
+    .file-tree { background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 1rem; }
+    .file-tree .entry { padding: 4px 0; font-size: 13px; color: #1f2937; }
+    .file-tree .entry.folder { font-weight: 600; }
+    .file-tree .entry.file { padding-left: 1.2rem; }
+    .code-view { background: #1e1e2e; border-radius: 10px; padding: 1rem; color: #cdd6f4; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.6; }
+    .code-view .note-line { background: #fef2f2; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #dc2626; display: inline-block; margin-left: 4px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>🎯 DefendAI — Plan: UI 3 Màn Hình</h1>
+  <p class="sub">Tổ chức Layout theo cấu trúc 3 màn hình chính. File này là <strong>plan thiết kế</strong>, dùng làm base để code thật.</p>
+
+  <!-- ===== MÀN HÌNH 1 ===== -->
+  <div class="section">
+    <h2><span class="badge">1</span> Màn hình 1 — Workspace Setup <span style="font-size:11px;color:#9ca3af;font-weight:400;">(Afforai-style)</span></h2>
+    <div class="grid-2">
+      <!-- LEFT: Drop zone -->
+      <div class="preview">
+        <h3>📁 Kéo thả / chọn tệp</h3>
+        <div class="mock"><div class="mock-icon pdf">PDF</div><div><div class="mock-text">Báo cáo đồ án.pdf</div><div class="mock-meta">2.4 MB</div></div></div>
+        <div class="mock"><div class="mock-icon docx">DOCX</div><div><div class="mock-text">Phụ lục.docx</div><div class="mock-meta">1.1 MB</div></div></div>
+        <div class="mock"><div class="mock-icon zip">ZIP</div><div><div class="mock-text">src-bundle.zip</div><div class="mock-meta">3.7 MB</div></div></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:12px;background:#e8effd;padding:4px 10px;border-radius:999px;color:#0f2e82;font-weight:600;">📄 Thêm PDF</span>
+          <span style="font-size:12px;background:#e8effd;padding:4px 10px;border-radius:999px;color:#0f2e82;font-weight:600;">📝 Thêm DOCX</span>
+          <span style="font-size:12px;background:#e8effd;padding:4px 10px;border-radius:999px;color:#0f2e82;font-weight:600;">📦 Thêm ZIP</span>
+        </div>
+        <p style="font-size:11px;color:#6b7280;margin-top:8px;">✅ Kéo thả hoặc chọn từ máy tính — hỗ trợ multiple, drag &amp; drop.</p>
+      </div>
+      <!-- RIGHT: Persona cards -->
+      <div>
+        <h3 style="font-size:14px;font-weight:700;color:#0f2e82;margin-bottom:12px;">🧑‍🏫 Chọn Giám Khảo</h3>
+        <div class="persona-grid">
+          <div class="persona-card active">
+            <div class="avatar" style="background:#e8effd;">👤</div>
+            <h4>Giảng viên hướng dẫn</h4>
+            <p>Hỏi bao quát, tập trung cấu trúc &amp; phương pháp.</p>
+            <span class="tag">📐 Cấu trúc</span>
+          </div>
+          <div class="persona-card">
+            <div class="avatar" style="background:#fef2f2;">🔍</div>
+            <h4>Hội đồng khó tính</h4>
+            <p>Soi xét logic, bắt bẻ tính thực tiễn &amp; số liệu.</p>
+            <span class="tag">⚡ Bắt bẻ</span>
+          </div>
+          <div class="persona-card">
+            <div class="avatar" style="background:#e0f2fe;">🛠️</div>
+            <h4>Chuyên gia kỹ thuật</h4>
+            <p>Đi sâu architecture, performance, code quality.</p>
+            <span class="tag">💻 Kỹ thuật</span>
+          </div>
+        </div>
+        <div style="margin-top:1rem;text-align:center;">
+          <span class="mock-text" style="background:#0f2e82;color:white;padding:10px 28px;border-radius:999px;font-size:14px;font-weight:600;">🚀 Bắt đầu phân tích</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MÀN HÌNH 2 ===== -->
+  <div class="section">
+    <h2><span class="badge">2</span> Màn hình 2 — Processing / Stepper</h2>
+    <p style="font-size:13px;color:#6b7280;margin-bottom:1rem;">Stepper tuyến tính nằm ngang + hiệu ứng loading mượt — không có cảm giác "chờ trong vô vọng".</p>
+
+    <!-- Stepper -->
+    <div class="stepper-demo">
+      <div class="step-item"><div class="step-dot done">✓</div><div class="step-label done">Upload</div></div>
+      <span class="arrow">➔</span>
+      <div class="step-item"><div class="step-dot done">✓</div><div class="step-label done">Parsing</div></div>
+      <span class="arrow">➔</span>
+      <div class="step-item"><div class="step-dot active">3</div><div class="step-label active">AI Analyzing</div></div>
+      <span class="arrow">➔</span>
+      <div class="step-item"><div class="step-dot todo">4</div><div class="step-label todo">Ready</div></div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading-bar"><div class="loading-fill"></div></div>
+    <p style="font-size:13px;color:#6b7280;text-align:center;">⏳ Đang phân tích AST, gọi AI Gateway — xử lý 12 trang PDF + 3 file source...</p>
+
+    <!-- During processing: preview + persona context -->
+    <div style="display:flex;gap:12px;margin-top:1rem;flex-wrap:wrap;">
+      <span style="font-size:12px;background:#f0f4ff;padding:6px 12px;border-radius:8px;">📄 Báo cáo đồ án.pdf — Đã upload</span>
+      <span style="font-size:12px;background:#f0f4ff;padding:6px 12px;border-radius:8px;">🔍 Persona: Giảng viên hướng dẫn</span>
+      <span style="font-size:12px;background:#f0f4ff;padding:6px 12px;border-radius:8px;">📊 3 tệp · 7.2 MB</span>
+    </div>
+  </div>
+
+  <!-- ===== MÀN HÌNH 3 ===== -->
+  <div class="section">
+    <h2><span class="badge">3</span> Màn hình 3 — Results / Questions</h2>
+
+    <div class="tab-bar">
+      <div class="tab-item active">📋 Báo cáo &amp; Câu hỏi</div>
+      <div class="tab-item inactive">💻 Source Code</div>
+    </div>
+
+    <div class="grid-2">
+      <!-- LEFT: Báo cáo & Câu hỏi -->
+      <div>
+        <div class="q-group">
+          <h4>🏛️ Kiến trúc</h4>
+          <div class="q-item"><p>Giải thích cách hệ thống phân chia trách nhiệm giữa các module?</p><button class="hint-btn">📎 Xem gợi ý →</button></div>
+          <div class="q-item"><p>Vì sao chọn kiến trúc micro-service thay vì monolithic?</p><button class="hint-btn">📎 Xem gợi ý →</button></div>
+        </div>
+        <div class="q-group">
+          <h4>📊 Tính thực tiễn</h4>
+          <div class="q-item"><p>Kết quả thử nghiệm với 10.000 bản ghi có scale tốt không?</p><button class="hint-btn">📎 Xem gợi ý →</button></div>
+        </div>
+      </div>
+      <!-- RIGHT: Code review -->
+      <div class="code-review">
+        <div class="file-tree">
+          <div class="entry folder">📁 src/</div>
+          <div class="entry file">📄 main.ts</div>
+          <div class="entry file">📄 api/routes.ts</div>
+          <div class="entry file">📄 services/analyzer.ts</div>
+          <div class="entry file">📄 utils/parser.ts</div>
+          <div class="entry folder">📁 tests/</div>
+          <div class="entry file">📄 test.spec.ts</div>
+        </div>
+        <div class="code-view">
+          <div>export async function analyze(</div>
+          <div>&nbsp;&nbsp;doc: Document,</div>
+          <div>&nbsp;&nbsp;persona: Persona</div>
+          <div>): Promise&lt;Result&gt; {</div>
+          <div>&nbsp;&nbsp;<span class="note-line">⚠️ Null-check thiếu → dễ crash khi doc null</span></div>
+          <div>&nbsp;&nbsp;return pipeline(doc);</div>
+          <div>}</div>
+        </div>
+      </div>
+    </div>
+
+    <p style="font-size:12px;color:#6b7280;margin-top:1rem;text-align:center;">💡 Mỗi câu hỏi có gợi ý trả lời. Source code review có note của "Chuyên gia kỹ thuật".</p>
+  </div>
+
+  <hr>
+  <p style="text-align:center;font-size:13px;color:#9ca3af;">📐 File này là <strong>plan</strong> — dùng làm base để code HTML/CSS/JS thật với giao diện upload-ai-demo.html hiện tại.</p>
+</div>
+</body>
+</html>

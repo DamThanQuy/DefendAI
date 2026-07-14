@@ -1,0 +1,23 @@
+flowchart TD
+    U["👤 User upload file<br/>(FE UploadZone)"] --> PROXY["Next.js proxy<br/>/api/documents/upload"]
+    PROXY --> API["FastAPI POST /api/documents/upload<br/>documents.py:98"]
+
+    API --> V1{"Validate<br/>ext + magic-bytes<br/>+ size ≤100MB"}
+    V1 -- "Sai" --> ERR["❌ 400/413<br/>từ chối"]
+    V1 -- "Đúng" --> SAVE["Lưu bytes → MinIO<br/>(storage.save_doc)"]
+    SAVE --> META["Lưu metadata → Postgres<br/>documents table<br/>status=uploaded"]
+    META --> DEC{"doc_type là gì?"}
+
+    DEC -- "PDF / DOCX / PPTX" --> Q["📝 Sinh câu hỏi<br/>POST /api/questions/generate"]
+    DEC -- "ZIP" --> C["💻 Quét code<br/>POST /api/code/scan"]
+
+    Q --> QP["parse_and_chunk → text<br/>→ AI Map-Reduce → 10 câu hỏi<br/>→ assessments table"]
+    C --> CP["extract_code_files (ZIP)<br/>→ AI review → issues<br/>→ code_analyses table"]
+
+    QP --> OUT1["FE /questions<br/>(câu hỏi + hint)"]
+    CP --> OUT2["FE /code-review<br/>(issues + pass_rate)"]
+
+    classDef pdf fill:#fee2e2,stroke:#b91c1c;
+    classDef zip fill:#dcfce7,stroke:#15803d;
+    class Q,QP,OUT1 pdf;
+    class C,CP,OUT2 zip;
