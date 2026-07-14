@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plan Implement — Trusted-RAG: AI đọc source &amp; trả lời có căn cứ</title>
+  <style>
+    :root {
+      --bg: #f7f9fb;
+      --surface: #ffffff;
+      --border: #d8dee6;
+      --teal: #0d9488;
+      --teal-dim: #0f766e;
+      --text: #1a2330;
+      --muted: #5b6776;
+      --warn: #b45309;
+      --danger: #dc2626;
+      --ok: #15803d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 32px 16px 80px;
+    }
+    .wrap { max-width: 1000px; margin: 0 auto; }
+    h1 { font-size: 30px; margin: 0 0 4px; }
+    h2 { font-size: 21px; margin: 40px 0 12px; color: var(--teal); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    h3 { font-size: 16px; margin: 22px 0 8px; color: var(--text); }
+    .sub { color: var(--muted); margin: 0 0 8px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin: 14px 0; }
+    .meta { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+    .chip { background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--muted); }
+    .chip b { color: var(--teal); }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    code { background: #eef2f6; padding: 2px 6px; border-radius: 6px; font-size: 13px; color: #0f766e; }
+    pre { background: #f1f4f8; border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; overflow: auto; font-size: 13px; line-height: 1.5; }
+    pre .c { color: var(--muted); }
+    ul, ol { padding-left: 22px; }
+    li { margin: 6px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--teal); font-weight: 600; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; letter-spacing: .03em; }
+    .tag.need { background: #ccfbf1; color: #0f766e; }
+    .tag.fix  { background: #ffedd5; color: #9a3412; }
+    .tag.warn { background: #fef3c7; color: #92400e; }
+    .tag.ok   { background: #dcfce7; color: #15803d; }
+    .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0; }
+    .flow .node { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-size: 13px; }
+    .flow .arrow { color: var(--muted); }
+    .note { border-left: 3px solid var(--warn); background: #fffbeb; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 14px; }
+    .note b { color: var(--warn); }
+    .okbox { border-left: 3px solid var(--ok); background: #f0fdf4; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+    .file { color: var(--teal); }
+    .check { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Plan Implement — Trusted-RAG: AI đọc source &amp; trả lời có căn cứ</h1>
+  <p class="sub">Dự án DefendAI · chức năng: AI đọc codebase (RAG) và mọi câu trả lời / gợi ý / đánh giá sinh ra đều <b>phải được tin cậy</b> — tức có nguồn trích dẫn và qua bước kiểm chứng (verification), không bịa.</p>
+
+  <div class="meta">
+    <span class="chip">Module: <b>Trusted-RAG / AI Trust Layer</b></span>
+    <span class="chip">BE: <b>apps/api (FastAPI)</b></span>
+    <span class="chip">Ngày: <b>2026-07-12</b></span>
+    <span class="chip">Trạng thái: <b>Plan</b></span>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Mục tiêu</h3>
+    <ul>
+      <li>AI <b>đọc được source codebase</b> (ZIP đã upload) thông qua RAG: chunk → embed → retrieve relevant chunks khi sinh câu hỏi / review.</li>
+      <li>Mọi output của AI (<code>question</code>, <code>hint</code>, <code>suggestion</code>, <code>summary</code>) <b>phải gắn provenance</b>: <code>sources: [{file, line, chunk_id, snippet}]</code> để người dùng tự verify → triệt tiêu ảo giác.</li>
+      <li>Thêm <b>verification pass</b>: sinh xong, hỏi lại AI "claim này có được chứng minh bởi source đã cite không?" → đánh dấu <code>verified</code> / <code>confidence</code>, gạt bỏ cái unsupported.</li>
+      <li>Phủ các <b>trường hợp trust khác</b> (xem §6): heuristic là sự thật deterministic, ranh giới in-source vs training-knowledge, cross-consistency slide↔code, abstention khi không có nguồn.</li>
+    </ul>
+  </div>
+
+  <h2>1. Hiện trạng (đã đọc code)</h2>
+  <table>
+    <tr><th>Vị trí</th><th>Trạng thái</th><th>Ghi chú</th></tr>
+    <tr>
+      <td class="file">apps/api/app/routers/questions.py</td>
+      <td><span class="tag ok">Live</span></td>
+      <td>Endpoint <code>POST /api/questions/generate</code>. Map-Reduce: chia chunks theo nhóm 3 → gọi song song <code>ai_gateway.generate</code> (NVIDIA llama-3.1-70b). Prompt nhét toàn bộ chunk, <b>không yêu cầu cite nguồn</b>, schema output <b>không có sources</b>. Có heuristic padding khi AI sinh thiếu.</td>
+    </tr>
+    <tr>
+      <td class="file">apps/api/app/services/question_generator.py</td>
+      <td><span class="tag warn">Dead code</span></td>
+      <td>Hàm <code>generate_questions</code> <b>không có router nào gọi</b>. Chỉ lấy <code>chunks[:3]</code> (cap 3 chunk đầu!) → AI chỉ thấy 3 chunk đầu. <b>Cần xoá hoặc gộp vào router</b> trước khi build trust layer, tránh code lệch chuẩn.</td>
+    </tr>
+    <tr>
+      <td class="file">apps/api/app/services/document_parser.py</td>
+      <td><span class="tag ok">Sẵn có</span></td>
+      <td><code>extract_text</code> đọc bytes từ MinIO → text; <code>chunk_text</code> chia ~4000 chars/chunk. Đây là nguồn chunk cho RAG.</td>
+    </tr>
+    <tr>
+      <td class="file">apps/api/app/services/code_scanner.py</td>
+      <td><span class="tag ok">Mẫu trust</span></td>
+      <td><code>analyze_code_document</code> đã đọc ZIP từ MinIO, issue trả về <code>file</code> + <code>line</code> thật. <b>Heuristic fallback</b> (<code>_heuristic_scan</code>: secret/TODO/exec) là sự thật deterministic — AI <b>không được override</b>. Copy pattern này sang questions.</td>
+    </tr>
+    <tr>
+      <td class="file">apps/api/app/services/ai_client.py</td>
+      <td><span class="tag ok">Sẵn có</span></td>
+      <td><code>AIGateway</code> có NVIDIA + Google. Dùng cho generate &amp; verify (có thể dùng model nhỏ/worker cho verify để rẻ).</td>
+    </tr>
+    <tr>
+      <td class="file">docs/api/html/02-assessment.html</td>
+      <td><span class="tag fix">Lỗi thời</span></td>
+      <td>Mô tả polling + <code>job_id</code> + 202 Accepted, nhưng code thực là <b>đồng bộ</b>, không có job. Cần update doc khi làm feature này.</td>
+    </tr>
+  </table>
+
+  <div class="note"><b>Phát hiện quan trọng:</b> Hệ thống <b>đã grounded</b> (AI đọc text/chunk thật, không hẳn bịa), nhưng <b>chưa có verification/citation</b>. Câu hỏi thì bám sát nội dung, nhưng <code>hint</code> (gợi ý trả lời) là pure generation — sinh viên không thể kiểm chứng. Plan này bịt lỗ hổng đó.</div>
+
+  <h2>2. Luồng Trusted-RAG</h2>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true });
+  </script>
+  <pre class="mermaid">
+flowchart LR
+    A[Upload doc] --> B[Embedding service: chunk → vector]
+    B --> C[(document_chunks)]
+    D[Câu hỏi user] --> E[Retriever: top-k chunk relevant]
+    C --> E
+    E --> F[AI sinh answer + sources]
+    F --> G[verify → confidence/verified]
+  </pre>
+  <div class="flow">
+    <span class="node">Upload (doc/zip)</span>
+    <span class="arrow">→</span>
+    <span class="node">Ingest: chunk + embed</span>
+    <span class="arrow">→</span>
+    <span class="node">Lưu pgvector (chunk + embedding + meta)</span>
+    <span class="arrow">→</span>
+    <span class="node">Generate: retrieve top-k relevant</span>
+    <span class="arrow">→</span>
+    <span class="node">AI sinh answer + cite sources</span>
+    <span class="arrow">→</span>
+    <span class="node">Verify pass (claim vs source)</span>
+    <span class="arrow">→</span>
+    <span class="node">Output: answer + sources + verified</span>
+  </div>
+
+  <h2>3. Các bước implement</h2>
+
+  <div class="card">
+    <h3 style="margin-top:0">Bước 1 — Embedding &amp; vector store <span class="tag need">Cần</span></h3>
+    <p class="sub">Thêm <span class="file">app/services/rag/embeddings.py</span> + <span class="file">app/services/rag/store.py</span></p>
+    <ul>
+      <li>Embedding qua NVIDIA/Google embedding model (dùng AIGateway hoặc gọi trực tiếp). Cache theo hash chunk để không embed lại.</li>
+      <li>Lưu vào <b>Postgres + pgvector</b> (Supabase đã hỗ trợ, không thêm infra). Bảng <code>document_chunks(id, document_id, chunk_index, content, embedding vector, meta jsonb)</code>.</li>
+      <li><b class="warn">Local dev:</b> <code>defendai.db</code> là SQLite → không có pgvector. Dùng <b>BM25/keyword retrieval</b> làm fallback khi không bật extension. Hosted (Supabase) dùng pgvector.</li>
+    </ul>
+    <pre><span class="c">// store.py (SQLAlchemy async)</span>
+class DocumentChunk(Base):
+    __tablename__ = "document_chunks"
+    id = mapped_column(BigInteger, primary_key=True)
+    document_id = mapped_column(Integer, index=True)
+    chunk_index = mapped_column(Integer)
+    content = mapped_column(Text)
+    embedding = mapped_column(Vector(1024))   <span class="c">// tuỳ dim model</span>
+    meta = mapped_column(JSONB)               <span class="c">// {file, line, doc_type}</span></pre>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Bước 2 — Retriever <span class="tag need">Cần</span></h3>
+    <p class="sub">File <span class="file">app/services/rag/retriever.py</span></p>
+    <ul>
+      <li><code>retrieve(document_id, query, k=5)</code> → top-k chunk theo cosine similarity (pgvector) hoặc BM25.</li>
+      <li>Trả về list <code>{chunk_id, content, meta}</code>. <b>Deterministic</b>: cùng input → cùng citation (quan trọng cho reproducible + caching assessment).</li>
+      <li>Gộp cả source code: với ZIP, retrieve từ chunks đã extract (<code>code_scanner.extract_code_files</code>) → AI có thể đọc cả doc lẫn code khi sinh câu hỏi.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Bước 3 — Generate với citation <span class="tag need">Cần</span></h3>
+    <p class="sub">Sửa <span class="file">routers/questions.py</span> + <span class="file">schemas/assessment.py</span></p>
+    <ul>
+      <li>Thay vì nhét toàn bộ chunk, <b>retrieve top-k</b> rồi build prompt yêu cầu AI <b>phải cite</b> chunk hỗ trợ mỗi claim.</li>
+      <li>Mở rộng schema <code>AssessmentQuestion</code>: thêm <code>sources: QuestionSource[]</code>, <code>confidence: float</code>, <code>verified: bool</code>.</li>
+      <li><code>QuestionSource { file?: string; line?: int; chunk_id: int; snippet: string }</code>.</li>
+    </ul>
+    <pre><span class="c">// system prompt thêm:</span>
+"Mỗi câu hỏi và hint PHẢI đi kèm danh sách sources —
+chỉ những chunk_id thực sự chứng minh claim đó.
+Nếu không có source, đặt confidence thấp và verified=false."
+<span class="c">// schema</span>
+AssessmentQuestion {
+  id, question, hint, difficulty, persona,
+  sources: [{ chunk_id, snippet, file?, line? }],
+  confidence: float,   <span class="c">// 0..1</span>
+  verified: bool
+}</pre>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Bước 4 — Verification pass <span class="tag need">Cần</span></h3>
+    <p class="sub">File <span class="file">app/services/rag/trust.py</span></p>
+    <ul>
+      <li>Sau khi AI sinh answer, gọi 1 lần nữa (dùng model worker/nhỏ cho rẻ): "Claim X có được chứng minh bởi các source đã cite không? (yes/no + lý do)".</li>
+      <li>Set <code>verified</code> và hiệu chỉnh <code>confidence</code>. Claim unsupported → <code>verified=false</code>, FE hiển thị badge "chưa xác minh".</li>
+      <li><b>Gate by persona:</b> chỉ chạy verify với <code>strict</code> / code-review để tiết kiệm cost; các persona nhẹ có thể skip.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Bước 5 — Dọn dead code &amp; update doc <span class="tag fix">Sửa</span></h3>
+    <ul>
+      <li>Xoá hoặc gộp <span class="file">services/question_generator.py</span> vào router (nó cap 3-chunk + gọi hàm cũ, không được dùng).</li>
+      <li>Update <span class="file">docs/api/html/02-assessment.html</span>: bỏ mô tả polling/job, ghi đúng flow đồng bộ + trường <code>sources/verified</code> mới.</li>
+    </ul>
+  </div>
+
+  <h2>4. Các trường hợp trust (những gì cần "tin cậy được")</h2>
+  <table>
+    <tr><th>#</th><th>Trường hợp</th><th>Cách xử lý</th><th>Ưu tiên</th></tr>
+    <tr><td>1</td><td><b>Grounding + Citation</b> — mọi answer phải cite source</td><td>RAG retrieve + bắt AI trả <code>sources[]</code> trong schema. FE hiển thị snippet cạnh câu hỏi.</td><td>🔴 Cao</td></tr>
+    <tr><td>2</td><td><b>Verification pass</b> — claim có thật trong source?</td><td>trust.py gọi AI thứ 2 check claim↔source, set <code>verified</code>.</td><td>🔴 Cao</td></tr>
+    <tr><td>3</td><td><b>Confidence + Abstention</b> — không có nguồn thì đừng bịa</td><td>Nếu retrieve rỗng / AI không cite được → <code>verified=false</code>, hint ghi "chưa có nguồn trong tài liệu".</td><td>🔴 Cao</td></tr>
+    <tr><td>4</td><td><b>Heuristic = sự thật deterministic</b> (code)</td><td>secret/TODO/exec phát hiện bằng regex là facts, AI <b>không được override</b> severity. Giữ pattern từ <code>code_scanner._heuristic_scan</code>.</td><td>🔴 Cao</td></tr>
+    <tr><td>5</td><td><b>Source-of-truth boundary</b> — in-doc vs training-knowledge</td><td>Label claim nào đến từ tài liệu upload, claim nào là kiến thức nền (AI "biết"). Claim external → mark <code>unverified</code>.</td><td>🟡 TB</td></tr>
+    <tr><td>6</td><td><b>Cross-consistency</b> — slide nói X, code làm Y</td><td>Khi có cả doc + zip: retrieve cả 2, hỏi AI "có mâu thuẫn giữa claims trong tài liệu và code không?" → flag contradiction (rất hay cho bảo vệ đồ án).</td><td>🟡 TB</td></tr>
+    <tr><td>7</td><td><b>Reproducible retrieval</b></td><td>chunk_id deterministic (theo thứ tự + hash) → cùng input sinh cùng citation, dễ cache &amp; debug.</td><td>🟢 Thấp</td></tr>
+    <tr><td>8</td><td><b>Out-of-scope / jailbreak</b> trong prompt user</td><td>Persona do user chọn nhưng prompt hệ thống cố định; validate input không chứa injection attempt (bỏ qua trong MVP, note lại).</td><td>🟢 Thấp</td></tr>
+  </table>
+
+  <h2>5. Checklist kiểm thử</h2>
+  <div class="card check">
+    <span class="tag need">□</span><span>Upload PDF → ingest embed → <code>document_chunks</code> có record, embedding không null.</span>
+    <span class="tag need">□</span><span>Sinh 10 câu hỏi → mỗi câu có <code>sources[]</code> trỏ đúng chunk_id, snippet khớp nội dung.</span>
+    <span class="tag need">□</span><span>Hint bịa (không có trong doc) → verify pass set <code>verified=false</code>, FE hiện badge "chưa xác minh".</span>
+    <span class="tag need">□</span><span>Doc rỗng / scan ảnh → retrieve rỗng → abstain, không sinh hint bịa.</span>
+    <span class="tag need">□</span><span>Upload ZIP có hardcode secret → heuristic bắt được, AI không thể hạ severity.</span>
+    <span class="tag need">□</span><span>Có cả doc + zip → cross-consistency phát hiện ít nhất 1 mâu thuẫn (nếu có).</span>
+    <span class="tag need">□</span><span>Caching: cùng document_id + persona → trả assessment cũ (đã có), không generate lại.</span>
+    <span class="tag need">□</span><span>Local dev (SQLite) → BM25 fallback vẫn chạy, không crash vì thiếu pgvector.</span>
+  </div>
+
+  <h2>6. File touch / tạo mới</h2>
+  <table>
+    <tr><th>File</th><th>Hành động</th><th>Lý do</th></tr>
+    <tr><td class="file">app/services/rag/embeddings.py</td><td>Tạo mới</td><td>Embed chunk qua NVIDIA/Google, cache.</td></tr>
+    <tr><td class="file">app/services/rag/store.py</td><td>Tạo mới</td><td>Bảng <code>document_chunks</code> + pgvector (BM25 fallback local).</td></tr>
+    <tr><td class="file">app/services/rag/retriever.py</td><td>Tạo mới</td><td>retrieve top-k relevant chunks.</td></tr>
+    <tr><td class="file">app/services/rag/trust.py</td><td>Tạo mới</td><td>Verification pass (claim vs source).</td></tr>
+    <tr><td class="file">app/schemas/assessment.py</td><td>Sửa</td><td>Thêm <code>sources/confidence/verified</code> vào Question.</td></tr>
+    <tr><td class="file">app/routers/questions.py</td><td>Sửa</td><td>Dùng retriever + citation schema + verify.</td></tr>
+    <tr><td class="file">app/services/question_generator.py</td><td>Xoá/gộp</td><td>Dead code, cap 3-chunk, không ai gọi.</td></tr>
+    <tr><td class="file">app/services/code_scanner.py</td><td>Sửa</td><td>Thêm <code>verified</code>/<code>evidence</code> vào issue; giữ heuristic làm ground truth.</td></tr>
+    <tr><td class="file">docs/api/html/02-assessment.html</td><td>Sửa</td><td>Update flow đồng bộ + schema mới.</td></tr>
+  </table>
+
+  <div class="okbox">
+    <b>Phân tích YAGNI:</b> Không cần vector DB riêng (pgvector trong Postgres sẵn có). Không cần re-ranking model ngay (top-k + verify đủ). Không cần fine-tune. Không need dịch vụ embedding tự host (dùng NVIDIA/Google có sẵn). BM25 fallback đủ cho local dev, pgvector cho hosted.
+  </div>
+
+  <h2>7. Rủi ro &amp; lưu ý</h2>
+  <ul>
+    <li><b>Cost/latency:</b> verify pass = gấp đôi AI call. Gate bằng persona (strict/code-review) để tiết kiệm.</li>
+    <li><b>pgvector:</b> cần bật extension trên Supabase (<code>CREATE EXTENSION vector;</code>). Local SQLite → BM25.</li>
+    <li><b>Context bloat:</b> citation snippet cộng thêm token; giới hạn số sources/question (k=3..5).</li>
+    <li><b>MinIO drift:</b> doc id 4–8 mất object sau lần reformat ổ đĩa → generate sẽ lỗi <code>NoSuchKey</code>; cần re-upload hoặc cleanup metadata.</li>
+    <li><b>Dead code:</b> làm xong phải xoá <code>question_generator.py</code> để không ai dùng nhầm đường cũ.</li>
+  </ul>
+
+</div>
+</body>
+</html>
