@@ -332,7 +332,7 @@ async def generate_questions(
     await db.refresh(assessment)
 
     try:
-        chunks = parse_and_chunk(document)
+        chunks = await parse_and_chunk(document)
     except DocumentParserError as exc:
         document.status = DocumentStatus.failed
         assessment.status = AssessmentStatus.failed
@@ -421,6 +421,35 @@ async def generate_questions(
         provider=provider_name,
         model=model_name,
     )
+
+
+@router.get(
+    "/assessments/latest",
+    summary="Lấy assessment mới nhất",
+)
+async def get_latest_assessment(
+    db: AsyncSession = Depends(get_db),
+):
+    """Lấy assessment mới nhất để FE render trang Report."""
+    result = await db.execute(
+        select(Assessment).order_by(Assessment.id.desc()).limit(1)
+    )
+    assessment = result.scalar_one_or_none()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Chưa có assessment nào")
+
+    doc_result = await db.execute(select(Document).where(Document.id == assessment.document_id))
+    document = doc_result.scalar_one_or_none()
+
+    questions = assessment.questions or []
+    return {
+        "assessment_id": assessment.id,
+        "document_id": assessment.document_id,
+        "document_name": document.filename if document else "Unknown",
+        "persona": assessment.persona,
+        "questions": questions,
+        "total": len(questions),
+    }
 
 
 @router.get(

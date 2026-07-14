@@ -1,5 +1,4 @@
-"""
-Document router — Upload API.
+"""Document router — Upload API.
 
 Endpoints:
 - POST /api/documents/upload  → upload file (multipart), validate type + size
@@ -10,20 +9,18 @@ import os
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.models.entities import Document, DocType, DocumentStatus
+from app.models.entities import Document, DocType, DocumentStatus, DocumentPurpose
 from app.schemas.document import DocumentResponse, DocumentListResponse
+from app.services.storage import save_doc
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
 # ===== Config =====
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
-
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".zip"}
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 
@@ -34,9 +31,15 @@ EXTENSION_TO_DOCTYPE = {
     ".zip": DocType.ZIP,
 }
 
+EXTENSION_TO_MIME = {
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".zip": "application/zip",
+}
+
 
 def _get_doc_type(filename: str) -> DocType:
-    """Map file extension -> DocType enum. Raise nếu extension không hỗ trợ."""
     ext = Path(filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -47,57 +50,46 @@ def _get_doc_type(filename: str) -> DocType:
 
 
 def _sanitize_filename(filename: str) -> str:
-    """Loại bỏ path traversal + truncate tên file."""
-    # Lấy basename — loại bỏ path traversal (../, ..\\, /etc/passwd)
     filename = os.path.basename(filename)
-    # Loại bỏ null bytes
     filename = filename.replace("\x00", "")
-    # Loại bỏ tên rỗng sau sanitize
     if not filename or filename.startswith("."):
         filename = "unnamed"
-    # Truncate nếu > 200 ký tự (giữ extension)
     stem = Path(filename).stem
     ext = Path(filename).suffix
     if len(filename) > 200:
         filename = stem[:200 - len(ext)] + ext
     return filename
 
-# Magic bytes prefix cho file validation
+
+def _determine_mime(filename: str) -> str:
+    ext = Path(filename).suffix.lower()
+    return EXTENSION_TO_MIME.get(ext, "application/octet-stream")
+
+
 MAGIC_BYTES = {
     b"%PDF": ".pdf",
-    b"PK\x03\x04": ".zip",  # ZIP (bao gồm DOCX/PPTX cũng là ZIP-based)
-    b"\xd0\xcf\x11\xe0": ".doc",  # OLE-based (legacy .doc/.ppt)
-    b"MZ": ".exe",  # PE executable
+    b"PK\x03\x04": ".zip",
+    b"\xd0\xcf\x11\xe0": ".doc",
+    b"MZ": ".exe",
 }
 
+
 def _validate_magic_bytes(content: bytes, expected_ext: str) -> None:
-    """Kiểm tra magic bytes có khớp với extension không (basic check)."""
     if len(content) < 4:
-        return  # File quá ngắn để check magic bytes
+        return
     file_magic = content[:4]
     detected_ext = None
     for magic, ext in MAGIC_BYTES.items():
         if file_magic.startswith(magic):
             detected_ext = ext
             break
-
-    # DOCX/PPTX là ZIP-based nên detected_ext sẽ là ".zip" — skip check
     if detected_ext == ".zip" and expected_ext in (".docx", ".pptx", ".zip"):
         return
-
-    # Nếu detect được magic bytes nhưng không khớp extension → reject
     if detected_ext and detected_ext != expected_ext:
         raise HTTPException(
             status_code=400,
             detail=f"File content does not match extension '{expected_ext}'. Detected: '{detected_ext}'",
         )
-
-def _save_file(file_content: bytes, filename: str) -> str:
-    """Lưu file vào uploads/ với tên unique, trả về file path."""
-    unique_name = f"{uuid.uuid4().hex[:12]}_{filename}"
-    file_path = UPLOAD_DIR / unique_name
-    file_path.write_bytes(file_content)
-    return str(file_path)
 
 
 # ===== Endpoints =====
@@ -106,23 +98,14 @@ def _save_file(file_content: bytes, filename: str) -> str:
 @router.post("/upload", response_model=DocumentResponse, status_code=201)
 async def upload_document(
     file: UploadFile = File(..., description="File upload (PDF/DOCX/PPTX/ZIP, max 100MB)"),
+    purpose: DocumentPurpose = Form(DocumentPurpose.student_project, description="student_project / staff_reference"),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Upload 1 file lên hệ thống.
-
-    - Validate file extension (.pdf/.docx/.pptx/.zip)
-    - Validate file size (max 100MB)
-    - Lưu file vào uploads/ với tên unique
-    - Tạo Document record trong DB
-    """
-    # Validate extension
+    """Upload 1 file lên hệ thống."""
     doc_type = _get_doc_type(file.filename or "unknown")
 
-    # Read file content + validate size
     content = await file.read()
 
-    # Validate empty file
     if len(content) == 0:
         raise HTTPException(status_code=400, detail="File is empty (0 bytes)")
 
@@ -132,33 +115,28 @@ async def upload_document(
             detail=f"File too large. Max size: {MAX_FILE_SIZE // (1024 * 1024)}MB",
         )
 
-    # Validate magic bytes
     safe_filename = _sanitize_filename(file.filename or "unnamed")
     _validate_magic_bytes(content, Path(safe_filename).suffix.lower())
 
-    # Lưu file
-    file_path = _save_file(content, safe_filename)
+    storage_key = f"documents/{uuid.uuid4().hex[:16]}_{safe_filename}"
+    await save_doc(storage_key, content, content_type=_determine_mime(safe_filename))
 
-    # Tạo DB record
     doc = Document(
         filename=safe_filename,
         file_type=Path(safe_filename).suffix.lower(),
         doc_type=doc_type,
+        storage_key=storage_key,
         status=DocumentStatus.uploaded,
-        file_path=file_path,
+        purpose=purpose,
     )
     db.add(doc)
-    
+
     try:
         await db.commit()
         await db.refresh(doc)
-    except Exception as e:
-        import traceback; traceback.print_exc()
-        from datetime import datetime
-        # Fallback for prototype without DB setup
+    except Exception:
         await db.rollback()
-        doc.id = 999
-        doc.created_at = datetime.utcnow()
+        raise HTTPException(status_code=500, detail="Failed to save document metadata")
 
     return doc
 
