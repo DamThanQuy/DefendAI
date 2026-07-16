@@ -28,7 +28,7 @@ export default function LandingPage() {
             Hệ thống AI Mock Defense thế hệ mới
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-[1.1] text-foreground">
+          <h1 className="text-5xl md:text-7xl font-serif font-black tracking-tight mb-8 leading-[1.1] text-foreground">
             Bảo vệ đồ án với <br />
             <span className="text-gradient">sự tự tin tuyệt đối</span>
           </h1>
@@ -60,7 +60,7 @@ export default function LandingPage() {
       <section id="features" className="py-24 relative z-10">
         <div className="container mx-auto px-4 lg:px-8 max-w-6xl">
           <div className="text-center mb-20">
-            <h2 className="text-3xl md:text-5xl font-bold mb-4">Tính năng nổi bật</h2>
+            <h2 className="text-4xl md:text-6xl font-serif font-bold mb-4">Tính năng nổi bật</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
               Mọi công cụ bạn cần để đạt điểm tối đa.
             </p>
@@ -76,7 +76,7 @@ export default function LandingPage() {
               <div className="w-14 h-14 rounded-2xl bg-primary/20 text-primary flex items-center justify-center mb-6 shadow-inner">
                 <FileText className="w-7 h-7" />
               </div>
-              <h3 className="text-xl font-bold mb-3">Phân Tích AI Sâu</h3>
+              <h3 className="text-2xl font-serif font-bold mb-3">Phân Tích AI Sâu</h3>
               <p className="text-muted-foreground leading-relaxed">
                 Tự động trích xuất nội dung, tìm ra lỗ hổng logic và dự đoán hàng loạt câu hỏi hội đồng có thể đặt ra cho đồ án của bạn.
               </p>
@@ -91,7 +91,7 @@ export default function LandingPage() {
               <div className="w-14 h-14 rounded-2xl bg-accent/20 text-accent flex items-center justify-center mb-6 shadow-inner">
                 <MonitorPlay className="w-7 h-7" />
               </div>
-              <h3 className="text-xl font-bold mb-3">Mock Room</h3>
+              <h3 className="text-2xl font-serif font-bold mb-3">Mock Room</h3>
               <p className="text-muted-foreground leading-relaxed">
                 Giả lập phòng bảo vệ thực tế với đồng hồ bấm giờ, không khí hội đồng và phản biện trực tiếp từ giám khảo AI.
               </p>
@@ -106,7 +106,7 @@ export default function LandingPage() {
               <div className="w-14 h-14 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center mb-6 shadow-inner">
                 <Award className="w-7 h-7" />
               </div>
-              <h3 className="text-xl font-bold mb-3">Chấm Điểm & Báo Cáo</h3>
+              <h3 className="text-2xl font-serif font-bold mb-3">Chấm Điểm & Báo Cáo</h3>
               <p className="text-muted-foreground leading-relaxed">
                 Hệ thống chấm điểm chuẩn mực theo rubric, cung cấp file PDF báo cáo chi tiết giúp bạn cải thiện ngay lập tức.
               </p>
@@ -121,7 +121,7 @@ export default function LandingPage() {
                   <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
                     <Sparkles className="h-3.5 w-3.5" /> Xem trước kết quả AI
                   </div>
-                  <h3 className="mb-2 text-2xl font-bold">AI hỏi như hội đồng thật</h3>
+                  <h3 className="mb-2 text-3xl font-serif font-bold">AI hỏi như hội đồng thật</h3>
                   <p className="text-muted-foreground">
                     Không cần đăng ký — xem ngay 1 kết quả mẫu: câu hỏi phản biện, chấm điểm năng lực và bệnh án đồ án.
                   </p>
@@ -137,17 +137,17 @@ export default function LandingPage() {
               </div>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-                  <p className="text-sm font-semibold text-teal-400">Kiến trúc</p>
-                  <p className="mt-1 text-xs text-zinc-400">Giải thích cách phân chia module?</p>
+                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <p className="text-sm font-semibold text-primary">Kiến trúc</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Giải thích cách phân chia module?</p>
                 </div>
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-                  <p className="text-sm font-semibold text-teal-400">Tính thực tiễn</p>
-                  <p className="mt-1 text-xs text-zinc-400">Scale tốt với 10.000 bản ghi?</p>
+                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <p className="text-sm font-semibold text-primary">Tính thực tiễn</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Scale tốt với 10.000 bản ghi?</p>
                 </div>
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-                  <p className="text-sm font-semibold text-teal-400">Code Review</p>
-                  <p className="mt-1 text-xs text-zinc-400">Thiếu null-check tại analyzer.ts:12</p>
+                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <p className="text-sm font-semibold text-primary">Code Review</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Thiếu null-check tại analyzer.ts:12</p>
                 </div>
               </div>
             </div>
@@ -160,7 +160,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 max-w-5xl">
           <div className="liquid-glass rounded-[3rem] p-12 md:p-20 text-center relative overflow-hidden border-primary/20 shadow-[0_0_50px_rgba(99,102,241,0.1)]">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10 pointer-events-none" />
-            <h2 className="text-3xl md:text-5xl font-bold mb-6">Sẵn sàng toả sáng?</h2>
+            <h2 className="text-4xl md:text-6xl font-serif font-bold mb-6">Sẵn sàng toả sáng?</h2>
             <p className="text-muted-foreground text-lg mb-10 max-w-2xl mx-auto">
               Hàng ngàn sinh viên đã chuẩn bị hoàn hảo với GraduAI. Đừng để sự cố nhỏ làm hỏng điểm số của bạn.
             </p>

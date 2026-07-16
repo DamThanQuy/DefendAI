@@ -18,6 +18,7 @@ const config = {
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "Fira Code", "ui-monospace", "monospace"],
+        serif: ["var(--font-serif)", "EB Garamond", "serif"],
       },
       colors: {
         border: "hsl(var(--border))",

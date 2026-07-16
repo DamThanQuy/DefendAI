@@ -4,10 +4,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { useEffect, useState } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
-const navLinks: { href: string; label: string; roles?: string[] }[] = [
-  { href: "/", label: "Trang chủ" },
-  { href: "/demo", label: "Xem demo" },
+const navLinks: { href: string; label: string; roles?: string[]; isPublic?: boolean }[] = [
+  { href: "/", label: "Trang chủ", isPublic: true },
+  { href: "/demo", label: "Xem demo", isPublic: true },
   { href: "/upload", label: "Tải tài liệu" },
   { href: "/questions", label: "Kết quả AI" },
   { href: "/code-review", label: "Code Review" },
@@ -20,6 +22,11 @@ export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, hasRole } = useAuth();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   function handleLogout() {
     localStorage.removeItem("token");
@@ -37,7 +44,14 @@ export function Navbar() {
 
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium h-full">
           {navLinks
-            .filter((link) => !link.roles || link.roles.some((r) => hasRole(r)))
+            .filter((link) => {
+              if (!mounted) {
+                return link.isPublic;
+              }
+              if (link.roles && !link.roles.some((r) => hasRole(r))) return false;
+              if (!user && !link.isPublic) return false;
+              return true;
+            })
             .map((link) => {
               const isActive = pathname === link.href;
               return (
@@ -45,12 +59,12 @@ export function Navbar() {
                   key={link.href}
                   href={link.href}
                   className={`relative flex items-center h-full transition-colors ${
-                    isActive ? "text-teal-400 font-semibold" : "text-zinc-400 hover:text-zinc-200"
+                    isActive ? "text-primary font-semibold" : "text-zinc-400 hover:text-zinc-200"
                   }`}
                 >
                   {link.label}
                   {isActive && (
-                    <span className="absolute bottom-0 left-0 w-full h-[2px] bg-teal-500 rounded-t-full shadow-[0_0_8px_rgba(20,184,166,0.4)]" />
+                    <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary rounded-t-full shadow-[0_0_8px_rgba(124,58,237,0.4)]" />
                   )}
                 </Link>
               );
@@ -58,7 +72,10 @@ export function Navbar() {
         </nav>
 
         <div className="flex items-center gap-4">
-          {user ? (
+          <ThemeToggle />
+          {!mounted ? (
+            <div className="h-8 w-24"></div> // placeholder
+          ) : user ? (
             <>
               <span className="hidden text-sm font-medium text-zinc-400 sm:inline">
                 {user.full_name || user.email}
@@ -78,7 +95,7 @@ export function Navbar() {
                 Đăng nhập
               </Link>
               <Link href="/register">
-                <Button size="sm" className="rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:brightness-110 active:scale-[0.98] shadow-[0_0_15px_rgba(13,148,136,0.3)] transition-all">
+                <Button size="sm" className="rounded-full bg-gradient-to-r from-primary to-secondary hover:brightness-110 active:scale-[0.98] shadow-[0_0_15px_rgba(124,58,237,0.3)] transition-all">
                   Bắt đầu
                 </Button>
               </Link>

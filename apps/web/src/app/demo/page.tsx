@@ -58,38 +58,38 @@ export default function DemoPage() {
         </Link>
       </div>
 
-      <h1 className="mb-2 text-3xl font-bold">Kết quả AI mẫu</h1>
+      <h1 className="mb-2 text-4xl font-serif font-bold">Kết quả AI mẫu</h1>
       <p className="mb-8 text-muted-foreground">
         Dự án: <span className="font-medium text-foreground">{data.project}</span> · Giám khảo: {data.persona}
       </p>
 
       {/* Files + Radar */}
       <div className="mb-10 grid gap-6 md:grid-cols-2">
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
           <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-primary">
             <FileText className="h-4 w-4" /> Tệp đã phân tích
           </h3>
           <ul className="space-y-2">
             {data.files.map((f) => (
               <li key={f.name} className="flex items-center justify-between text-sm">
-                <span className="text-zinc-200">{f.name}</span>
-                <span className="text-zinc-500">{f.size}</span>
+                <span className="text-foreground">{f.name}</span>
+                <span className="text-muted-foreground">{f.size}</span>
               </li>
             ))}
           </ul>
         </div>
 
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
           <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-primary">Năng lực (Radar)</h3>
           <div className="space-y-3">
             {data.radar.map((r) => (
               <div key={r.label}>
                 <div className="mb-1 flex justify-between text-sm">
-                  <span className="text-zinc-200">{r.label}</span>
-                  <span className="text-zinc-400">{r.score}/10</span>
+                  <span className="text-foreground">{r.label}</span>
+                  <span className="text-muted-foreground">{r.score}/10</span>
                 </div>
-                <div className="h-2 rounded-full bg-zinc-800">
-                  <div className="h-2 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500" style={{ width: `${r.score * 10}%` }} />
+                <div className="h-2 rounded-full bg-muted">
+                  <div className="h-2 rounded-full bg-gradient-to-r from-primary to-secondary" style={{ width: `${r.score * 10}%` }} />
                 </div>
               </div>
             ))}
@@ -99,7 +99,7 @@ export default function DemoPage() {
 
       {/* Questions */}
       <div className="mb-10">
-        <h2 className="mb-4 text-xl font-bold">Câu hỏi phản biện</h2>
+        <h2 className="mb-4 text-2xl font-serif font-bold">Câu hỏi phản biện</h2>
         <div className="space-y-6">
           {data.questions.map((g) => (
             <div key={g.group}>
@@ -108,9 +108,9 @@ export default function DemoPage() {
               </h3>
               <div className="space-y-2">
                 {g.items.map((item) => (
-                  <div key={item.q} className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-                    <p className="text-sm text-zinc-100">{item.q}</p>
-                    <p className="mt-2 text-xs text-teal-400">💡 Gợi ý: {item.hint}</p>
+                  <div key={item.q} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                    <p className="text-sm text-foreground">{item.q}</p>
+                    <p className="mt-2 text-xs text-accent">💡 Gợi ý: {item.hint}</p>
                   </div>
                 ))}
               </div>
@@ -121,11 +121,11 @@ export default function DemoPage() {
 
       {/* Code review */}
       <div className="mb-10">
-        <h2 className="mb-4 text-xl font-bold">Code Review</h2>
+        <h2 className="mb-4 text-2xl font-serif font-bold">Code Review</h2>
         <div className="grid gap-6 md:grid-cols-2">
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 font-mono text-sm">
+          <div className="rounded-xl border border-border bg-card p-4 font-mono text-sm shadow-sm">
             {data.codeReview.tree.map((t) => (
-              <div key={t.name} className={t.type === "folder" ? "font-semibold text-zinc-300" : "pl-5 text-zinc-400"}>
+              <div key={t.name} className={t.type === "folder" ? "font-semibold text-foreground" : "pl-5 text-muted-foreground"}>
                 {t.type === "folder" ? "📁 " : "📄 "}
                 {t.name}
               </div>
@@ -149,11 +149,11 @@ export default function DemoPage() {
       </div>
 
       {/* Diagnosis */}
-      <div className="mb-10 flex items-start gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
-        <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-teal-400" />
+      <div className="mb-10 flex items-start gap-3 rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
         <div>
           <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-primary">Bệnh án đồ án</h3>
-          <p className="text-sm text-zinc-200">{data.diagnosis}</p>
+          <p className="text-sm text-foreground">{data.diagnosis}</p>
         </div>
       </div>
 

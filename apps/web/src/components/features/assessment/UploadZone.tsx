@@ -125,10 +125,10 @@ export function UploadZone({
   return (
     <div className="w-full relative h-full">
       <div
-        className={`w-full h-full border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ease-in-out cursor-pointer flex flex-col items-center justify-center min-h-[460px] relative overflow-hidden bg-white ${
+        className={`w-full h-full border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ease-in-out cursor-pointer flex flex-col items-center justify-center min-h-[460px] relative overflow-hidden bg-card shadow-sm ${
           isDragging
-            ? "border-[#0f2e82] bg-[#e8effd]/30"
-            : "border-gray-300 hover:border-[#0f2e82]/40"
+            ? "border-primary bg-primary/10"
+            : "border-border hover:border-primary/50"
         } ${isProcessing || showPersonaModal ? 'opacity-50 pointer-events-none' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -137,25 +137,25 @@ export function UploadZone({
           if (!isProcessing && !showPersonaModal && !file) document.getElementById("file-upload")?.click();
         }}
       >
-        <div className={`w-[72px] h-[72px] rounded-full mb-8 flex items-center justify-center transition-all duration-300 ${isDragging ? "bg-[#e8effd] scale-110" : "bg-[#e8effd]"}`}>
-          <svg className="w-8 h-8 text-[#0f2e82]" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <div className={`w-[72px] h-[72px] rounded-full mb-8 flex items-center justify-center transition-all duration-300 ${isDragging ? "bg-primary/20 scale-110" : "bg-primary/10"}`}>
+          <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
           </svg>
         </div>
         
         {file ? (
           <div className="space-y-4 animate-in fade-in zoom-in duration-500 w-full max-w-xs mx-auto">
-            <h3 className="text-xl font-bold text-[#0f2e82] truncate px-4">{file.name}</h3>
-            <div className="inline-block px-4 py-1.5 bg-[#e8effd] text-[#0f2e82] rounded-full text-xs font-semibold">
+            <h3 className="text-xl font-serif font-bold text-primary truncate px-4">{file.name}</h3>
+            <div className="inline-block px-4 py-1.5 bg-primary/20 text-primary rounded-full text-xs font-semibold">
               {(file.size / 1024 / 1024).toFixed(2)} MB
             </div>
             
             {!isProcessing && !showPersonaModal && (
-              <div className="flex flex-col gap-3 mt-8 pt-6 border-t border-gray-100">
-                <button onClick={(e) => { e.stopPropagation(); processFile(); }} className="w-full py-3 bg-[#0f2e82] hover:bg-[#0f2e82]/90 text-white font-semibold rounded-full shadow-md transition-colors text-sm">
+              <div className="flex flex-col gap-3 mt-8 pt-6 border-t border-border">
+                <button onClick={(e) => { e.stopPropagation(); processFile(); }} className="w-full py-3 bg-gradient-to-r from-primary to-secondary hover:brightness-110 text-white font-semibold rounded-full shadow-md transition-colors text-sm">
                   Bắt đầu phân tích
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); setFile(null); }} className="w-full py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
+                <button onClick={(e) => { e.stopPropagation(); setFile(null); }} className="w-full py-3 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                   Hủy & Chọn tệp khác
                 </button>
               </div>
@@ -163,11 +163,11 @@ export function UploadZone({
           </div>
         ) : (
           <div className="animate-in fade-in duration-500 flex flex-col items-center">
-            <h3 className="text-[22px] font-bold mb-3 text-gray-900 tracking-tight">{title}</h3>
-            <p className="text-[#5f6368] mb-10 text-[15px] font-medium">
+            <h3 className="text-[22px] font-serif font-bold mb-3 text-foreground tracking-tight">{title}</h3>
+            <p className="text-muted-foreground mb-10 text-[15px] font-medium">
               {description}
             </p>
-            <button className="px-8 py-2.5 bg-[#0f2e82] text-white font-semibold rounded-full hover:bg-[#0f2e82]/90 transition-colors text-sm shadow-sm pointer-events-none">
+            <button className="px-8 py-2.5 bg-primary/20 text-primary font-semibold rounded-full transition-colors text-sm shadow-sm pointer-events-none">
               {buttonLabel}
             </button>
           </div>
@@ -177,18 +177,18 @@ export function UploadZone({
 
       {/* Loading Overlay */}
       {isProcessing && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm rounded-2xl animate-in fade-in border border-gray-100">
-          <div className="w-14 h-14 border-[3px] border-[#e8effd] border-t-[#0f2e82] rounded-full animate-spin mb-6"></div>
-          <h3 className="text-[17px] font-bold text-gray-900">{statusText}</h3>
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm rounded-2xl animate-in fade-in border border-border shadow-sm">
+          <div className="w-14 h-14 border-[3px] border-primary/20 border-t-primary rounded-full animate-spin mb-6"></div>
+          <h3 className="text-[17px] font-serif font-bold text-foreground">{statusText}</h3>
         </div>
       )}
 
       {/* Persona Selection Modal */}
       {showPersonaModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-300">
-            <h3 className="text-2xl font-bold text-[#0f2e82] mb-2">Chọn Giám Khảo AI</h3>
-            <p className="text-gray-500 mb-8 text-[15px]">Hãy chọn phong cách hỏi để AI chuẩn bị những câu hỏi phù hợp nhất với buổi bảo vệ của bạn.</p>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-card border border-border rounded-2xl p-8 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-300">
+            <h3 className="text-2xl font-serif font-bold text-primary mb-2">Chọn Giám Khảo AI</h3>
+            <p className="text-muted-foreground mb-8 text-[15px]">Hãy chọn phong cách hỏi để AI chuẩn bị những câu hỏi phù hợp nhất với buổi bảo vệ của bạn.</p>
             
             <div className="space-y-4 mb-8">
               {[
@@ -200,20 +200,20 @@ export function UploadZone({
                   key={p.id}
                   onClick={() => setPersona(p.id)}
                   className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                    persona === p.id ? 'border-[#0f2e82] bg-[#e8effd]' : 'border-gray-200 hover:border-[#0f2e82]/30'
+                    persona === p.id ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
                   }`}
                 >
-                  <h4 className={`font-bold ${persona === p.id ? 'text-[#0f2e82]' : 'text-gray-900'}`}>{p.name}</h4>
-                  <p className="text-sm text-gray-500 mt-1">{p.desc}</p>
+                  <h4 className={`font-serif font-bold ${persona === p.id ? 'text-primary' : 'text-foreground'}`}>{p.name}</h4>
+                  <p className="text-sm text-muted-foreground mt-1">{p.desc}</p>
                 </div>
               ))}
             </div>
 
             <div className="flex gap-4">
-              <button onClick={() => setShowPersonaModal(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-xl transition-colors">
+              <button onClick={() => setShowPersonaModal(false)} className="flex-1 py-3 bg-muted hover:bg-muted/80 text-foreground font-semibold rounded-xl transition-colors">
                 Hủy bỏ
               </button>
-              <button onClick={generateQuestions} className="flex-1 py-3 bg-[#0f2e82] hover:bg-[#0f2e82]/90 text-white font-bold rounded-xl shadow-lg transition-colors">
+              <button onClick={generateQuestions} className="flex-1 py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl shadow-lg transition-colors">
                 Tạo câu hỏi
               </button>
             </div>
