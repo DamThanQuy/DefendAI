@@ -29,11 +29,11 @@ from app.main import app
 client = TestClient(app)
 
 print("=" * 70)
-print("TEST 1: GET / (root)")
+print("TEST 1: GET / (root → redirect to /docs)")
 print("=" * 70)
-r = client.get("/")
-print(f"Status: {r.status_code}")
-print(json.dumps(r.json(), indent=2, ensure_ascii=False))
+r = client.get("/", follow_redirects=False)
+print(f"Status: {r.status_code} (expect 307 → /docs)")
+print(f"Location: {r.headers.get('location')}")
 
 print("\n" + "=" * 70)
 print("TEST 2: GET /health (check AI providers ready)")
