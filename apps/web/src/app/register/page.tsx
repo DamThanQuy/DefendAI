@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -74,30 +76,30 @@ export default function RegisterPage() {
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="name">Họ và tên</Label>
+              <Label htmlFor="name" className="text-zinc-200">Họ và tên</Label>
               <Input
                 id="name"
                 type="text"
                 placeholder="Nguyễn Văn A"
-                className="bg-background/50 focus:bg-background transition-colors"
+                className="bg-zinc-900 text-white border-zinc-700 focus:border-teal-500"
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-zinc-200">Email</Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="m@example.com"
-                className="bg-background/50 focus:bg-background transition-colors"
+                className="bg-zinc-900 text-white border-zinc-700 focus:border-teal-500"
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="password">Mật khẩu</Label>
+              <Label htmlFor="password" className="text-zinc-200">Mật khẩu</Label>
               <Input
                 id="password"
                 type="password"
                 placeholder="••••••••"
-                className="bg-background/50 focus:bg-background transition-colors"
+                className="bg-zinc-900 text-white border-zinc-700 focus:border-teal-500"
               />
             </div>
           </CardContent>

@@ -44,16 +44,6 @@ class MinioConfig(BaseModel):
     secure: bool = os.getenv("MINIO_SECURE", "false").lower() == "true"
 
 
-class MinioConfig(BaseModel):
-    """Config cho MinIO / S3-compatible object storage."""
-    endpoint: str = os.getenv("MINIO_ENDPOINT", "http://minio:9000")
-    access_key_id: str = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
-    secret_access_key: str = os.getenv("MINIO_SECRET_KEY", "minioadmin")
-    bucket: str = os.getenv("MINIO_BUCKET", "defend-files")
-    region: str = os.getenv("MINIO_REGION", "us-east-1")
-    secure: bool = os.getenv("MINIO_SECURE", "false").lower() == "true"
-
-
 class Settings(BaseSettings):
     """Cấu hình chính của ứng dụng."""
     app_name: str = "AI Project Defense System API"
