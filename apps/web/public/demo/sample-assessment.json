@@ -1,0 +1,46 @@
+{
+  "project": "Hệ thống quản lý thư viện (Đồ án mẫu)",
+  "persona": "Giảng viên hướng dẫn",
+  "files": [
+    { "name": "Báo cáo đồ án.pdf", "size": "2.4 MB" },
+    { "name": "Phụ lục.docx", "size": "1.1 MB" },
+    { "name": "src-bundle.zip", "size": "3.7 MB" }
+  ],
+  "radar": [
+    { "label": "Kiến thức", "score": 7 },
+    { "label": "Thuyết trình", "score": 6 },
+    { "label": "Phản xạ", "score": 5 },
+    { "label": "Chất lượng code", "score": 8 }
+  ],
+  "questions": [
+    {
+      "group": "Kiến trúc",
+      "items": [
+        { "q": "Giải thích cách hệ thống phân chia trách nhiệm giữa các module?", "hint": "Nêu rõ tầng presentation, service, repository và luồng request." },
+        { "q": "Vì sao chọn kiến trúc này thay vì monolithic?", "hint": "So sánh khả năng mở rộng, bảo trì, và độ phức tạp khi triển khai." }
+      ]
+    },
+    {
+      "group": "Tính thực tiễn",
+      "items": [
+        { "q": "Kết quả thử nghiệm với 10.000 bản ghi có scale tốt không?", "hint": "Đưa số liệu về thời gian phản hồi, dùng index/pagination để chứng minh." }
+      ]
+    }
+  ],
+  "codeReview": {
+    "tree": [
+      { "type": "folder", "name": "src/" },
+      { "type": "file", "name": "main.ts" },
+      { "type": "file", "name": "api/routes.ts" },
+      { "type": "file", "name": "services/analyzer.ts" },
+      { "type": "file", "name": "utils/parser.ts" },
+      { "type": "folder", "name": "tests/" },
+      { "type": "file", "name": "test.spec.ts" }
+    ],
+    "notes": [
+      { "file": "services/analyzer.ts", "line": 12, "severity": "error", "message": "Thiếu null-check cho tham số doc → dễ crash khi doc là null." },
+      { "file": "api/routes.ts", "line": 34, "severity": "warn", "message": "Thiếu xử lý lỗi try/catch khi gọi external API." }
+    ]
+  },
+  "diagnosis": "Lỗ hổng: thiếu kiểm thử đơn vị cho module parser, chưa xử lý edge-case khi file rỗng. Đề xuất bổ sung 80% coverage trước khi bảo vệ."
+}

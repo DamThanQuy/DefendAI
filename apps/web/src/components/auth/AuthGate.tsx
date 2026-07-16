@@ -14,6 +14,12 @@ const PROTECTED_PATHS = [
   "/analyze",
 ];
 
+// Route → role được phép. Thiếu role → redirect "/".
+// ponytail: client guard chỉ là UX; BE (deps.require_roles) mới là bảo mật thực sự.
+const ROLE_ROUTES: Record<string, string[]> = {
+  "/admin": ["admin"],
+};
+
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -27,6 +33,18 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     if (isProtected && !localStorage.getItem("token")) {
       router.replace("/login");
       return;
+    }
+
+    // Guard theo role
+    for (const [path, allowed] of Object.entries(ROLE_ROUTES)) {
+      if (pathname === path || pathname.startsWith(`${path}/`)) {
+        const stored = JSON.parse(localStorage.getItem("user") || "{}");
+        const roles: string[] = stored.roles ?? [];
+        if (!roles.some((r) => allowed.includes(r))) {
+          router.replace("/");
+          return;
+        }
+      }
     }
 
     setReady(true);

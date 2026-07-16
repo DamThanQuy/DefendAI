@@ -55,7 +55,9 @@ services:
     ports:
       - "3000:3000"
     environment:
+      # Trong container, "api" là hostname của service backend (không phải localhost)
       NEXT_PUBLIC_API_URL: http://localhost:8000
+      BACKEND_URL: http://api:8000
     volumes:
       - ./apps/web:/app
       - /app/node_modules

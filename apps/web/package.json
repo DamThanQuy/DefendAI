@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@react-oauth/google": "^0.12.2",
     "@stomp/stompjs": "^7.x",
     "autoprefixer": "^10.x",
     "axios": "^1.x",

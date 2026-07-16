@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { GoogleLogin } from "@react-oauth/google";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,6 +57,32 @@ export default function LoginPage() {
     }
   }
 
+  async function handleGoogleSuccess(credentialResponse: { credential?: string }) {
+    setError("");
+    if (!credentialResponse.credential) {
+      setError("Không nhận được token từ Google");
+      return;
+    }
+    try {
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_token: credentialResponse.credential }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail || "Đăng nhập Google thất bại");
+        return;
+      }
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      window.dispatchEvent(new Event("storage"));
+      router.push("/");
+    } catch {
+      setError("Không thể kết nối server");
+    }
+  }
+
   return (
     <div className="container relative mx-auto flex flex-col items-center justify-center min-h-[80vh] px-4">
       <Link
@@ -91,7 +118,7 @@ export default function LoginPage() {
                 </div>
               )}
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="text-zinc-200">Email</Label>
                 <Input
                   id="email"
                   type="email"
@@ -99,12 +126,12 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="bg-background/50 focus:bg-background transition-colors"
+                  className="bg-zinc-900 text-white border-zinc-700 focus:border-teal-500"
                 />
               </div>
               <div className="grid gap-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Mật khẩu</Label>
+                  <Label htmlFor="password" className="text-zinc-200">Mật khẩu</Label>
                   <Link
                     href="/forgot-password"
                     className="text-sm font-medium text-primary hover:underline"
@@ -119,7 +146,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="bg-background/50 focus:bg-background transition-colors"
+                  className="bg-zinc-900 text-white border-zinc-700 focus:border-teal-500"
                 />
               </div>
             </CardContent>
@@ -134,6 +161,27 @@ export default function LoginPage() {
                 ) : null}
                 Đăng nhập
               </Button>
+
+              <div className="relative w-full">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-zinc-800" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Hoặc</span>
+                </div>
+              </div>
+
+              <div className="w-full">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => setError("Đăng nhập Google thất bại")}
+                  useOneTap={false}
+                  theme="filled_black"
+                  shape="rectangular"
+                  width="100%"
+                />
+              </div>
+
               <p className="text-center text-sm text-muted-foreground mt-2">
                 Chưa có tài khoản?{" "}
                 <Link

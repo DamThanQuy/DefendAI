@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { FileText, MonitorPlay, Award, ArrowRight } from "lucide-react";
+import { FileText, MonitorPlay, Award, ArrowRight, Sparkles } from "lucide-react";
 
 export default function LandingPage() {
   return (
@@ -111,6 +111,46 @@ export default function LandingPage() {
                 Hệ thống chấm điểm chuẩn mực theo rubric, cung cấp file PDF báo cáo chi tiết giúp bạn cải thiện ngay lập tức.
               </p>
             </motion.div>
+          </div>
+
+          {/* Demo preview card */}
+          <div className="mt-16">
+            <div className="liquid-glass rounded-3xl border border-primary/20 p-8 md:p-10">
+              <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                <div className="max-w-xl">
+                  <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                    <Sparkles className="h-3.5 w-3.5" /> Xem trước kết quả AI
+                  </div>
+                  <h3 className="mb-2 text-2xl font-bold">AI hỏi như hội đồng thật</h3>
+                  <p className="text-muted-foreground">
+                    Không cần đăng ký — xem ngay 1 kết quả mẫu: câu hỏi phản biện, chấm điểm năng lực và bệnh án đồ án.
+                  </p>
+                </div>
+                <Link href="/demo">
+                  <Button className="rounded-full group">
+                    <span className="flex items-center gap-2">
+                      Xem demo đầy đủ
+                      <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                    </span>
+                  </Button>
+                </Link>
+              </div>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                  <p className="text-sm font-semibold text-teal-400">Kiến trúc</p>
+                  <p className="mt-1 text-xs text-zinc-400">Giải thích cách phân chia module?</p>
+                </div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                  <p className="text-sm font-semibold text-teal-400">Tính thực tiễn</p>
+                  <p className="mt-1 text-xs text-zinc-400">Scale tốt với 10.000 bản ghi?</p>
+                </div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                  <p className="text-sm font-semibold text-teal-400">Code Review</p>
+                  <p className="mt-1 text-xs text-zinc-400">Thiếu null-check tại analyzer.ts:12</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

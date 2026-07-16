@@ -1,52 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 
-const navLinks = [
+const navLinks: { href: string; label: string; roles?: string[] }[] = [
   { href: "/", label: "Trang chủ" },
+  { href: "/demo", label: "Xem demo" },
   { href: "/upload", label: "Tải tài liệu" },
   { href: "/questions", label: "Kết quả AI" },
   { href: "/code-review", label: "Code Review" },
   { href: "/room", label: "Mock Room" },
   { href: "/report", label: "Báo cáo" },
+  { href: "/admin", label: "Quản trị", roles: ["admin"] },
 ];
-
-interface StoredUser {
-  email: string;
-  full_name?: string | null;
-}
 
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<StoredUser | null>(null);
-
-  useEffect(() => {
-    function read() {
-      if (!localStorage.getItem("token")) {
-        setUser(null);
-        return;
-      }
-      try {
-        const raw = localStorage.getItem("user");
-        setUser(raw ? (JSON.parse(raw) as StoredUser) : { email: "" });
-      } catch {
-        setUser(null);
-      }
-    }
-
-    read();
-    window.addEventListener("storage", read);
-    return () => window.removeEventListener("storage", read);
-  }, []);
+  const { user, hasRole } = useAuth();
 
   function handleLogout() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    setUser(null);
+    window.dispatchEvent(new Event("storage")); // useAuth tự reset
     router.push("/login");
   }
 
@@ -58,23 +36,25 @@ export function Navbar() {
         </Link>
 
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium h-full">
-          {navLinks.map((link) => {
-            const isActive = pathname === link.href;
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`relative flex items-center h-full transition-colors ${
-                  isActive ? "text-teal-400 font-semibold" : "text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                {link.label}
-                {isActive && (
-                  <span className="absolute bottom-0 left-0 w-full h-[2px] bg-teal-500 rounded-t-full shadow-[0_0_8px_rgba(20,184,166,0.4)]" />
-                )}
-              </Link>
-            );
-          })}
+          {navLinks
+            .filter((link) => !link.roles || link.roles.some((r) => hasRole(r)))
+            .map((link) => {
+              const isActive = pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`relative flex items-center h-full transition-colors ${
+                    isActive ? "text-teal-400 font-semibold" : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  {link.label}
+                  {isActive && (
+                    <span className="absolute bottom-0 left-0 w-full h-[2px] bg-teal-500 rounded-t-full shadow-[0_0_8px_rgba(20,184,166,0.4)]" />
+                  )}
+                </Link>
+              );
+            })}
         </nav>
 
         <div className="flex items-center gap-4">
