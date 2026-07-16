@@ -9,6 +9,7 @@ from fastapi.responses import RedirectResponse
 from app.core.config import settings
 # Import routers (mỗi module đăng ký 1 router)
 from app.routers import ai as ai_router
+from app.routers import auth as auth_router
 from app.routers import code_scan as code_scan_router
 from app.routers import documents as documents_router
 from app.routers import questions as questions_router
@@ -35,6 +36,8 @@ app.add_middleware(
 # ===== Register routers =====
 # AI Gateway endpoints (test, compare, list providers/models)
 app.include_router(ai_router.router)
+# Auth endpoints (login, register)
+app.include_router(auth_router.router)
 # Document upload endpoints (upload, get, list)
 app.include_router(documents_router.router)
 # Assessment endpoints (generate questions from uploaded documents)
@@ -45,6 +48,17 @@ app.include_router(code_scan_router.router)
 app.include_router(meeting_router.router)
 # Auth endpoints (register, login, google, me)
 app.include_router(auth_router.router)
+
+@app.on_event("startup")
+async def _ensure_storage() -> None:
+    """Tạo MinIO bucket nếu chưa tồn tại (idempotent)."""
+    from app.services.storage import ensure_bucket
+    try:
+        await ensure_bucket()
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("MinIO bucket init skipped: %s", exc)
+
 
 @app.get("/")
 async def root():

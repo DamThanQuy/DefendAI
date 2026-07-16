@@ -4,13 +4,14 @@ Re-export all models for backward compatibility.
 Code cũ dùng `from app.models.entities import X` vẫn hoạt động.
 Code mới nên import trực tiếp từ module con:
     from app.models.user import User
-    from app.models.document import Document, DocType, DocumentStatus
+    from app.models.document import Document, DocType, DocumentStatus, DocumentPurpose
     from app.models.meeting import Meeting, MeetingMember, MeetingStatus, MemberRole
     from app.models.assessment import Assessment, CodeAnalysis, Evaluation, Report, AssessmentStatus
 """
 from app.models.user import User
 from app.models.role import Role
-from app.models.document import Document, DocType, DocumentStatus
+from app.models.document import Document, DocType, DocumentStatus, DocumentPurpose
+from app.models.document_chunk import DocumentChunk
 from app.models.meeting import Meeting, MeetingMember, MeetingStatus, MemberRole
 from app.models.assessment import (
     Assessment,
@@ -26,6 +27,7 @@ __all__ = [
     "Document",
     "DocType",
     "DocumentStatus",
+    "DocumentPurpose",
     "Meeting",
     "MeetingMember",
     "MeetingStatus",
@@ -35,4 +37,5 @@ __all__ = [
     "CodeAnalysis",
     "Evaluation",
     "Report",
+    "DocumentChunk",
 ]

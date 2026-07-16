@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field
 
-from app.models.entities import DocType, DocumentStatus
+from app.models.entities import DocType, DocumentStatus, DocumentPurpose
 
 
 class DocumentResponse(BaseModel):
@@ -20,8 +20,10 @@ class DocumentResponse(BaseModel):
     file_type: str
     doc_type: DocType
     status: DocumentStatus
-    file_path: str
+    purpose: DocumentPurpose
+    storage_key: str
     content_hash: Optional[str] = None
+    uploaded_by: Optional[int] = None
     created_at: datetime
 
     class Config:
