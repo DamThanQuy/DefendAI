@@ -71,3 +71,14 @@ uploads/
 .temp/
 tmp/
 test_sample.pdf
+# Minio internal data
+data/minio/
+# Build artifacts
+*.tsbuildinfo
+apps/web/tsconfig.tsbuildinfo
+# Local test scripts
+capture-9223.py
+read-chrome-9223.py
+read-chrome-console.py
+test-google-headful.mjs
+test-google-login.mjs

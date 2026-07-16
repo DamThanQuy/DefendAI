@@ -5,6 +5,7 @@ Entry point cho FastAPI backend.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from app.core.config import settings
 # Import routers (mỗi module đăng ký 1 router)
 from app.routers import ai as ai_router
@@ -58,11 +59,8 @@ async def _ensure_storage() -> None:
 
 @app.get("/")
 async def root():
-    return {
-        "message": settings.app_name,
-        "version": settings.version,
-        "status": "running"
-    }
+    # Dev convenience: root → Swagger UI. ponytail: trên prod nên tắt (docs_url=None) hoặc trả info JSON thay vì redirect lộ API.
+    return RedirectResponse(url="/docs")
 
 @app.get("/health")
 async def health_check():

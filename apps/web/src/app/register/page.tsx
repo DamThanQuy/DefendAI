@@ -1,4 +1,9 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { GoogleLogin } from "@react-oauth/google";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +18,35 @@ import {
 import { ArrowLeft } from "lucide-react";
 
 export default function RegisterPage() {
+  const router = useRouter();
+  const [error, setError] = useState("");
+
+  async function handleGoogleSuccess(credentialResponse: { credential?: string }) {
+    setError("");
+    if (!credentialResponse.credential) {
+      setError("Không nhận được token từ Google");
+      return;
+    }
+    try {
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_token: credentialResponse.credential }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail || "Đăng nhập Google thất bại");
+        return;
+      }
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      window.dispatchEvent(new Event("storage"));
+      router.push("/");
+    } catch {
+      setError("Không thể kết nối server");
+    }
+  }
+
   return (
     <div className="container relative mx-auto flex flex-col items-center justify-center min-h-[80vh] px-4">
       <Link
@@ -42,30 +76,30 @@ export default function RegisterPage() {
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="name">Họ và tên</Label>
+              <Label htmlFor="name" className="text-zinc-200">Họ và tên</Label>
               <Input
                 id="name"
                 type="text"
                 placeholder="Nguyễn Văn A"
-                className="bg-background/50 focus:bg-background transition-colors"
+                className="bg-zinc-900 text-white border-zinc-700 focus:border-teal-500"
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-zinc-200">Email</Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="m@example.com"
-                className="bg-background/50 focus:bg-background transition-colors"
+                className="bg-zinc-900 text-white border-zinc-700 focus:border-teal-500"
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="password">Mật khẩu</Label>
+              <Label htmlFor="password" className="text-zinc-200">Mật khẩu</Label>
               <Input
                 id="password"
                 type="password"
                 placeholder="••••••••"
-                className="bg-background/50 focus:bg-background transition-colors"
+                className="bg-zinc-900 text-white border-zinc-700 focus:border-teal-500"
               />
             </div>
           </CardContent>
@@ -73,6 +107,32 @@ export default function RegisterPage() {
             <Button className="w-full h-11 text-base font-semibold shadow-md transition-transform hover:-translate-y-0.5">
               Đăng ký
             </Button>
+
+            {error && (
+              <div className="rounded-md bg-destructive/15 px-4 py-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
+
+            <div className="relative w-full">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-zinc-800" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Hoặc</span>
+              </div>
+            </div>
+
+            <div className="w-full">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setError("Đăng nhập Google thất bại")}
+                useOneTap={false}
+                theme="filled_black"
+                shape="rectangular"
+                width="100%"
+              />
+            </div>
             <p className="text-center text-sm text-muted-foreground mt-2 px-6">
               Bằng việc đăng ký, bạn đồng ý với{" "}
               <Link

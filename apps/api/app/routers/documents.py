@@ -14,7 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.models.entities import Document, DocType, DocumentStatus, DocumentPurpose
+from app.core.deps import get_current_user
+from app.models.entities import Document, DocType, DocumentStatus, DocumentPurpose, User
 from app.schemas.document import DocumentResponse, DocumentListResponse
 from app.services.storage import save_doc
 
@@ -99,6 +100,7 @@ def _validate_magic_bytes(content: bytes, expected_ext: str) -> None:
 async def upload_document(
     file: UploadFile = File(..., description="File upload (PDF/DOCX/PPTX/ZIP, max 100MB)"),
     purpose: DocumentPurpose = Form(DocumentPurpose.student_project, description="student_project / staff_reference"),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Upload 1 file lên hệ thống."""
@@ -128,6 +130,7 @@ async def upload_document(
         storage_key=storage_key,
         status=DocumentStatus.uploaded,
         purpose=purpose,
+        uploaded_by=user.id,
     )
     db.add(doc)
 

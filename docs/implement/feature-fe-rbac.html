@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plan Implement — Tích hợp Phân quyền (RBAC) bên Frontend</title>
+  <style>
+    :root {
+      --bg: #f7f9fb;
+      --surface: #ffffff;
+      --border: #d8dee6;
+      --teal: #0d9488;
+      --teal-dim: #0f766e;
+      --text: #1a2330;
+      --muted: #5b6776;
+      --warn: #b45309;
+      --danger: #dc2626;
+      --ok: #15803d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 32px 16px 80px;
+    }
+    .wrap { max-width: 1000px; margin: 0 auto; }
+    h1 { font-size: 30px; margin: 0 0 4px; }
+    h2 { font-size: 21px; margin: 40px 0 12px; color: var(--teal); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    h3 { font-size: 16px; margin: 22px 0 8px; color: var(--text); }
+    .sub { color: var(--muted); margin: 0 0 8px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin: 14px 0; }
+    .meta { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+    .chip { background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--muted); }
+    .chip b { color: var(--teal); }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    code { background: #eef2f6; padding: 2px 6px; border-radius: 6px; font-size: 13px; color: #0f766e; }
+    pre { background: #f1f4f8; border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; overflow: auto; font-size: 13px; line-height: 1.5; }
+    pre .c { color: var(--muted); }
+    ul, ol { padding-left: 22px; }
+    li { margin: 6px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--teal); font-weight: 600; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; letter-spacing: .03em; }
+    .tag.need { background: #ccfbf1; color: #0f766e; }
+    .tag.fix  { background: #ffedd5; color: #9a3412; }
+    .tag.warn { background: #fef3c7; color: #92400e; }
+    .tag.ok   { background: #dcfce7; color: #15803d; }
+    .tag.step { background: #dbeafe; color: #1d4ed8; }
+    .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0; }
+    .flow .node { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-size: 13px; }
+    .flow .arrow { color: var(--muted); }
+    .note { border-left: 3px solid var(--warn); background: #fffbeb; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 14px; }
+    .note b { color: var(--warn); }
+    .okbox { border-left: 3px solid var(--ok); background: #f0fdf4; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+    .file { color: var(--teal); }
+    .stepnum { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; background: var(--teal); color: #fff; border-radius: 50%; font-size: 13px; font-weight: 700; margin-right: 8px; }
+    .check { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; }
+    .terminal { color: #0f766e; }
+    .mermaid { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin: 14px 0; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.mermaid) {
+        mermaid.initialize({ startOnLoad: true, theme: "default", flowchart: { curve: "basis" } });
+      }
+    });
+  </script>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Plan Implement — Tích hợp Phân quyền (RBAC) bên Frontend</h1>
+  <p class="sub">Dự án DefendAI · Chủ đề: FE đọc role từ BE (đã có sẵn) để phân trang / phân quyền UI theo <code>student</code> / <code>mentor</code> / <code>admin</code>.</p>
+
+  <div class="meta">
+    <span class="chip">Module: <b>Auth / RBAC (FE)</b></span>
+    <span class="chip">FE: <b>apps/web (Next.js 14 App Router)</b></span>
+    <span class="chip">BE: <b>apps/api (FastAPI)</b></span>
+    <span class="chip">Ngày: <b>2026-07-16</b></span>
+    <span class="chip">Trạng thái: <b>Plan</b></span>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Mục tiêu</h3>
+    <ul>
+      <li>FE biết user đang login thuộc role nào (<code>student</code> / <code>mentor</code> / <code>admin</code>) và dùng để:
+        <ul>
+          <li>Guard route: chỉ role được phép mới vào trang tương ứng.</li>
+          <li>Hiển thị UI khác nhau (vd: admin thấy menu quản trị, student không thấy).</li>
+        </ul>
+      </li>
+      <li>Không gọi lại BE mỗi lần render — đọc từ <code>localStorage.user.roles</code> (BE đã trả sẵn <code>roles: string[]</code>).</li>
+      <li>Single source of truth: role lấy từ <code>user.roles[0]</code> (primary role) do <code>_make_auth_response</code> sinh.</li>
+    </ul>
+  </div>
+
+  <h2>1. Hiện trạng (đã đọc code)</h2>
+  <table>
+    <tr><th>Vị trí</th><th>Trạng thái</th><th>Ghi chú</th></tr>
+    <tr>
+      <td class="file">apps/api/app/schemas/user.py</td>
+      <td><span class="tag ok">Sẵn có</span></td>
+      <td><code>UserResponse.roles: List[str]</code> — BE trả <code>roles: ["student"]</code> trong login/register/google. <b>Đã có role, FE chưa dùng.</b></td>
+    </tr>
+    <tr>
+      <td class="file">apps/api/app/routers/auth.py</td>
+      <td><span class="tag ok">Sẵn có</span></td>
+      <td><code>_make_auth_response</code> lấy <code>user.roles[0].name</code> làm primary role, gán vào JWT claim <code>role</code> + response <code>user.roles</code>.</td>
+    </tr>
+    <tr>
+      <td class="file">apps/web/src/app/login/page.tsx</td>
+      <td><span class="tag ok">Sẵn có</span></td>
+      <td>Lưu <code>localStorage.setItem("user", JSON.stringify(data.user))</code> → <b>đã chứa <code>roles</code></b>, chỉ thiếu bước đọc.</td>
+    </tr>
+    <tr>
+      <td class="file">apps/web/src/components/auth/AuthGate.tsx</td>
+      <td><span class="tag warn">Chỉ check token</span></td>
+      <td>Guard dựa trên <code>localStorage.getItem("token")</code> có/không. <b>Chưa phân biệt role</b>.</td>
+    </tr>
+    <tr>
+      <td class="file">apps/web/src/components/layout/Navbar.tsx</td>
+      <td><span class="tag warn">Thiếu role</span></td>
+      <td><code>StoredUser</code> interface chỉ có <code>email</code>, <code>full_name</code> → TS không nhận <code>roles</code>, chưa render UI theo role.</td>
+    </tr>
+  </table>
+
+  <div class="note"><b>Phát hiện quan trọng:</b> Dữ liệu role <b>đã nằm sẵn trong <code>localStorage.user.roles</code></b> sau login. FE không cần decode JWT, không cần gọi <code>/me</code>. Chỉ cần (1) đọc đúng trường, (2) guard route theo role, (3) render UI theo role.</div>
+
+  <h2>2. Thiết kế tổng thể</h2>
+  <div class="flow">
+    <span class="node">Login BE</span>
+    <span class="arrow">→</span>
+    <span class="node">localStorage.user.roles = ["student"]</span>
+    <span class="arrow">→</span>
+    <span class="node">useAuth() hook đọc roles</span>
+    <span class="arrow">→</span>
+    <span class="node">AuthGate guard route</span>
+    <span class="arrow">→</span>
+    <span class="node">Navbar / page render theo role</span>
+  </div>
+  <ul>
+    <li><b>Hook tập trung:</b> tạo <code>useAuth()</code> trả <code>{ user, roles, isRole }</code> để mọi component dùng chung, tránh đọc localStorage rải rác.</li>
+    <li><b>Guard:</b> mở rộng <code>AuthGate</code> thành <code>ROLE_ROUTES</code> — map route → danh sách role được phép.</li>
+    <li><b>UI:</b> Navbar ẩn/hiện link theo role (vd: <code>/admin</code> chỉ admin).</li>
+  </ul>
+
+  <h2>2.1 Sơ đồ luồng FE → DB (Mermaid)</h2>
+
+  <h3>A. Sequence Diagram — luồng login &amp; phân quyền</h3>
+  <div class="mermaid">
+flowchart TD
+  U[User] -->|Nhập email/password| LP[login/page.tsx]
+  LP -->|POST /api/auth/login| AR[auth.py : login]
+  AR -->|SELECT user + roles| DB[(PostgreSQL<br/>users, roles, user_roles)]
+  DB -->|user + roles| AR
+  AR -->|_make_auth_response| UR[UserResponse<br/>roles: List[str]]
+  UR -->|JWT + user.roles| LP
+  LP -->|localStorage.token + localStorage.user| LS[(localStorage)]
+  LS -->|useAuth đọc user.roles| UA[useAuth.ts]
+  UA -->|roles / hasRole| AG[AuthGate.tsx]
+  AG -->|ROLE_ROUTES guard| NB[Navbar.tsx]
+  NB -->|hiện link /admin nếu admin| U
+  AG -->|redirect / nếu sai role| U
+  </div>
+
+  <h3>B. Class Diagram — các class / module tham gia</h3>
+  <div class="mermaid">
+classDiagram
+  class User {
+    +int id
+    +string email
+    +string username
+    +string hashed_password
+    +bool is_active
+    +List~Role~ roles
+  }
+  class Role {
+    +int id
+    +string name
+    +string description
+  }
+  class UserRole {
+    +int user_id
+    +int role_id
+  }
+  class UserResponse {
+    +int id
+    +string email
+    +string full_name
+    +bool is_active
+    +List~string~ roles
+    +from_user(user) UserResponse
+  }
+  class AuthRouter {
+    +login(req) AuthResponse
+    +register(req) AuthResponse
+    +google_login(req) AuthResponse
+    +me(user) UserResponse
+    -_make_auth_response(user) AuthResponse
+    -_get_or_create_role(name) Role
+  }
+  class Security {
+    +create_access_token(user_id, role) string
+    +decode_access_token(token) dict
+  }
+  class useAuth {
+    +AuthUser user
+    +string[] roles
+    +hasRole(...r) bool
+    -read() void
+  }
+  class AuthGate {
+    +string[] PROTECTED_PATHS
+    +ROLE_ROUTES
+    +guard() void
+  }
+  class Navbar {
+    +navLinks
+    +render() void
+  }
+  class AdminPage {
+    +render() void
+  }
+
+  User "1" *-- "many" UserRole : qua user_roles
+  Role "1" *-- "many" UserRole
+  User "1" *-- "many" Role : roles
+  AuthRouter ..> User : query
+  AuthRouter ..> Role : query
+  AuthRouter ..> UserResponse : builds
+  AuthRouter ..> Security : create token
+  UserResponse ..> User : from_user
+  useAuth ..> UserResponse : đọc từ localStorage
+  AuthGate ..> useAuth : roles
+  Navbar ..> useAuth : hasRole
+  AdminPage ..> AuthGate : guard /admin
+  </div>
+
+  <div class="note"><b>Giải thích nhanh:</b> <b>(A)</b> User login → BE query DB lấy <code>roles</code> → trả <code>user.roles</code> → FE lưu localStorage → <code>useAuth</code> đọc → <code>AuthGate</code> guard → <code>Navbar</code> render. <b>(B)</b> <code>User</code>/<code>Role</code>/<code>user_roles</code> là 3 bảng DB; <code>UserResponse</code> là schema BE trả; <code>useAuth</code>/<code>AuthGate</code>/<code>Navbar</code>/<code>AdminPage</code> là các module FE.</div>
+
+  <h2>3. Các bước implement</h2>
+
+  <div class="card">
+    <h3 style="margin-top:0"><span class="stepnum">1</span>Tạo hook <code>useAuth</code> <span class="tag step">Mới</span></h3>
+    <p class="sub">File <span class="file">apps/web/src/hooks/useAuth.ts</span></p>
+    <ul>
+      <li>Đọc <code>localStorage.user</code>, parse an toàn, trả <code>roles: string[]</code> + helper <code>hasRole(...)</code>.</li>
+      <li>Lắng nghe event <code>storage</code> (giống Navbar) để cập nhật khi login/logout.</li>
+    </ul>
+    <pre>import { useEffect, useState } from "react";
+
+export interface AuthUser {
+  email: string;
+  full_name?: string | null;
+  roles: string[];
+}
+
+export function useAuth() {
+  const [user, setUser] = useState&lt;AuthUser | null&gt;(null);
+
+  useEffect(() =&gt; {
+    const read = () =&gt; {
+      const raw = localStorage.getItem("user");
+      if (!localStorage.getItem("token") || !raw) { setUser(null); return; }
+      try {
+        const u = JSON.parse(raw) as Partial&lt;AuthUser&gt;;
+        setUser({ email: u.email ?? "", full_name: u.full_name ?? null, roles: u.roles ?? [] });
+      } catch { setUser(null); }
+    };
+    read();
+    window.addEventListener("storage", read);
+    return () =&gt; window.removeEventListener("storage", read);
+  }, []);
+
+  const roles = user?.roles ?? [];
+  const hasRole = (...r: string[]) =&gt; roles.some((x) =&gt; r.includes(x));
+  return { user, roles, hasRole, isAuthed: !!user };
+}</pre>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0"><span class="stepnum">2</span>Mở rộng <code>AuthGate</code> theo role <span class="tag fix">Sửa</span></h3>
+    <p class="sub">File <span class="file">apps/web/src/components/auth/AuthGate.tsx</span></p>
+    <ul>
+      <li>Giữ guard "có token" cho <code>PROTECTED_PATHS</code>.</li>
+      <li>Thêm <code>ROLE_ROUTES</code>: route → role được phép. Nếu user không có role → redirect <code>/</code> (hoặc <code>/403</code>).</li>
+    </ul>
+    <pre>const ROLE_ROUTES: Record&lt;string, string[]&gt; = {
+  "/admin": ["admin"],
+  // ví dụ: "/mentor-review": ["mentor", "admin"],
+};
+
+<span class="c">// trong useEffect, sau khi check token:</span>
+for (const [path, allowed] of Object.entries(ROLE_ROUTES)) {
+  if (pathname === path || pathname.startsWith(`${path}/`)) {
+    const roles = (JSON.parse(localStorage.getItem("user") || "{}").roles) || [];
+    if (!roles.some((r: string) =&gt; allowed.includes(r))) {
+      router.replace("/");
+      return;
+    }
+  }
+}</pre>
+    <div class="note"><b>Lưu ý:</b> Guard client-side chỉ là UX. Bảo mật thực sự nằm ở BE (dependency <code>require_roles</code> trong <code>deps.py</code>). FE guard tránh user lạc vào trang không liên quan, không thay thế BE auth.</div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0"><span class="stepnum">3</span>Cập nhật <code>Navbar</code> theo role <span class="tag fix">Sửa</span></h3>
+    <p class="sub">File <span class="file">apps/web/src/components/layout/Navbar.tsx</span></p>
+    <ul>
+      <li>Đổi <code>StoredUser</code> thành dùng <code>useAuth()</code> (có <code>roles</code>).</li>
+      <li>Thêm link <code>/admin</code> chỉ khi <code>hasRole("admin")</code>.</li>
+      <li>Hiển thị badge role cạnh tên user (tùy chọn).</li>
+    </ul>
+    <pre>const { user, hasRole } = useAuth();
+<span class="c">// trong navLinks map:</span>
+{hasRole("admin") &amp;&amp; &lt;Link href="/admin"&gt;Quản trị&lt;/Link&gt;}</pre>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0"><span class="stepnum">4</span>(Tuỳ chọn) Trang <code>/admin</code> + 403 <span class="tag need">Cần quyết định</span></h3>
+    <ul>
+      <li>Tạo <span class="file">apps/web/src/app/admin/page.tsx</span> (guard admin) — nếu muốn có UI quản trị cụ thể.</li>
+      <li>Hoặc chỉ cần guard, không có trang riêng → redirect <code>/</code> là đủ cho MVP.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0"><span class="stepnum">5</span>Verify local <span class="tag ok">Verify</span></h3>
+    <ul>
+      <li>Login <code>admin@defendai.dev</code> / <code>DefendAI@123</code> → thấy link Quản trị, vào <code>/admin</code> OK.</li>
+      <li>Login <code>student@defendai.dev</code> → không thấy link, truy cập tay <code>/admin</code> → bị redirect <code>/</code>.</li>
+    </ul>
+  </div>
+
+  <h2>4. Cách verify (command)</h2>
+  <pre class="terminal"><span class="c"># FE dev (port 3001 để không conflict Docker 3000)</span>
+cd DefendAI/apps/web
+$env:PORT="3001"; npm run dev
+
+<span class="c"># Mở trình duyệt, login bằng tài khoản seed:</span>
+<span class="c">#   admin@defendai.dev  / DefendAI@123  → có menu Quản trị</span>
+<span class="c">#   student@defendai.dev / DefendAI@123 → không có menu Quản trị</span>
+
+<span class="c"># Kiểm tra localStorage sau login (DevTools Console):</span>
+JSON.parse(localStorage.getItem("user")).roles
+<span class="c"># → ["admin"] hoặc ["student"]</span>
+
+<span class="c"># Truy cập tay /admin bằng tài khoản student → expect redirect về /</span></pre>
+
+  <h2>5. Checklist kiểm thử</h2>
+  <div class="card check">
+    <span class="tag need">□</span><span>Login admin → <code>localStorage.user.roles</code> = <code>["admin"]</code>, Navbar hiện link Quản trị.</span>
+    <span class="tag need">□</span><span>Login student → không hiện link Quản trị, truy cập <code>/admin</code> bị redirect <code>/</code>.</span>
+    <span class="tag need">□</span><span>Login mentor → <code>roles = ["mentor"]</code>, guard đúng theo config.</span>
+    <span class="tag need">□</span><span>Logout → <code>useAuth</code> reset, UI về trạng thái guest.</span>
+    <span class="tag need">□</span><span>Refresh trang (F5) → role vẫn giữ (đọc từ localStorage, không mất).</span>
+    <span class="tag need">□</span><span><code>npx tsc --noEmit</code> sạch (interface <code>roles</code> đúng kiểu).</span>
+    <span class="tag need">□</span><span><code>npx next lint</code> sạch.</span>
+    <span class="tag need">□</span><span>BE vẫn là nguồn tin cậy: gọi <code>/api/auth/me</code> trả đúng role (double-check không tự bịa role ở FE).</span>
+  </div>
+
+  <h2>6. File touch / tạo mới</h2>
+  <table>
+    <tr><th>File</th><th>Hành động</th><th>Lý do</th></tr>
+    <tr><td class="file">apps/web/src/hooks/useAuth.ts</td><td>Tạo mới</td><td>Hook đọc <code>localStorage.user.roles</code>, helper <code>hasRole</code>.</td></tr>
+    <tr><td class="file">apps/web/src/components/auth/AuthGate.tsx</td><td>Sửa</td><td>Thêm <code>ROLE_ROUTES</code> guard theo role.</td></tr>
+    <tr><td class="file">apps/web/src/components/layout/Navbar.tsx</td><td>Sửa</td><td>Dùng <code>useAuth</code>, render link theo role.</td></tr>
+    <tr><td class="file">apps/web/src/app/admin/page.tsx</td><td>Tạo mới (tùy chọn)</td><td>Trang quản trị, guard admin.</td></tr>
+  </table>
+
+  <div class="okbox">
+    <b>Phân tích YAGNI:</b> Không decode JWT ở FE (thừa — <code>user.roles</code> đã là string array). Không gọi <code>/me</code> mỗi render (lãng phí). Không tạo context provider phức tạp — hook <code>useAuth</code> + <code>localStorage</code> đủ. Chỉ guard route thực sự cần phân biệt (vd <code>/admin</code>); các trang <code>/upload</code>, <code>/questions</code>... mọi user login đều vào được (chưa cần role-specific).
+  </div>
+
+  <h2>7. Rủi ro &amp; lưu ý</h2>
+  <ul>
+    <li><b>Client guard ≠ bảo mật:</b> user có thể sửa localStorage giả role. BE phải luôn check lại qua <code>require_roles</code> trong <code>deps.py</code> cho mọi API nhạy cảm.</li>
+    <li><b>Multi-role:</b> thiết kế lấy <code>roles[0]</code> làm primary. Nếu sau này 1 user nhiều role, <code>hasRole</code> đã hỗ trợ OR — chỉ cần mở rộng <code>ROLE_ROUTES</code>.</li>
+    <li><b>SSR mismatch:</b> <code>useAuth</code> đọc <code>localStorage</code> → chỉ chạy client (<code>"use client"</code>). Không dùng trong Server Component.</li>
+    <li><b>Stale data:</b> nếu BE đổi role mà FE không login lại → role cũ. Chấp nhận cho MVP; nâng cấp bằng poll <code>/me</code> định kỳ nếu cần.</li>
+  </ul>
+
+</div>
+</body>
+</html>

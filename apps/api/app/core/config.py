@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     secret_key: str = os.getenv("SECRET_KEY", "change-me-in-production")
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
+    google_client_id: str = os.getenv("GOOGLE_CLIENT_ID", "")
 
     # Sub-configs
     nvidia: NVIDIAConfig = NVIDIAConfig()

@@ -9,11 +9,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@react-oauth/google": "^0.12.2",
     "@stomp/stompjs": "^7.x",
     "autoprefixer": "^10.x",
     "axios": "^1.x",
     "chart.js": "^4.x",
-    "framer-motion": "^12.42.1",
+    "framer-motion": "^12.42.2",
     "jspdf": "^2.x",
     "lucide-react": "^1.21.0",
     "next": "14.x",
