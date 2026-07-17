@@ -16,6 +16,7 @@ const navLinks: { href: string; label: string; roles?: string[]; isPublic?: bool
   { href: "/room", label: "Mock Room" },
   { href: "/report", label: "Báo cáo" },
   { href: "/admin", label: "Quản trị", roles: ["admin"] },
+  { href: "/mentor/dashboard", label: "Cổng Mentor", isPublic: true },
 ];
 
 export function Navbar() {

@@ -84,17 +84,6 @@ export default function CodeReviewPage() {
   }
 
   const { stats, backendData, details } = scanData;
-  const passRate = backendData?.pass_rate || 0; // vd: 0.85
-  const percentage = Math.round(passRate * 100);
-  
-  const getScoreLabel = (score: number) => {
-    if (score >= 90) return "Tốt";
-    if (score >= 70) return "Khá";
-    if (score >= 50) return "Trung bình";
-    return "Cần cải thiện";
-  };
-
-  const scoreLabel = getScoreLabel(percentage);
 
   // Filter Issues
   const filteredIssues = (details || []).filter((issue: any) => {
@@ -138,34 +127,22 @@ export default function CodeReviewPage() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          {/* Card 1: Score */}
-          <div className="bg-card rounded-xl border border-border shadow-sm p-6 flex flex-col items-center justify-center">
-            <h3 className="text-[14px] font-semibold text-foreground mb-4">Điểm chất lượng</h3>
-            <div className="relative w-24 h-24 mb-3 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                <path
-                  className="text-muted"
-                  strokeWidth="3.5"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                />
-                <path
-                  className="text-primary"
-                  strokeWidth="3.5"
-                  strokeDasharray={`${percentage}, 100`}
-                  strokeLinecap="round"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                />
-              </svg>
-              <div className="absolute flex flex-col items-center justify-center">
-                <span className="text-xl font-bold text-primary leading-none">{percentage}</span>
-                <span className="text-[10px] text-muted-foreground font-medium">/100</span>
+          {/* Card 1: Overview */}
+          <div className="bg-card rounded-xl border border-border shadow-sm p-6 flex flex-col justify-between">
+            <div className="flex justify-between items-start mb-4">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-primary/10 text-primary">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
               </div>
+              <span className="text-[13px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-md">Tổng quan</span>
             </div>
-            <p className="text-[13px] text-muted-foreground font-medium">Mức độ: {scoreLabel}</p>
+            <div>
+              <h2 className="text-2xl font-bold text-foreground mb-1">
+                {stats?.critical === 0 ? "Ổn định" : "Cần tối ưu"}
+              </h2>
+              <p className="text-[12px] font-bold text-muted-foreground uppercase tracking-wide">TRẠNG THÁI MÃ NGUỒN</p>
+            </div>
           </div>
 
           {/* Card 2: Critical */}

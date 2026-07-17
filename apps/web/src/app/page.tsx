@@ -62,7 +62,7 @@ export default function LandingPage() {
           <div className="text-center mb-20">
             <h2 className="text-4xl md:text-6xl font-serif font-bold mb-4">Tính năng nổi bật</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
-              Mọi công cụ bạn cần để đạt điểm tối đa.
+              Mọi công cụ bạn cần để đạt kết quả xuất sắc.
             </p>
           </div>
 
@@ -106,9 +106,9 @@ export default function LandingPage() {
               <div className="w-14 h-14 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center mb-6 shadow-inner">
                 <Award className="w-7 h-7" />
               </div>
-              <h3 className="text-2xl font-serif font-bold mb-3">Chấm Điểm & Báo Cáo</h3>
+              <h3 className="text-2xl font-serif font-bold mb-3">Đánh Giá & Báo Cáo</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Hệ thống chấm điểm chuẩn mực theo rubric, cung cấp file PDF báo cáo chi tiết giúp bạn cải thiện ngay lập tức.
+                Hệ thống nhận xét và đánh giá chuẩn mực, cung cấp file PDF báo cáo chi tiết giúp bạn cải thiện đồ án ngay lập tức.
               </p>
             </motion.div>
           </div>
@@ -123,7 +123,7 @@ export default function LandingPage() {
                   </div>
                   <h3 className="mb-2 text-3xl font-serif font-bold">AI hỏi như hội đồng thật</h3>
                   <p className="text-muted-foreground">
-                    Không cần đăng ký — xem ngay 1 kết quả mẫu: câu hỏi phản biện, chấm điểm năng lực và bệnh án đồ án.
+                    Không cần đăng ký — xem ngay 1 kết quả mẫu: câu hỏi phản biện, nhận xét năng lực và đánh giá đồ án.
                   </p>
                 </div>
                 <Link href="/demo">
@@ -162,7 +162,7 @@ export default function LandingPage() {
             <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10 pointer-events-none" />
             <h2 className="text-4xl md:text-6xl font-serif font-bold mb-6">Sẵn sàng toả sáng?</h2>
             <p className="text-muted-foreground text-lg mb-10 max-w-2xl mx-auto">
-              Hàng ngàn sinh viên đã chuẩn bị hoàn hảo với GraduAI. Đừng để sự cố nhỏ làm hỏng điểm số của bạn.
+              Hàng ngàn sinh viên đã chuẩn bị hoàn hảo. Đừng để những thiếu sót nhỏ làm hỏng kết quả bảo vệ của bạn.
             </p>
             <Link href="/upload">
               <Button size="lg" className="rounded-full h-14 px-10 text-lg shadow-[0_0_20px_hsl(var(--primary)/0.6)] hover:scale-105 transition-transform">

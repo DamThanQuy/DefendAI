@@ -224,7 +224,7 @@ export default function QuestionsPage() {
           
           <h2 className="text-[26px] font-serif font-bold text-white mb-3 relative z-10">Bạn muốn thử luyện tập trực tiếp?</h2>
           <p className="text-blue-100/90 text-[15px] max-w-xl mb-8 relative z-10 leading-relaxed font-medium">
-            Vào Mock Room để thực hành trả lời các câu hỏi này với hội đồng AI ảo. Hệ thống sẽ chấm điểm và chỉnh sửa giọng điệu, phong thái của bạn.
+            Vào Mock Room để thực hành trả lời các câu hỏi này với hội đồng AI ảo. Hệ thống sẽ nhận xét, đưa ra lời khuyên và chỉnh sửa giọng điệu, phong thái của bạn.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 relative z-10">
