@@ -24,9 +24,11 @@ export function UploadZone({
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusText, setStatusText] = useState("");
+  const [progress, setProgress] = useState(0);
   const [showPersonaModal, setShowPersonaModal] = useState(false);
   const [documentId, setDocumentId] = useState("");
   const [persona, setPersona] = useState("normal");
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -62,62 +64,162 @@ export function UploadZone({
     const isZip = file.name.endsWith('.zip') || file.name.endsWith('.rar');
     setIsProcessing(true);
 
+    const ac = new AbortController();
+    setAbortController(ac);
+
     if (isZip) {
       setStatusText("Đang quét source code...");
       try {
         const formData = new FormData();
         formData.append("file", file);
-        const res = await fetch("/api/code/scan", { method: "POST", body: formData });
+        const res = await fetch("/api/code/scan", { method: "POST", body: formData, signal: ac.signal });
         const data = await res.json();
         
         if (data.success) {
           sessionStorage.setItem("codeReviewData", JSON.stringify(data));
           router.push("/code-review");
         }
-      } catch (error) {
+      } catch (error: any) {
+        if (error?.name === "AbortError") { handleCancel(); return; }
         console.error(error);
       } finally {
         setIsProcessing(false);
+        setAbortController(null);
       }
     } else {
       setStatusText("Đang tải tài liệu lên...");
       try {
+        const token = localStorage.getItem("token");
         const formData = new FormData();
         formData.append("file", file);
-        const res = await fetch("/api/documents/upload", { method: "POST", body: formData });
+        const res = await fetch("/api/documents/upload", {
+          method: "POST",
+          body: formData,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: ac.signal,
+        });
         const data = await res.json();
         
         if (data.success) {
           setDocumentId(data.documentId);
           setIsProcessing(false);
           setShowPersonaModal(true);
+          setAbortController(null);
         }
-      } catch (error) {
+      } catch (error: any) {
+        if (error?.name === "AbortError") { handleCancel(); return; }
         console.error(error);
         setIsProcessing(false);
+        setAbortController(null);
       }
     }
+  };
+
+  const handleCancel = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+    }
+    setIsProcessing(false);
+    setFile(null);
+    setProgress(0);
+    setStatusText("");
   };
 
   const generateQuestions = async () => {
     setShowPersonaModal(false);
     setIsProcessing(true);
-    setStatusText("AI đang phân tích và tạo câu hỏi...");
+    setProgress(0);
+    setStatusText("Đang xếp hàng chờ xử lý...");
+
+    const ac = new AbortController();
+    setAbortController(ac);
+
+    // Map UI persona → backend persona
+    const personaMap: Record<string, string> = {
+      normal: "theory",
+      hard: "strict",
+      tech: "enterprise",
+    };
+    const mappedPersona = personaMap[persona] || "theory";
 
     try {
+      const token = localStorage.getItem("token");
+      // 1. Gọi generate → nhận job_id
       const res = await fetch("/api/questions/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ documentId, persona })
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ documentId, persona: mappedPersona })
       });
       const data = await res.json();
-      
-      if (data.success) {
-        sessionStorage.setItem("questionsData", JSON.stringify(data.questions));
-        router.push("/questions");
+
+      if (!data.job_id) {
+        console.error("Generate API failed:", data);
+        setStatusText("Lỗi: " + (data.detail || data.error || "Không nhận được job_id"));
+        setIsProcessing(false);
+        return;
       }
-    } catch (error) {
-      console.error(error);
+
+      // 2. Poll job cho đến khi hoàn tất
+      const jobId = data.job_id;
+      const pollInterval = 1500;
+
+      while (true) {
+        if (ac.signal.aborted) {
+          handleCancel();
+          return;
+        }
+        const pollRes = await fetch(`/api/jobs/${jobId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: ac.signal,
+        });
+        const job = await pollRes.json();
+
+        if (job.status === "completed") {
+          setProgress(100);
+          setStatusText("Hoàn tất! Đang chuyển hướng...");
+
+          // Store full result so /questions page can show document_name, persona, etc.
+          const payload = job.result ? { ...job.result, questions: job.result.questions || [] } : { questions: [] };
+          sessionStorage.setItem("questionsData", JSON.stringify(payload));
+          // Force synchronous write before navigation
+          const written = sessionStorage.getItem("questionsData");
+          if (!written) {
+            // Fallback: try again
+            sessionStorage.setItem("questionsData", JSON.stringify(payload));
+          }
+          router.push("/questions");
+          return;
+        }
+
+        if (job.status === "failed") {
+          setStatusText(`Lỗi AI: ${job.error || "Xử lý thất bại"}`);
+          setIsProcessing(false);
+          return;
+        }
+
+        // Cập nhật progress từ backend
+        if (job.progress) {
+          const pct = parseInt(job.progress, 10);
+          setProgress(pct);
+          const msgs: Record<string, string> = {
+            "10": "Đang chuẩn bị tài liệu...",
+            "30": "Đang phân tích nội dung...",
+            "50": "AI đang tạo câu hỏi...",
+            "70": "Đang xử lý kết quả AI...",
+            "90": "Đang lưu kết quả...",
+          };
+          setStatusText(msgs[job.progress] || `Đang xử lý... (${pct}%)`);
+        }
+
+        await new Promise(r => setTimeout(r, pollInterval));
+      }
+    } catch (error: any) {
+      if (error?.name === "AbortError") { handleCancel(); return; }
+      console.error("Generate questions error:", error);
       setIsProcessing(false);
     }
   };
@@ -180,6 +282,19 @@ export function UploadZone({
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm rounded-2xl animate-in fade-in border border-gray-100">
           <div className="w-14 h-14 border-[3px] border-[#e8effd] border-t-[#0f2e82] rounded-full animate-spin mb-6"></div>
           <h3 className="text-[17px] font-bold text-gray-900">{statusText}</h3>
+          <div className="w-64 h-2 bg-gray-200 rounded-full mt-4 overflow-hidden">
+            <div
+              className="h-full bg-[#0f2e82] rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="text-xs text-gray-400 mt-2 font-medium">{progress}%</p>
+          <button
+            onClick={handleCancel}
+            className="mt-6 px-6 py-2 text-sm font-medium text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 rounded-full transition-all"
+          >
+            Hủy quá trình
+          </button>
         </div>
       )}
 

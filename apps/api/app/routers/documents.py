@@ -22,7 +22,7 @@ from app.services.storage import save_doc
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
 # ===== Config =====
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".zip"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".zip", ".md"}
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 
 EXTENSION_TO_DOCTYPE = {
@@ -30,6 +30,7 @@ EXTENSION_TO_DOCTYPE = {
     ".docx": DocType.DOCX,
     ".pptx": DocType.PPTX,
     ".zip": DocType.ZIP,
+    ".md": DocType.PDF,  # treat md as PDF-type (text-based)
 }
 
 EXTENSION_TO_MIME = {
@@ -37,6 +38,7 @@ EXTENSION_TO_MIME = {
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     ".zip": "application/zip",
+    ".md": "text/markdown",
 }
 
 

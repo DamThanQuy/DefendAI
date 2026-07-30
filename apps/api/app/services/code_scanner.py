@@ -58,6 +58,7 @@ MAX_SCAN_FILES = 50
 MAX_TOTAL_UNCOMPRESSED_BYTES = 20 * 1024 * 1024
 MAX_FILE_CHARS = 5000
 MAX_TOTAL_CHARS = 200000
+CONTEXT_OVERFLOW_THRESHOLD = 150000  # switch to multi-pass when total chars exceed this
 
 
 class CodeScanError(Exception):
@@ -187,7 +188,7 @@ def _numbered_lines(text: str, max_chars: int = MAX_FILE_CHARS) -> str:
     return "\n".join(numbered)
 
 
-def build_prompt(files: list[ScannedFile]) -> tuple[str, str]:
+def build_prompt(files: list[ScannedFile]) -> tuple[str, str, bool]:
     system_prompt = (
         "Bạn là một Senior Software Engineer và code reviewer rất khắt khe. "
         "Hãy review source code, tìm bug, code smell, security issue, performance issue và thiếu validation. "
@@ -213,11 +214,13 @@ def build_prompt(files: list[ScannedFile]) -> tuple[str, str]:
 
     chunks: list[str] = []
     total_chars = 0
+    overflow = False
     for file in files:
         rendered = _numbered_lines(file.content)
         block = f"FILE: {file.path}\n```\n{rendered}\n```"
         total_chars += len(block)
-        if total_chars > MAX_TOTAL_CHARS:
+        if total_chars > CONTEXT_OVERFLOW_THRESHOLD:
+            overflow = True
             break
         chunks.append(block)
 
@@ -226,7 +229,7 @@ def build_prompt(files: list[ScannedFile]) -> tuple[str, str]:
         + "\n\n---\n\n".join(chunks)
         + "\n\nHãy review code và phát hiện issues. Output ONLY valid JSON."
     )
-    return system_prompt, user_prompt
+    return system_prompt, user_prompt, overflow
 
 
 def _extract_json_payload(content: str) -> dict[str, Any]:
@@ -367,7 +370,10 @@ def _heuristic_scan(files: list[ScannedFile]) -> dict[str, Any]:
 
 async def analyze_code_document(document: Document, provider: str | None = None, model: str | None = None) -> dict[str, Any]:
     files = await extract_code_files(document)
-    system_prompt, user_prompt = build_prompt(files)
+    system_prompt, user_prompt, overflow = build_prompt(files)
+
+    if overflow:
+        return _multi_pass_assessment(files, provider, model)
 
     try:
         result = await ai_gateway.generate(
@@ -402,7 +408,65 @@ async def analyze_code_document(document: Document, provider: str | None = None,
             "issues": normalized_issues,
             "provider": result["provider"],
             "model": result["model"],
+            "context_overflow": False,
         }
     except Exception as exc:
         logger.warning("AI code scan failed, falling back to heuristic scan: %s", exc)
         return _heuristic_scan(files)
+
+
+def _split_by_module(files: list[ScannedFile]) -> dict[str, list[ScannedFile]]:
+    modules: dict[str, list[ScannedFile]] = {}
+    for file in files:
+        parts = Path(file.path).parts
+        module = parts[0] if len(parts) > 1 else "shared"
+        modules.setdefault(module, []).append(file)
+    return modules
+
+
+async def _multi_pass_assessment(files: list[ScannedFile], provider: str | None, model: str | None) -> dict[str, Any]:
+    modules = _split_by_module(files)
+    all_issues: list[dict[str, Any]] = []
+    pass_rates: list[float] = []
+    processed_files = 0
+
+    for module_name, module_files in modules.items():
+        system_prompt, user_prompt, _ = build_prompt(module_files)
+        try:
+            result = await ai_gateway.generate(
+                prompt=user_prompt,
+                provider=provider,
+                model=model,
+                system_prompt=system_prompt,
+                temperature=0.15,
+                max_tokens=3000,
+                response_format_json=True,
+            )
+            payload = _extract_json_payload(result["content"])
+            raw_issues = payload.get("issues") or []
+            for index, item in enumerate(raw_issues, start=1):
+                if not isinstance(item, dict):
+                    continue
+                normalized = _normalize_issue(item, index)
+                if normalized:
+                    normalized["module"] = module_name
+                    all_issues.append(normalized)
+            pass_rates.append(float(payload.get("pass_rate", 0)))
+            processed_files += len(module_files)
+        except Exception as exc:
+            logger.warning("Multi-pass module %s failed, using heuristic: %s", module_name, exc)
+            heuristic = _heuristic_scan(module_files)
+            all_issues.extend(heuristic.get("issues", []))
+            pass_rates.append(heuristic.get("pass_rate", 0))
+            processed_files += len(module_files)
+
+    avg_pass_rate = sum(pass_rates) / len(pass_rates) if pass_rates else 0.0
+    return {
+        "summary": f"Đánh giá đa module ({len(modules)} module, {processed_files} file). Context vượt ngưỡng 150K → tách module đánh giá song song.",
+        "pass_rate": max(min(avg_pass_rate, 100.0), 0.0),
+        "issues": all_issues,
+        "provider": provider or "unknown",
+        "model": model or "unknown",
+        "context_overflow": True,
+        "modules_processed": len(modules),
+    }

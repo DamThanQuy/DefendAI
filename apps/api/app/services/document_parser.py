@@ -47,6 +47,29 @@ CHUNK_OVERLAP_CHARS = 600    # ~150 tokens overlap để giữ ngữ cảnh
 # Ngưỡng cảnh báo khi trích xuất được quá ít text (file scan, file rỗng, ...)
 MIN_TEXT_LENGTH_WARN = 50
 
+# Thư mục lưu extracted text dạng .md để agent/human đọc được
+# Container mount ./apps/api:/app → file ở host: DefendAI/apps/api/extracted/
+EXTRACTED_DIR = Path("/app/extracted")
+
+
+def _save_extracted_md(doc_id: int, filename: str, text: str) -> str | None:
+    """Ghi extracted text ra file .md để agent/human đọc được."""
+    try:
+        EXTRACTED_DIR.mkdir(parents=True, exist_ok=True)
+        safe_name = filename.replace("/", "_").replace("\\", "_")[:100]
+        # Tránh double extension .md.md
+        if safe_name.lower().endswith(".md"):
+            safe_name = safe_name[:-3]
+        out_path = EXTRACTED_DIR / f"{doc_id}_{safe_name}.md"
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(f"# Extracted: {filename} (id={doc_id})\n\n")
+            f.write(text)
+        logger.info("Saved extracted text → %s", out_path)
+        return str(out_path)
+    except Exception as exc:
+        logger.warning("Failed to save extracted .md for doc %s: %s", doc_id, exc)
+        return None
+
 
 class DocumentParserError(Exception):
     """Lỗi khi parse document (file không đọc được, format sai, ...)."""
@@ -101,10 +124,19 @@ def _extract_pptx(src) -> str:
     return "\n\n".join(blocks).strip()
 
 
+def _extract_md(src) -> str:
+    """Trích xuất text từ Markdown. Plain text, bỏ qua markup."""
+    import io
+    content = src.read() if isinstance(src, io.IOBase) else open(src, "rb").read()
+    raw = content.decode("utf-8", errors="replace")
+    return raw.strip()
+
+
 _EXTRACTORS = {
     DocType.PDF: _extract_pdf,
     DocType.DOCX: _extract_docx,
     DocType.PPTX: _extract_pptx,
+    # .md mapped to DocType.PDF via router, handle via filename fallback below
 }
 
 
@@ -124,10 +156,6 @@ async def extract_text(document) -> str:
     Raises:
         DocumentParserError: nếu doc_type không hỗ trợ hoặc file lỗi.
     """
-    extractor = _EXTRACTORS.get(document.doc_type)
-    if extractor is None:
-        raise DocumentParserError(f"Unsupported doc_type: {document.doc_type}")
-
     storage_key = document.storage_key
     if not storage_key:
         raise DocumentParserError(f"Document {document.id} has no storage key")
@@ -137,6 +165,18 @@ async def extract_text(document) -> str:
     except Exception as exc:
         logger.exception("Failed to download %s from MinIO", storage_key)
         raise DocumentParserError(f"Download failed for {storage_key}: {exc}") from exc
+
+    # Detect markdown/text files by extension
+    if storage_key.lower().endswith(".md"):
+        text = data.decode("utf-8", errors="replace").strip()
+        if len(text) < MIN_TEXT_LENGTH_WARN:
+            logger.warning("Extracted text is suspiciously short (%s chars) from %s", len(text), storage_key)
+        _save_extracted_md(document.id, document.filename, text)
+        return text
+
+    extractor = _EXTRACTORS.get(document.doc_type)
+    if extractor is None:
+        raise DocumentParserError(f"Unsupported doc_type: {document.doc_type}")
 
     # Chuyển bytes → file-like object để parser đọc
     file_io = BytesIO(data)
@@ -155,6 +195,9 @@ async def extract_text(document) -> str:
             "(file có thể là scan, ảnh, hoặc rỗng).",
             len(text), storage_key,
         )
+
+    # Lưu ra file .md để agent/human đọc được
+    _save_extracted_md(document.id, document.filename, text)
 
     return text
 

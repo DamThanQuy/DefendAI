@@ -12,11 +12,18 @@ export async function POST(request: Request) {
     const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 
     // 1. Upload file to backend
+    const authHeader = request.headers.get('authorization') || '';
     const uploadFormData = new FormData();
     uploadFormData.append('file', file);
-    
+
+    const uploadHeaders: Record<string, string> = {};
+    if (authHeader) {
+      uploadHeaders['Authorization'] = authHeader;
+    }
+
     const uploadRes = await fetch(`${backendUrl}/api/documents/upload`, {
       method: 'POST',
+      headers: uploadHeaders,
       body: uploadFormData,
     });
 
