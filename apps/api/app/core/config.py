@@ -21,16 +21,16 @@ class NVIDIAConfig(BaseModel):
     model: str = os.getenv("NVIDIA_MODEL", "stepfun-ai/Step-3.7-Flash")
 
 
-class GoogleConfig(BaseModel):
-    """Config cho Google AI Studio (dùng cho model worker)."""
-    api_key: str = os.getenv("GOOGLE_API_KEY", "")
-    base_url: str = os.getenv("GOOGLE_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai")
-    model: str = os.getenv("GOOGLE_MODEL", "gemma-4-31b-it")
+class LocalConfig(BaseModel):
+    """Config cho local LLM (OpenAI-compatible, ví dụ LM Studio, Ollama)."""
+    api_key: str = os.getenv("LOCAL_API_KEY", "sk-f3ac88abb90d894b-o4159v-470a9d6a")
+    base_url: str = os.getenv("LOCAL_BASE_URL", "http://localhost:20128/v1")
+    model: str = os.getenv("LOCAL_MODEL", "google")
 
 
 class RoutingConfig(BaseModel):
     """Routing rules giữa các provider."""
-    default_provider: str = os.getenv("DEFAULT_PROVIDER", "google")
+    default_provider: str = os.getenv("DEFAULT_PROVIDER", "localhost")
     orchestrator_provider: str = os.getenv("ORCHESTRATOR_PROVIDER", "nvidia")
 
 
@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     # Database
     database_url: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/defense_db")
 
+    # Redis
+    redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
     # Auth
     secret_key: str = os.getenv("SECRET_KEY", "change-me-in-production")
     algorithm: str = "HS256"
@@ -61,7 +64,7 @@ class Settings(BaseSettings):
 
     # Sub-configs
     nvidia: NVIDIAConfig = NVIDIAConfig()
-    google: GoogleConfig = GoogleConfig()
+    local: LocalConfig = LocalConfig()
     routing: RoutingConfig = RoutingConfig()
     minio: MinioConfig = MinioConfig()
 

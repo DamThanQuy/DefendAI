@@ -32,7 +32,7 @@ import os
 from typing import Any
 
 from app.core.config import settings
-from app.services.ai_providers import NVIDIAProvider, GoogleProvider
+from app.services.ai_providers import NVIDIAProvider, LocalProvider
 
 
 logger = logging.getLogger(__name__)
@@ -62,11 +62,11 @@ class AIGateway:
                 "base_url": os.getenv("NVIDIA_BASE_URL"),
                 "model": os.getenv("NVIDIA_MODEL")
             },
-            "google": {
-                "class": GoogleProvider,
-                "api_key": os.getenv("GOOGLE_API_KEY"),
-                "base_url": os.getenv("GOOGLE_BASE_URL"),
-                "model": os.getenv("GOOGLE_MODEL")
+            "localhost": {
+                "class": LocalProvider,
+                "api_key": os.getenv("LOCAL_API_KEY"),
+                "base_url": os.getenv("LOCAL_BASE_URL"),
+                "model": os.getenv("LOCAL_MODEL")
             }
         }
 
@@ -132,12 +132,8 @@ class AIGateway:
                 "meta/llama-3.1-70b-instruct",
                 "mistralai/mistral-large-2-instruct",
             ],
-            "google": [
-                "gemma-4-31b-it",  # Default
-                "gemma-4-26b-a4b-it",  # MoE - nhanh hơn
-                "gemma-4-e4b-it",  # Nhỏ, rất nhanh
-                "gemini-2.0-flash",
-                "gemini-2.5-pro",
+            "localhost": [
+                "google",  # Default local model
             ],
         }
 
@@ -208,10 +204,10 @@ class AIGateway:
         """
         Helper: gọi model worker (nhanh) cho task phụ.
 
-        Ưu tiên Google (nhanh hơn NVIDIA cho model nhỏ), fallback NVIDIA nếu Google không có.
+        Ưu tiên localhost (nhanh), fallback NVIDIA.
         """
-        if "google" in self.providers:
-            return await self.generate(prompt=prompt, provider="google", **kwargs)
+        if "localhost" in self.providers:
+            return await self.generate(prompt=prompt, provider="localhost", **kwargs)
         if "nvidia" in self.providers:
             return await self.generate(prompt=prompt, provider="nvidia", **kwargs)
         raise RuntimeError("No AI provider available for worker tasks")

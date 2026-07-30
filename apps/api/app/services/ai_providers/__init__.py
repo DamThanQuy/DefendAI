@@ -6,10 +6,10 @@ Cả 2 provider hiện tại đều dùng OpenAI-compatible API → kế thừa 
 """
 from app.services.ai_providers.base import OpenAICompatibleProvider
 from app.services.ai_providers.nvidia import NVIDIAProvider
-from app.services.ai_providers.google import GoogleProvider
+from app.services.ai_providers.local import LocalProvider
 
 __all__ = [
     "OpenAICompatibleProvider",
     "NVIDIAProvider",
-    "GoogleProvider",
+    "LocalProvider",
 ]

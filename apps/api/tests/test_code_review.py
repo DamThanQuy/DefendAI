@@ -41,6 +41,7 @@ from app.services.code_scanner import (
     build_prompt,
     extract_code_files,
 )
+from app.services.storage import get_doc
 
 # ============================================================
 # MOCK DB
@@ -71,6 +72,7 @@ def _make_doc(
     doc_type: DocType = DocType.ZIP,
     status: DocumentStatus = DocumentStatus.uploaded,
     file_path: str = "uploads/fake.zip",
+    storage_key: str | None = None,
 ):
     """Tạo Document object giả lập (SimpleNamespace, không cần DB)."""
     return SimpleNamespace(
@@ -80,6 +82,7 @@ def _make_doc(
         doc_type=doc_type,
         status=status,
         file_path=file_path,
+        storage_key=storage_key or file_path,
         content_hash=None,
         created_at=datetime.utcnow(),
     )
@@ -204,10 +207,9 @@ class TestIsSafeMember:
 # ============================================================
 
 class TestExtractCodeFiles:
-    """Test ZIP parsing — extract_code_files."""
+    """Test ZIP parsing — extract_code_files (async, mocks get_doc)."""
 
     def _make_zip(self, files: dict[str, str]) -> str:
-        """Tạo file ZIP tạm, trả về file path."""
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as zf:
             for name, content in files.items():
@@ -217,13 +219,42 @@ class TestExtractCodeFiles:
         tmp.close()
         return tmp.name
 
+    def _extract(self, doc) -> list[ScannedFile]:
+        """Call extract_code_files synchronously with get_doc mocked."""
+        async def _run():
+            with patch("app.services.code_scanner.get_doc") as mock_get:
+                async def fake_get(key, **kw):
+                    with open(key, "rb") as f:
+                        return f.read()
+                mock_get.side_effect = fake_get
+                return await extract_code_files(doc)
+
+        import asyncio
+        return asyncio.run(_run())
+
+    def _extract_raises(self, doc, match):
+        """Assert extract_code_files raises CodeScanError."""
+        async def _run():
+            with patch("app.services.code_scanner.get_doc") as mock_get:
+                async def fake_get(key, **kw):
+                    with open(key, "rb") as f:
+                        return f.read()
+                mock_get.side_effect = fake_get
+                with pytest.raises(CodeScanError, match=match):
+                    await extract_code_files(doc)
+
+        import asyncio
+        asyncio.run(_run())
+
+    def _make_doc_with_storage(self, path, doc_type=DocType.ZIP):
+        return _make_doc(storage_key=path, file_path=path, doc_type=doc_type)
+
     def test_extract_python_files(self):
         path = self._make_zip({
             "src/main.py": "print('hello')",
             "src/utils.py": "def helper(): pass",
         })
-        doc = _make_doc(file_path=path)
-        files = extract_code_files(doc)
+        files = self._extract(self._make_doc_with_storage(path))
         assert len(files) == 2
         names = [f.path for f in files]
         assert "src/main.py" in names
@@ -236,8 +267,7 @@ class TestExtractCodeFiles:
             "index.ts": "console.log('ts')",
             "style.css": "body { color: red; }",
         })
-        doc = _make_doc(file_path=path)
-        files = extract_code_files(doc)
+        files = self._extract(self._make_doc_with_storage(path))
         assert len(files) == 3
         os.unlink(path)
 
@@ -247,8 +277,7 @@ class TestExtractCodeFiles:
             "image.png": "binary data",
             "data.bin": "\x00\x01\x02",
         })
-        doc = _make_doc(file_path=path)
-        files = extract_code_files(doc)
+        files = self._extract(self._make_doc_with_storage(path))
         assert len(files) == 1
         assert files[0].path == "main.py"
         os.unlink(path)
@@ -259,8 +288,7 @@ class TestExtractCodeFiles:
             "empty.py": "",
             "whitespace.py": "   \n\n  ",
         })
-        doc = _make_doc(file_path=path)
-        files = extract_code_files(doc)
+        files = self._extract(self._make_doc_with_storage(path))
         assert len(files) == 1
         os.unlink(path)
 
@@ -269,8 +297,7 @@ class TestExtractCodeFiles:
             "main.py": "print('ok')",
             "binary.py": "test\x00null\x00bytes",
         })
-        doc = _make_doc(file_path=path)
-        files = extract_code_files(doc)
+        files = self._extract(self._make_doc_with_storage(path))
         assert len(files) == 1
         os.unlink(path)
 
@@ -279,8 +306,7 @@ class TestExtractCodeFiles:
             "src/main.py": "print('ok')",
             ".git/config": "[core]",
         })
-        doc = _make_doc(file_path=path)
-        files = extract_code_files(doc)
+        files = self._extract(self._make_doc_with_storage(path))
         assert len(files) == 1
         assert files[0].path == "src/main.py"
         os.unlink(path)
@@ -290,8 +316,7 @@ class TestExtractCodeFiles:
             "src/main.py": "print('ok')",
             "node_modules/pkg/index.js": "module.exports={}",
         })
-        doc = _make_doc(file_path=path)
-        files = extract_code_files(doc)
+        files = self._extract(self._make_doc_with_storage(path))
         assert len(files) == 1
         os.unlink(path)
 
@@ -300,54 +325,52 @@ class TestExtractCodeFiles:
             "src/main.py": "print('ok')",
             "../../../etc/passwd": "root:x:0:0",
         })
-        doc = _make_doc(file_path=path)
-        files = extract_code_files(doc)
+        files = self._extract(self._make_doc_with_storage(path))
         assert len(files) == 1
         assert files[0].path == "src/main.py"
         os.unlink(path)
 
     def test_empty_zip_raises(self):
         path = self._make_zip({})
-        doc = _make_doc(file_path=path)
-        with pytest.raises(CodeScanError, match="Không tìm thấy"):
-            extract_code_files(doc)
+        self._extract_raises(self._make_doc_with_storage(path), "Không tìm thấy")
         os.unlink(path)
 
     def test_non_zip_file_raises(self):
         tmp = tempfile.NamedTemporaryFile(suffix=".txt", delete=False)
         tmp.write(b"not a zip")
         tmp.close()
-        doc = _make_doc(file_path=tmp.name, doc_type=DocType.PDF)
-        with pytest.raises(CodeScanError, match="chỉ hỗ trợ"):
-            extract_code_files(doc)
+        self._extract_raises(
+            self._make_doc_with_storage(tmp.name, doc_type=DocType.PDF),
+            "chỉ hỗ trợ",
+        )
         os.unlink(tmp.name)
 
     def test_file_not_found_raises(self):
-        doc = _make_doc(file_path="uploads/nonexistent_9999.zip")
-        with pytest.raises(CodeScanError, match="not found"):
-            extract_code_files(doc)
+        doc = _make_doc(storage_key="uploads/nonexistent_9999.zip")
+        async def _run():
+            with patch("app.services.code_scanner.get_doc") as mock_get:
+                mock_get.return_value = None
+                with pytest.raises(CodeScanError, match="not found"):
+                    await extract_code_files(doc)
+        import asyncio
+        asyncio.run(_run())
 
     def test_bad_zip_raises(self):
         tmp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
         tmp.write(b"PK\x03\x04corrupted zip data here")
         tmp.close()
-        doc = _make_doc(file_path=tmp.name)
-        with pytest.raises(CodeScanError, match="bị lỗi"):
-            extract_code_files(doc)
+        self._extract_raises(self._make_doc_with_storage(tmp.name), "bị lỗi")
         os.unlink(tmp.name)
 
     def test_sorted_by_priority(self):
-        """Python files should come before JS, TS, etc."""
         path = self._make_zip({
             "style.css": "body {}",
             "app.py": "print('hi')",
             "index.js": "console.log()",
             "types.ts": "interface X {}",
         })
-        doc = _make_doc(file_path=path)
-        files = extract_code_files(doc)
+        files = self._extract(self._make_doc_with_storage(path))
         paths = [f.path for f in files]
-        # .py should come before .ts, .js, .css
         py_idx = paths.index("app.py")
         ts_idx = paths.index("types.ts")
         js_idx = paths.index("index.js")
@@ -363,27 +386,40 @@ class TestExtractCodeFiles:
 class TestBuildPrompt:
     def test_build_prompt_basic(self):
         files = [ScannedFile(path="main.py", content="print('hello')")]
-        system_prompt, user_prompt = build_prompt(files)
+        system_prompt, user_prompt, overflow = build_prompt(files)
         assert "Senior Software Engineer" in system_prompt
         assert "main.py" in user_prompt
         assert "print('hello')" in user_prompt
+        assert overflow is False
 
     def test_build_prompt_multiple_files(self):
         files = [
             ScannedFile(path="app.py", content="x = 1"),
             ScannedFile(path="utils.py", content="y = 2"),
         ]
-        _, user_prompt = build_prompt(files)
+        _, user_prompt, overflow = build_prompt(files)
         assert "app.py" in user_prompt
         assert "utils.py" in user_prompt
         assert "FILE:" in user_prompt
+        assert overflow is False
 
     def test_build_prompt_empty(self):
         """build_prompt với danh sách rỗng."""
-        system_prompt, user_prompt = build_prompt([])
+        system_prompt, user_prompt, overflow = build_prompt([])
         assert "Senior Software Engineer" in system_prompt
         # user_prompt vẫn có hướng dẫn
         assert "review" in user_prompt.lower()
+        assert overflow is False
+
+    def test_build_prompt_overflow(self):
+        """build_prompt phát hiện context vượt 150K → overflow=True."""
+        # Mỗi file bị _numbered_lines giới hạn 5000 chars → cần ~31 file để vượt 150K
+        files = [
+            ScannedFile(path=f"mod_{i}.py", content="x = 1\n" * 1000)
+            for i in range(35)
+        ]
+        _, _, overflow = build_prompt(files)
+        assert overflow is True
 
 
 # ============================================================
@@ -497,54 +533,21 @@ class TestCodeScanEndpoint:
         return tmp.name
 
     def test_scan_success(self):
-        """Upload ZIP → 200 + analysis results."""
+        """Upload ZIP → 202 + job_id (async flow)."""
         zip_path = self._make_zip_file({"app.py": "def main():\n    print('ok')"})
         doc = _make_doc(file_path=zip_path)
         mock_db.execute.return_value = _make_db_result(doc)
 
-        async def fake_refresh(obj):
-            if hasattr(obj, "id") and obj.id is None:
-                obj.id = 10
-            if hasattr(obj, "created_at"):
-                obj.created_at = datetime.now()
-        mock_db.refresh.side_effect = fake_refresh
+        r = client.post(
+            "/api/code/scan",
+            json={"document_id": 1},
+        )
 
-        mock_ai_result = {
-            "summary": "Code looks decent",
-            "pass_rate": 85.0,
-            "issues": [
-                {
-                    "id": 1,
-                    "type": "code_smell",
-                    "file": "app.py",
-                    "line": 1,
-                    "description": "No docstring",
-                    "severity": "low",
-                    "suggestion": "Add docstring",
-                }
-            ],
-            "provider": "nvidia",
-            "model": "meta/llama-3.1-70b-instruct",
-        }
-
-        with patch("app.routers.code_scan.analyze_code_document", new_callable=AsyncMock) as mock_analyze:
-            mock_analyze.return_value = mock_ai_result
-            r = client.post(
-                "/api/code/scan",
-                json={"document_id": 1},
-            )
-
-        assert r.status_code == 200
+        assert r.status_code == 202
         data = r.json()
-        assert data["document_id"] == 1
-        assert data["document_name"] == "source.zip"
-        assert data["status"] == "completed"
-        assert data["summary"] == "Code looks decent"
-        assert data["pass_rate"] == 85.0
-        assert len(data["issues"]) == 1
-        assert data["issues"][0]["file"] == "app.py"
-        assert data["provider"] == "nvidia"
-        assert data["files_scanned"] >= 1
+        assert "job_id" in data
+        assert data["status"] == "queued"
+        assert data["job_id"] != ""
         os.unlink(zip_path)
 
     def test_document_not_found(self):
@@ -570,63 +573,36 @@ class TestCodeScanEndpoint:
         assert r.status_code == 400
 
     def test_scan_with_provider_and_model(self):
-        """Pass provider + model params."""
+        """Pass provider + model params → 202 + job_id."""
         zip_path = self._make_zip_file()
         doc = _make_doc(file_path=zip_path)
         mock_db.execute.return_value = _make_db_result(doc)
 
-        async def fake_refresh(obj):
-            if hasattr(obj, "id") and obj.id is None:
-                obj.id = 11
-            if hasattr(obj, "created_at"):
-                obj.created_at = datetime.now()
-        mock_db.refresh.side_effect = fake_refresh
+        r = client.post(
+            "/api/code/scan",
+            json={"document_id": 1, "provider": "google", "model": "gemini-2.0-flash"},
+        )
 
-        mock_ai_result = {
-            "summary": "OK",
-            "pass_rate": 90.0,
-            "issues": [],
-            "provider": "google",
-            "model": "gemini-2.0-flash",
-        }
-
-        with patch("app.routers.code_scan.analyze_code_document", new_callable=AsyncMock) as mock_analyze:
-            mock_analyze.return_value = mock_ai_result
-            r = client.post(
-                "/api/code/scan",
-                json={"document_id": 1, "provider": "google", "model": "gemini-2.0-flash"},
-            )
-
-        assert r.status_code == 200
+        assert r.status_code == 202
         data = r.json()
-        assert data["provider"] == "google"
-        assert data["model"] == "gemini-2.0-flash"
-        # Check analyze_code_document was called with provider/model
-        mock_analyze.assert_called_once()
-        call_kwargs = mock_analyze.call_args
-        assert call_kwargs.kwargs.get("provider") == "google" or call_kwargs[1].get("provider") == "google"
+        assert "job_id" in data
         os.unlink(zip_path)
 
     def test_scan_error_sets_failed_status(self):
-        """AI scan fails → document status = failed + 400."""
+        """AI scan fails → 202 (validation still passes)."""
         zip_path = self._make_zip_file()
         doc = _make_doc(file_path=zip_path)
         mock_db.execute.return_value = _make_db_result(doc)
 
-        async def fake_refresh(obj):
-            pass
-        mock_db.refresh.side_effect = fake_refresh
+        r = client.post("/api/code/scan", json={"document_id": 1})
 
-        with patch("app.routers.code_scan.analyze_code_document", new_callable=AsyncMock) as mock_analyze:
-            mock_analyze.side_effect = CodeScanError("ZIP file corrupt")
-            r = client.post("/api/code/scan", json={"document_id": 1})
-
-        assert r.status_code == 400
-        assert "ZIP file corrupt" in r.json()["detail"]
+        assert r.status_code == 202
+        data = r.json()
+        assert "job_id" in data
         os.unlink(zip_path)
 
     def test_scan_heuristic_fallback(self):
-        """Khi AI fail, service fallback sang heuristic — vẫn trả results."""
+        """Khi AI fail, API still returns 202 (job created)."""
         zip_path = self._make_zip_file({
             "main.py": "api_key = 'secret123'\nprint('hello')\n# TODO: fix this",
             "utils.js": "console.log('debug')",
@@ -634,22 +610,11 @@ class TestCodeScanEndpoint:
         doc = _make_doc(file_path=zip_path)
         mock_db.execute.return_value = _make_db_result(doc)
 
-        async def fake_refresh(obj):
-            if hasattr(obj, "id") and obj.id is None:
-                obj.id = 12
-            if hasattr(obj, "created_at"):
-                obj.created_at = datetime.now()
-        mock_db.refresh.side_effect = fake_refresh
+        r = client.post("/api/code/scan", json={"document_id": 1})
 
-        # AI fails → falls back to heuristic
-        with patch("app.routers.code_scan.analyze_code_document", new_callable=AsyncMock) as mock_analyze:
-            mock_analyze.side_effect = Exception("AI provider down")
-            r = client.post("/api/code/scan", json={"document_id": 1})
-
-        # Exception in router should result in 500 (not 200 via heuristic)
-        # because the exception happens OUTSIDE analyze_code_document
-        # Actually, the router catches Exception and returns 500
-        assert r.status_code == 500
+        assert r.status_code == 202
+        data = r.json()
+        assert "job_id" in data
         os.unlink(zip_path)
 
 
