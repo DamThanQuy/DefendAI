@@ -182,7 +182,7 @@ export function UploadZone({
           setProgress(100);
           setStatusText("Hoàn tất! Đang chuyển hướng...");
 
-          // Store full result so /questions page can show document_name, persona, etc.
+          // Store full result so /documents/[id] page can show document_name, persona, etc.
           const payload = job.result ? { ...job.result, questions: job.result.questions || [] } : { questions: [] };
           sessionStorage.setItem("questionsData", JSON.stringify(payload));
           // Force synchronous write before navigation
@@ -191,7 +191,7 @@ export function UploadZone({
             // Fallback: try again
             sessionStorage.setItem("questionsData", JSON.stringify(payload));
           }
-          router.push("/questions");
+          router.push(`/documents/${documentId}`);
           return;
         }
 

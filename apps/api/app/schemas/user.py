@@ -20,6 +20,9 @@ class GoogleLoginRequest(BaseModel):
     id_token: str
 
 
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
 class UserResponse(BaseModel):
     id: int
     email: str
@@ -41,4 +44,5 @@ class UserResponse(BaseModel):
 class AuthResponse(BaseModel):
     success: bool
     token: str
+    refresh_token: Optional[str] = None
     user: UserResponse

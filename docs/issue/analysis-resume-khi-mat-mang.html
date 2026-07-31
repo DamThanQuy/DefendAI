@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Issue: Mất kết nối giữa chừng — analysis phải làm lại từ đầu</title>
+  <style>
+    :root {
+      --bg: #f7f9fb;
+      --surface: #ffffff;
+      --border: #d8dee6;
+      --text: #1a2330;
+      --muted: #5b6776;
+      --danger: #dc2626;
+      --ok: #15803d;
+      --warn: #b45309;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 32px 20px 80px;
+    }
+    .wrap { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 28px; margin: 0 0 4px; }
+    h2 { font-size: 20px; margin: 36px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    h3 { font-size: 15px; margin: 20px 0 8px; }
+    .sub { color: var(--muted); margin: 0 0 16px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin: 14px 0;
+    }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    code { background: #eef2f6; padding: 2px 6px; border-radius: 6px; font-size: 13px; }
+    pre {
+      background: #f1f4f8;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .file { color: #0d9488; font-weight: 600; }
+    .tag {
+      display: inline-block;
+      font-size: 11px; font-weight: 700;
+      padding: 2px 8px; border-radius: 6px;
+      letter-spacing: .03em;
+    }
+    .tag.issue { background: #fef2f2; color: #991b1b; }
+    .tag.fix   { background: #e0f2fe; color: #1e40af; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { background: #1e293b; color: #fff; }
+    tr:nth-child(even) { background: #f8fafc; }
+    .warn { border-left: 3px solid var(--warn); background: #fffbeb; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+    .okbox { border-left: 3px solid var(--ok); background: #f0fdf4; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+    .flowbox { border-left: 3px solid var(--danger); background: #fef2f2; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Mất kết nối giữa chừng — analysis phải làm lại từ đầu</h1>
+  <p class="sub">Issue · DefendAI · <span class="tag issue">chưa fix</span></p>
+
+  <h2>1. Vấn đề</h2>
+
+  <div class="flowbox">
+    <b>Kịch bản:</b> User upload file → bắt đầu code scan / question generation → giữa chừng user mất mạng (tắt laptop, rớt WiFi, timeout proxy) → toàn bộ tiến trình phân tích đang chạy dở <b>mất trắng</b>.
+  </div>
+
+  <p>Hiện tại cả <span class="file">POST /api/code/scan</span> và <span class="file">POST /api/questions/generate</span> đều xử lý <b>đồng bộ trong HTTP request</b>:</p>
+
+  <pre>
+Client                          Server (FastAPI)
+  │                                  │
+  │── POST /api/code/scan ──────────→│
+  │                                  ├─ get_doc() ← MinIO
+  │                                  ├─ ZipFile.extract() ← RAM
+  │                                  ├─ build_prompt()
+  │                                  ├─ ai_gateway.generate() ← 3-10s
+  │         [MẤT MẠNG]              ├─ normalize result
+  │✗─────────────────────────────→  │✗ response không về được
+  │                                  │
+  │── POST /api/code/scan ──────────→│  ← phải làm LẠI TỪ ĐẦU
+  │                                  ├─ get_doc() ← lại MinIO
+  │                                  ├─ ZipFile.extract() ← lại
+  │                                  ├─ build_prompt() ← lại
+  │                                  ├─ ai_gateway.generate() ← lại
+  │                                  └─ OK (lần này may ra không mất mạng)</pre>
+
+  <h2>2. Tác động</h2>
+
+  <table>
+    <tr><th>Kịch bản</th><th>Hậu quả</th><th>Xác suất</th></tr>
+    <tr>
+      <td>Code scan (ZIP nhỏ, &lt;150K chars)</td>
+      <td>Mất ~5-15s + 1 lần gọi AI</td>
+      <td>Thấp — request ngắn</td>
+    </tr>
+    <tr>
+      <td>Code scan (ZIP lớn, multi-pass >150K)</td>
+      <td>Mất ~30-60s + N lần gọi AI (mỗi module)</td>
+      <td>Trung bình — request dài hơn</td>
+    </tr>
+    <tr>
+      <td>Sinh câu hỏi (tài liệu dài, nhiều chunk)</td>
+      <td>Mất ~20-40s + Map-Reduce song song (N/3 lần gọi AI)</td>
+      <td>Cao nhất — request lâu nhất, dễ timeout</td>
+    </tr>
+    <tr>
+      <td>Upload file</td>
+      <td><span class="tag fix">Không ảnh hưởng</span></td>
+      <td>—</td>
+    </tr>
+  </table>
+
+  <div class="okbox">
+    <b>File gốc an toàn:</b> Upload đã lưu vào MinIO + DB metadata. Không cần upload lại.
+    Chỉ mất kết quả <i>analysis đang chạy dở</i> — AI call và xử lý prompt bị repeat.
+  </div>
+
+  <h2>3. Nguyên nhân gốc</h2>
+
+  <table>
+    <tr><th>Nguyên nhân</th><th>File</th><th>Line</th></tr>
+    <tr>
+      <td>Không có background job / task queue</td>
+      <td class="file">routers/code_scan.py</td>
+      <td>25-80</td>
+    </tr>
+    <tr>
+      <td><code>analyze_code_document()</code> chạy synchronous trong route handler</td>
+      <td class="file">services/code_scanner.py</td>
+      <td>240-280</td>
+    </tr>
+    <tr>
+      <td><code>parse_and_chunk()</code> + Map-Reduce chạy trực tiếp trong POST handler</td>
+      <td class="file">routers/questions.py</td>
+      <td>286-380</td>
+    </tr>
+    <tr>
+      <td>Không có cơ chế lưu intermediate state (job_id, progress, checkpoint)</td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>AI result được lưu DB nhưng <b>chỉ khi response thành công</b></td>
+      <td class="file">routers/code_scan.py</td>
+      <td>65-75</td>
+    </tr>
+  </table>
+
+  <h2>4. Hướng giải quyết (đề xuất)</h2>
+
+  <div class="card">
+    <h3 style="margin-top:0">Cách 1 — Async Job Queue (khuyên dùng)</h3>
+    <table>
+      <tr><th>Bước</th><th>Mô tả</th></tr>
+      <tr><td>1</td><td>POST trả về ngay <code>202 Accepted</code> + <code>job_id</code></td></tr>
+      <tr><td>2</td><td>Background worker (Celery / ARQ / BackgroundTasks) nhận job, chạy analysis</td></tr>
+      <tr><td>3</td><td>FE polling <code>GET /api/jobs/{id}</code> để lấy kết quả khi xong</td></tr>
+      <tr><td>4</td><td>Mất mạng → chỉ mất polling request, job vẫn chạy trên server</td></tr>
+    </tbody></table>
+    <p style="margin:8px 0 0;font-size:13px;color:var(--muted);">ponytail: Cần Redis/Celery. Nếu không muốn thêm infra, dùng <code>BackgroundTasks</code> của FastAPI + polling từ DB (đơn giản hơn).</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Cách 2 — Cache partial result + resume</h3>
+    <table>
+      <tr><th>Bước</th><th>Mô tả</th></tr>
+      <tr><td>1</td><td>Trước khi gọi AI, lưu <code>analysis.status = processing</code></td></tr>
+      <tr><td>2</td><td>Nếu user re-call với cùng document_id, check <code>status == processing</code> → chờ (poll / websocket)</td></tr>
+      <tr><td>3</td><td>Nếu server crash → status chuyển về <code>failed</code> sau TTL, user retry</td></tr>
+    </tbody></table>
+    <p style="margin:8px 0 0;font-size:13px;color:var(--muted);">ponytail: Chỉ tránh được repeat khi request timeout giữa chừng, không xử lý được server crash.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Cách 3 — FastAPI BackgroundTasks (nhẹ nhất, không thêm infra)</h3>
+    <table>
+      <tr><th>Bước</th><th>Mô tả</th></tr>
+      <tr><td>1</td><td>Route trả về <code>202</code> ngay, schedule analysis qua <code>BackgroundTasks</code></td></tr>
+      <tr><td>2</td><td>Worker lưu kết quả vào DB khi xong</td></tr>
+      <tr><td>3</td><td>FE poll kết quả</td></tr>
+    </tbody></table>
+    <p style="margin:8px 0 0;font-size:13px;color:var(--muted);">ponytail: BackgroundTasks chạy cùng process, không scale được. Nếu server restart là mất job đang chạy.</p>
+  </div>
+
+  <h2>5. Liên quan</h2>
+  <ul>
+    <li>Cached AI result (cùng document_id + persona) — <span class="file">services/question_generator.py:151</span> — chỉ cache khi hoàn thành, không giúp ích cho resume</li>
+    <li><code>DocumentChunk</code> model tồn tại nhưng chưa dùng — có thể lưu chunk + embedding ở đây để lần sau không parse lại file</li>
+    <li>File gốc MinIO không bị ảnh hưởng</li>
+  </ul>
+
+</div>
+</body>
+</html>

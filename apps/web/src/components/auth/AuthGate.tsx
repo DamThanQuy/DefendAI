@@ -30,7 +30,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       (p) => pathname === p || pathname.startsWith(`${p}/`),
     );
 
-    if (isProtected && !localStorage.getItem("token")) {
+    if (isProtected && !localStorage.getItem("access_token")) {
       router.replace("/login");
       return;
     }

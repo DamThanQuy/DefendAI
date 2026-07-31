@@ -1,5 +1,6 @@
-"""Auth router — Register / Login (bcrypt + JWT) / Google OAuth / Me."""
+"""Auth router — Register / Login (bcrypt + JWT) / Google OAuth / Me / Refresh Token."""
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -11,16 +12,20 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.security import (
     create_access_token,
+    create_refresh_token,
+    refresh_token_expires_at,
     hash_password,
     verify_password,
 )
 from app.models.role import Role
 from app.models.user import User
 from app.models.association import user_roles
+from app.models.refresh_token import RefreshToken
 from app.schemas.user import (
     AuthResponse,
     GoogleLoginRequest,
     LoginRequest,
+    RefreshTokenRequest,
     RegisterRequest,
     UserResponse,
 )
@@ -43,14 +48,24 @@ async def _get_or_create_role(db: AsyncSession, name: str = "student") -> Role:
 
 
 async def _make_auth_response(user: User, db: AsyncSession) -> AuthResponse:
-    """Tạo JWT + AuthResponse."""
-    # Đảm bảo roles đã load (tránh lazy-load trong async)
+    """Tạo JWT + refresh token + AuthResponse."""
     await db.refresh(user, ["roles"])
     primary_role = user.roles[0].name if user.roles else "student"
-    token = create_access_token(user.id, primary_role)
+    access_token = create_access_token(user.id, primary_role)
+    refresh_token = create_refresh_token(user.id)
+    db.add(
+        RefreshToken(
+            user_id=user.id,
+            token=refresh_token,
+            expires_at=refresh_token_expires_at(),
+            revoked=False,
+        )
+    )
+    await db.commit()
     return AuthResponse(
         success=True,
-        token=token,
+        token=access_token,
+        refresh_token=refresh_token,
         user=UserResponse.from_user(user),
     )
 
@@ -170,3 +185,40 @@ async def google_login(req: GoogleLoginRequest, db: AsyncSession = Depends(get_d
 @router.get("/me", response_model=UserResponse, summary="Thông tin user hiện tại")
 async def me(user: User = Depends(get_current_user)):
     return UserResponse.from_user(user)
+
+
+@router.post("/refresh", response_model=AuthResponse, summary="Đổi refresh token lấy access token mới")
+async def refresh(req: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(RefreshToken).where(RefreshToken.token == req.refresh_token)
+    )
+    rt = result.scalar_one_or_none()
+    if not rt or rt.revoked or rt.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=401, detail="Refresh token không hợp lệ")
+    # Rotate: revoke old, issue new
+    rt.revoked = True
+    user = (
+        await db.execute(
+            select(User).options(selectinload(User.roles)).where(User.id == rt.user_id)
+        )
+    ).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=401, detail="User không tồn tại")
+    await db.refresh(user, ["roles"])
+    new_access = create_access_token(user.id, "student")
+    new_refresh = create_refresh_token(user.id)
+    db.add(
+        RefreshToken(
+            user_id=user.id,
+            token=new_refresh,
+            expires_at=refresh_token_expires_at(),
+            revoked=False,
+        )
+    )
+    await db.commit()
+    return AuthResponse(
+        success=True,
+        token=new_access,
+        refresh_token=new_refresh,
+        user=UserResponse.from_user(user),
+    )
