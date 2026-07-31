@@ -9,7 +9,7 @@ const navLinks: { href: string; label: string; roles?: string[] }[] = [
   { href: "/", label: "Trang chủ" },
   { href: "/demo", label: "Xem demo" },
   { href: "/upload", label: "Tải tài liệu" },
-  { href: "/questions", label: "Kết quả AI" },
+  { href: "/documents", label: "Tài liệu" },
   { href: "/code-review", label: "Code Review" },
   { href: "/room", label: "Mock Room" },
   { href: "/report", label: "Báo cáo" },

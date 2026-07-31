@@ -4,20 +4,23 @@ Endpoints:
 - POST /api/documents/upload  → upload file (multipart), validate type + size
 - GET  /api/documents/{id}   → lấy metadata 1 file
 - GET  /api/documents         → list tất cả files
+- GET  /api/documents/{id}/download → download file gốc từ MinIO
+- GET  /api/documents/{id}/assessments → lấy danh sách assessment của document
 """
 import os
 import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.entities import Document, DocType, DocumentStatus, DocumentPurpose, User
+from app.models.entities import Document, DocType, DocumentStatus, DocumentPurpose, Assessment, User
 from app.schemas.document import DocumentResponse, DocumentListResponse
-from app.services.storage import save_doc
+from app.services.storage import save_doc, get_doc
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
@@ -162,3 +165,59 @@ async def list_documents(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Document).order_by(Document.created_at.desc()))
     docs = list(result.scalars().all())
     return DocumentListResponse(total=len(docs), items=docs)
+
+
+@router.get("/{doc_id}/download")
+async def download_document(
+    doc_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Download file gốc từ MinIO."""
+    result = await db.execute(select(Document).where(Document.id == doc_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+
+    try:
+        data = await get_doc(doc.storage_key)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to read file from storage")
+
+    return Response(
+        content=data,
+        media_type=_determine_mime(doc.filename),
+        headers={
+            "Content-Disposition": f'attachment; filename="{doc.filename}"',
+            "Content-Length": str(len(data)),
+        },
+    )
+
+
+@router.get("/{doc_id}/assessments")
+async def list_document_assessments(
+    doc_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Lấy danh sách assessment của 1 document."""
+    result = await db.execute(
+        select(Assessment)
+        .where(Assessment.document_id == doc_id)
+        .order_by(Assessment.created_at.desc())
+    )
+    assessments = list(result.scalars().all())
+    return {
+        "total": len(assessments),
+        "items": [
+            {
+                "id": a.id,
+                "persona": a.persona,
+                "status": a.status.value,
+                "chunks_count": len(a.chunks or []),
+                "questions_count": len(a.questions or []),
+                "created_at": a.created_at.isoformat(),
+            }
+            for a in assessments
+        ],
+    }

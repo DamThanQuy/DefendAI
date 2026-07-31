@@ -21,6 +21,8 @@ from app.models.assessment import (
     Report,
 )
 
+from app.models.refresh_token import RefreshToken
+
 __all__ = [
     "User",
     "Role",
@@ -37,5 +39,5 @@ __all__ = [
     "CodeAnalysis",
     "Evaluation",
     "Report",
-    "DocumentChunk",
+    "DocumentChunk", "RefreshToken",
 ]
