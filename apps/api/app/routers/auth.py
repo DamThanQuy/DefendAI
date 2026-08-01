@@ -205,7 +205,8 @@ async def refresh(req: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="User không tồn tại")
     await db.refresh(user, ["roles"])
-    new_access = create_access_token(user.id, "student")
+    primary_role = user.roles[0].name if user.roles else "student"
+    new_access = create_access_token(user.id, primary_role)
     new_refresh = create_refresh_token(user.id)
     db.add(
         RefreshToken(

@@ -4,11 +4,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { clearSession } from "@/lib/auth";
 
 const navLinks: { href: string; label: string; roles?: string[] }[] = [
   { href: "/", label: "Trang chủ" },
   { href: "/demo", label: "Xem demo" },
-  { href: "/upload", label: "Tải tài liệu" },
+  { href: "/upload", label: "Câu hỏi AI" },
   { href: "/documents", label: "Tài liệu" },
   { href: "/code-review", label: "Code Review" },
   { href: "/room", label: "Mock Room" },
@@ -22,8 +23,8 @@ export function Navbar() {
   const { user, hasRole } = useAuth();
 
   function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    // Xóa cả access_token + refresh_token + user — nếu không refresh token còn sống 7 ngày
+    clearSession();
     window.dispatchEvent(new Event("storage")); // useAuth tự reset
     router.push("/login");
   }

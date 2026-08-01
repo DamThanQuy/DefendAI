@@ -1,5 +1,6 @@
-import axios from "axios";
+import axios, { AxiosError, AxiosRequestConfig } from "axios";
 import { API_BASE_URL } from "./constants";
+import { refreshAccessToken, handleSessionExpired } from "./auth";
 
 /** Axios instance mặc định trỏ tới backend API. */
 export const api = axios.create({
@@ -24,9 +25,25 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
-    // Có thể thêm toast / redirect ở đây
-    return Promise.reject(err);
+  async (err: AxiosError) => {
+    const original = err.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined;
+    // Chỉ refresh khi: 401 + chưa thử refresh + không phải chính request refresh
+    const isRefreshCall = original?.url?.includes("/api/auth/refresh");
+    if (err.response?.status !== 401 || !original || original._retry || isRefreshCall) {
+      return Promise.reject(err);
+    }
+
+    original._retry = true;
+    // refreshAccessToken là single-flight trong auth.ts — mọi caller dùng chung 1 queue
+    const newToken = await refreshAccessToken();
+
+    if (!newToken) {
+      handleSessionExpired();
+      return Promise.reject(err);
+    }
+
+    original.headers = { ...original.headers, Authorization: `Bearer ${newToken}` };
+    return api(original);
   },
 );
 

@@ -70,11 +70,17 @@ export function UploadZone({
     if (isZip) {
       setStatusText("Đang quét source code...");
       try {
+        const token = localStorage.getItem("access_token");
         const formData = new FormData();
         formData.append("file", file);
-        const res = await fetch("/api/code/scan", { method: "POST", body: formData, signal: ac.signal });
+        const res = await fetch("/api/code/scan", {
+          method: "POST",
+          body: formData,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: ac.signal,
+        });
         const data = await res.json();
-        
+
         if (data.success) {
           sessionStorage.setItem("codeReviewData", JSON.stringify(data));
           router.push("/code-review");
@@ -89,7 +95,7 @@ export function UploadZone({
     } else {
       setStatusText("Đang tải tài liệu lên...");
       try {
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("access_token");
         const formData = new FormData();
         formData.append("file", file);
         const res = await fetch("/api/documents/upload", {
@@ -144,7 +150,7 @@ export function UploadZone({
     const mappedPersona = personaMap[persona] || "theory";
 
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       // 1. Gọi generate → nhận job_id
       const res = await fetch("/api/questions/generate", {
         method: "POST",
