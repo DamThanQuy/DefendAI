@@ -5,6 +5,7 @@ import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { AuthGate } from "@/components/auth/AuthGate";
+import { TopProgress } from "@/components/common/TopProgress";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
@@ -23,6 +24,7 @@ export default function RootLayout({
     <html lang="vi" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}>
         <body className="font-sans min-h-screen flex flex-col bg-background text-foreground">
+          <TopProgress />
           <Navbar />
           <main className="flex-1">
             <AuthGate>{children}</AuthGate>

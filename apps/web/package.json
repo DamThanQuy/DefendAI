@@ -18,6 +18,8 @@
     "jspdf": "^2.x",
     "lucide-react": "^1.21.0",
     "next": "14.x",
+    "nextjs-toploader": "^3.9.17",
+    "nprogress": "^0.2.0",
     "postcss": "^8.x",
     "react": "^18.x",
     "react-chartjs-2": "^5.x",
