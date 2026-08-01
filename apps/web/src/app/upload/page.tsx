@@ -9,7 +9,7 @@ export default function UploadPage() {
       <div className="container mx-auto px-4 lg:px-8 py-16 lg:py-24 flex flex-col items-center w-full max-w-[1100px]">
         <div className="text-center mb-16 max-w-3xl">
           <h1 className="text-[40px] font-bold tracking-tight text-[#0f2e82] mb-5">
-            Tải tài liệu - GraduAI
+            Câu hỏi AI
           </h1>
           <p className="text-[17px] text-[#5f6368] leading-relaxed max-w-2xl mx-auto font-medium">
             Nâng cao chất lượng luận văn và bài nghiên cứu của bạn với trí tuệ nhân tạo chuyên sâu dành cho học thuật.
