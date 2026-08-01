@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* NProgress top bar styling - YouTube-style red progress bar */
+#nprogress {
+  pointer-events: none;
+}
+
+#nprogress bar {
+  background: hsl(0, 82.8%, 45.1%); /* red-600 */
+  height: 3px;
+  z-index: 9999;
+}
+
+#nprogress .spinner {
+  display: none;
+}
+
 @layer base {
   :root {
     /* Deep dark SaaS — CodeRabbit palette */
