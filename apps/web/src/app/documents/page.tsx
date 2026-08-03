@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { UploadModal } from "@/components/features/assessment/UploadModal";
 
 interface DocumentItem {
@@ -45,10 +46,12 @@ function getToken(): string | null {
 }
 
 export default function DocumentsPage() {
+  const router = useRouter();
   const [docs, setDocs] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showUpload, setShowUpload] = useState(false);
+  const [analyzingId, setAnalyzingId] = useState<number | null>(null);
 
   useEffect(() => {
     const token = getToken();
@@ -77,6 +80,66 @@ export default function DocumentsPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  // Bắt đầu phân tích 1 document (status = uploaded) → gọi generate → poll job → cập nhật status
+  const handleAnalyze = async (doc: DocumentItem) => {
+    if (analyzingId) return;
+    setAnalyzingId(doc.id);
+    setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "processing" } : d)));
+
+    const token = getToken();
+    try {
+      const res = await fetch("/api/questions/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ documentId: doc.id, persona: "theory" }),
+      });
+      const data = await res.json();
+
+      if (!data.job_id) {
+        setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "failed" } : d)));
+        setError(data.detail || data.error || "Không thể bắt đầu phân tích");
+        setAnalyzingId(null);
+        return;
+      }
+
+      // Poll job cho đến khi hoàn tất
+      const jobId = data.job_id;
+      const pollInterval = 1500;
+      const maxAttempts = 60;
+      for (let i = 0; i < maxAttempts; i++) {
+        const pollRes = await fetch(`/api/jobs/${jobId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const job = await pollRes.json();
+
+        if (job.status === "completed") {
+          setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "completed" } : d)));
+          setAnalyzingId(null);
+          router.push(`/documents/${doc.id}`);
+          return;
+        }
+        if (job.status === "failed") {
+          setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "failed" } : d)));
+          setError(job.error || "Phân tích thất bại");
+          setAnalyzingId(null);
+          return;
+        }
+        await new Promise((r) => setTimeout(r, pollInterval));
+      }
+
+      setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "failed" } : d)));
+      setError("Phân tích quá lâu, vui lòng thử lại");
+      setAnalyzingId(null);
+    } catch (e: any) {
+      setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "failed" } : d)));
+      setError(e.message || "Không thể kết nối máy chủ");
+      setAnalyzingId(null);
+    }
   };
 
   const token = typeof window !== "undefined" ? getToken() : null;
@@ -185,12 +248,32 @@ export default function DocumentsPage() {
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Link
-                            href={`/documents/${doc.id}`}
-                            className="px-3 py-1.5 text-[12px] font-semibold text-[#0f2e82] bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-                          >
-                            Xem câu hỏi
-                          </Link>
+                          {doc.status === "uploaded" && (
+                            <button
+                              onClick={() => handleAnalyze(doc)}
+                              disabled={analyzingId !== null}
+                              className="px-3 py-1.5 text-[12px] font-semibold text-white bg-[#0f2e82] rounded-lg hover:bg-[#1a3a9c] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {analyzingId === doc.id ? "Đang phân tích..." : "Phân tích"}
+                            </button>
+                          )}
+                          {doc.status === "failed" && (
+                            <button
+                              onClick={() => handleAnalyze(doc)}
+                              disabled={analyzingId !== null}
+                              className="px-3 py-1.5 text-[12px] font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {analyzingId === doc.id ? "Đang phân tích..." : "Thử lại"}
+                            </button>
+                          )}
+                          {(doc.status === "completed" || doc.status === "processing") && (
+                            <Link
+                              href={`/documents/${doc.id}`}
+                              className="px-3 py-1.5 text-[12px] font-semibold text-[#0f2e82] bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                            >
+                              Xem câu hỏi
+                            </Link>
+                          )}
                           <a
                             href={`/api/documents/${doc.id}/download`}
                             className="px-3 py-1.5 text-[12px] font-semibold text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
