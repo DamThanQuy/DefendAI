@@ -9,7 +9,6 @@ import { clearSession } from "@/lib/auth";
 const navLinks: { href: string; label: string; roles?: string[] }[] = [
   { href: "/", label: "Trang chủ" },
   { href: "/demo", label: "Xem demo" },
-  { href: "/upload", label: "Câu hỏi AI" },
   { href: "/documents", label: "Tài liệu" },
   { href: "/code-review", label: "Code Review" },
   { href: "/room", label: "Mock Room" },

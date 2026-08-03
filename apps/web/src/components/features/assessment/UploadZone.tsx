@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 
 type Props = {
   onFileSelected?: (file: File) => void;
@@ -24,6 +25,7 @@ export function UploadZone({
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusText, setStatusText] = useState("");
+  const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
   const [showPersonaModal, setShowPersonaModal] = useState(false);
   const [documentId, setDocumentId] = useState("");
@@ -84,10 +86,17 @@ export function UploadZone({
         if (data.success) {
           sessionStorage.setItem("codeReviewData", JSON.stringify(data));
           router.push("/code-review");
+        } else {
+          // Scan failed → hiển thị lỗi thật, không chuyển trang
+          const msg = data.error || data.detail?.detail || data.message || "Không thể phân tích file ZIP";
+          setError(msg);
+          setFile(null);
         }
       } catch (error: any) {
         if (error?.name === "AbortError") { handleCancel(); return; }
         console.error(error);
+        setError("Không thể kết nối đến máy chủ phân tích");
+        setFile(null);
       } finally {
         setIsProcessing(false);
         setAbortController(null);
@@ -130,6 +139,7 @@ export function UploadZone({
     setFile(null);
     setProgress(0);
     setStatusText("");
+    setError("");
   };
 
   const generateQuestions = async () => {
@@ -252,7 +262,7 @@ export function UploadZone({
         </div>
         
         {file ? (
-          <div className="space-y-4 animate-in fade-in zoom-in duration-500 w-full max-w-xs mx-auto">
+          <div className="space-y-4 w-full max-w-xs mx-auto">
             <h3 className="text-xl font-bold text-[#0f2e82] truncate px-4">{file.name}</h3>
             <div className="inline-block px-4 py-1.5 bg-[#e8effd] text-[#0f2e82] rounded-full text-xs font-semibold">
               {(file.size / 1024 / 1024).toFixed(2)} MB
@@ -270,7 +280,7 @@ export function UploadZone({
             )}
           </div>
         ) : (
-          <div className="animate-in fade-in duration-500 flex flex-col items-center">
+          <div className="flex flex-col items-center">
             <h3 className="text-[22px] font-bold mb-3 text-gray-900 tracking-tight">{title}</h3>
             <p className="text-[#5f6368] mb-10 text-[15px] font-medium">
               {description}
@@ -283,9 +293,22 @@ export function UploadZone({
         <input id="file-upload" type="file" className="hidden" onChange={handleFileChange} accept={accept} />
       </div>
 
+      {/* Error Banner — hiển thị bền sau khi xử lý kết thúc */}
+      {error && (
+        <div className="mt-4 flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+          <svg className="w-5 h-5 text-red-500 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+          <div>
+            <p className="text-[14px] font-semibold text-red-700 mb-1">Không thể phân tích tệp này</p>
+            <p className="text-[13px] text-red-600 leading-relaxed">{error}</p>
+          </div>
+        </div>
+      )}
+
       {/* Loading Overlay */}
       {isProcessing && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm rounded-2xl animate-in fade-in border border-gray-100">
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-100">
           <div className="w-14 h-14 border-[3px] border-[#e8effd] border-t-[#0f2e82] rounded-full animate-spin mb-6"></div>
           <h3 className="text-[17px] font-bold text-gray-900">{statusText}</h3>
           <div className="w-64 h-2 bg-gray-200 rounded-full mt-4 overflow-hidden">
@@ -305,42 +328,56 @@ export function UploadZone({
       )}
 
       {/* Persona Selection Modal */}
-      {showPersonaModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-300">
-            <h3 className="text-2xl font-bold text-[#0f2e82] mb-2">Chọn Giám Khảo AI</h3>
-            <p className="text-gray-500 mb-8 text-[15px]">Hãy chọn phong cách hỏi để AI chuẩn bị những câu hỏi phù hợp nhất với buổi bảo vệ của bạn.</p>
-            
-            <div className="space-y-4 mb-8">
-              {[
-                { id: 'normal', name: 'Giảng viên hướng dẫn', desc: 'Hỏi bao quát, mang tính chất xây dựng và gợi mở.' },
-                { id: 'hard', name: 'Hội đồng phản biện khó tính', desc: 'Soi xét kỹ các lỗ hổng, hỏi xoáy đáp xoay.' },
-                { id: 'tech', name: 'Chuyên gia kỹ thuật sâu', desc: 'Đi sâu vào architecture, performance và code optimization.' }
-              ].map(p => (
-                <div 
-                  key={p.id}
-                  onClick={() => setPersona(p.id)}
-                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                    persona === p.id ? 'border-[#0f2e82] bg-[#e8effd]' : 'border-gray-200 hover:border-[#0f2e82]/30'
-                  }`}
-                >
-                  <h4 className={`font-bold ${persona === p.id ? 'text-[#0f2e82]' : 'text-gray-900'}`}>{p.name}</h4>
-                  <p className="text-sm text-gray-500 mt-1">{p.desc}</p>
-                </div>
-              ))}
-            </div>
+      <AnimatePresence>
+        {showPersonaModal && (
+          <motion.div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <motion.div
+              className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl"
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+            >
+              <h3 className="text-2xl font-bold text-[#0f2e82] mb-2">Chọn Giám Khảo AI</h3>
+              <p className="text-gray-500 mb-8 text-[15px]">Hãy chọn phong cách hỏi để AI chuẩn bị những câu hỏi phù hợp nhất với buổi bảo vệ của bạn.</p>
 
-            <div className="flex gap-4">
-              <button onClick={() => setShowPersonaModal(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-xl transition-colors">
-                Hủy bỏ
-              </button>
-              <button onClick={generateQuestions} className="flex-1 py-3 bg-[#0f2e82] hover:bg-[#0f2e82]/90 text-white font-bold rounded-xl shadow-lg transition-colors">
-                Tạo câu hỏi
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="space-y-4 mb-8">
+                {[
+                  { id: 'normal', name: 'Giảng viên hướng dẫn', desc: 'Hỏi bao quát, mang tính chất xây dựng và gợi mở.' },
+                  { id: 'hard', name: 'Hội đồng phản biện khó tính', desc: 'Soi xét kỹ các lỗ hổng, hỏi xoáy đáp xoay.' },
+                  { id: 'tech', name: 'Chuyên gia kỹ thuật sâu', desc: 'Đi sâu vào architecture, performance và code optimization.' }
+                ].map(p => (
+                  <div
+                    key={p.id}
+                    onClick={() => setPersona(p.id)}
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                      persona === p.id ? 'border-[#0f2e82] bg-[#e8effd]' : 'border-gray-200 hover:border-[#0f2e82]/30'
+                    }`}
+                  >
+                    <h4 className={`font-bold ${persona === p.id ? 'text-[#0f2e82]' : 'text-gray-900'}`}>{p.name}</h4>
+                    <p className="text-sm text-gray-500 mt-1">{p.desc}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-4">
+                <button onClick={() => setShowPersonaModal(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-xl transition-colors">
+                  Hủy bỏ
+                </button>
+                <button onClick={generateQuestions} className="flex-1 py-3 bg-[#0f2e82] hover:bg-[#0f2e82]/90 text-white font-bold rounded-xl shadow-lg transition-colors">
+                  Tạo câu hỏi
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

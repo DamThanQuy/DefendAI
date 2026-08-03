@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { UploadModal } from "@/components/features/assessment/UploadModal";
 
 interface DocumentItem {
   id: number;
@@ -47,6 +48,7 @@ export default function DocumentsPage() {
   const [docs, setDocs] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showUpload, setShowUpload] = useState(false);
 
   useEffect(() => {
     const token = getToken();
@@ -106,12 +108,12 @@ export default function DocumentsPage() {
             <h1 className="text-[28px] font-bold text-[#0f2e82] mb-2">Tài liệu của tôi</h1>
             <p className="text-[#5f6368] text-[14px]">Quản lý tài liệu đã tải lên và xem câu hỏi phản biện.</p>
           </div>
-          <Link
-            href="/upload"
+          <button
+            onClick={() => setShowUpload(true)}
             className="px-6 py-2.5 bg-[#0f2e82] text-white rounded-lg text-[14px] font-semibold hover:bg-[#1a3a9c] transition-colors shrink-0"
           >
             + Tải lên tài liệu mới
-          </Link>
+          </button>
         </div>
 
         {loading && (
@@ -136,9 +138,9 @@ export default function DocumentsPage() {
             </div>
             <h2 className="text-lg font-bold text-[#0f2e82] mb-2">Chưa có tài liệu nào</h2>
             <p className="text-gray-500 text-[14px] mb-6">Tải lên tài liệu đầu tiên để AI phân tích và tạo câu hỏi.</p>
-            <Link href="/upload" className="inline-block px-6 py-2.5 bg-[#0f2e82] text-white rounded-lg text-[14px] font-semibold hover:bg-[#1a3a9c]">
+            <button onClick={() => setShowUpload(true)} className="inline-block px-6 py-2.5 bg-[#0f2e82] text-white rounded-lg text-[14px] font-semibold hover:bg-[#1a3a9c]">
               Tải lên ngay
-            </Link>
+            </button>
           </div>
         )}
 
@@ -205,6 +207,8 @@ export default function DocumentsPage() {
           </div>
         )}
       </div>
+
+      <UploadModal open={showUpload} onClose={() => setShowUpload(false)} />
     </div>
   );
 }
