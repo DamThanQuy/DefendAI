@@ -54,13 +54,17 @@ flowchart TD
     P --> C[(Kho đoạn)]
     P --> D{Tổng ký tự ≤ 150K ?}
     D -- "CÓ" --> F[Prompt toàn cảnh]
-    F --> A[Đánh giá]
+    F --> A["Đánh giá<br/><b>🤖 AGENT tham gia</b><br/>ai_gateway.generate<br/>full-context"]
     D -- "KHÔNG" --> S[Chia theo module]
     S --> SEC[phần_1, phần_2, ...]
-    SEC --> PA[Đánh giá song song]
-    PA --> M[Tổng hợp kết quả]
+    SEC --> PA["Đánh giá song song<br/><b>🤖 AGENT tham gia</b><br/>ai_gateway.generate<br/>mỗi module"]
+    PA --> M["Tổng hợp kết quả<br/><b>code thuần</b><br/>avg pass_rate + nối issues"]
     M --> A
   </div>
+  <p style="font-size:0.85rem;color:#475569;margin-top:8px">
+    <strong>Chú thích agent:</strong> 🤖 = node gọi LLM qua <code>ai_gateway.generate()</code>.
+    Nếu AI fail → rơi về <code>_heuristic_scan()</code> (không gọi agent). Node <code>P</code>, <code>C</code>, <code>S</code>, <code>SEC</code>, <code>M</code> chỉ là xử lý code thuần (không agent).
+  </p>
 
   <h2>4. Quyết định kiến trúc</h2>
   <ul>

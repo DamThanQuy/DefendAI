@@ -9,6 +9,7 @@ from fastapi.responses import RedirectResponse
 from app.core.config import settings
 # Import routers (mỗi module đăng ký 1 router)
 from app.routers import ai as ai_router
+from app.routers import admin as admin_router
 from app.routers import auth as auth_router
 from app.routers import code_scan as code_scan_router
 from app.routers import documents as documents_router
@@ -36,6 +37,8 @@ app.add_middleware(
 # ===== Register routers =====
 # AI Gateway endpoints (test, compare, list providers/models)
 app.include_router(ai_router.router)
+# Admin endpoints (settings, chỉ admin)
+app.include_router(admin_router.router)
 # Auth endpoints (login, register)
 app.include_router(auth_router.router)
 # Document upload endpoints (upload, get, list)

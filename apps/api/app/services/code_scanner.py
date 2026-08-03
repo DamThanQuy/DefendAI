@@ -1,4 +1,4 @@
-"""Service quét source code từ file ZIP và gọi AI review."""
+"""Service quét source code từ file ZIP/RAR và gọi AI review."""
 from __future__ import annotations
 
 import json
@@ -8,12 +8,18 @@ import zipfile
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Iterable
 
 from app.models.entities import DocType, Document
 from app.services.ai_client import ai_gateway
 from app.core.config import settings
 from app.services.storage import get_doc
+
+
+try:
+    import rarfile
+except ImportError:  # pragma: no cover
+    rarfile = None  # type: ignore
 
 
 logger = logging.getLogger(__name__)
@@ -108,9 +114,9 @@ def _sort_key(file: ScannedFile) -> tuple[int, str]:
 
 
 async def extract_code_files(document: Document) -> list[ScannedFile]:
-    """Read ZIP from MinIO, extract code files. async."""
+    """Read ZIP/RAR from MinIO, extract code files. async."""
     if document.doc_type != DocType.ZIP:
-        raise CodeScanError("Code review chỉ hỗ trợ file .zip source code")
+        raise CodeScanError("Code review chỉ hỗ trợ file .zip / .rar source code")
 
     storage_key = document.storage_key
 
@@ -118,6 +124,13 @@ async def extract_code_files(document: Document) -> list[ScannedFile]:
     if not raw:
         raise CodeScanError(f"File not found in MinIO: {storage_key}")
 
+    if raw[:8].startswith(b"Rar!\x1a\x07"):
+        return _extract_from_rar(raw)
+    return _extract_from_zip(raw)
+
+
+def _extract_from_zip(raw: bytes) -> list[ScannedFile]:
+    """Giải nén code từ ZIP bytes."""
     scanned: list[ScannedFile] = []
     total_uncompressed = 0
 
@@ -142,24 +155,15 @@ async def extract_code_files(document: Document) -> list[ScannedFile]:
                     continue
 
                 try:
-                    raw = archive.read(info)
+                    member_raw = archive.read(info)
                 except Exception as exc:
                     logger.warning("Failed to read zip member %s: %s", info.filename, exc)
                     continue
 
-                if b"\x00" in raw:
+                scanned_file = _make_scanned_file(info.filename, member_raw)
+                if not scanned_file.content:
                     continue
-
-                try:
-                    text = raw.decode("utf-8")
-                except UnicodeDecodeError:
-                    text = raw.decode("latin-1", errors="replace")
-
-                text = text.strip()
-                if not text:
-                    continue
-
-                scanned.append(ScannedFile(path=info.filename, content=text))
+                scanned.append(scanned_file)
 
                 if len(scanned) >= MAX_SCAN_FILES:
                     break
@@ -170,6 +174,72 @@ async def extract_code_files(document: Document) -> list[ScannedFile]:
         raise CodeScanError("Không tìm thấy file code phù hợp trong ZIP")
 
     return sorted(scanned, key=_sort_key)
+
+
+def _extract_from_rar(raw: bytes) -> list[ScannedFile]:
+    """Giải nén code từ RAR bytes."""
+    if rarfile is None:
+        raise CodeScanError("Chưa cài thư viện rarfile để đọc file .rar")
+
+    scanned: list[ScannedFile] = []
+    total_uncompressed = 0
+
+    try:
+        with rarfile.RarFile(BytesIO(raw)) as archive:
+            infos = archive.infolist()
+            if len(infos) > MAX_ZIP_FILES:
+                raise CodeScanError(f"RAR contains too many files ({len(infos)} > {MAX_ZIP_FILES})")
+
+            for info in infos:
+                if info.isdir():
+                    continue
+                if not _is_safe_member(info.filename):
+                    continue
+
+                total_uncompressed += info.file_size
+                if total_uncompressed > MAX_TOTAL_UNCOMPRESSED_BYTES:
+                    raise CodeScanError("RAR giải nén vượt ngưỡng an toàn")
+
+                suffix = PurePosixPath(info.filename).suffix.lower()
+                if suffix not in ALLOWED_CODE_EXTENSIONS:
+                    continue
+
+                try:
+                    member_raw = archive.read(info)
+                except Exception as exc:
+                    logger.warning("Failed to read rar member %s: %s", info.filename, exc)
+                    continue
+
+                scanned_file = _make_scanned_file(info.filename, member_raw)
+                if not scanned_file.content:
+                    continue
+                scanned.append(scanned_file)
+
+                if len(scanned) >= MAX_SCAN_FILES:
+                    break
+    except rarfile.RarCannotExec as exc:
+        raise CodeScanError(
+            "Không tìm thấy chương trình unrar để giải nén. Hệ thống chỉ hỗ trợ RAR4 không mã hóa."
+        ) from exc
+    except rarfile.Error as exc:
+        raise CodeScanError("File RAR bị lỗi hoặc không thể giải nén") from exc
+
+    if not scanned:
+        raise CodeScanError("Không tìm thấy file code phù hợp trong RAR")
+
+    return sorted(scanned, key=_sort_key)
+
+
+def _make_scanned_file(path: str, raw: bytes) -> ScannedFile:
+    """Decode raw bytes thành text cho ScannedFile."""
+    if b"\x00" in raw:
+        return ScannedFile(path=path, content="")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("latin-1", errors="replace")
+    text = text.strip()
+    return ScannedFile(path=path, content=text)
 
 
 def _numbered_lines(text: str, max_chars: int = MAX_FILE_CHARS) -> str:
@@ -376,6 +446,9 @@ async def analyze_code_document(document: Document, provider: str | None = None,
         return _multi_pass_assessment(files, provider, model)
 
     try:
+        # ponytail: relay 9router rejects response_format=json_object (HTTP 400),
+        # so rely on prompt + _extract_json_payload instead. If provider supports
+        # json_object natively, re-enable via response_format_json=True.
         result = await ai_gateway.generate(
             prompt=user_prompt,
             provider=provider,
@@ -383,7 +456,6 @@ async def analyze_code_document(document: Document, provider: str | None = None,
             system_prompt=system_prompt,
             temperature=0.15,
             max_tokens=3000,
-            response_format_json=True,
         )
         payload = _extract_json_payload(result["content"])
         raw_issues = payload.get("issues") or []
@@ -440,7 +512,6 @@ async def _multi_pass_assessment(files: list[ScannedFile], provider: str | None,
                 system_prompt=system_prompt,
                 temperature=0.15,
                 max_tokens=3000,
-                response_format_json=True,
             )
             payload = _extract_json_payload(result["content"])
             raw_issues = payload.get("issues") or []

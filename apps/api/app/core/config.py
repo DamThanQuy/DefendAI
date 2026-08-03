@@ -31,7 +31,6 @@ class LocalConfig(BaseModel):
 class RoutingConfig(BaseModel):
     """Routing rules giữa các provider."""
     default_provider: str = os.getenv("DEFAULT_PROVIDER", "localhost")
-    orchestrator_provider: str = os.getenv("ORCHESTRATOR_PROVIDER", "nvidia")
 
 
 class MinioConfig(BaseModel):

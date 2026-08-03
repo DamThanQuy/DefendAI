@@ -25,7 +25,7 @@ from app.services.storage import save_doc, get_doc
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
 # ===== Config =====
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".zip", ".md"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".zip", ".rar", ".md"}
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 
 EXTENSION_TO_DOCTYPE = {
@@ -33,6 +33,7 @@ EXTENSION_TO_DOCTYPE = {
     ".docx": DocType.DOCX,
     ".pptx": DocType.PPTX,
     ".zip": DocType.ZIP,
+    ".rar": DocType.ZIP,  # treat rar as ZIP-type (archive chứa source code)
     ".md": DocType.PDF,  # treat md as PDF-type (text-based)
 }
 
@@ -41,6 +42,7 @@ EXTENSION_TO_MIME = {
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     ".zip": "application/zip",
+    ".rar": "application/vnd.rar",
     ".md": "text/markdown",
 }
 
@@ -75,6 +77,8 @@ def _determine_mime(filename: str) -> str:
 MAGIC_BYTES = {
     b"%PDF": ".pdf",
     b"PK\x03\x04": ".zip",
+    b"Rar!\x1a\x07\x00": ".rar",  # RAR 4.x
+    b"Rar!\x1a\x07\x01\x00": ".rar",  # RAR 5.x
     b"\xd0\xcf\x11\xe0": ".doc",
     b"MZ": ".exe",
 }
@@ -83,7 +87,7 @@ MAGIC_BYTES = {
 def _validate_magic_bytes(content: bytes, expected_ext: str) -> None:
     if len(content) < 4:
         return
-    file_magic = content[:4]
+    file_magic = content[:8]
     detected_ext = None
     for magic, ext in MAGIC_BYTES.items():
         if file_magic.startswith(magic):
