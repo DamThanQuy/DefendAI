@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { UploadModal } from "@/components/features/assessment/UploadModal";
+import { AnalyzeModal } from "@/components/features/assessment/AnalyzeModal";
 
 interface DocumentItem {
   id: number;
@@ -52,24 +53,34 @@ export default function DocumentsPage() {
   const [error, setError] = useState("");
   const [showUpload, setShowUpload] = useState(false);
   const [analyzingId, setAnalyzingId] = useState<number | null>(null);
+  const [pendingDoc, setPendingDoc] = useState<DocumentItem | null>(null);
 
   useEffect(() => {
+    fetchDocs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Tách fetch thành hàm để có thể gọi lại khi đóng modal upload (cập nhật list tài liệu mới)
+  const fetchDocs = async () => {
     const token = getToken();
     if (!token) {
       setLoading(false);
       return;
     }
-    fetch("/api/documents/", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to fetch");
-        return r.json();
-      })
-      .then((data: DocumentsResponse) => setDocs(data.items ?? []))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
+    try {
+      const r = await fetch("/api/documents/", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error("Failed to fetch");
+      const data: DocumentsResponse = await r.json();
+      setDocs(data.items ?? []);
+      setError("");
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
@@ -83,8 +94,9 @@ export default function DocumentsPage() {
   };
 
   // Bắt đầu phân tích 1 document (status = uploaded) → gọi generate → poll job → cập nhật status
-  const handleAnalyze = async (doc: DocumentItem) => {
+  const handleAnalyze = async (doc: DocumentItem, persona: string) => {
     if (analyzingId) return;
+    setPendingDoc(null);
     setAnalyzingId(doc.id);
     setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "processing" } : d)));
 
@@ -96,7 +108,7 @@ export default function DocumentsPage() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ documentId: doc.id, persona: "theory" }),
+        body: JSON.stringify({ documentId: doc.id, persona }),
       });
       const data = await res.json();
 
@@ -250,20 +262,20 @@ export default function DocumentsPage() {
                         <div className="flex items-center justify-end gap-2">
                           {doc.status === "uploaded" && (
                             <button
-                              onClick={() => handleAnalyze(doc)}
+                              onClick={() => setPendingDoc(doc)}
                               disabled={analyzingId !== null}
                               className="px-3 py-1.5 text-[12px] font-semibold text-white bg-[#0f2e82] rounded-lg hover:bg-[#1a3a9c] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              {analyzingId === doc.id ? "Đang phân tích..." : "Phân tích"}
+                              Phân tích
                             </button>
                           )}
                           {doc.status === "failed" && (
                             <button
-                              onClick={() => handleAnalyze(doc)}
+                              onClick={() => setPendingDoc(doc)}
                               disabled={analyzingId !== null}
                               className="px-3 py-1.5 text-[12px] font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              {analyzingId === doc.id ? "Đang phân tích..." : "Thử lại"}
+                              Thử lại
                             </button>
                           )}
                           {(doc.status === "completed" || doc.status === "processing") && (
@@ -291,7 +303,13 @@ export default function DocumentsPage() {
         )}
       </div>
 
-      <UploadModal open={showUpload} onClose={() => setShowUpload(false)} />
+      <UploadModal open={showUpload} onClose={() => { setShowUpload(false); fetchDocs(); }} />
+      <AnalyzeModal
+        open={pendingDoc !== null}
+        filename={pendingDoc?.filename ?? ""}
+        onClose={() => setPendingDoc(null)}
+        onConfirm={(persona) => pendingDoc && handleAnalyze(pendingDoc, persona)}
+      />
     </div>
   );
 }
