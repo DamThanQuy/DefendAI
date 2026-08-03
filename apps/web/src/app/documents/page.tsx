@@ -26,6 +26,7 @@ const docTypeLabel: Record<string, string> = {
   docx: "DOCX",
   pptx: "PPTX",
   zip: "ZIP",
+  rar: "RAR",
 };
 
 const statusLabel: Record<string, string> = {
@@ -249,7 +250,7 @@ export default function DocumentsPage() {
                       </td>
                       <td className="px-5 py-4">
                         <span className="text-[12px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                          {docTypeLabel[doc.doc_type] ?? doc.file_type}
+                          {doc.file_type === ".rar" ? "RAR" : docTypeLabel[doc.doc_type] ?? doc.file_type}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-[13px] text-gray-500">{formatDate(doc.created_at)}</td>

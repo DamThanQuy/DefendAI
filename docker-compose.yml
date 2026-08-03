@@ -22,7 +22,6 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/defense_db
       # Routing
       DEFAULT_PROVIDER: localhost
-      ORCHESTRATOR_PROVIDER: nvidia
 
       # Auth (cho tuần 2-3)
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
@@ -136,7 +135,6 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/defense_db
       REDIS_URL: redis://redis:6379/0
       DEFAULT_PROVIDER: localhost
-      ORCHESTRATOR_PROVIDER: nvidia
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 30

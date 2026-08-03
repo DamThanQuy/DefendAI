@@ -33,7 +33,7 @@ async def scan_code(req: CodeScanRequest, db: AsyncSession = Depends(get_db)) ->
         raise HTTPException(status_code=404, detail=f"Document {req.document_id} not found")
 
     if document.doc_type != DocType.ZIP:
-        raise HTTPException(status_code=400, detail="Code review chỉ hỗ trợ document type ZIP")
+        raise HTTPException(status_code=400, detail="Code review chỉ hỗ trợ document type ZIP/RAR")
 
     job_id = await create_job("code_scan", {
         "document_id": req.document_id,

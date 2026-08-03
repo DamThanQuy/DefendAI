@@ -6,7 +6,6 @@ Endpoints (GĐ1):
 - GET  /api/ai/providers    List providers đang enabled
 - GET  /api/ai/models       List model gợi ý
 - POST /api/ai/compare      Gọi cả 2 provider, so sánh tốc độ
-- POST /api/ai/orchestrate  Gọi model lớn (orchestrator) - shortcut
 - POST /api/ai/worker       Gọi model worker - shortcut
 
 ⚠️ Đây là endpoint test/dev. Trong production sẽ dùng /api/questions/generate,
@@ -52,10 +51,8 @@ async def list_providers() -> dict:
         "enabled_count": len(providers),
         "providers": providers,
         "default_provider": settings.routing.default_provider,
-        "orchestrator_provider": settings.routing.orchestrator_provider,
         "routing_config": {
             "default": settings.routing.default_provider,
-            "orchestrator": settings.routing.orchestrator_provider,
         },
     }
 
@@ -124,33 +121,6 @@ async def test_ai(req: AIRequest) -> AIResponse:
 
 
 # ============================================================
-# POST /api/ai/orchestrate (shortcut cho model lớn)
-# ============================================================
-@router.post(
-    "/orchestrate",
-    response_model=AIResponse,
-    summary="Gọi model lớn (orchestrator) - NVIDIA Step 3.7 Flash",
-    description="Shortcut cho việc gọi model phức tạp (reasoning, planning, generation)",
-)
-async def orchestrate(req: AIRequest) -> AIResponse:
-    """Gọi model lớn qua helper `ai_gateway.orchestrate()`."""
-    try:
-        result = await ai_gateway.orchestrate(
-            prompt=req.prompt,
-            system_prompt=req.system_prompt or "",
-            temperature=req.temperature,
-            max_tokens=req.max_tokens,
-            reasoning_effort=req.reasoning_effort,
-        )
-        return AIResponse(**result)
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    except Exception as e:
-        logger.exception("Orchestrate failed")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============================================================
 # POST /api/ai/worker (shortcut cho model nhỏ)
 # ============================================================
 @router.post(
@@ -215,7 +185,7 @@ async def critique_code(req: CritiqueCodeRequest) -> CritiqueCodeResponse:
     prompt = "\n".join(prompt_parts)
 
     try:
-        result = await ai_gateway.orchestrate(
+        result = await ai_gateway.generate(
             prompt=prompt,
             system_prompt="Bạn là AI code reviewer chuyên nghiệp. Trả lời ngắn gọn, tập trung vào các vấn đề thực tế.",
             temperature=0.3,

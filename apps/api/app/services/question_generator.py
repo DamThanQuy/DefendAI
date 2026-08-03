@@ -190,7 +190,7 @@ async def generate_questions(
         user_prompt = _build_user_prompt(chunks, persona_prompt, NUM_QUESTIONS)
 
         logger.info("Calling AI Gateway for question generation (persona=%s)...", persona)
-        ai_result = await ai_gateway.orchestrate(prompt=user_prompt, system_prompt=SYSTEM_PROMPT)
+        ai_result = await ai_gateway.generate(prompt=user_prompt, system_prompt=SYSTEM_PROMPT)
 
         # Step 4: Parse AI response
         content = ai_result.get("content", "")

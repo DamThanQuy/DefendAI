@@ -21,9 +21,6 @@ Cách dùng:
     # Gọi model cụ thể
     result = await ai_gateway.generate(prompt="Hello", model="gemma-4-26b-a4b-it")
     
-    # Helper: gọi model lớn (orchestrator)
-    result = await ai_gateway.orchestrate(prompt="Phân tích tài liệu...")
-    
     # Helper: gọi model worker
     result = await ai_gateway.worker(prompt="Extract keywords...")
 """
@@ -178,27 +175,6 @@ class AIGateway:
             system_prompt=system_prompt,
             **kwargs,
         )
-
-    async def orchestrate(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
-        """
-        Helper: gọi model lớn (orchestrator) cho task phức tạp.
-
-        Mặc định dùng `settings.routing.orchestrator_provider` (NVIDIA Step 3.7).
-        Hỗ trợ `reasoning_effort` (low | medium | high).
-        """
-        provider_name = settings.routing.orchestrator_provider
-        if provider_name not in self.providers:
-            # Fallback: dùng provider bất kỳ đang available
-            if self.providers:
-                provider_name = sorted(self.providers.keys())[0]
-                logger.warning(
-                    "Orchestrator provider '%s' not available, fallback to '%s'",
-                    settings.routing.orchestrator_provider,
-                    provider_name,
-                )
-            else:
-                raise RuntimeError("No AI provider available for orchestration")
-        return await self.generate(prompt=prompt, provider=provider_name, **kwargs)
 
     async def worker(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
         """

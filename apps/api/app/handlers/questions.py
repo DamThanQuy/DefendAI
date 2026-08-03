@@ -313,8 +313,6 @@ async def handle_generate_questions(params: dict) -> dict:
             for group in chunk_groups:
                 tasks.append(ai_gateway.generate(
                     prompt=_build_user_prompt(document.filename, document.doc_type.value, group, persona),
-                    provider="nvidia",
-                    model="meta/llama-3.1-70b-instruct",
                     system_prompt=system_prompt,
                     temperature=0.2,
                     max_tokens=3000,
@@ -344,8 +342,8 @@ async def handle_generate_questions(params: dict) -> dict:
                 logger.info("AI produced %d/%d questions (quality > quantity, no padding)", 
                             len(questions), DEFAULT_QUESTION_COUNT)
 
-            provider_name = "nvidia (multi-chunk)"
-            model_name = "meta/llama-3.1-70b-instruct"
+            provider_name = "default (multi-chunk)"
+            model_name = "default"
 
         except Exception as exc:
             logger.warning("AI generate failed, using heuristic: %s", exc)
