@@ -20,11 +20,28 @@ export const FILE_INPUT_ACCEPT = ACCEPTED_EXTENSIONS.join(",");
 /** Max file size in bytes (100 MB). */
 export const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
-/** Question personas. */
+/** Question personas — key khớp với backend FastAPI (theory/strict/enterprise). */
 export const PERSONAS = [
-  { key: "ly_thuyet", label: "Lý thuyết", description: "Giảng viên hàn lâm" },
-  { key: "thuc_te", label: "Thực tế", description: "Chuyên gia doanh nghiệp" },
-  { key: "khat_khe", label: "Khắt khe", description: "Hội đồng khó tính" },
+  {
+    key: "theory",
+    label: "Giảng viên hướng dẫn",
+    description: "Hỏi bao quát, mang tính chất xây dựng và gợi mở.",
+  },
+  {
+    key: "strict",
+    label: "Hội đồng phản biện khó tính",
+    description: "Soi xét kỹ các lỗ hổng, hỏi xoáy đáp xoay.",
+  },
+  {
+    key: "enterprise",
+    label: "Chuyên gia kỹ thuật sâu",
+    description: "Đi sâu vào architecture, performance và code optimization.",
+  },
 ] as const;
 
 export type PersonaKey = (typeof PERSONAS)[number]["key"];
+
+/** Map persona key → nhãn hiển thị (dùng cho badge, tooltip). */
+export const PERSONA_LABELS: Record<string, string> = Object.fromEntries(
+  PERSONAS.map((p) => [p.key, p.label]),
+);

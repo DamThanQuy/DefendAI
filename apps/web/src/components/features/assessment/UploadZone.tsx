@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import { MAX_FILE_SIZE, PERSONAS } from "@/lib/constants";
+import { PersonaPicker } from "@/components/features/assessment/PersonaPicker";
 
 type Props = {
   onFileSelected?: (file: File) => void;
@@ -15,21 +16,21 @@ type Props = {
 export function UploadZone({
   onFileSelected,
   title = "Kéo thả hoặc chọn tệp",
-  description = "Hỗ trợ định dạng PDF, DOCX, ZIP, RAR (Tối đa 50MB)",
+  description = "Hỗ trợ định dạng PDF, DOCX, ZIP, RAR (Tối đa 100MB)",
   accept = ".pdf,.docx,.zip,.rar",
   buttonLabel = "Chọn từ máy tính",
 }: Props) {
   const router = useRouter();
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  
+  const [uploaded, setUploaded] = useState(false);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
-  const [showPersonaModal, setShowPersonaModal] = useState(false);
   const [documentId, setDocumentId] = useState("");
-  const [persona, setPersona] = useState("normal");
+  const [persona, setPersona] = useState<string>(PERSONAS[0].key);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -46,13 +47,26 @@ export function UploadZone({
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      setFile(e.dataTransfer.files[0]);
+      selectFile(e.dataTransfer.files[0]);
     }
+  };
+
+  // Kiểm tra kích thước trước khi nhận file (khớp MAX_FILE_SIZE backend, 100MB)
+  const selectFile = (f: File): boolean => {
+    setError("");
+    if (f.size > MAX_FILE_SIZE) {
+      setError(`Tệp vượt quá ${MAX_FILE_SIZE / (1024 * 1024)}MB. Vui lòng chọn tệp nhỏ hơn.`);
+      return false;
+    }
+    setFile(f);
+    setUploaded(false);
+    setDocumentId("");
+    return true;
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setFile(e.target.files[0]);
+      selectFile(e.target.files[0]);
     }
   };
 
@@ -102,6 +116,7 @@ export function UploadZone({
         setAbortController(null);
       }
     } else {
+      // Bước "Tải lên": chỉ upload tài liệu, chưa generate
       setStatusText("Đang tải tài liệu lên...");
       try {
         const token = localStorage.getItem("access_token");
@@ -114,16 +129,19 @@ export function UploadZone({
           signal: ac.signal,
         });
         const data = await res.json();
-        
+
         if (data.success) {
           setDocumentId(data.documentId);
-          setIsProcessing(false);
-          setShowPersonaModal(true);
-          setAbortController(null);
+          setUploaded(true);
+        } else {
+          const msg = data.error || data.detail?.detail || data.message || "Tải lên thất bại";
+          setError(msg);
         }
       } catch (error: any) {
         if (error?.name === "AbortError") { handleCancel(); return; }
         console.error(error);
+        setError("Không thể kết nối đến máy chủ phân tích");
+      } finally {
         setIsProcessing(false);
         setAbortController(null);
       }
@@ -137,27 +155,21 @@ export function UploadZone({
     }
     setIsProcessing(false);
     setFile(null);
+    setUploaded(false);
     setProgress(0);
     setStatusText("");
     setError("");
   };
 
-  const generateQuestions = async () => {
-    setShowPersonaModal(false);
+  const generateQuestions = async (docId?: string) => {
+    const targetId = docId || documentId;
+    if (!targetId) return;
     setIsProcessing(true);
     setProgress(0);
     setStatusText("Đang xếp hàng chờ xử lý...");
 
     const ac = new AbortController();
     setAbortController(ac);
-
-    // Map UI persona → backend persona
-    const personaMap: Record<string, string> = {
-      normal: "theory",
-      hard: "strict",
-      tech: "enterprise",
-    };
-    const mappedPersona = personaMap[persona] || "theory";
 
     try {
       const token = localStorage.getItem("access_token");
@@ -168,7 +180,7 @@ export function UploadZone({
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ documentId, persona: mappedPersona })
+        body: JSON.stringify({ documentId: targetId, persona })
       });
       const data = await res.json();
 
@@ -207,7 +219,7 @@ export function UploadZone({
             // Fallback: try again
             sessionStorage.setItem("questionsData", JSON.stringify(payload));
           }
-          router.push(`/documents/${documentId}`);
+          router.push(`/documents/${targetId}`);
           return;
         }
 
@@ -242,17 +254,78 @@ export function UploadZone({
 
   return (
     <div className="w-full relative h-full">
+      {/* CSS keyframes cho step indicator */}
+      <style>{`
+        @keyframes step-pop {
+          0% { transform: scale(0.4); opacity: 0; }
+          60% { transform: scale(1.15); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes step-ring {
+          0% { box-shadow: 0 0 0 0 rgba(15,46,130,0.35); }
+          100% { box-shadow: 0 0 0 10px rgba(15,46,130,0); }
+        }
+        @keyframes step-grow {
+          0% { transform: scaleX(0.2); opacity: 0; }
+          100% { transform: scaleX(1); opacity: 1; }
+        }
+        @keyframes step-check {
+          0% { transform: scale(0) rotate(-20deg); }
+          100% { transform: scale(1) rotate(0deg); }
+        }
+        .step-pop { animation: step-pop 0.35s ease-out both; }
+        .step-ring { animation: step-ring 1.2s ease-out infinite; }
+        .step-grow { transform-origin: left; animation: step-grow 0.4s ease-out both; }
+        .step-check { animation: step-check 0.3s ease-out 0.1s both; }
+      `}</style>
+      {/* Step indicator */}
+      <div className="flex items-center justify-center gap-2 mb-6">
+        {[
+          { n: 1, label: "Chọn tài liệu" },
+          { n: 2, label: "Tải lên" },
+          { n: 3, label: "Chọn persona" },
+          { n: 4, label: "Phân tích" },
+        ].map((s, i) => {
+          const current = !file ? 1 : !uploaded ? 2 : isProcessing ? 4 : 3;
+          const done = s.n < current;
+          const active = s.n === current;
+          return (
+            <React.Fragment key={s.n}>
+              {i > 0 && (
+                <div className={`h-0.5 w-8 sm:w-12 rounded-full transition-colors ${done ? "step-grow bg-[#0f2e82]" : "bg-gray-200"}`} />
+              )}
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold transition-all ${
+                    active
+                      ? "step-pop bg-[#0f2e82] text-white ring-4 ring-[#0f2e82]/20 step-ring"
+                      : done
+                      ? "bg-[#0f2e82] text-white"
+                      : "bg-gray-200 text-gray-500"
+                  }`}
+                >
+                  {done ? <span className="step-check">✓</span> : s.n}
+                </div>
+                <span className={`text-[13px] font-semibold transition-colors ${active ? "text-[#0f2e82]" : done ? "text-gray-700" : "text-gray-400"}`}>
+                  {s.label}
+                </span>
+              </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+
       <div
         className={`w-full h-full border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ease-in-out cursor-pointer flex flex-col items-center justify-center min-h-[460px] relative overflow-hidden bg-white ${
           isDragging
             ? "border-[#0f2e82] bg-[#e8effd]/30"
             : "border-gray-300 hover:border-[#0f2e82]/40"
-        } ${isProcessing || showPersonaModal ? 'opacity-50 pointer-events-none' : ''}`}
+        } ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={() => {
-          if (!isProcessing && !showPersonaModal && !file) document.getElementById("file-upload")?.click();
+          if (!isProcessing && !file) document.getElementById("file-upload")?.click();
         }}
       >
         <div className={`w-[72px] h-[72px] rounded-full mb-8 flex items-center justify-center transition-all duration-300 ${isDragging ? "bg-[#e8effd] scale-110" : "bg-[#e8effd]"}`}>
@@ -267,16 +340,38 @@ export function UploadZone({
             <div className="inline-block px-4 py-1.5 bg-[#e8effd] text-[#0f2e82] rounded-full text-xs font-semibold">
               {(file.size / 1024 / 1024).toFixed(2)} MB
             </div>
-            
-            {!isProcessing && !showPersonaModal && (
-              <div className="flex flex-col gap-3 mt-8 pt-6 border-t border-gray-100">
+
+            {/* Bước 1b: Chưa upload → nút "Tải lên" */}
+            {!isProcessing && !uploaded && (
+              <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
                 <button onClick={(e) => { e.stopPropagation(); processFile(); }} className="w-full py-3 bg-[#0f2e82] hover:bg-[#0f2e82]/90 text-white font-semibold rounded-full shadow-md transition-colors text-sm">
-                  Bắt đầu phân tích
+                  Tải lên
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); setFile(null); }} className="w-full py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
+                <button onClick={(e) => { e.stopPropagation(); setFile(null); setUploaded(false); setDocumentId(""); }} className="w-full py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
                   Hủy & Chọn tệp khác
                 </button>
               </div>
+            )}
+
+            {/* Bước 2 & 3: Đã upload → chọn persona rồi phân tích */}
+            {!isProcessing && uploaded && (
+              <>
+                <div className="mt-8 pt-6 border-t border-gray-100 text-left">
+                  <h4 className="text-[15px] font-bold text-[#0f2e82] mb-1">Chọn Giám Khảo AI</h4>
+                  <p className="text-[13px] text-gray-500 mb-4">Chọn phong cách hỏi phù hợp với buổi bảo vệ của bạn.</p>
+                  <PersonaPicker value={persona} onChange={setPersona} />
+                </div>
+
+                {/* Bước 3: Bắt đầu phân tích */}
+                <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
+                  <button onClick={(e) => { e.stopPropagation(); generateQuestions(); }} className="w-full py-3 bg-[#0f2e82] hover:bg-[#0f2e82]/90 text-white font-semibold rounded-full shadow-md transition-colors text-sm">
+                    Bắt đầu phân tích
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); setFile(null); setUploaded(false); setDocumentId(""); }} className="w-full py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
+                    Hủy & Chọn tệp khác
+                  </button>
+                </div>
+              </>
             )}
           </div>
         ) : (
@@ -326,58 +421,6 @@ export function UploadZone({
           </button>
         </div>
       )}
-
-      {/* Persona Selection Modal */}
-      <AnimatePresence>
-        {showPersonaModal && (
-          <motion.div
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <motion.div
-              className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl"
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-            >
-              <h3 className="text-2xl font-bold text-[#0f2e82] mb-2">Chọn Giám Khảo AI</h3>
-              <p className="text-gray-500 mb-8 text-[15px]">Hãy chọn phong cách hỏi để AI chuẩn bị những câu hỏi phù hợp nhất với buổi bảo vệ của bạn.</p>
-
-              <div className="space-y-4 mb-8">
-                {[
-                  { id: 'normal', name: 'Giảng viên hướng dẫn', desc: 'Hỏi bao quát, mang tính chất xây dựng và gợi mở.' },
-                  { id: 'hard', name: 'Hội đồng phản biện khó tính', desc: 'Soi xét kỹ các lỗ hổng, hỏi xoáy đáp xoay.' },
-                  { id: 'tech', name: 'Chuyên gia kỹ thuật sâu', desc: 'Đi sâu vào architecture, performance và code optimization.' }
-                ].map(p => (
-                  <div
-                    key={p.id}
-                    onClick={() => setPersona(p.id)}
-                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      persona === p.id ? 'border-[#0f2e82] bg-[#e8effd]' : 'border-gray-200 hover:border-[#0f2e82]/30'
-                    }`}
-                  >
-                    <h4 className={`font-bold ${persona === p.id ? 'text-[#0f2e82]' : 'text-gray-900'}`}>{p.name}</h4>
-                    <p className="text-sm text-gray-500 mt-1">{p.desc}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex gap-4">
-                <button onClick={() => setShowPersonaModal(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-xl transition-colors">
-                  Hủy bỏ
-                </button>
-                <button onClick={generateQuestions} className="flex-1 py-3 bg-[#0f2e82] hover:bg-[#0f2e82]/90 text-white font-bold rounded-xl shadow-lg transition-colors">
-                  Tạo câu hỏi
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

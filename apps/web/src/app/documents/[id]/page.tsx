@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { PERSONA_LABELS } from "@/lib/constants";
 
 interface Question {
   id: number;
@@ -37,12 +38,6 @@ const diffCfg: Record<string, { label: string; bg: string; txt: string }> = {
   easy: { label: "Dễ", bg: "bg-green-50", txt: "text-green-700" },
   medium: { label: "Trung bình", bg: "bg-blue-50", txt: "text-blue-600" },
   hard: { label: "Khó", bg: "bg-red-50", txt: "text-[#d32f2f]" },
-};
-
-const persCfg: Record<string, string> = {
-  theory: "Giảng viên hướng dẫn",
-  strict: "Hội đồng phản biện",
-  enterprise: "Chuyên gia kỹ thuật",
 };
 
 export default function DocumentDetailPage() {
@@ -103,7 +98,7 @@ export default function DocumentDetailPage() {
   };
 
   const difficulty = (d: string) => diffCfg[d] ?? diffCfg.medium;
-  const personaLabel = (p: string) => persCfg[p] ?? p;
+  const personaLabel = (p: string) => PERSONA_LABELS[p] ?? p;
 
   if (loading) {
     return (
