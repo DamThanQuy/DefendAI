@@ -5,10 +5,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { clearSession } from "@/lib/auth";
+import { isPublicPath } from "@/lib/shell";
 
-const navLinks: { href: string; label: string; roles?: string[] }[] = [
-  { href: "/", label: "Trang chủ" },
-  { href: "/demo", label: "Xem demo" },
+const navLinks: { href: string; label: string; roles?: string[]; public?: boolean }[] = [
+  { href: "/", label: "Trang chủ", public: true },
+  { href: "/demo", label: "Xem demo", public: true },
   { href: "/documents", label: "Tài liệu" },
   { href: "/workspaces", label: "Workspace" },
   { href: "/code-review", label: "Code Review" },
@@ -29,6 +30,9 @@ export function Navbar() {
     router.push("/login");
   }
 
+  // Trang app dùng sidebar (AppShell) — ẩn top nav marketing để tránh trùng lặp.
+  if (!isPublicPath(pathname)) return null;
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-zinc-800/60 bg-background/80 backdrop-blur-sm transition-all">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 lg:px-8">
@@ -38,7 +42,12 @@ export function Navbar() {
 
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium h-full">
           {navLinks
-            .filter((link) => !link.roles || link.roles.some((r) => hasRole(r)))
+            .filter((link) => {
+              if (link.roles && !link.roles.some((r) => hasRole(r))) return false;
+              // Guest chỉ thấy Trang chủ + Xem demo; đã đăng nhập thấy tất cả
+              if (!user && !link.public) return false;
+              return true;
+            })
             .map((link) => {
               const isActive = pathname === link.href;
               return (

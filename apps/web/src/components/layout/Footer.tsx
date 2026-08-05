@@ -1,6 +1,14 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { isPublicPath } from "@/lib/shell";
 
 export function Footer() {
+  const pathname = usePathname();
+  // Trang app dùng sidebar (AppShell) — ẩn footer marketing để tránh trùng lặp.
+  if (!isPublicPath(pathname)) return null;
+
   return (
     <footer className="bg-background border-t border-zinc-800/60 py-8">
       <div className="container mx-auto flex flex-col md:flex-row items-center justify-between px-4 lg:px-8 gap-6">

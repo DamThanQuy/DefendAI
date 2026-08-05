@@ -50,7 +50,7 @@ localStorage.setItem("refresh_token", data.refresh_token || "");localStorage.set
       // Báo Navbar (cùng tab) cập nhật trạng thái login
       window.dispatchEvent(new Event("storage"));
 
-      router.push("/");
+      router.push("/documents");
     } catch {
       setError("Không thể kết nối server");
     } finally {
@@ -79,7 +79,7 @@ localStorage.setItem("refresh_token", data.refresh_token || "");localStorage.set
 localStorage.setItem("refresh_token", data.refresh_token || "");localStorage.setItem("refresh_token", data.refresh_token || "");
       localStorage.setItem("user", JSON.stringify(data.user));
       window.dispatchEvent(new Event("storage"));
-      router.push("/");
+      router.push("/documents");
     } catch {
       setError("Không thể kết nối server");
     }

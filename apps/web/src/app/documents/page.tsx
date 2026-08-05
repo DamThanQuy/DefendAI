@@ -44,10 +44,10 @@ const statusLabel: Record<string, string> = {
 };
 
 const statusColor: Record<string, string> = {
-  uploaded: "text-blue-600 bg-blue-50",
-  processing: "text-yellow-600 bg-yellow-50",
-  completed: "text-green-600 bg-green-50",
-  failed: "text-red-600 bg-red-50",
+  uploaded: "text-blue-400 bg-blue-500/10",
+  processing: "text-yellow-400 bg-yellow-500/10",
+  completed: "text-green-400 bg-green-500/10",
+  failed: "text-red-400 bg-red-500/10",
 };
 
 function getToken(): string | null {
@@ -207,34 +207,34 @@ export default function DocumentsPage() {
 
   if (!token) {
     return (
-      <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-xl font-bold text-[#0f2e82] mb-2">Vui lòng đăng nhập</h2>
-          <Link href="/login" className="text-[#0f2e82] font-semibold hover:underline">Đăng nhập ngay</Link>
+          <h2 className="text-xl font-bold text-foreground mb-2">Vui lòng đăng nhập</h2>
+          <Link href="/login" className="text-primary font-semibold hover:underline">Đăng nhập ngay</Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] pb-16">
+    <div className="min-h-screen bg-background pb-16">
       <div className="container mx-auto px-4 lg:px-8 pt-6 max-w-[1100px]">
         {/* Breadcrumb */}
-        <div className="flex items-center text-[13px] text-gray-500 font-medium mb-6">
-          <Link href="/" className="hover:text-[#0f2e82] transition-colors">Trang chủ</Link>
+        <div className="flex items-center text-[13px] text-zinc-500 font-medium mb-6">
+          <Link href="/documents" className="hover:text-primary transition-colors">Trang chủ</Link>
           <span className="mx-2">›</span>
-          <span className="text-[#0f2e82] font-semibold">Tài liệu</span>
+          <span className="text-primary font-semibold">Tài liệu</span>
         </div>
 
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-[28px] font-bold text-[#0f2e82] mb-2">Tài liệu của tôi</h1>
-            <p className="text-[#5f6368] text-[14px]">Quản lý tài liệu đã tải lên và xem câu hỏi phản biện.</p>
+            <h1 className="text-[28px] font-bold text-foreground mb-2">Tài liệu của tôi</h1>
+            <p className="text-zinc-500 text-[14px]">Quản lý tài liệu đã tải lên và xem câu hỏi phản biện.</p>
           </div>
           <button
             onClick={() => setShowUpload(true)}
-            className="px-6 py-2.5 bg-[#0f2e82] text-white rounded-lg text-[14px] font-semibold hover:bg-[#1a3a9c] transition-colors shrink-0"
+            className="px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90 transition-colors shrink-0"
           >
             + Tải lên tài liệu mới
           </button>
@@ -242,68 +242,68 @@ export default function DocumentsPage() {
 
         {loading && (
           <div className="text-center py-20">
-            <div className="w-8 h-8 border-2 border-[#0f2e82] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-gray-500 text-[14px]">Đang tải danh sách...</p>
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-zinc-500 text-[14px]">Đang tải danh sách...</p>
           </div>
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-[14px] mb-6">
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-[14px] mb-6">
             {error}
           </div>
         )}
 
         {!loading && !error && docs.length === 0 && (
           <div className="text-center py-20">
-            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
               </svg>
             </div>
-            <h2 className="text-lg font-bold text-[#0f2e82] mb-2">Chưa có tài liệu nào</h2>
-            <p className="text-gray-500 text-[14px] mb-6">Tải lên tài liệu đầu tiên để AI phân tích và tạo câu hỏi.</p>
-            <button onClick={() => setShowUpload(true)} className="inline-block px-6 py-2.5 bg-[#0f2e82] text-white rounded-lg text-[14px] font-semibold hover:bg-[#1a3a9c]">
+            <h2 className="text-lg font-bold text-foreground mb-2">Chưa có tài liệu nào</h2>
+            <p className="text-zinc-500 text-[14px] mb-6">Tải lên tài liệu đầu tiên để AI phân tích và tạo câu hỏi.</p>
+            <button onClick={() => setShowUpload(true)} className="inline-block px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90">
               Tải lên ngay
             </button>
           </div>
         )}
 
         {!loading && docs.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/50">
-                    <th className="px-5 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Tên file</th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Loại</th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Ngày tải lên</th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Thao tác</th>
+                  <tr className="border-b border-zinc-800/60 bg-zinc-800/40">
+                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Tên file</th>
+                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Loại</th>
+                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Ngày tải lên</th>
+                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Trạng thái</th>
+                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   {docs.map((doc) => (
-                    <tr key={doc.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                    <tr key={doc.id} className="border-b border-zinc-800/60 hover:bg-zinc-800/40 transition-colors">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                            <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <div className="w-9 h-9 rounded-lg bg-teal-500/10 flex items-center justify-center shrink-0">
+                            <svg className="w-5 h-5 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                             </svg>
                           </div>
-                          <span className="text-[14px] font-semibold text-gray-800 truncate max-w-[300px]">
+                          <span className="text-[14px] font-semibold text-zinc-200 truncate max-w-[300px]">
                             {doc.filename}
                           </span>
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <span className="text-[12px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                        <span className="text-[12px] font-bold text-zinc-400 bg-zinc-800 px-2 py-1 rounded">
                           {doc.file_type === ".rar" ? "RAR" : docTypeLabel[doc.doc_type] ?? doc.file_type}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-[13px] text-gray-500">{formatDate(doc.created_at)}</td>
+                      <td className="px-5 py-4 text-[13px] text-zinc-500">{formatDate(doc.created_at)}</td>
                       <td className="px-5 py-4">
-                        <span className={`text-[12px] font-semibold px-2.5 py-1 rounded-full ${statusColor[doc.status] ?? "text-gray-600 bg-gray-50"}`}>
+                        <span className={`text-[12px] font-semibold px-2.5 py-1 rounded-full ${statusColor[doc.status] ?? "text-zinc-400 bg-zinc-800/60"}`}>
                           {statusLabel[doc.status] ?? doc.status}
                         </span>
                       </td>
@@ -313,7 +313,7 @@ export default function DocumentsPage() {
                             <button
                               onClick={() => setPendingDoc(doc)}
                               disabled={analyzingId !== null}
-                              className="px-3 py-1.5 text-[12px] font-semibold text-white bg-[#0f2e82] rounded-lg hover:bg-[#1a3a9c] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="px-3 py-1.5 text-[12px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               Phân tích
                             </button>
@@ -330,7 +330,7 @@ export default function DocumentsPage() {
                           {(doc.status === "completed" || doc.status === "processing") && (
                             <Link
                               href={`/documents/${doc.id}`}
-                              className="px-3 py-1.5 text-[12px] font-semibold text-[#0f2e82] bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                              className="px-3 py-1.5 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors"
                             >
                               Xem câu hỏi
                             </Link>
@@ -338,20 +338,20 @@ export default function DocumentsPage() {
                           {doc.doc_type === "zip" && (
                             <button
                               onClick={() => setBrowseDoc(doc)}
-                              className="px-3 py-1.5 text-[12px] font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                              className="px-3 py-1.5 text-[12px] font-semibold text-zinc-300 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
                             >
                               Xem nội dung
                             </button>
                           )}
                           <button
                             onClick={() => openWsModal(doc)}
-                            className="px-3 py-1.5 text-[12px] font-semibold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
+                            className="px-3 py-1.5 text-[12px] font-semibold text-emerald-400 bg-emerald-500/10 rounded-lg hover:bg-emerald-500/20 transition-colors"
                           >
                             ➕ Workspace
                           </button>
                           <a
                             href={`/api/documents/${doc.id}/download`}
-                            className="px-3 py-1.5 text-[12px] font-semibold text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                            className="px-3 py-1.5 text-[12px] font-semibold text-zinc-400 bg-zinc-800/40 rounded-lg hover:bg-zinc-800 transition-colors"
                           >
                             Tải xuống
                           </a>
@@ -376,16 +376,16 @@ export default function DocumentsPage() {
 
       {/* Archive browser modal */}
       {browseDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setBrowseDoc(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setBrowseDoc(null)}>
           <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
+            className="bg-card rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-zinc-800/60"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-              <h3 className="text-[16px] font-bold text-[#0f2e82]">Nội dung file</h3>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/60">
+              <h3 className="text-[16px] font-bold text-foreground">Nội dung file</h3>
               <button
                 onClick={() => setBrowseDoc(null)}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500"
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-zinc-800 text-zinc-500"
               >
                 ✕
               </button>
@@ -399,21 +399,21 @@ export default function DocumentsPage() {
 
       {/* Add to workspace modal */}
       {wsTargetDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setWsTargetDoc(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setWsTargetDoc(null)}>
           <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"
+            className="bg-card rounded-2xl shadow-2xl w-full max-w-md p-6 border border-zinc-800/60"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-[16px] font-bold text-[#0f2e82] mb-1">Thêm vào workspace</h3>
-            <p className="text-[13px] text-gray-500 mb-4 truncate">{wsTargetDoc.filename}</p>
+            <h3 className="text-[16px] font-bold text-foreground mb-1">Thêm vào workspace</h3>
+            <p className="text-[13px] text-zinc-500 mb-4 truncate">{wsTargetDoc.filename}</p>
 
             {workspaces.length === 0 ? (
               <div className="text-center py-6">
-                <p className="text-gray-400 text-[13px] mb-4">Chưa có workspace nào.</p>
+                <p className="text-zinc-500 text-[13px] mb-4">Chưa có workspace nào.</p>
                 <Link
                   href="/workspaces"
                   onClick={() => setWsTargetDoc(null)}
-                  className="inline-block px-4 py-2 text-[13px] font-semibold text-white bg-[#0f2e82] rounded-lg hover:bg-[#1a3a9c]"
+                  className="inline-block px-4 py-2 text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90"
                 >
                   Tạo workspace đầu tiên
                 </Link>
@@ -424,10 +424,10 @@ export default function DocumentsPage() {
                   <button
                     key={ws.id}
                     onClick={() => handleAddToWorkspace(ws.id)}
-                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-gray-100 hover:border-[#0f2e82]/30 hover:bg-blue-50/50 transition-colors text-left"
+                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-zinc-800 hover:border-primary/40 hover:bg-teal-500/10 transition-colors text-left"
                   >
-                    <span className="text-[14px] font-semibold text-gray-700">{ws.name}</span>
-                    <span className="text-[12px] text-gray-400">{ws.document_count} file</span>
+                    <span className="text-[14px] font-semibold text-zinc-300">{ws.name}</span>
+                    <span className="text-[12px] text-zinc-500">{ws.document_count} file</span>
                   </button>
                 ))}
               </div>
@@ -436,7 +436,7 @@ export default function DocumentsPage() {
             <div className="flex justify-end mt-5">
               <button
                 onClick={() => setWsTargetDoc(null)}
-                className="px-4 py-2 text-[13px] font-semibold text-gray-500 hover:bg-gray-100 rounded-lg"
+                className="px-4 py-2 text-[13px] font-semibold text-zinc-500 hover:bg-zinc-800 rounded-lg"
               >
                 Đóng
               </button>

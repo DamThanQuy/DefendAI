@@ -45,34 +45,34 @@ export function ArchiveBrowser({ docId, filename }: { docId: number; filename: s
   }, [docId]);
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-zinc-800/60 bg-zinc-800/40">
         <span className="text-xl">🗜️</span>
         <div>
-          <div className="text-[14px] font-bold text-gray-800">{filename}</div>
-          <div className="text-[12px] text-gray-500">{members.length} file</div>
+          <div className="text-[14px] font-bold text-zinc-200">{filename}</div>
+          <div className="text-[12px] text-zinc-500">{members.length} file</div>
         </div>
       </div>
 
       {loading && (
-        <div className="p-10 text-center text-gray-500 text-[14px]">Đang tải nội dung file...</div>
+        <div className="p-10 text-center text-zinc-500 text-[14px]">Đang tải nội dung file...</div>
       )}
       {error && !loading && (
-        <div className="p-6 text-red-600 text-[14px]">{error}</div>
+        <div className="p-6 text-red-400 text-[14px]">{error}</div>
       )}
 
       {!loading && !error && (
         <div className="flex h-[600px]">
           {/* Sidebar tree */}
-          <div className="w-72 border-r border-gray-100 overflow-y-auto p-2 shrink-0">
+          <div className="w-72 border-r border-zinc-800/60 overflow-y-auto p-2 shrink-0">
             <FileTree members={members} selected={selected} onSelect={setSelected} />
           </div>
 
           {/* Preview pane */}
           <div className="flex-1 overflow-y-auto">
             {!selected && (
-              <div className="h-full flex flex-col items-center justify-center text-gray-400">
+              <div className="h-full flex flex-col items-center justify-center text-zinc-500">
                 <span className="text-4xl mb-3">👆</span>
                 <p className="text-[14px]">Chọn một file để xem nội dung</p>
               </div>
