@@ -10,6 +10,7 @@ const navLinks: { href: string; label: string; roles?: string[] }[] = [
   { href: "/", label: "Trang chủ" },
   { href: "/demo", label: "Xem demo" },
   { href: "/documents", label: "Tài liệu" },
+  { href: "/workspaces", label: "Workspace" },
   { href: "/code-review", label: "Code Review" },
   { href: "/room", label: "Mock Room" },
   { href: "/report", label: "Báo cáo" },

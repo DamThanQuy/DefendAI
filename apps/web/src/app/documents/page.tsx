@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { UploadModal } from "@/components/features/assessment/UploadModal";
 import { AnalyzeModal } from "@/components/features/assessment/AnalyzeModal";
+import { ArchiveBrowser } from "@/components/features/assessment/ArchiveBrowser";
 
 interface DocumentItem {
   id: number;
@@ -19,6 +20,12 @@ interface DocumentItem {
 interface DocumentsResponse {
   total: number;
   items: DocumentItem[];
+}
+
+interface WorkspaceItem {
+  id: number;
+  name: string;
+  document_count: number;
 }
 
 const docTypeLabel: Record<string, string> = {
@@ -55,6 +62,11 @@ export default function DocumentsPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [analyzingId, setAnalyzingId] = useState<number | null>(null);
   const [pendingDoc, setPendingDoc] = useState<DocumentItem | null>(null);
+  const [browseDoc, setBrowseDoc] = useState<DocumentItem | null>(null);
+
+  // Thêm vào workspace
+  const [wsTargetDoc, setWsTargetDoc] = useState<DocumentItem | null>(null);
+  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
 
   useEffect(() => {
     fetchDocs();
@@ -92,6 +104,42 @@ export default function DocumentsPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  // Mở modal chọn workspace cho 1 document
+  const openWsModal = async (doc: DocumentItem) => {
+    setWsTargetDoc(doc);
+    const token = getToken();
+    if (!token) return;
+    try {
+      const r = await fetch("/api/workspaces/", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (r.ok) {
+        const data = await r.json();
+        setWorkspaces(data.items ?? []);
+      }
+    } catch {
+      // bỏ qua — modal vẫn mở
+    }
+  };
+
+  // Thêm doc vào workspace được chọn
+  const handleAddToWorkspace = async (wsId: number) => {
+    if (!wsTargetDoc) return;
+    const token = getToken();
+    if (!token) return;
+    try {
+      const r = await fetch(`/api/workspaces/${wsId}/files`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ document_id: wsTargetDoc.id, role: "main" }),
+      });
+      if (!r.ok) throw new Error("Thêm vào workspace thất bại");
+      setWsTargetDoc(null);
+    } catch (e: any) {
+      setError(e.message);
+    }
   };
 
   // Bắt đầu phân tích 1 document (status = uploaded) → gọi generate → poll job → cập nhật status
@@ -287,6 +335,20 @@ export default function DocumentsPage() {
                               Xem câu hỏi
                             </Link>
                           )}
+                          {doc.doc_type === "zip" && (
+                            <button
+                              onClick={() => setBrowseDoc(doc)}
+                              className="px-3 py-1.5 text-[12px] font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                            >
+                              Xem nội dung
+                            </button>
+                          )}
+                          <button
+                            onClick={() => openWsModal(doc)}
+                            className="px-3 py-1.5 text-[12px] font-semibold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
+                          >
+                            ➕ Workspace
+                          </button>
                           <a
                             href={`/api/documents/${doc.id}/download`}
                             className="px-3 py-1.5 text-[12px] font-semibold text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
@@ -311,6 +373,77 @@ export default function DocumentsPage() {
         onClose={() => setPendingDoc(null)}
         onConfirm={(persona) => pendingDoc && handleAnalyze(pendingDoc, persona)}
       />
+
+      {/* Archive browser modal */}
+      {browseDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setBrowseDoc(null)}>
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+              <h3 className="text-[16px] font-bold text-[#0f2e82]">Nội dung file</h3>
+              <button
+                onClick={() => setBrowseDoc(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <ArchiveBrowser docId={browseDoc.id} filename={browseDoc.filename} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add to workspace modal */}
+      {wsTargetDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setWsTargetDoc(null)}>
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-[16px] font-bold text-[#0f2e82] mb-1">Thêm vào workspace</h3>
+            <p className="text-[13px] text-gray-500 mb-4 truncate">{wsTargetDoc.filename}</p>
+
+            {workspaces.length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-gray-400 text-[13px] mb-4">Chưa có workspace nào.</p>
+                <Link
+                  href="/workspaces"
+                  onClick={() => setWsTargetDoc(null)}
+                  className="inline-block px-4 py-2 text-[13px] font-semibold text-white bg-[#0f2e82] rounded-lg hover:bg-[#1a3a9c]"
+                >
+                  Tạo workspace đầu tiên
+                </Link>
+              </div>
+            ) : (
+              <div className="max-h-64 overflow-y-auto space-y-1">
+                {workspaces.map((ws) => (
+                  <button
+                    key={ws.id}
+                    onClick={() => handleAddToWorkspace(ws.id)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-gray-100 hover:border-[#0f2e82]/30 hover:bg-blue-50/50 transition-colors text-left"
+                  >
+                    <span className="text-[14px] font-semibold text-gray-700">{ws.name}</span>
+                    <span className="text-[12px] text-gray-400">{ws.document_count} file</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-end mt-5">
+              <button
+                onClick={() => setWsTargetDoc(null)}
+                className="px-4 py-2 text-[13px] font-semibold text-gray-500 hover:bg-gray-100 rounded-lg"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -24,6 +24,7 @@ Tham khảo:
 from io import BytesIO
 
 import logging
+import zipfile
 from typing import List
 
 from PyPDF2 import PdfReader
@@ -32,6 +33,11 @@ from pptx import Presentation
 
 from app.models.document import DocType, Document
 from app.services.storage import get_doc
+
+try:
+    import rarfile
+except ImportError:  # pragma: no cover
+    rarfile = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -108,10 +114,142 @@ def _extract_md(src) -> str:
     return raw.strip()
 
 
+# File extensions đọc được text trong archive (code + text + office docs)
+TEXT_EXTENSIONS = {
+    # code
+    ".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rb", ".php", ".cs",
+    ".cpp", ".c", ".h", ".hpp", ".html", ".css", ".json", ".yml", ".yaml",
+    ".xml", ".toml", ".ini", ".cfg", ".conf", ".sh", ".bat", ".ps1", ".sql",
+    ".dockerfile", ".makefile", ".env", ".properties",
+    # text / markdown
+    ".md", ".markdown", ".txt", ".rst", ".log",
+}
+# Office docs trong archive: extract riêng theo từng loại
+OFFICE_EXTENSIONS = {".pdf", ".docx", ".pptx", ".xlsx"}
+# Archive con lồng nhau (đọc đệ quy)
+NESTED_ARCHIVE_EXTENSIONS = {".zip", ".rar"}
+
+MAX_ARCHIVE_MEMBERS = 500
+MAX_ARCHIVE_TOTAL_TEXT = 200 * 1024 * 1024  # 200MB text tổng
+
+
+def _extract_zip(src) -> str:
+    """Trích xuất text từ ZIP: đọc mọi file text/code/office bên trong rồi ghép lại.
+
+    Mỗi member được đánh dấu bằng header "### <path>" để AI biết nội dung từ đâu.
+    Nhận str path, bytes hoặc file-like object (như các extractor khác).
+    """
+    data = src if isinstance(src, bytes) else src.read()
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as archive:
+            infos = [i for i in archive.infolist() if not i.is_dir()]
+            if len(infos) > MAX_ARCHIVE_MEMBERS:
+                raise DocumentParserError(
+                    f"ZIP chứa quá nhiều file ({len(infos)} > {MAX_ARCHIVE_MEMBERS})"
+                )
+            parts: List[str] = []
+            total = 0
+            for info in infos:
+                name = info.filename
+                ext = name.split(".")[-1].lower() if "." in name else ""
+                ext = f".{ext}"
+                total += info.file_size
+                if total > MAX_ARCHIVE_TOTAL_TEXT:
+                    break
+                try:
+                    raw = archive.read(info)
+                except Exception:
+                    continue  # member lỗi thì bỏ qua, không chặn cả file
+                text = _extract_member_text(raw, name, ext)
+                if text:
+                    parts.append(f"### {name}\n{text}")
+            return "\n\n".join(parts).strip()
+    except zipfile.BadZipFile as exc:
+        raise DocumentParserError("File ZIP bị lỗi hoặc không thể giải nén") from exc
+
+
+def _extract_rar(data: bytes) -> str:
+    """Trích xuất text từ RAR (nếu có rarfile), tương tự _extract_zip."""
+    if rarfile is None:
+        raise DocumentParserError("Chưa cài thư viện rarfile để đọc file .rar")
+    try:
+        with rarfile.RarFile(BytesIO(data)) as archive:
+            infos = [i for i in archive.infolist() if not i.isdir()]
+            if len(infos) > MAX_ARCHIVE_MEMBERS:
+                raise DocumentParserError(
+                    f"RAR chứa quá nhiều file ({len(infos)} > {MAX_ARCHIVE_MEMBERS})"
+                )
+            parts: List[str] = []
+            total = 0
+            for info in infos:
+                name = info.filename
+                ext = name.split(".")[-1].lower() if "." in name else ""
+                ext = f".{ext}"
+                total += info.file_size
+                if total > MAX_ARCHIVE_TOTAL_TEXT:
+                    break
+                try:
+                    raw = archive.read(name)
+                except Exception:
+                    continue
+                text = _extract_member_text(raw, name, ext)
+                if text:
+                    parts.append(f"### {name}\n{text}")
+            return "\n\n".join(parts).strip()
+    except (rarfile.RarCannotExec, rarfile.Error) as exc:
+        raise DocumentParserError(f"File RAR bị lỗi hoặc không thể giải nén: {exc}") from exc
+
+
+def _extract_member_text(raw: bytes, name: str, ext: str) -> str:
+    """Trích text 1 member trong archive theo extension."""
+    try:
+        if ext in OFFICE_EXTENSIONS:
+            if ext == ".pdf":
+                return _extract_pdf(BytesIO(raw))
+            if ext == ".docx":
+                return _extract_docx(BytesIO(raw))
+            if ext == ".pptx":
+                return _extract_pptx(BytesIO(raw))
+            if ext == ".xlsx":
+                return _extract_xlsx(BytesIO(raw))
+        if ext in NESTED_ARCHIVE_EXTENSIONS:
+            return _extract_zip(raw) if ext == ".zip" else _extract_rar(raw)
+        if ext in TEXT_EXTENSIONS or ext == "":
+            return raw.decode("utf-8", errors="replace").strip()
+    except Exception:
+        logger.debug("Skip member %s: %s", name, exc_info=True)
+    return ""
+
+
+def _extract_archive(src) -> str:
+    """Nhận ZIP hoặc RAR, tự detect theo magic bytes và dispatch."""
+    data = src if isinstance(src, bytes) else src.read()
+    if data[:8].startswith(b"Rar!\x1a\x07"):
+        return _extract_rar(data)
+    return _extract_zip(data)
+
+
+def _extract_xlsx(src) -> str:
+    """Trích xuất text từ XLSX (openpyxl nếu có, không thì bỏ qua)."""
+    try:
+        from openpyxl import load_workbook
+        wb = load_workbook(BytesIO(src.read()) if isinstance(src, BytesIO) else src, read_only=True, data_only=True)
+    except Exception:
+        return ""
+    rows: List[str] = []
+    for ws in wb.worksheets:
+        for row in ws.iter_rows(values_only=True):
+            vals = [str(c) for c in row if c is not None and str(c).strip()]
+            if vals:
+                rows.append("\t".join(vals))
+    return "\n".join(rows).strip()
+
+
 _EXTRACTORS = {
     DocType.PDF: _extract_pdf,
     DocType.DOCX: _extract_docx,
     DocType.PPTX: _extract_pptx,
+    DocType.ZIP: _extract_archive,
     # .md mapped to DocType.PDF via router, handle via filename fallback below
 }
 

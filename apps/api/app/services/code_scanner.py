@@ -24,27 +24,29 @@ except ImportError:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_CODE_EXTENSIONS = {
-    ".py",
-    ".js",
-    ".jsx",
-    ".ts",
-    ".tsx",
-    ".java",
-    ".go",
-    ".rb",
-    ".php",
-    ".cs",
-    ".cpp",
-    ".c",
-    ".h",
-    ".html",
-    ".css",
-    ".json",
-    ".yml",
-    ".yaml",
-    ".md",
+# Code thật — đủ để kết luận "có source code"
+REAL_CODE_EXTENSIONS = {
+    ".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".go", ".rb",
+    ".php", ".cs", ".c", ".cpp", ".h", ".html", ".css",
 }
+
+# Cấu hình / dữ liệu — không tính là code thật
+CONFIG_EXTENSIONS = {".json", ".yml", ".yaml", ".toml", ".xml", ".sql"}
+
+# Tài liệu — không tính là code
+DOC_EXTENSIONS = {".md", ".txt", ".pdf", ".docx", ".pptx", ".xlsx"}
+
+# File manifest / khai báo dự án
+MANIFEST_FILES = {
+    "package.json", "requirements.txt", "pyproject.toml", "go.mod",
+    "pom.xml", "build.gradle", "composer.json", "Cargo.toml",
+}
+
+# Ngưỡng phân loại
+CLEAR_RATIO = 0.20      # Real Code > 20% → rõ ràng
+AMBIGUOUS_RATIO = 0.05  # Real Code < 5% → nghi ngờ tài liệu
+
+ALLOWED_CODE_EXTENSIONS = REAL_CODE_EXTENSIONS | CONFIG_EXTENSIONS | DOC_EXTENSIONS
 
 SKIP_DIR_NAMES = {
     ".git",
@@ -111,6 +113,61 @@ def _sort_key(file: ScannedFile) -> tuple[int, str]:
         ".md": 13,
     }
     return priority.get(Path(file.path).suffix.lower(), 99), file.path.lower()
+
+
+async def list_archive_members(document: Document) -> list[str]:
+    """Đọc danh sách member (path) đã lọc artifact, không giải nén toàn bộ."""
+    if document.doc_type != DocType.ZIP:
+        raise CodeScanError("Code review chỉ hỗ trợ file .zip / .rar source code")
+
+    raw = await get_doc(document.storage_key, bucket=settings.minio.bucket)
+    if not raw:
+        raise CodeScanError(f"File not found in MinIO: {document.storage_key}")
+
+    if raw[:8].startswith(b"Rar!\x1a\x07"):
+        if rarfile is None:
+            raise CodeScanError("Chưa cài thư viện rarfile để đọc file .rar")
+        with rarfile.RarFile(BytesIO(raw)) as archive:
+            return [i.filename for i in archive.infolist() if not i.isdir() and _is_safe_member(i.filename)]
+
+    with zipfile.ZipFile(BytesIO(raw)) as archive:
+        return [i.filename for i in archive.infolist() if not i.is_dir() and _is_safe_member(i.filename)]
+
+
+def classify_archive(members: list[str]) -> dict:
+    """Phân loại file nén: có phải source code dự án không."""
+    real_code = [m for m in members if PurePosixPath(m).suffix.lower() in REAL_CODE_EXTENSIONS]
+    config = [m for m in members if PurePosixPath(m).suffix.lower() in CONFIG_EXTENSIONS]
+    docs = [m for m in members if PurePosixPath(m).suffix.lower() in DOC_EXTENSIONS]
+
+    has_manifest = any(PurePosixPath(m).name.lower() in MANIFEST_FILES for m in members)
+    total = len(members)
+    ratio = len(real_code) / total if total else 0
+
+    return {
+        "member_names": members,
+        "real_code_count": len(real_code),
+        "config_count": len(config),
+        "doc_count": len(docs),
+        "total": total,
+        "has_manifest": has_manifest,
+        "code_ratio": ratio,
+    }
+
+
+def decide_source_code(classification: dict) -> str:
+    """Trả về: 'pass' | 'ambiguous' | 'reject'."""
+    real = classification["real_code_count"]
+    ratio = classification["code_ratio"]
+    has_manifest = classification["has_manifest"]
+
+    if real == 0:
+        return "reject"
+    if has_manifest or ratio > CLEAR_RATIO:
+        return "pass"
+    if ratio < AMBIGUOUS_RATIO:
+        return "reject"
+    return "ambiguous"
 
 
 async def extract_code_files(document: Document) -> list[ScannedFile]:
@@ -541,3 +598,55 @@ async def _multi_pass_assessment(files: list[ScannedFile], provider: str | None,
         "context_overflow": True,
         "modules_processed": len(modules),
     }
+
+
+# ============================================================
+# Agent Fast-Check — phân loại file nén mơ hồ (chỉ chạy khi ambiguous)
+# ============================================================
+
+def _build_tree_preview(classification: dict) -> str:
+    """Danh sách path đã lọc → text tree cho LLM."""
+    members = classification.get("member_names", [])
+    if not members:
+        return "(empty)"
+    return "\n".join(members)
+
+
+async def _read_top_snippets(document: Document, n: int = 3, max_chars: int = 2000) -> str:
+    """Lấy n file code lớn nhất, mỗi file trích đầu ~max_chars ký tự."""
+    try:
+        files = sorted(
+            await extract_code_files(document),
+            key=lambda f: len(f.content),
+            reverse=True,
+        )[:n]
+    except CodeScanError:
+        return "(không đọc được snippet)"
+    return "\n\n".join(f"--- {f.path} ---\n{f.content[:max_chars]}" for f in files)
+
+
+async def agent_fast_check(document: Document, classification: dict) -> dict:
+    """LLM đọc tree + snippet 2-3 file → trả JSON schema đầy đủ."""
+    tree = _build_tree_preview(classification)
+    snippets = await _read_top_snippets(document, n=3)
+
+    prompt = (
+        "Đây là cấu trúc file nén của một đồ án sinh viên. "
+        "Hãy xác định đây là SOURCE CODE dự án hay chỉ là TÀI LIỆU/NOISE.\n\n"
+        f"Tree:\n{tree}\n\nSnippets:\n{snippets}\n\n"
+        "Trả về JSON theo schema sau:\n"
+        "{\n"
+        '  "is_source_code": true | false,\n'
+        '  "confidence_score": 0.0 -> 1.0,\n'
+        '  "reason": "Giải thích ngắn gọn lý do (ví dụ: Phát hiện cấu trúc React App với các file Component và Route rõ ràng)",\n'
+        '  "primary_language": "TypeScript / Python / Java..."\n'
+        "}"
+    )
+    result = await ai_gateway.generate(prompt=prompt, temperature=0)
+    payload = _extract_json_payload(result["content"])
+    # Chuẩn hoá thiếu trường → không crash nơi gọi
+    payload.setdefault("is_source_code", False)
+    payload.setdefault("confidence_score", 0.5)
+    payload.setdefault("reason", "")
+    payload.setdefault("primary_language", "")
+    return payload

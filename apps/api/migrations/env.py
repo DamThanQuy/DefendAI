@@ -46,6 +46,7 @@ from app.models.entities import (
     Report,
 )
 from app.models.session import Session
+from app.models.workspace import Workspace, WorkspaceFile
 
 # Metadata cho autogenerate
 target_metadata = Base.metadata

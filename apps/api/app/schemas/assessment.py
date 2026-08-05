@@ -49,6 +49,7 @@ class GenerateQuestionsResponse(BaseModel):
     assessment_id: int
     document_id: int
     document_name: str
+    doc_type: str = ""
     persona: str
     status: str
     chunks_count: int

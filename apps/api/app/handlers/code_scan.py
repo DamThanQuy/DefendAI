@@ -7,7 +7,14 @@ from sqlalchemy import select
 
 from app.core.database import async_session_maker
 from app.models.entities import CodeAnalysis, DocType, Document, DocumentStatus
-from app.services.code_scanner import CodeScanError, analyze_code_document
+from app.services.code_scanner import (
+    CodeScanError,
+    agent_fast_check,
+    analyze_code_document,
+    classify_archive,
+    decide_source_code,
+    list_archive_members,
+)
 from app.services.job_queue import register_handler
 
 logger = logging.getLogger(__name__)
@@ -32,6 +39,29 @@ async def handle_code_scan(params: dict) -> dict:
         await db.commit()
 
         try:
+            # Bước 1: Phân loại nội dung file nén (static, không tốn LLM)
+            member_names = await list_archive_members(document)
+            classification = classify_archive(member_names)
+            decision = decide_source_code(classification)
+
+            if decision == "reject":
+                raise CodeScanError(
+                    "File nén không chứa mã nguồn (chỉ có tài liệu/cấu hình). "
+                    "Code Review chỉ hỗ trợ source code dự án. "
+                    "Bạn có thể dùng luồng Đọc Tài liệu để tạo câu hỏi."
+                )
+
+            # Bước 2: Case mơ hồ → Agent Fast-Check (LLM đọc tree + snippet)
+            if decision == "ambiguous":
+                verdict = await agent_fast_check(document, classification)
+                if not verdict.get("is_source_code"):
+                    raise CodeScanError(
+                        verdict.get("reason")
+                        or "File nén không được xác định là source code dự án. "
+                           "Bạn có thể dùng luồng Đọc Tài liệu để tạo câu hỏi."
+                    )
+                classification["primary_language"] = verdict.get("primary_language", "")
+
             analysis_result = await analyze_code_document(document, provider=provider, model=model)
             issues = analysis_result["issues"]
 

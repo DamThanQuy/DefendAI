@@ -102,9 +102,6 @@ def _is_teacher_doc(text: str) -> bool:
     for p in patterns:
         if p in lower:
             return True
-    # Tổ hợp: "hướng dẫn" + tên lớp/môn
-    if "hướng dẫn" in lower and ("exe101" in lower or "lớp" in lower):
-        return True
     return False
 
 
