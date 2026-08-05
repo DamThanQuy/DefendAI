@@ -55,22 +55,22 @@ export function FilePreview({ docId, path }: { docId: number; path: string }) {
     return () => { cancelled = true; };
   }, [docId, path]);
 
-  if (loading) return <div className="h-full flex items-center justify-center text-gray-500 text-[14px]">Đang tải nội dung...</div>;
-  if (error) return <div className="p-6 text-red-600 text-[14px]">{error}</div>;
+  if (loading) return <div className="h-full flex items-center justify-center text-zinc-500 text-[14px]">Đang tải nội dung...</div>;
+  if (error) return <div className="p-6 text-red-400 text-[14px]">{error}</div>;
   if (!content) return null;
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50 flex items-center gap-2 text-[13px] text-gray-600">
+      <div className="px-4 py-2 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2 text-[13px] text-zinc-400">
         <span>{fileIcon(path)}</span>
         <span className="font-semibold">{path}</span>
       </div>
       {content.type === "text" ? (
-        <pre className="p-4 text-[13px] leading-relaxed overflow-auto flex-1 font-mono text-gray-800 whitespace-pre">
+        <pre className="p-4 text-[13px] leading-relaxed overflow-auto flex-1 font-mono text-zinc-300 whitespace-pre">
           {content.text}
         </pre>
       ) : (
-        <div className="flex-1 flex items-center justify-center bg-gray-50">
+        <div className="flex-1 flex items-center justify-center bg-zinc-900">
           {path.endsWith(".pdf") ? (
             <iframe src={content.text} className="w-full h-full" title={path} />
           ) : (

@@ -8,9 +8,9 @@ interface SeverityBadgeProps {
 }
 
 const severityStyles: Record<string, string> = {
-  error: "bg-red-500/10 text-red-500",
-  warning: "bg-yellow-500/10 text-yellow-600",
-  info: "bg-blue-500/10 text-blue-500",
+  error: "bg-red-500/10 text-red-400",
+  warning: "bg-yellow-500/10 text-yellow-400",
+  info: "bg-blue-500/10 text-blue-400",
 };
 
 const severityLabels: Record<string, string> = {
@@ -24,7 +24,7 @@ export function SeverityBadge({ severity, className }: SeverityBadgeProps) {
     <span
       className={cn(
         "text-xs font-medium px-2 py-1 rounded-full",
-        severityStyles[severity] ?? "bg-gray-100 text-gray-600",
+        severityStyles[severity] ?? "bg-zinc-800 text-zinc-400",
         className,
       )}
     >
@@ -43,9 +43,9 @@ interface DifficultyBadgeProps {
 }
 
 const difficultyStyles: Record<string, string> = {
-  easy: "bg-green-500/10 text-green-600",
-  medium: "bg-yellow-500/10 text-yellow-600",
-  hard: "bg-red-500/10 text-red-500",
+  easy: "bg-green-500/10 text-green-400",
+  medium: "bg-yellow-500/10 text-yellow-400",
+  hard: "bg-red-500/10 text-red-400",
 };
 
 const difficultyLabels: Record<string, string> = {
@@ -59,7 +59,7 @@ export function DifficultyBadge({ difficulty, className }: DifficultyBadgeProps)
     <span
       className={cn(
         "text-xs font-medium px-2 py-1 rounded-full",
-        difficultyStyles[difficulty] ?? "bg-gray-100 text-gray-600",
+        difficultyStyles[difficulty] ?? "bg-zinc-800 text-zinc-400",
         className,
       )}
     >

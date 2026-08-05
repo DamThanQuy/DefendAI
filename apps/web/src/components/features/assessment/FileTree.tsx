@@ -81,13 +81,13 @@ export function FileTree({
             <div key={full}>
               <button
                 onClick={() => toggleDir(full)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 text-[13px] text-gray-700 hover:bg-gray-100 rounded-md text-left"
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-[13px] text-zinc-400 hover:bg-zinc-800/60 rounded-md text-left"
               >
-                <span className={`text-[10px] text-gray-400 transition-transform ${isOpen ? "rotate-90" : ""}`}>▶</span>
+                <span className={`text-[10px] text-zinc-500 transition-transform ${isOpen ? "rotate-90" : ""}`}>▶</span>
                 <span>📁</span>
                 <span className="font-medium truncate">{name}</span>
               </button>
-              {isOpen && <div className="ml-4 border-l border-gray-100 pl-1">{renderNode(child, full)}</div>}
+              {isOpen && <div className="ml-4 border-l border-zinc-800 pl-1">{renderNode(child, full)}</div>}
             </div>
           );
         })}
@@ -99,12 +99,12 @@ export function FileTree({
               key={f.path}
               onClick={() => onSelect(f.path)}
               className={`w-full flex items-center gap-2 px-2 py-1.5 text-[13px] rounded-md text-left ${
-                isActive ? "bg-blue-50 text-[#0f2e82] font-semibold" : "text-gray-700 hover:bg-gray-100"
+                isActive ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-zinc-400 hover:bg-zinc-800/60"
               }`}
             >
               <span>{fileIcon(f.path)}</span>
               <span className="truncate flex-1">{name}</span>
-              <span className="text-[10px] text-gray-400">{formatSize(f.size)}</span>
+              <span className="text-[10px] text-zinc-500">{formatSize(f.size)}</span>
             </button>
           );
         })}

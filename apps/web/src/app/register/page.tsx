@@ -42,7 +42,7 @@ export default function RegisterPage() {
 localStorage.setItem("refresh_token", data.refresh_token || "");
       localStorage.setItem("user", JSON.stringify(data.user));
       window.dispatchEvent(new Event("storage"));
-      router.push("/");
+      router.push("/documents");
     } catch {
       setError("Không thể kết nối server");
     }

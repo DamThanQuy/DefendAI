@@ -227,8 +227,8 @@ export function UploadZone({
           100% { transform: scale(1); opacity: 1; }
         }
         @keyframes step-ring {
-          0% { box-shadow: 0 0 0 0 rgba(15,46,130,0.35); }
-          100% { box-shadow: 0 0 0 10px rgba(15,46,130,0); }
+          0% { box-shadow: 0 0 0 0 rgba(13,148,136,0.35); }
+          100% { box-shadow: 0 0 0 10px rgba(13,148,136,0); }
         }
         @keyframes step-grow {
           0% { transform: scaleX(0.2); opacity: 0; }
@@ -257,21 +257,21 @@ export function UploadZone({
           return (
             <React.Fragment key={s.n}>
               {i > 0 && (
-                <div className={`h-0.5 w-8 sm:w-12 rounded-full transition-colors ${done ? "step-grow bg-[#0f2e82]" : "bg-gray-200"}`} />
+                <div className={`h-0.5 w-8 sm:w-12 rounded-full transition-colors ${done ? "step-grow bg-primary" : "bg-zinc-800"}`} />
               )}
               <div className="flex items-center gap-2">
                 <div
                   className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold transition-all ${
                     active
-                      ? "step-pop bg-[#0f2e82] text-white ring-4 ring-[#0f2e82]/20 step-ring"
+                      ? "step-pop bg-primary text-primary-foreground ring-4 ring-primary/20 step-ring"
                       : done
-                      ? "bg-[#0f2e82] text-white"
-                      : "bg-gray-200 text-gray-500"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-zinc-800 text-zinc-500"
                   }`}
                 >
                   {done ? <span className="step-check">✓</span> : s.n}
                 </div>
-                <span className={`text-[13px] font-semibold transition-colors ${active ? "text-[#0f2e82]" : done ? "text-gray-700" : "text-gray-400"}`}>
+                <span className={`text-[13px] font-semibold transition-colors ${active ? "text-primary" : done ? "text-zinc-300" : "text-zinc-500"}`}>
                   {s.label}
                 </span>
               </div>
@@ -281,10 +281,10 @@ export function UploadZone({
       </div>
 
       <div
-        className={`w-full h-full border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ease-in-out cursor-pointer flex flex-col items-center justify-center min-h-[460px] relative overflow-hidden bg-white ${
+        className={`w-full h-full border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ease-in-out cursor-pointer flex flex-col items-center justify-center min-h-[460px] relative overflow-hidden bg-card ${
           isDragging
-            ? "border-[#0f2e82] bg-[#e8effd]/30"
-            : "border-gray-300 hover:border-[#0f2e82]/40"
+            ? "border-primary bg-teal-500/10"
+            : "border-zinc-700 hover:border-primary/40"
         } ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -293,26 +293,26 @@ export function UploadZone({
           if (!isProcessing && !file) document.getElementById("file-upload")?.click();
         }}
       >
-        <div className={`w-[72px] h-[72px] rounded-full mb-8 flex items-center justify-center transition-all duration-300 ${isDragging ? "bg-[#e8effd] scale-110" : "bg-[#e8effd]"}`}>
-          <svg className="w-8 h-8 text-[#0f2e82]" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <div className={`w-[72px] h-[72px] rounded-full mb-8 flex items-center justify-center transition-all duration-300 ${isDragging ? "bg-teal-500/20 scale-110" : "bg-teal-500/10"}`}>
+          <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
           </svg>
         </div>
         
         {file ? (
           <div className="space-y-4 w-full max-w-xs mx-auto">
-            <h3 className="text-xl font-bold text-[#0f2e82] truncate px-4">{file.name}</h3>
-            <div className="inline-block px-4 py-1.5 bg-[#e8effd] text-[#0f2e82] rounded-full text-xs font-semibold">
+            <h3 className="text-xl font-bold text-foreground truncate px-4">{file.name}</h3>
+            <div className="inline-block px-4 py-1.5 bg-teal-500/10 text-primary rounded-full text-xs font-semibold">
               {(file.size / 1024 / 1024).toFixed(2)} MB
             </div>
 
             {/* Bước 1b: Chưa upload → nút "Tải lên" */}
             {!isProcessing && !uploaded && (
-              <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
-                <button onClick={(e) => { e.stopPropagation(); processFile(); }} className="w-full py-3 bg-[#0f2e82] hover:bg-[#0f2e82]/90 text-white font-semibold rounded-full shadow-md transition-colors text-sm">
+              <div className="flex flex-col gap-3 pt-4 border-t border-zinc-800/60">
+                <button onClick={(e) => { e.stopPropagation(); processFile(); }} className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full shadow-md transition-colors text-sm">
                   Tải lên
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); setFile(null); setUploaded(false); setDocumentId(""); }} className="w-full py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
+                <button onClick={(e) => { e.stopPropagation(); setFile(null); setUploaded(false); setDocumentId(""); }} className="w-full py-3 text-sm font-medium text-zinc-500 hover:text-zinc-300 transition-colors">
                   Hủy & Chọn tệp khác
                 </button>
               </div>
@@ -321,18 +321,18 @@ export function UploadZone({
             {/* Bước 2 & 3: Đã upload → chọn persona rồi phân tích */}
             {!isProcessing && uploaded && (
               <>
-                <div className="mt-8 pt-6 border-t border-gray-100 text-left">
-                  <h4 className="text-[15px] font-bold text-[#0f2e82] mb-1">Chọn Giám Khảo AI</h4>
-                  <p className="text-[13px] text-gray-500 mb-4">Chọn phong cách hỏi phù hợp với buổi bảo vệ của bạn.</p>
+                <div className="mt-8 pt-6 border-t border-zinc-800/60 text-left">
+                  <h4 className="text-[15px] font-bold text-foreground mb-1">Chọn Giám Khảo AI</h4>
+                  <p className="text-[13px] text-zinc-500 mb-4">Chọn phong cách hỏi phù hợp với buổi bảo vệ của bạn.</p>
                   <PersonaPicker value={persona} onChange={setPersona} />
                 </div>
 
                 {/* Bước 3: Bắt đầu phân tích */}
-                <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
-                  <button onClick={(e) => { e.stopPropagation(); generateQuestions(); }} className="w-full py-3 bg-[#0f2e82] hover:bg-[#0f2e82]/90 text-white font-semibold rounded-full shadow-md transition-colors text-sm">
+                <div className="flex flex-col gap-3 pt-4 border-t border-zinc-800/60">
+                  <button onClick={(e) => { e.stopPropagation(); generateQuestions(); }} className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full shadow-md transition-colors text-sm">
                     Bắt đầu phân tích
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); setFile(null); setUploaded(false); setDocumentId(""); }} className="w-full py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
+                  <button onClick={(e) => { e.stopPropagation(); setFile(null); setUploaded(false); setDocumentId(""); }} className="w-full py-3 text-sm font-medium text-zinc-500 hover:text-zinc-300 transition-colors">
                     Hủy & Chọn tệp khác
                   </button>
                 </div>
@@ -341,11 +341,11 @@ export function UploadZone({
           </div>
         ) : (
           <div className="flex flex-col items-center">
-            <h3 className="text-[22px] font-bold mb-3 text-gray-900 tracking-tight">{title}</h3>
-            <p className="text-[#5f6368] mb-10 text-[15px] font-medium">
+            <h3 className="text-[22px] font-bold mb-3 text-zinc-100 tracking-tight">{title}</h3>
+            <p className="text-zinc-500 mb-10 text-[15px] font-medium">
               {description}
             </p>
-            <button className="px-8 py-2.5 bg-[#0f2e82] text-white font-semibold rounded-full hover:bg-[#0f2e82]/90 transition-colors text-sm shadow-sm pointer-events-none">
+            <button className="px-8 py-2.5 bg-primary text-primary-foreground font-semibold rounded-full hover:bg-primary/90 transition-colors text-sm shadow-sm pointer-events-none">
               {buttonLabel}
             </button>
           </div>
@@ -355,32 +355,32 @@ export function UploadZone({
 
       {/* Error Banner — hiển thị bền sau khi xử lý kết thúc */}
       {error && (
-        <div className="mt-4 flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
-          <svg className="w-5 h-5 text-red-500 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <div className="mt-4 flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+          <svg className="w-5 h-5 text-red-400 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
           </svg>
           <div>
-            <p className="text-[14px] font-semibold text-red-700 mb-1">Không thể phân tích tệp này</p>
-            <p className="text-[13px] text-red-600 leading-relaxed">{error}</p>
+            <p className="text-[14px] font-semibold text-red-400 mb-1">Không thể phân tích tệp này</p>
+            <p className="text-[13px] text-red-400 leading-relaxed">{error}</p>
           </div>
         </div>
       )}
 
       {/* Loading Overlay */}
       {isProcessing && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-100">
-          <div className="w-14 h-14 border-[3px] border-[#e8effd] border-t-[#0f2e82] rounded-full animate-spin mb-6"></div>
-          <h3 className="text-[17px] font-bold text-gray-900">{statusText}</h3>
-          <div className="w-64 h-2 bg-gray-200 rounded-full mt-4 overflow-hidden">
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/90 backdrop-blur-sm rounded-2xl border border-zinc-800/60">
+          <div className="w-14 h-14 border-[3px] border-teal-500/20 border-t-primary rounded-full animate-spin mb-6"></div>
+          <h3 className="text-[17px] font-bold text-zinc-100">{statusText}</h3>
+          <div className="w-64 h-2 bg-zinc-800 rounded-full mt-4 overflow-hidden">
             <div
-              className="h-full bg-[#0f2e82] rounded-full transition-all duration-500 ease-out"
+              className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <p className="text-xs text-gray-400 mt-2 font-medium">{progress}%</p>
+          <p className="text-xs text-zinc-500 mt-2 font-medium">{progress}%</p>
           <button
             onClick={handleCancel}
-            className="mt-6 px-6 py-2 text-sm font-medium text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 rounded-full transition-all"
+            className="mt-6 px-6 py-2 text-sm font-medium text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-400 rounded-full transition-all"
           >
             Hủy quá trình
           </button>

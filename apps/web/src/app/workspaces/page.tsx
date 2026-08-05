@@ -259,34 +259,34 @@ export default function WorkspacesPage() {
 
   if (!token) {
     return (
-      <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-xl font-bold text-[#0f2e82] mb-2">Vui lòng đăng nhập</h2>
-          <Link href="/login" className="text-[#0f2e82] font-semibold hover:underline">Đăng nhập ngay</Link>
+          <h2 className="text-xl font-bold text-foreground mb-2">Vui lòng đăng nhập</h2>
+          <Link href="/login" className="text-primary font-semibold hover:underline">Đăng nhập ngay</Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] pb-16">
+    <div className="min-h-screen bg-background pb-16">
       <div className="container mx-auto px-4 lg:px-8 pt-6 max-w-[1100px]">
         {/* Breadcrumb */}
-        <div className="flex items-center text-[13px] text-gray-500 font-medium mb-6">
-          <Link href="/" className="hover:text-[#0f2e82] transition-colors">Trang chủ</Link>
+        <div className="flex items-center text-[13px] text-zinc-500 font-medium mb-6">
+          <Link href="/documents" className="hover:text-primary transition-colors">Trang chủ</Link>
           <span className="mx-2">›</span>
-          <span className="text-[#0f2e82] font-semibold">Workspace</span>
+          <span className="text-primary font-semibold">Workspace</span>
         </div>
 
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-[28px] font-bold text-[#0f2e82] mb-2">Workspace của tôi</h1>
-            <p className="text-[#5f6368] text-[14px]">Gom nhiều tài liệu vào 1 đề tài, xem lịch sử phiên hỏi đáp &amp; code review.</p>
+            <h1 className="text-[28px] font-bold text-foreground mb-2">Workspace của tôi</h1>
+            <p className="text-zinc-500 text-[14px]">Gom nhiều tài liệu vào 1 đề tài, xem lịch sử phiên hỏi đáp &amp; code review.</p>
           </div>
           <button
             onClick={() => setShowCreate(true)}
-            className="px-6 py-2.5 bg-[#0f2e82] text-white rounded-lg text-[14px] font-semibold hover:bg-[#1a3a9c] transition-colors shrink-0"
+            className="px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90 transition-colors shrink-0"
           >
             + Tạo workspace
           </button>
@@ -294,25 +294,25 @@ export default function WorkspacesPage() {
 
         {loading && (
           <div className="text-center py-20">
-            <div className="w-8 h-8 border-2 border-[#0f2e82] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-gray-500 text-[14px]">Đang tải danh sách...</p>
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-zinc-500 text-[14px]">Đang tải danh sách...</p>
           </div>
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-[14px] mb-6">{error}</div>
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-[14px] mb-6">{error}</div>
         )}
 
         {!loading && !error && workspaces.length === 0 && (
           <div className="text-center py-20">
-            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
               </svg>
             </div>
-            <h2 className="text-lg font-bold text-[#0f2e82] mb-2">Chưa có workspace nào</h2>
-            <p className="text-gray-500 text-[14px] mb-6">Tạo workspace để gom tài liệu theo đề tài của bạn.</p>
-            <button onClick={() => setShowCreate(true)} className="px-6 py-2.5 bg-[#0f2e82] text-white rounded-lg text-[14px] font-semibold hover:bg-[#1a3a9c]">
+            <h2 className="text-lg font-bold text-foreground mb-2">Chưa có workspace nào</h2>
+            <p className="text-zinc-500 text-[14px] mb-6">Tạo workspace để gom tài liệu theo đề tài của bạn.</p>
+            <button onClick={() => setShowCreate(true)} className="px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90">
               Tạo workspace đầu tiên
             </button>
           </div>
@@ -321,44 +321,44 @@ export default function WorkspacesPage() {
         {/* Workspace cards */}
         <div className="grid gap-5">
           {workspaces.map((ws) => (
-            <div key={ws.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div key={ws.id} className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden">
               {/* Card header */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-5 py-4 border-b border-gray-100">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-5 py-4 border-b border-zinc-800/60">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="w-10 h-10 rounded-xl bg-teal-500/10 flex items-center justify-center shrink-0">
+                    <svg className="w-5 h-5 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
                     </svg>
                   </div>
                   <div>
-                    <Link href={`/workspaces/${ws.id}`} className="text-[16px] font-bold text-gray-800 hover:text-[#0f2e82] hover:underline transition-colors">
+                    <Link href={`/workspaces/${ws.id}`} className="text-[16px] font-bold text-zinc-200 hover:text-primary hover:underline transition-colors">
                       {ws.name}
                     </Link>
-                    <p className="text-[12px] text-gray-500">{ws.document_count} file · Tạo {formatDate(ws.created_at)}</p>
+                    <p className="text-[12px] text-zinc-500">{ws.document_count} file · Tạo {formatDate(ws.created_at)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setRenameWs(ws)}
-                    className="px-3 py-1.5 text-[12px] font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    className="px-3 py-1.5 text-[12px] font-semibold text-zinc-400 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
                   >
                     ✏️ Đổi tên
                   </button>
                   <button
                     onClick={() => handleDelete(ws)}
-                    className="px-3 py-1.5 text-[12px] font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                    className="px-3 py-1.5 text-[12px] font-semibold text-red-400 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors"
                   >
                     🗑️ Xoá
                   </button>
                   <button
                     onClick={() => toggleSessions(ws)}
-                    className="px-3 py-1.5 text-[12px] font-semibold text-[#0f2e82] bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                    className="px-3 py-1.5 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors"
                   >
                     {openSessions.has(ws.id) ? "▲ Lịch sử" : "▼ Lịch sử"}
                   </button>
                   <button
                     onClick={() => openAddModal(ws)}
-                    className="px-3 py-1.5 text-[12px] font-semibold text-white bg-[#0f2e82] rounded-lg hover:bg-[#1a3a9c] transition-colors"
+                    className="px-3 py-1.5 text-[12px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors"
                   >
                     + Thêm file
                   </button>
@@ -367,38 +367,38 @@ export default function WorkspacesPage() {
 
               {/* Files list */}
               {ws.files.length === 0 ? (
-                <div className="px-5 py-6 text-center text-gray-400 text-[13px]">Chưa có file — bấm "+ Thêm file" để gom tài liệu vào đề tài này.</div>
+                <div className="px-5 py-6 text-center text-zinc-500 text-[13px]">Chưa có file — bấm "+ Thêm file" để gom tài liệu vào đề tài này.</div>
               ) : (
-                <div className="divide-y divide-gray-50">
+                <div className="divide-y divide-zinc-800/60">
                   {ws.files.map((f) => (
-                    <div key={f.document_id} className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-gray-50/50">
+                    <div key={f.document_id} className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-zinc-800/40">
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-[12px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded shrink-0">
+                        <span className="text-[12px] font-bold text-zinc-400 bg-zinc-800 px-2 py-1 rounded shrink-0">
                           {f.file_type === ".rar" ? "RAR" : docTypeLabel[f.doc_type] ?? f.file_type}
                         </span>
-                        <span className="text-[14px] font-medium text-gray-700 truncate">{f.filename}</span>
+                        <span className="text-[14px] font-medium text-zinc-300 truncate">{f.filename}</span>
                         {f.role === "attachment" && (
-                          <span className="text-[11px] text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">attachment</span>
+                          <span className="text-[11px] text-zinc-500 bg-zinc-800/40 px-1.5 py-0.5 rounded border border-zinc-700">attachment</span>
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {f.doc_type === "zip" && (
                           <Link
                             href={`/code-review?doc=${f.document_id}`}
-                            className="px-3 py-1.5 text-[12px] font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                            className="px-3 py-1.5 text-[12px] font-semibold text-zinc-300 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
                           >
                             🔍 Code Review
                           </Link>
                         )}
                         <Link
                           href={`/documents/${f.document_id}`}
-                          className="px-3 py-1.5 text-[12px] font-semibold text-[#0f2e82] bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                          className="px-3 py-1.5 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors"
                         >
                           Tạo câu hỏi
                         </Link>
                         <button
                           onClick={() => handleRemoveFile(ws, f.document_id)}
-                          className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          className="w-7 h-7 flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                           title="Gỡ khỏi workspace"
                         >
                           ✕
@@ -411,9 +411,9 @@ export default function WorkspacesPage() {
 
               {/* Session history */}
               {openSessions.has(ws.id) && (
-                <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-4">
+                <div className="border-t border-zinc-800/60 bg-zinc-900/40 px-5 py-4">
                   {loadingSessions.has(ws.id) ? (
-                    <p className="text-gray-400 text-[13px]">Đang tải lịch sử...</p>
+                    <p className="text-zinc-500 text-[13px]">Đang tải lịch sử...</p>
                   ) : (
                     <SessionsView sessions={sessionsCache[ws.id]} />
                   )}
@@ -426,22 +426,22 @@ export default function WorkspacesPage() {
 
       {/* Create modal */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowCreate(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-[16px] font-bold text-[#0f2e82] mb-4">Tạo workspace mới</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setShowCreate(false)}>
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md p-6 border border-zinc-800/60" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[16px] font-bold text-foreground mb-4">Tạo workspace mới</h3>
             <input
               autoFocus
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
               placeholder="Tên đề tài (vd: Đồ án quản lý nhà trọ)"
-              className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[14px] focus:outline-none focus:ring-2 focus:ring-[#0f2e82]/30 mb-4"
+              className="w-full border border-zinc-700 rounded-lg px-4 py-2.5 text-[14px] bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-primary/30 mb-4 text-zinc-200"
             />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-[13px] font-semibold text-gray-500 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-[13px] font-semibold text-zinc-500 hover:bg-zinc-800 rounded-lg">
                 Huỷ
               </button>
-              <button onClick={handleCreate} disabled={!newName.trim()} className="px-4 py-2 text-[13px] font-semibold text-white bg-[#0f2e82] rounded-lg hover:bg-[#1a3a9c] disabled:opacity-50">
+              <button onClick={handleCreate} disabled={!newName.trim()} className="px-4 py-2 text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50">
                 Tạo
               </button>
             </div>
@@ -451,21 +451,21 @@ export default function WorkspacesPage() {
 
       {/* Rename modal */}
       {renameWs && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setRenameWs(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-[16px] font-bold text-[#0f2e82] mb-4">Đổi tên workspace</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setRenameWs(null)}>
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md p-6 border border-zinc-800/60" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[16px] font-bold text-foreground mb-4">Đổi tên workspace</h3>
             <input
               autoFocus
               value={renameName || renameWs.name}
               onChange={(e) => setRenameName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleRename()}
-              className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-[14px] focus:outline-none focus:ring-2 focus:ring-[#0f2e82]/30 mb-4"
+              className="w-full border border-zinc-700 rounded-lg px-4 py-2.5 text-[14px] bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-primary/30 mb-4 text-zinc-200"
             />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setRenameWs(null)} className="px-4 py-2 text-[13px] font-semibold text-gray-500 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setRenameWs(null)} className="px-4 py-2 text-[13px] font-semibold text-zinc-500 hover:bg-zinc-800 rounded-lg">
                 Huỷ
               </button>
-              <button onClick={handleRename} disabled={!renameName.trim()} className="px-4 py-2 text-[13px] font-semibold text-white bg-[#0f2e82] rounded-lg hover:bg-[#1a3a9c] disabled:opacity-50">
+              <button onClick={handleRename} disabled={!renameName.trim()} className="px-4 py-2 text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50">
                 Lưu
               </button>
             </div>
@@ -475,30 +475,30 @@ export default function WorkspacesPage() {
 
       {/* Add files modal */}
       {addWs && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAddWs(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-              <h3 className="text-[16px] font-bold text-[#0f2e82]">Thêm file vào "{addWs.name}"</h3>
-              <button onClick={() => setAddWs(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500">✕</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setAddWs(null)}>
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col border border-zinc-800/60" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/60">
+              <h3 className="text-[16px] font-bold text-foreground">Thêm file vào "{addWs.name}"</h3>
+              <button onClick={() => setAddWs(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-zinc-800 text-zinc-500">✕</button>
             </div>
             <div className="flex-1 overflow-y-auto px-3 py-3">
-              {docs.length === 0 && <p className="text-center text-gray-400 text-[13px] py-8">Chưa có tài liệu nào trong thùng. Vào trang Tài liệu để upload.</p>}
+              {docs.length === 0 && <p className="text-center text-zinc-500 text-[13px] py-8">Chưa có tài liệu nào trong thùng. Vào trang Tài liệu để upload.</p>}
               {docs.map((doc) => {
                 const checked = selectedDocIds.has(doc.id);
                 return (
-                  <label key={doc.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${checked ? "bg-blue-50" : "hover:bg-gray-50"}`}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleDoc(doc.id)} className="w-4 h-4 accent-[#0f2e82]" />
-                    <span className="text-[12px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded shrink-0">
+                  <label key={doc.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${checked ? "bg-teal-500/10" : "hover:bg-zinc-800/50"}`}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleDoc(doc.id)} className="w-4 h-4 accent-teal-500" />
+                    <span className="text-[12px] font-bold text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded shrink-0">
                       {doc.file_type === ".rar" ? "RAR" : docTypeLabel[doc.doc_type] ?? doc.file_type}
                     </span>
-                    <span className="text-[14px] font-medium text-gray-700 truncate">{doc.filename}</span>
+                    <span className="text-[14px] font-medium text-zinc-300 truncate">{doc.filename}</span>
                   </label>
                 );
               })}
             </div>
-            <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
-              <button onClick={() => setAddWs(null)} className="px-4 py-2 text-[13px] font-semibold text-gray-500 hover:bg-gray-100 rounded-lg">Huỷ</button>
-              <button onClick={handleAddFiles} className="px-4 py-2 text-[13px] font-semibold text-white bg-[#0f2e82] rounded-lg hover:bg-[#1a3a9c]">
+            <div className="px-5 py-3 border-t border-zinc-800/60 flex justify-end gap-2">
+              <button onClick={() => setAddWs(null)} className="px-4 py-2 text-[13px] font-semibold text-zinc-500 hover:bg-zinc-800 rounded-lg">Huỷ</button>
+              <button onClick={handleAddFiles} className="px-4 py-2 text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90">
                 Thêm ({selectedDocIds.size})
               </button>
             </div>
@@ -529,24 +529,24 @@ function SessionsView({ sessions }: { sessions?: SessionsResponse }) {
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   if (all.length === 0) {
-    return <p className="text-gray-400 text-[13px]">Chưa có phiên nào cho workspace này.</p>;
+    return <p className="text-zinc-500 text-[13px]">Chưa có phiên nào cho workspace này.</p>;
   }
 
   return (
-    <div className="divide-y divide-gray-100">
+    <div className="divide-y divide-zinc-800/60">
       {all.map((s) => (
         <div key={`${s.kind}-${s.id}`} className="py-2.5 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[12px] font-bold text-gray-500">{s.kind}</span>
-              <span className="text-[13px] font-semibold text-gray-800 truncate">{s.document_name}</span>
-              {s.meta && <span className="text-[11px] text-gray-400">{s.meta}</span>}
+              <span className="text-[12px] font-bold text-zinc-500">{s.kind}</span>
+              <span className="text-[13px] font-semibold text-zinc-200 truncate">{s.document_name}</span>
+              {s.meta && <span className="text-[11px] text-zinc-500">{s.meta}</span>}
             </div>
-            <div className="text-[11px] text-gray-400 mt-0.5">{s.detail} · {new Date(s.created_at).toLocaleString("vi-VN")}</div>
+            <div className="text-[11px] text-zinc-500 mt-0.5">{s.detail} · {new Date(s.created_at).toLocaleString("vi-VN")}</div>
           </div>
           <Link
             href={s.kind.includes("Code") ? "/code-review" : `/documents/${s.document_id}`}
-            className="px-3 py-1 text-[12px] font-semibold text-[#0f2e82] bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors shrink-0"
+            className="px-3 py-1 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors shrink-0"
           >
             Xem
           </Link>

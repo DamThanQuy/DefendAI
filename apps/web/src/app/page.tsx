@@ -5,8 +5,11 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { FileText, MonitorPlay, Award, ArrowRight, Sparkles } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function LandingPage() {
+  const { isAuthed } = useAuth();
+  const startHref = isAuthed ? "/documents" : "/login";
   return (
     <div className="flex flex-col min-h-screen relative overflow-hidden">
       {/* Background decorations */}
@@ -38,7 +41,7 @@ export default function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/documents">
+            <Link href={startHref}>
               <Button className="rounded-full h-14 px-8 text-lg shadow-[0_0_20px_hsl(var(--primary)/0.5)] transition-all hover:scale-105 group relative overflow-hidden">
                 <span className="relative z-10 flex items-center gap-2">
                   Trải nghiệm ngay
@@ -164,7 +167,7 @@ export default function LandingPage() {
             <p className="text-muted-foreground text-lg mb-10 max-w-2xl mx-auto">
               Hàng ngàn sinh viên đã chuẩn bị hoàn hảo với GraduAI. Đừng để sự cố nhỏ làm hỏng điểm số của bạn.
             </p>
-            <Link href="/documents">
+            <Link href={startHref}>
               <Button size="lg" className="rounded-full h-14 px-10 text-lg shadow-[0_0_20px_hsl(var(--primary)/0.6)] hover:scale-105 transition-transform">
                 Bắt đầu hoàn toàn miễn phí
               </Button>

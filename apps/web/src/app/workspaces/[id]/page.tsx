@@ -74,9 +74,9 @@ const docTypeLabel: Record<string, string> = {
 };
 
 const diffCfg: Record<string, { label: string; bg: string; txt: string }> = {
-  easy: { label: "Dễ", bg: "bg-green-50", txt: "text-green-700" },
-  medium: { label: "Trung bình", bg: "bg-blue-50", txt: "text-blue-600" },
-  hard: { label: "Khó", bg: "bg-red-50", txt: "text-[#d32f2f]" },
+  easy: { label: "Dễ", bg: "bg-green-500/10", txt: "text-green-400" },
+  medium: { label: "Trung bình", bg: "bg-blue-500/10", txt: "text-blue-400" },
+  hard: { label: "Khó", bg: "bg-red-500/10", txt: "text-red-400" },
 };
 
 function getToken(): string | null {
@@ -113,15 +113,15 @@ function DocPreview({ docId, filename }: { docId: number; filename: string }) {
     return () => { cancelled = true; };
   }, [docId, filename]);
 
-  if (loading) return <div className="h-full flex items-center justify-center text-gray-500 text-[14px]">Đang tải nội dung...</div>;
-  if (error) return <div className="p-6 text-red-600 text-[14px]">{error}</div>;
+  if (loading) return <div className="h-full flex items-center justify-center text-zinc-500 text-[14px]">Đang tải nội dung...</div>;
+  if (error) return <div className="p-6 text-red-400 text-[14px]">{error}</div>;
   if (!content) return null;
 
   const isMd = filename.toLowerCase().endsWith(".md");
 
   if (content.type === "binary") {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50 overflow-auto">
+      <div className="flex-1 flex items-center justify-center bg-zinc-900 overflow-auto">
         {filename.toLowerCase().endsWith(".pdf") ? (
           <iframe src={content.text} className="w-full h-full" title={filename} />
         ) : (
@@ -134,7 +134,7 @@ function DocPreview({ docId, filename }: { docId: number; filename: string }) {
   if (isMd) {
     return (
       <div className="flex-1 overflow-auto p-6">
-        <article className="prose prose-sm max-w-none text-gray-800 leading-relaxed">
+        <article className="prose prose-invert prose-sm max-w-none text-zinc-300 leading-relaxed">
           <ReactMarkdown>{content.text}</ReactMarkdown>
         </article>
       </div>
@@ -142,7 +142,7 @@ function DocPreview({ docId, filename }: { docId: number; filename: string }) {
   }
 
   return (
-    <pre className="flex-1 overflow-auto p-4 text-[13px] leading-relaxed font-mono text-gray-800 whitespace-pre">
+    <pre className="flex-1 overflow-auto p-4 text-[13px] leading-relaxed font-mono text-zinc-300 whitespace-pre">
       {content.text}
     </pre>
   );
@@ -318,46 +318,46 @@ export default function WorkspaceDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#0f2e82] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   if (error || !ws) {
     return (
-      <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-xl font-bold text-[#0f2e82] mb-2">Không thể tải workspace</h2>
-          <p className="text-gray-500 mb-4">{error || "Workspace không tồn tại."}</p>
-          <Link href="/workspaces" className="text-[#0f2e82] font-semibold hover:underline">Quay lại danh sách</Link>
+          <h2 className="text-xl font-bold text-foreground mb-2">Không thể tải workspace</h2>
+          <p className="text-zinc-500 mb-4">{error || "Workspace không tồn tại."}</p>
+          <Link href="/workspaces" className="text-primary font-semibold hover:underline">Quay lại danh sách</Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] pb-16">
+    <div className="min-h-screen bg-background pb-16">
       <div className="container mx-auto px-4 lg:px-8 pt-6 max-w-[1400px]">
         {/* Breadcrumb */}
-        <div className="flex items-center text-[13px] text-gray-500 font-medium mb-4">
-          <Link href="/" className="hover:text-[#0f2e82] transition-colors">Trang chủ</Link>
+        <div className="flex items-center text-[13px] text-zinc-500 font-medium mb-4">
+          <Link href="/documents" className="hover:text-primary transition-colors">Trang chủ</Link>
           <span className="mx-2">›</span>
-          <Link href="/workspaces" className="hover:text-[#0f2e82] transition-colors">Workspace</Link>
+          <Link href="/workspaces" className="hover:text-primary transition-colors">Workspace</Link>
           <span className="mx-2">›</span>
-          <span className="text-[#0f2e82] font-semibold truncate max-w-[300px]">{ws.name}</span>
+          <span className="text-primary font-semibold truncate max-w-[300px]">{ws.name}</span>
         </div>
 
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
-            <h1 className="text-[24px] font-bold text-[#0f2e82] mb-1">{ws.name}</h1>
-            <p className="text-[#5f6368] text-[14px]">{ws.document_count} file · Tạo {formatDate(ws.created_at)}</p>
+            <h1 className="text-[24px] font-bold text-foreground mb-1">{ws.name}</h1>
+            <p className="text-zinc-500 text-[14px]">{ws.document_count} file · Tạo {formatDate(ws.created_at)}</p>
           </div>
           <div className="flex items-center gap-2">
             <Link
               href="/workspaces"
-              className="px-4 py-2 text-[13px] font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 text-[13px] font-semibold text-zinc-400 bg-card border border-zinc-700 rounded-lg hover:bg-zinc-800 transition-colors"
             >
               ← Danh sách
             </Link>
@@ -365,22 +365,22 @@ export default function WorkspaceDetailPage() {
         </div>
 
         {ws.files.length === 0 ? (
-          <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-16 text-center">
+          <div className="bg-card rounded-2xl border-2 border-dashed border-zinc-700 p-16 text-center">
             <div className="text-5xl mb-4">🗂️</div>
-            <h2 className="text-lg font-bold text-gray-800 mb-2">Workspace chưa có file</h2>
-            <p className="text-gray-500 text-[14px] mb-6">Thêm file từ trang Tài liệu để bắt đầu.</p>
-            <Link href="/documents" className="inline-block px-5 py-2.5 bg-[#0f2e82] text-white rounded-lg text-[14px] font-semibold hover:bg-[#1a3a9c]">
+            <h2 className="text-lg font-bold text-zinc-200 mb-2">Workspace chưa có file</h2>
+            <p className="text-zinc-500 text-[14px] mb-6">Thêm file từ trang Tài liệu để bắt đầu.</p>
+            <Link href="/documents" className="inline-block px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90">
               Đi tới Tài liệu
             </Link>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5">
             {/* Left: files sidebar (Windows Explorer style) */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden lg:h-[calc(100vh-240px)] lg:sticky lg:top-4 flex flex-col">
-              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center gap-2">
+            <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden lg:h-[calc(100vh-240px)] lg:sticky lg:top-4 flex flex-col">
+              <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2">
                 <span className="text-sm">📁</span>
-                <span className="text-[13px] font-bold text-gray-800">Files</span>
-                <span className="ml-auto text-[11px] text-gray-500">{ws.document_count} file</span>
+                <span className="text-[13px] font-bold text-zinc-200">Files</span>
+                <span className="ml-auto text-[11px] text-zinc-500">{ws.document_count} file</span>
               </div>
               <div className="p-2 overflow-y-auto flex-1">
                 {ws.files.map((f) => {
@@ -392,23 +392,23 @@ export default function WorkspaceDetailPage() {
                       <button
                         onClick={() => selectFile(f)}
                         className={`w-full flex items-center gap-2 px-2 py-2 text-[13px] rounded-md text-left ${
-                          isActive ? "bg-blue-50 text-[#0f2e82] font-semibold" : "text-gray-700 hover:bg-gray-100"
+                          isActive ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-zinc-400 hover:bg-zinc-800/60"
                         }`}
                       >
                         {isZipF ? (
-                          <span className={`text-[10px] text-gray-400 transition-transform ${expanded ? "rotate-90" : ""}`}>▶</span>
+                          <span className={`text-[10px] text-zinc-500 transition-transform ${expanded ? "rotate-90" : ""}`}>▶</span>
                         ) : (
-                          <span className="text-[10px] text-gray-300">•</span>
+                          <span className="text-[10px] text-zinc-600">•</span>
                         )}
-                        <span className="text-[12px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">
+                        <span className="text-[12px] font-bold text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded shrink-0">
                           {f.file_type === ".rar" ? "RAR" : docTypeLabel[f.doc_type] ?? f.file_type}
                         </span>
                         <span className="truncate flex-1">{f.filename}</span>
                       </button>
                       {isZipF && expanded && (
-                        <div className="ml-4 border-l border-gray-100 pl-1">
+                        <div className="ml-4 border-l border-zinc-800 pl-1">
                           {(zipMembers[f.document_id] ?? []).length === 0 ? (
-                            <p className="text-gray-400 text-[12px] p-2">Đang tải...</p>
+                            <p className="text-zinc-500 text-[12px] p-2">Đang tải...</p>
                           ) : (
                             <FileTree
                               members={zipMembers[f.document_id] ?? []}
@@ -430,11 +430,11 @@ export default function WorkspaceDetailPage() {
 
             {/* Right: tabs + content */}
             <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-1 bg-white rounded-2xl shadow-sm border border-gray-100 p-1 w-fit flex-wrap">
+              <div className="flex items-center gap-1 bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-1 w-fit flex-wrap">
                 <button
                   onClick={() => openTab("preview")}
                   className={`px-5 py-2 text-[13px] font-semibold rounded-xl transition-colors ${
-                    rightTab === "preview" ? "bg-[#0f2e82] text-white" : "text-gray-600 hover:bg-gray-50"
+                    rightTab === "preview" ? "bg-primary text-primary-foreground" : "text-zinc-500 hover:bg-zinc-800/60"
                   }`}
                 >
                   👁️ Preview
@@ -442,7 +442,7 @@ export default function WorkspaceDetailPage() {
                 <button
                   onClick={() => openTab("questions")}
                   className={`px-5 py-2 text-[13px] font-semibold rounded-xl transition-colors ${
-                    rightTab === "questions" ? "bg-[#0f2e82] text-white" : "text-gray-600 hover:bg-gray-50"
+                    rightTab === "questions" ? "bg-primary text-primary-foreground" : "text-zinc-500 hover:bg-zinc-800/60"
                   }`}
                 >
                   ❓ Câu hỏi AI
@@ -450,7 +450,7 @@ export default function WorkspaceDetailPage() {
                 <button
                   onClick={() => openTab("history")}
                   className={`px-5 py-2 text-[13px] font-semibold rounded-xl transition-colors ${
-                    rightTab === "history" ? "bg-[#0f2e82] text-white" : "text-gray-600 hover:bg-gray-50"
+                    rightTab === "history" ? "bg-primary text-primary-foreground" : "text-zinc-500 hover:bg-zinc-800/60"
                   }`}
                 >
                   🕘 Lịch sử ({allSessions.length})
@@ -458,9 +458,9 @@ export default function WorkspaceDetailPage() {
               </div>
 
               {rightTab === "preview" && (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-[calc(100vh-340px)] min-h-[450px] flex flex-col">
+                <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden h-[calc(100vh-340px)] min-h-[450px] flex flex-col">
                   {!selectedFile ? (
-                    <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                    <div className="h-full flex flex-col items-center justify-center text-zinc-500">
                       <span className="text-4xl mb-3">👈</span>
                       <p className="text-[14px]">Chọn một file bên trái để xem nội dung</p>
                     </div>
@@ -468,7 +468,7 @@ export default function WorkspaceDetailPage() {
                     selMember ? (
                       <FilePreview docId={selectedFile.document_id} path={selMember} />
                     ) : (
-                      <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                      <div className="h-full flex flex-col items-center justify-center text-zinc-500">
                         <span className="text-4xl mb-3">🗜️</span>
                         <p className="text-[14px]">Mở rộng file nén và chọn 1 file bên trong để xem</p>
                       </div>
@@ -482,28 +482,28 @@ export default function WorkspaceDetailPage() {
               {rightTab === "questions" && (
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-[15px] font-bold text-gray-800">
+                    <h3 className="text-[15px] font-bold text-zinc-200">
                       ❓ Câu hỏi phản biện {selectedFile ? `— ${selectedFile.filename}` : ""}
                     </h3>
                     <Link
                       href={selectedFile ? `/documents/${selectedFile.document_id}` : "/documents"}
-                      className="px-3 py-1.5 text-[12px] font-semibold text-[#0f2e82] bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                      className="px-3 py-1.5 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors"
                     >
                       Tạo câu hỏi mới →
                     </Link>
                   </div>
 
                   {loadingQuestions ? (
-                    <p className="text-gray-400 text-[14px] py-10 text-center">Đang tải câu hỏi...</p>
+                    <p className="text-zinc-500 text-[14px] py-10 text-center">Đang tải câu hỏi...</p>
                   ) : qError ? (
-                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-[14px]">{qError}</div>
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-[14px]">{qError}</div>
                   ) : questions.length === 0 ? (
-                    <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-12 text-center">
+                    <div className="bg-card rounded-2xl border-2 border-dashed border-zinc-700 p-12 text-center">
                       <div className="text-4xl mb-3">💬</div>
-                      <p className="text-gray-500 text-[14px] mb-4">File này chưa có câu hỏi nào. Bấm "Tạo câu hỏi mới" để AI sinh câu hỏi phản biện.</p>
+                      <p className="text-zinc-500 text-[14px] mb-4">File này chưa có câu hỏi nào. Bấm "Tạo câu hỏi mới" để AI sinh câu hỏi phản biện.</p>
                       <Link
                         href={selectedFile ? `/documents/${selectedFile.document_id}` : "/documents"}
-                        className="inline-block px-5 py-2.5 bg-[#0f2e82] text-white rounded-lg text-[14px] font-semibold hover:bg-[#1a3a9c]"
+                        className="inline-block px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90"
                       >
                         Tạo câu hỏi
                       </Link>
@@ -513,28 +513,28 @@ export default function WorkspaceDetailPage() {
                       {questions.map((q) => {
                         const d = difficulty(q.difficulty);
                         return (
-                          <div key={q.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col gap-3 hover:shadow-md transition-shadow">
+                          <div key={q.id} className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-5 flex flex-col gap-3 hover:shadow-md transition-shadow">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className={`px-2.5 py-1 ${d.bg} ${d.txt} text-[11px] font-bold rounded-full`}>{d.label}</span>
-                                <span className="px-2.5 py-1 bg-gray-100 text-gray-700 text-[11px] font-bold rounded-full">{personaLabel(q.persona)}</span>
+                                <span className="px-2.5 py-1 bg-zinc-800 text-zinc-300 text-[11px] font-bold rounded-full">{personaLabel(q.persona)}</span>
                               </div>
-                              <span className="text-[11px] text-gray-400 font-medium">#{q.id}</span>
+                              <span className="text-[11px] text-zinc-500 font-medium">#{q.id}</span>
                             </div>
-                            <h3 className="text-[15px] font-bold text-[#0f2e82] leading-snug">{q.question}</h3>
-                            <div className="bg-[#f8f9fa] rounded-xl overflow-hidden">
+                            <h3 className="text-[15px] font-bold text-teal-400 leading-snug">{q.question}</h3>
+                            <div className="bg-zinc-900 rounded-xl overflow-hidden">
                               <button
                                 onClick={() => toggleExpand(q.id)}
-                                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-zinc-800/60 transition-colors"
                               >
-                                <span className="flex items-center gap-2 text-[#0f2e82] font-semibold text-[13px]">💡 Gợi ý trả lời</span>
-                                <svg className={`w-4 h-4 text-gray-400 transition-transform ${expandedIds.has(q.id) ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <span className="flex items-center gap-2 text-primary font-semibold text-[13px]">💡 Gợi ý trả lời</span>
+                                <svg className={`w-4 h-4 text-zinc-500 transition-transform ${expandedIds.has(q.id) ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                 </svg>
                               </button>
                               {expandedIds.has(q.id) && (
                                 <div className="px-4 pb-3">
-                                  <p className="text-gray-600 text-[13px] leading-relaxed italic">{q.hint}</p>
+                                  <p className="text-zinc-400 text-[13px] leading-relaxed italic">{q.hint}</p>
                                 </div>
                               )}
                             </div>
@@ -547,29 +547,29 @@ export default function WorkspaceDetailPage() {
               )}
 
               {rightTab === "history" && (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center gap-2">
-                    <span className="text-[13px] font-bold text-gray-800">🕘 Lịch sử phiên</span>
+                <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2">
+                    <span className="text-[13px] font-bold text-zinc-200">🕘 Lịch sử phiên</span>
                   </div>
                   {loadingSessions ? (
-                    <p className="text-gray-400 text-[13px] p-5">Đang tải lịch sử...</p>
+                    <p className="text-zinc-500 text-[13px] p-5">Đang tải lịch sử...</p>
                   ) : allSessions.length === 0 ? (
-                    <p className="text-gray-400 text-[13px] p-5">Chưa có phiên nào cho workspace này.</p>
+                    <p className="text-zinc-500 text-[13px] p-5">Chưa có phiên nào cho workspace này.</p>
                   ) : (
-                    <div className="divide-y divide-gray-50">
+                    <div className="divide-y divide-zinc-800/60">
                       {allSessions.map((s) => (
-                        <div key={`${s.kind}-${s.id}`} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-gray-50/50">
+                        <div key={`${s.kind}-${s.id}`} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-zinc-800/40">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[12px] font-bold text-gray-500">{s.kind}</span>
-                              <span className="text-[13px] font-semibold text-gray-800 truncate">{s.document_name}</span>
-                              {s.meta && <span className="text-[11px] text-gray-400">{s.meta}</span>}
+                              <span className="text-[12px] font-bold text-zinc-500">{s.kind}</span>
+                              <span className="text-[13px] font-semibold text-zinc-200 truncate">{s.document_name}</span>
+                              {s.meta && <span className="text-[11px] text-zinc-500">{s.meta}</span>}
                             </div>
-                            <div className="text-[11px] text-gray-400 mt-0.5">{s.detail} · {formatDate(s.created_at)}</div>
+                            <div className="text-[11px] text-zinc-500 mt-0.5">{s.detail} · {formatDate(s.created_at)}</div>
                           </div>
                           <Link
                             href={s.kind.includes("Code") ? "/code-review" : `/documents/${s.document_id}`}
-                            className="px-3 py-1 text-[12px] font-semibold text-[#0f2e82] bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors shrink-0"
+                            className="px-3 py-1 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors shrink-0"
                           >
                             Xem
                           </Link>

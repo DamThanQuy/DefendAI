@@ -5,15 +5,15 @@ import type { CodeIssue } from "@/types";
 
 /** Màu nền theo severity cho dòng code có issue. */
 function lineBg(sev: string): string {
-  if (sev === "critical" || sev === "high") return "bg-red-50";
-  if (sev === "medium") return "bg-orange-50";
-  return "bg-yellow-50";
+  if (sev === "critical" || sev === "high") return "bg-red-500/10";
+  if (sev === "medium") return "bg-orange-500/10";
+  return "bg-yellow-500/10";
 }
 
 function markerColor(sev: string): string {
-  if (sev === "critical" || sev === "high") return "text-red-600";
-  if (sev === "medium") return "text-orange-500";
-  return "text-yellow-600";
+  if (sev === "critical" || sev === "high") return "text-red-400";
+  if (sev === "medium") return "text-orange-400";
+  return "text-yellow-400";
 }
 
 /**
@@ -63,12 +63,12 @@ export function CodePreview({
             key={n}
             id={`line-${n}`}
             ref={(el) => { lineRefs.current[n] = el; }}
-            className={`flex min-h-[26px] ${iss.length ? lineBg(iss[0].severity) : ""} hover:bg-gray-50 transition-colors`}
+            className={`flex min-h-[26px] ${iss.length ? lineBg(iss[0].severity) : ""} hover:bg-zinc-800/60 transition-colors`}
           >
-            <div className="w-12 text-right pr-3 text-gray-400 select-none shrink-0 border-r border-gray-100">
+            <div className="w-12 text-right pr-3 text-zinc-500 select-none shrink-0 border-r border-zinc-800/60">
               {n}
             </div>
-            <div className="flex-1 whitespace-pre px-3 text-gray-800">{line || " "}</div>
+            <div className="flex-1 whitespace-pre px-3 text-zinc-300">{line || " "}</div>
             {iss.length > 0 && (
               <div className="shrink-0 px-2 flex items-center gap-1">
                 {iss.map((i, k) => (

@@ -205,19 +205,19 @@ export default function CodeReviewPage() {
 
   const severityLabel = (s: string) => {
     const low = s?.toLowerCase() || "low";
-    if (low === "critical" || low === "high") return { label: "CRITICAL", bg: "bg-red-50", txt: "text-red-600" };
-    if (low === "medium") return { label: "WARNING", bg: "bg-orange-50", txt: "text-orange-600" };
-    return { label: "OPTIMIZATION", bg: "bg-green-50", txt: "text-green-600" };
+    if (low === "critical" || low === "high") return { label: "CRITICAL", bg: "bg-red-500/10", txt: "text-red-400" };
+    if (low === "medium") return { label: "WARNING", bg: "bg-orange-500/10", txt: "text-orange-400" };
+    return { label: "OPTIMIZATION", bg: "bg-green-500/10", txt: "text-green-400" };
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] pb-16">
+    <div className="min-h-screen bg-background pb-16">
       <div className="container mx-auto px-4 lg:px-8 pt-8 max-w-[1400px]">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-8">
           <div>
-            <h1 className="text-[22px] font-bold text-gray-900 mb-2">Code Review AI</h1>
-            <p className="text-[#5f6368] text-[15px]">
+            <h1 className="text-[22px] font-bold text-zinc-200 mb-2">Code Review AI</h1>
+            <p className="text-zinc-500 text-[15px]">
               Phân tích chất lượng mã nguồn trong file ZIP/RAR của bạn.
             </p>
           </div>
@@ -237,7 +237,7 @@ export default function CodeReviewPage() {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={status === "uploading" || status === "scanning"}
-              className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-300 text-gray-700 font-semibold text-[14px] rounded-lg hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
+              className="flex items-center gap-2 px-5 py-2.5 bg-card border border-zinc-700 text-zinc-300 font-semibold text-[14px] rounded-lg hover:bg-zinc-800 transition-colors shadow-sm disabled:opacity-50"
             >
               📁 {file ? file.name : "Chọn file ZIP/RAR"}
             </button>
@@ -245,7 +245,7 @@ export default function CodeReviewPage() {
               <button
                 onClick={() => setShowDocPicker(true)}
                 disabled={status === "uploading" || status === "scanning"}
-                className="flex items-center gap-2 px-5 py-2.5 bg-white border border-dashed border-[#0f2e82]/40 text-[#0f2e82] font-semibold text-[14px] rounded-lg hover:bg-blue-50 transition-colors shadow-sm disabled:opacity-50"
+                className="flex items-center gap-2 px-5 py-2.5 bg-card border border-dashed border-teal-500/40 text-teal-400 font-semibold text-[14px] rounded-lg hover:bg-teal-500/10 transition-colors shadow-sm disabled:opacity-50"
               >
                 🗂️ {selectedDoc ? selectedDoc.filename : "Chọn từ đã upload"}
               </button>
@@ -253,7 +253,7 @@ export default function CodeReviewPage() {
             <button
               onClick={startScan}
               disabled={(!file && !selectedDoc) || status === "uploading" || status === "scanning"}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#0f2e82] text-white font-semibold text-[14px] rounded-lg hover:bg-[#0f2e82]/90 transition-colors shadow-sm disabled:opacity-50"
+              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-semibold text-[14px] rounded-lg hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
             >
               {status === "uploading" || status === "scanning" ? (
                 <>
@@ -269,23 +269,23 @@ export default function CodeReviewPage() {
 
         {/* Modal: chọn từ tài liệu đã upload */}
         {showDocPicker && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowDocPicker(false)}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setShowDocPicker(false)}>
             <div
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[80vh]"
+              className="bg-card rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[80vh] border border-zinc-800/60"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-                <h3 className="text-[15px] font-bold text-gray-800">🗂️ Chọn file ZIP/RAR đã tải lên</h3>
+              <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/60">
+                <h3 className="text-[15px] font-bold text-zinc-200">🗂️ Chọn file ZIP/RAR đã tải lên</h3>
                 <button
                   onClick={() => setShowDocPicker(false)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500"
+                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-zinc-800 text-zinc-500"
                 >
                   ✕
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-2">
                 {uploadedDocs.length === 0 && (
-                  <p className="text-gray-400 text-[13px] p-4">Chưa có file ZIP/RAR nào được tải lên.</p>
+                  <p className="text-zinc-500 text-[13px] p-4">Chưa có file ZIP/RAR nào được tải lên.</p>
                 )}
                 {uploadedDocs.map((d) => (
                   <button
@@ -295,11 +295,11 @@ export default function CodeReviewPage() {
                       setFile(null);
                       setShowDocPicker(false);
                     }}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-blue-50 transition-colors ${selectedDoc?.id === d.id ? "bg-blue-50" : ""}`}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-teal-500/10 transition-colors ${selectedDoc?.id === d.id ? "bg-teal-500/10" : ""}`}
                   >
                     <span className="text-lg">🗜️</span>
-                    <span className="flex-1 text-[13px] font-semibold text-gray-800 truncate">{d.filename}</span>
-                    <span className="text-[11px] text-gray-400">
+                    <span className="flex-1 text-[13px] font-semibold text-zinc-200 truncate">{d.filename}</span>
+                    <span className="text-[11px] text-zinc-500">
                       {d.doc_type === "rar" ? "RAR" : "ZIP"} • {new Date(d.created_at).toLocaleDateString("vi-VN")}
                     </span>
                   </button>
@@ -311,10 +311,10 @@ export default function CodeReviewPage() {
 
         {/* Idle: hướng dẫn */}
         {status === "idle" && !result && (
-          <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-16 text-center">
+          <div className="bg-card rounded-2xl border-2 border-dashed border-zinc-700 p-16 text-center">
             <div className="text-5xl mb-4">🔍</div>
-            <h2 className="text-xl font-bold text-gray-800 mb-2">Chọn file ZIP/RAR chứa source code</h2>
-            <p className="text-gray-500 text-[14px] max-w-md mx-auto">
+            <h2 className="text-xl font-bold text-zinc-200 mb-2">Chọn file ZIP/RAR chứa source code</h2>
+            <p className="text-zinc-500 text-[14px] max-w-md mx-auto">
               Tải file mới lên hoặc chọn lại một file ZIP/RAR đã tải lên trước đó để phân tích lại.
             </p>
           </div>
@@ -322,20 +322,20 @@ export default function CodeReviewPage() {
 
         {/* Rejected: file không phải source code */}
         {status === "rejected" && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-8 text-center">
+          <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center">
             <div className="text-4xl mb-3">🚫</div>
-            <h2 className="text-lg font-bold text-red-700 mb-2">File này không được xác định là source code</h2>
-            <p className="text-[14px] text-red-600 max-w-xl mx-auto leading-relaxed mb-4">{errorMsg}</p>
+            <h2 className="text-lg font-bold text-red-400 mb-2">File này không được xác định là source code</h2>
+            <p className="text-[14px] text-red-400 max-w-xl mx-auto leading-relaxed mb-4">{errorMsg}</p>
             <div className="flex justify-center gap-3">
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="px-5 py-2.5 bg-white border border-red-300 text-red-700 font-semibold text-[13px] rounded-lg hover:bg-red-50 transition-colors"
+                className="px-5 py-2.5 bg-card border border-red-500/40 text-red-400 font-semibold text-[13px] rounded-lg hover:bg-red-500/10 transition-colors"
               >
                 Chọn file khác
               </button>
               <Link
                 href="/documents"
-                className="px-5 py-2.5 bg-[#0f2e82] text-white font-semibold text-[13px] rounded-lg hover:bg-[#0f2e82]/90 transition-colors"
+                className="px-5 py-2.5 bg-primary text-primary-foreground font-semibold text-[13px] rounded-lg hover:bg-primary/90 transition-colors"
               >
                 📄 Dùng luồng Đọc Tài liệu
               </Link>
@@ -345,17 +345,17 @@ export default function CodeReviewPage() {
 
         {/* Error khác */}
         {status === "error" && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
-            <p className="text-red-700 font-semibold mb-1">Đã xảy ra lỗi</p>
-            <p className="text-[13px] text-red-600">{errorMsg}</p>
+          <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center">
+            <p className="text-red-400 font-semibold mb-1">Đã xảy ra lỗi</p>
+            <p className="text-[13px] text-red-400">{errorMsg}</p>
           </div>
         )}
 
         {/* Đang xử lý */}
         {(status === "uploading" || status === "scanning") && (
-          <div className="bg-white rounded-2xl p-12 text-center">
-            <div className="w-10 h-10 border-[3px] border-[#e8effd] border-t-[#0f2e82] rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-gray-600 font-medium">
+          <div className="bg-card rounded-2xl p-12 text-center">
+            <div className="w-10 h-10 border-[3px] border-zinc-800 border-t-primary rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-zinc-400 font-medium">
               {status === "uploading" ? "Đang tải file lên..." : "Đang phân tích mã nguồn... (có thể mất 1-2 phút)"}
             </p>
           </div>
@@ -366,40 +366,40 @@ export default function CodeReviewPage() {
           <>
             {/* Stats row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center gap-3">
-                <div className="w-11 h-11 rounded-full bg-[#e8effd] text-[#0f2e82] flex items-center justify-center text-lg font-bold">
+              <div className="bg-card rounded-xl shadow-sm border border-zinc-800/60 p-4 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-lg font-bold">
                   {percentage}
                 </div>
                 <div>
-                  <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Điểm chất lượng</div>
-                  <div className="text-[14px] font-bold text-gray-800">{getScoreLabel(percentage)}</div>
+                  <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-wide">Điểm chất lượng</div>
+                  <div className="text-[14px] font-bold text-zinc-200">{getScoreLabel(percentage)}</div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center gap-3">
-                <div className="w-11 h-11 rounded-full bg-red-50 text-[#d32f2f] flex items-center justify-center text-lg font-bold">
+              <div className="bg-card rounded-xl shadow-sm border border-zinc-800/60 p-4 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center text-lg font-bold">
                   {result.stats?.critical ?? 0}
                 </div>
                 <div>
-                  <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Lỗi nghiêm trọng</div>
-                  <div className="text-[14px] font-bold text-[#d32f2f]">{result.stats?.critical ?? 0}</div>
+                  <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-wide">Lỗi nghiêm trọng</div>
+                  <div className="text-[14px] font-bold text-red-400">{result.stats?.critical ?? 0}</div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center gap-3">
-                <div className="w-11 h-11 rounded-full bg-orange-50 text-[#f57c00] flex items-center justify-center text-lg font-bold">
+              <div className="bg-card rounded-xl shadow-sm border border-zinc-800/60 p-4 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-orange-500/10 text-orange-400 flex items-center justify-center text-lg font-bold">
                   {result.stats?.warnings ?? 0}
                 </div>
                 <div>
-                  <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Cảnh báo</div>
-                  <div className="text-[14px] font-bold text-[#f57c00]">{result.stats?.warnings ?? 0}</div>
+                  <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-wide">Cảnh báo</div>
+                  <div className="text-[14px] font-bold text-orange-400">{result.stats?.warnings ?? 0}</div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center gap-3">
-                <div className="w-11 h-11 rounded-full bg-green-50 text-[#388e3c] flex items-center justify-center text-lg font-bold">
+              <div className="bg-card rounded-xl shadow-sm border border-zinc-800/60 p-4 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-green-500/10 text-green-400 flex items-center justify-center text-lg font-bold">
                   {result.stats?.optimizations ?? 0}
                 </div>
                 <div>
-                  <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Tối ưu</div>
-                  <div className="text-[14px] font-bold text-[#388e3c]">{result.stats?.optimizations ?? 0}</div>
+                  <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-wide">Tối ưu</div>
+                  <div className="text-[14px] font-bold text-green-400">{result.stats?.optimizations ?? 0}</div>
                 </div>
               </div>
             </div>
@@ -407,14 +407,14 @@ export default function CodeReviewPage() {
             {/* 3-panel: tree | code | summary+issues */}
             <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr_340px] gap-5">
               {/* Panel 1: File tree */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden lg:h-[calc(100vh-280px)] lg:sticky lg:top-4 flex flex-col">
-                <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center gap-2">
+              <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden lg:h-[calc(100vh-280px)] lg:sticky lg:top-4 flex flex-col">
+                <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2">
                   <span className="text-sm">🗜️</span>
-                  <span className="text-[13px] font-bold text-gray-800">Files</span>
-                  <span className="ml-auto text-[11px] text-gray-500">{allFiles.length} file</span>
+                  <span className="text-[13px] font-bold text-zinc-200">Files</span>
+                  <span className="ml-auto text-[11px] text-zinc-500">{allFiles.length} file</span>
                 </div>
                 <div className="p-2 overflow-y-auto flex-1">
-                  {allFiles.length === 0 && <p className="text-gray-400 text-[13px] p-3">Không có file</p>}
+                  {allFiles.length === 0 && <p className="text-zinc-500 text-[13px] p-3">Không có file</p>}
                   {allFiles.map((p) => {
                     const n = issueCountByFile.get(p) ?? 0;
                     return (
@@ -422,19 +422,19 @@ export default function CodeReviewPage() {
                         key={p}
                         onClick={() => loadFile(p)}
                         className={`w-full flex items-center gap-2 px-2 py-1.5 text-[13px] rounded-md text-left ${
-                          selectedFile === p ? "bg-blue-50 text-[#0f2e82] font-semibold" : "text-gray-700 hover:bg-gray-100"
+                          selectedFile === p ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-zinc-400 hover:bg-zinc-800/60"
                         }`}
                       >
                         <span>{fileIcon(p)}</span>
                         <span className="truncate flex-1">{p.split("/").pop()}</span>
                         {n > 0 ? (
                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                            n >= 3 ? "bg-red-50 text-red-600" : "bg-orange-50 text-orange-600"
+                            n >= 3 ? "bg-red-500/10 text-red-400" : "bg-orange-500/10 text-orange-400"
                           }`}>
                             {n}
                           </span>
                         ) : (
-                          <span className="text-[10px] text-green-500">✓</span>
+                          <span className="text-[10px] text-green-400">✓</span>
                         )}
                       </button>
                     );
@@ -443,14 +443,14 @@ export default function CodeReviewPage() {
               </div>
 
               {/* Panel 2: Code preview */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden lg:h-[calc(100vh-280px)] lg:sticky lg:top-4 flex flex-col">
-                <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center gap-2">
-                  <span className="text-[13px] font-bold text-gray-800">
+              <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden lg:h-[calc(100vh-280px)] lg:sticky lg:top-4 flex flex-col">
+                <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2">
+                  <span className="text-[13px] font-bold text-zinc-200">
                     {selectedFile ? `📄 ${selectedFile}` : "Code Preview"}
                   </span>
                 </div>
                 {loadingFile ? (
-                  <div className="flex-1 flex items-center justify-center text-gray-500 text-[14px]">Đang tải...</div>
+                  <div className="flex-1 flex items-center justify-center text-zinc-500 text-[14px]">Đang tải...</div>
                 ) : fileContent ? (
                   <CodePreview
                     content={fileContent.text}
@@ -460,7 +460,7 @@ export default function CodeReviewPage() {
                     onPickIssue={pickIssue}
                   />
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
+                  <div className="flex-1 flex flex-col items-center justify-center text-zinc-500">
                     <span className="text-4xl mb-3">👈</span>
                     <p className="text-[14px]">Chọn file bên trái để xem mã nguồn</p>
                   </div>
@@ -469,23 +469,23 @@ export default function CodeReviewPage() {
 
               {/* Panel 3: Summary + Issues */}
               <div className="flex flex-col gap-5 lg:h-[calc(100vh-280px)] lg:overflow-y-auto pr-1">
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                  <h3 className="text-[14px] font-bold text-gray-800 mb-2">📝 Tóm tắt</h3>
-                  <p className="text-[13px] text-gray-600 leading-relaxed">
+                <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-5">
+                  <h3 className="text-[14px] font-bold text-zinc-200 mb-2">📝 Tóm tắt</h3>
+                  <p className="text-[13px] text-zinc-400 leading-relaxed">
                     {result.backendData?.summary || "Không có tóm tắt."}
                   </p>
                   {result.backendData?.model && (
-                    <p className="text-[11px] text-gray-400 mt-3">
+                    <p className="text-[11px] text-zinc-500 mt-3">
                       Model: {result.backendData.provider} / {result.backendData.model}
                     </p>
                   )}
                 </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center gap-2">
-                    <span className="text-[13px] font-bold text-gray-800">Vấn đề ({issues.length})</span>
+                <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2">
+                    <span className="text-[13px] font-bold text-zinc-200">Vấn đề ({issues.length})</span>
                   </div>
-                  <div className="p-2 flex gap-1.5 flex-wrap border-b border-gray-100">
+                  <div className="p-2 flex gap-1.5 flex-wrap border-b border-zinc-800/60">
                     {(["all", "critical", "warning", "optimization"] as const).map((f) => {
                       const count =
                         f === "all" ? issues.length
@@ -498,7 +498,7 @@ export default function CodeReviewPage() {
                           key={f}
                           onClick={() => setFilter(f)}
                           className={`px-3 py-1 rounded-full text-[12px] font-semibold transition-colors ${
-                            filter === f ? "bg-[#0f2e82] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            filter === f ? "bg-primary text-primary-foreground" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
                           }`}
                         >
                           {label} ({count})
@@ -506,9 +506,9 @@ export default function CodeReviewPage() {
                       );
                     })}
                   </div>
-                  <div className="divide-y divide-gray-50 max-h-[480px] overflow-y-auto">
+                  <div className="divide-y divide-zinc-800/60 max-h-[480px] overflow-y-auto">
                     {filteredIssues.length === 0 && (
-                      <div className="p-6 text-center text-gray-400 text-[13px]">Không có vấn đề trong bộ lọc này.</div>
+                      <div className="p-6 text-center text-zinc-500 text-[13px]">Không có vấn đề trong bộ lọc này.</div>
                     )}
                     {filteredIssues.map((issue, idx) => {
                       const cfg = severityLabel(issue.severity);
@@ -517,20 +517,20 @@ export default function CodeReviewPage() {
                         <button
                           key={idx}
                           onClick={() => pickIssue(issue)}
-                          className={`w-full text-left p-4 hover:bg-gray-50 transition-colors ${active ? "bg-blue-50/60" : ""}`}
+                          className={`w-full text-left p-4 hover:bg-zinc-800/40 transition-colors ${active ? "bg-teal-500/5" : ""}`}
                         >
                           <div className="flex items-center gap-2 mb-1.5">
                             <span className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase ${cfg.bg} ${cfg.txt}`}>
                               {cfg.label}
                             </span>
-                            <span className="text-[11px] text-gray-400 font-mono truncate">
+                            <span className="text-[11px] text-zinc-500 font-mono truncate">
                               {issue.file}:{issue.line}
                             </span>
                           </div>
-                          <p className="text-[13px] font-semibold text-gray-800 mb-1">{issue.type}</p>
-                          <p className="text-[12px] text-gray-600 leading-relaxed">{issue.description}</p>
+                          <p className="text-[13px] font-semibold text-zinc-200 mb-1">{issue.type}</p>
+                          <p className="text-[12px] text-zinc-400 leading-relaxed">{issue.description}</p>
                           {issue.suggestion && (
-                            <p className="text-[12px] text-[#0f2e82] mt-1.5 italic">💡 {issue.suggestion}</p>
+                            <p className="text-[12px] text-teal-400 mt-1.5 italic">💡 {issue.suggestion}</p>
                           )}
                         </button>
                       );

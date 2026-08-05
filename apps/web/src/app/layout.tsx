@@ -4,6 +4,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
+import { AppShell } from "@/components/layout/AppShell";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { TopProgress } from "@/components/common/TopProgress";
 
@@ -27,7 +28,9 @@ export default function RootLayout({
           <TopProgress />
           <Navbar />
           <main className="flex-1">
-            <AuthGate>{children}</AuthGate>
+            <AuthGate>
+              <AppShell>{children}</AppShell>
+            </AuthGate>
           </main>
           <Footer />
         </body>
