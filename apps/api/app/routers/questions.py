@@ -141,6 +141,7 @@ async def get_assessment(
         assessment_id=assessment.id,
         document_id=assessment.document_id,
         document_name=doc_name,
+        doc_type=document.doc_type.value if document else "",
         persona=assessment.persona,
         status=assessment.status.value,
         chunks_count=len(assessment.chunks or []),

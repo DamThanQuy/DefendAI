@@ -619,6 +619,75 @@ class TestCodeScanEndpoint:
 
 
 # ============================================================
+# PART 5B: Unit tests — classify_archive / decide_source_code
+# ============================================================
+
+class TestClassifyArchive:
+    """Test phân loại file nén thành source code / tài liệu."""
+
+    def test_code_ratio_high(self):
+        from app.services.code_scanner import classify_archive
+        c = classify_archive(["src/main.py", "src/utils.py", "index.js", "README.md"])
+        assert c["real_code_count"] == 3
+        assert c["doc_count"] == 1
+        assert c["code_ratio"] == 0.75
+
+    def test_manifest_detected(self):
+        from app.services.code_scanner import classify_archive
+        c = classify_archive(["package.json", "src/index.js"])
+        assert c["has_manifest"] is True
+
+    def test_manifest_case_insensitive(self):
+        from app.services.code_scanner import classify_archive
+        c = classify_archive(["REQUIREMENTS.TXT", "app.py"])
+        assert c["has_manifest"] is True
+
+    def test_docs_only(self):
+        from app.services.code_scanner import classify_archive
+        c = classify_archive(["README.md", "report.docx", "notes.txt"])
+        assert c["real_code_count"] == 0
+        assert c["code_ratio"] == 0.0
+
+    def test_empty_members(self):
+        from app.services.code_scanner import classify_archive
+        c = classify_archive([])
+        assert c["code_ratio"] == 0.0
+        assert c["total"] == 0
+
+
+class TestDecideSourceCode:
+    """Test quyết định pass / ambiguous / reject."""
+
+    def _cls(self, members):
+        from app.services.code_scanner import classify_archive
+        return classify_archive(members)
+
+    def test_reject_no_real_code(self):
+        from app.services.code_scanner import decide_source_code
+        assert decide_source_code(self._cls(["README.md", "notes.txt"])) == "reject"
+
+    def test_pass_with_manifest(self):
+        from app.services.code_scanner import decide_source_code
+        assert decide_source_code(self._cls(["package.json", "src/index.js"])) == "pass"
+
+    def test_pass_ratio_over_20(self):
+        from app.services.code_scanner import decide_source_code
+        members = ["a.py", "b.py", "c.py", "d.py", "e.py", "README.md"]
+        assert decide_source_code(self._cls(members)) == "pass"
+
+    def test_reject_ratio_under_5(self):
+        from app.services.code_scanner import decide_source_code
+        members = ["main.py"] + [f"doc{i}.md" for i in range(25)]
+        assert decide_source_code(self._cls(members)) == "reject"
+
+    def test_ambiguous_between_5_and_20(self):
+        from app.services.code_scanner import decide_source_code
+        # 2 code / 20 files = 10%
+        members = ["a.py", "b.py"] + [f"d{i}.md" for i in range(18)]
+        assert decide_source_code(self._cls(members)) == "ambiguous"
+
+
+# ============================================================
 # PART 6: Heuristic scan unit test
 # ============================================================
 

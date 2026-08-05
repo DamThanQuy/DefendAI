@@ -82,3 +82,5 @@ read-chrome-9223.py
 read-chrome-console.py
 test-google-headful.mjs
 test-google-login.mjs
+
+.agents/

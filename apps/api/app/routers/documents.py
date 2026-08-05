@@ -6,6 +6,7 @@ Endpoints:
 - GET  /api/documents         → list tất cả files
 - GET  /api/documents/{id}/download → download file gốc từ MinIO
 - GET  /api/documents/{id}/assessments → lấy danh sách assessment của document
+- GET  /api/documents/{id}/contents → liệt kê nội dung file nén (ZIP/RAR)
 """
 import os
 import uuid
@@ -21,6 +22,7 @@ from app.core.deps import get_current_user
 from app.models.entities import Document, DocType, DocumentStatus, DocumentPurpose, Assessment, User
 from app.schemas.document import DocumentResponse, DocumentListResponse
 from app.services.storage import save_doc, get_doc
+from app.services.archive_service import list_archive_members, read_archive_member, ArchiveError
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
@@ -225,3 +227,70 @@ async def list_document_assessments(
             for a in assessments
         ],
     }
+
+
+@router.get("/{doc_id}/contents")
+async def list_document_contents(
+    doc_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Liệt kê toàn bộ file/folder trong ZIP/RAR như cây thư mục."""
+    result = await db.execute(select(Document).where(Document.id == doc_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+
+    if doc.doc_type != DocType.ZIP:
+        raise HTTPException(status_code=400, detail="Chỉ hỗ trợ xem nội dung file ZIP/RAR")
+
+    try:
+        members = await list_archive_members(doc)
+    except ArchiveError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return {
+        "document_id": doc_id,
+        "filename": doc.filename,
+        "total": len(members),
+        "items": [
+            {"path": m.path, "size": m.size, "is_dir": m.is_dir}
+            for m in members
+        ],
+    }
+
+
+@router.get("/{doc_id}/contents/{member_path:path}")
+async def get_document_member_content(
+    doc_id: int,
+    member_path: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Đọc nội dung 1 file bên trong ZIP/RAR (bytes gốc, kèm content-type)."""
+    result = await db.execute(select(Document).where(Document.id == doc_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+
+    try:
+        data = await read_archive_member(doc, member_path)
+    except ArchiveError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    ext = Path(member_path).suffix.lower()
+    mime = EXTENSION_TO_MIME.get(ext, "application/octet-stream")
+    # File text → UTF-8 để FE render preview đúng (đặc biệt tiếng Việt)
+    if ext in {".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rb", ".php",
+               ".cs", ".cpp", ".c", ".h", ".html", ".css", ".json", ".yml", ".yaml",
+               ".md", ".txt", ".xml", ".sh", ".sql", ".ini", ".toml", ".env"}:
+        mime = "text/plain; charset=utf-8"
+
+    return Response(
+        content=data,
+        media_type=mime,
+        headers={
+            "Content-Disposition": f'inline; filename="{Path(member_path).name}"',
+            "Content-Length": str(len(data)),
+        },
+    )

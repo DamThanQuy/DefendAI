@@ -22,6 +22,7 @@ from app.models.assessment import (
 )
 
 from app.models.refresh_token import RefreshToken
+from app.models.workspace import Workspace, WorkspaceFile
 
 __all__ = [
     "User",
@@ -40,4 +41,5 @@ __all__ = [
     "Evaluation",
     "Report",
     "DocumentChunk", "RefreshToken",
+    "Workspace", "WorkspaceFile",
 ]

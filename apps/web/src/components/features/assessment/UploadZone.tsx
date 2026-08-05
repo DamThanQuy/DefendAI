@@ -77,74 +77,39 @@ export function UploadZone({
       onFileSelected(file);
     }
 
-    const isZip = file.name.endsWith('.zip') || file.name.endsWith('.rar');
+    // Bước "Tải lên": upload mọi loại file (PDF/DOCX/PPTX/ZIP/RAR) như tài liệu
+    setStatusText("Đang tải tài liệu lên...");
     setIsProcessing(true);
 
     const ac = new AbortController();
     setAbortController(ac);
 
-    if (isZip) {
-      setStatusText("Đang quét source code...");
-      try {
-        const token = localStorage.getItem("access_token");
-        const formData = new FormData();
-        formData.append("file", file);
-        const res = await fetch("/api/code/scan", {
-          method: "POST",
-          body: formData,
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          signal: ac.signal,
-        });
-        const data = await res.json();
+    try {
+      const token = localStorage.getItem("access_token");
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/documents/upload", {
+        method: "POST",
+        body: formData,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal: ac.signal,
+      });
+      const data = await res.json();
 
-        if (data.success) {
-          sessionStorage.setItem("codeReviewData", JSON.stringify(data));
-          router.push("/code-review");
-        } else {
-          // Scan failed → hiển thị lỗi thật, không chuyển trang
-          const msg = data.error || data.detail?.detail || data.message || "Không thể phân tích file ZIP";
-          setError(msg);
-          setFile(null);
-        }
-      } catch (error: any) {
-        if (error?.name === "AbortError") { handleCancel(); return; }
-        console.error(error);
-        setError("Không thể kết nối đến máy chủ phân tích");
-        setFile(null);
-      } finally {
-        setIsProcessing(false);
-        setAbortController(null);
+      if (data.success) {
+        setDocumentId(data.documentId);
+        setUploaded(true);
+      } else {
+        const msg = data.error || data.detail?.detail || data.message || "Tải lên thất bại";
+        setError(msg);
       }
-    } else {
-      // Bước "Tải lên": chỉ upload tài liệu, chưa generate
-      setStatusText("Đang tải tài liệu lên...");
-      try {
-        const token = localStorage.getItem("access_token");
-        const formData = new FormData();
-        formData.append("file", file);
-        const res = await fetch("/api/documents/upload", {
-          method: "POST",
-          body: formData,
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          signal: ac.signal,
-        });
-        const data = await res.json();
-
-        if (data.success) {
-          setDocumentId(data.documentId);
-          setUploaded(true);
-        } else {
-          const msg = data.error || data.detail?.detail || data.message || "Tải lên thất bại";
-          setError(msg);
-        }
-      } catch (error: any) {
-        if (error?.name === "AbortError") { handleCancel(); return; }
-        console.error(error);
-        setError("Không thể kết nối đến máy chủ phân tích");
-      } finally {
-        setIsProcessing(false);
-        setAbortController(null);
-      }
+    } catch (error: any) {
+      if (error?.name === "AbortError") { handleCancel(); return; }
+      console.error(error);
+      setError("Không thể kết nối đến máy chủ phân tích");
+    } finally {
+      setIsProcessing(false);
+      setAbortController(null);
     }
   };
 
