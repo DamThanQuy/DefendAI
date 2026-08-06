@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
-import { PERSONA_LABELS } from "@/lib/constants";
+import { PERSONA_LABELS, PERSONAS } from "@/lib/constants";
 import { FileTree } from "@/components/features/assessment/FileTree";
 import { FilePreview } from "@/components/features/assessment/FilePreview";
 
@@ -37,6 +37,7 @@ interface Question {
   hint: string;
   difficulty: string;
   persona: string;
+  citations?: string[];
 }
 
 interface AssessmentResponse {
@@ -63,6 +64,29 @@ interface SessionItem {
 interface SessionsResponse {
   assessments: SessionItem[];
   code_analyses: SessionItem[];
+}
+
+interface WorkspaceQuestionItem {
+  id: number;
+  workspace_id: number;
+  topic: string;
+  persona: string;
+  status: string;
+  questions: Question[] | null;
+  error: string | null;
+  created_at: string;
+}
+
+interface WorkspaceChatItem {
+  id: number;
+  workspace_id: number;
+  question: string;
+  answer: string | null;
+  citations: string[] | null;
+  persona: string;
+  status: string;
+  error: string | null;
+  created_at: string;
 }
 
 const docTypeLabel: Record<string, string> = {
@@ -163,13 +187,29 @@ export default function WorkspaceDetailPage() {
   const [zipExpanded, setZipExpanded] = useState<Set<number>>(new Set());
 
   // Right tabs
-  const [rightTab, setRightTab] = useState<"preview" | "questions" | "history">("preview");
+  const [rightTab, setRightTab] = useState<"preview" | "questions" | "history" | "chat">("preview");
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
 
   // Questions
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [qError, setQError] = useState("");
+
+  // "Hỏi theo đề tài" (R6 — toàn workspace)
+  const [topic, setTopic] = useState("");
+  const [wsPersona, setWsPersona] = useState("theory");
+  const [wsQuestions, setWsQuestions] = useState<WorkspaceQuestionItem[]>([]);
+  const [wsLoading, setWsLoading] = useState(false);
+  const [wsQError, setWsQError] = useState("");
+  const [wsRunning, setWsRunning] = useState(false);
+
+  // Chat đề tài (R7)
+  const [chatItems, setChatItems] = useState<WorkspaceChatItem[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState("");
+  const [chatQuestion, setChatQuestion] = useState("");
+  const [chatPersona, setChatPersona] = useState("theory");
+  const [chatRunning, setChatRunning] = useState(false);
 
   // History
   const [sessions, setSessions] = useState<SessionsResponse | null>(null);
@@ -256,9 +296,11 @@ export default function WorkspaceDetailPage() {
     }
   };
 
-  const openTab = (tab: "preview" | "questions" | "history") => {
+  const openTab = (tab: "preview" | "questions" | "history" | "chat") => {
     setRightTab(tab);
     if (tab === "questions" && questions.length === 0 && !qError && !loadingQuestions) loadQuestions();
+    if (tab === "questions" && wsQuestions.length === 0 && !wsLoading) loadWorkspaceQuestions();
+    if (tab === "chat" && chatItems.length === 0 && !chatLoading) loadChatHistory();
     if (tab === "history" && !sessions && !loadingSessions) loadSessions();
   };
 
@@ -279,6 +321,62 @@ export default function WorkspaceDetailPage() {
     }
   };
 
+  const loadWorkspaceQuestions = async () => {
+    const token = getToken();
+    if (!token) return;
+    setWsLoading(true);
+    setWsQError("");
+    try {
+      const r = await fetch(`/api/workspaces/${wsId}/questions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error("Không thể tải lịch sử đề tài");
+      const data = await r.json();
+      setWsQuestions(data ?? []);
+    } catch (e: any) {
+      setWsQError(e.message);
+    } finally {
+      setWsLoading(false);
+    }
+  };
+
+  const askWorkspaceTopic = async () => {
+    const trimmed = topic.trim();
+    if (!trimmed || wsRunning) return;
+    const token = getToken();
+    if (!token) return;
+    setWsRunning(true);
+    setWsQError("");
+    try {
+      const r = await fetch(`/api/workspaces/${wsId}/questions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ topic: trimmed, persona: wsPersona }),
+      });
+      if (!r.ok) throw new Error("Không tạo được yêu cầu hỏi đề tài");
+      const created = await r.json();
+      setTopic("");
+      // Poll job (pattern giống các luồng async khác: 1.5s × tối đa 60 lần)
+      for (let attempt = 0; attempt < 60; attempt++) {
+        await new Promise((res) => setTimeout(res, 1500));
+        const jr = await fetch(`/api/jobs/${created.job_id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!jr.ok) continue;
+        const job = await jr.json();
+        if (job.status === "completed" || job.status === "failed") break;
+      }
+      await loadWorkspaceQuestions();
+    } catch (e: any) {
+      setWsQError(e.message);
+    } finally {
+      setWsRunning(false);
+    }
+  };
+
   const toggleExpand = (id: number) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -286,6 +384,62 @@ export default function WorkspaceDetailPage() {
       else next.add(id);
       return next;
     });
+  };
+
+  const loadChatHistory = async () => {
+    const token = getToken();
+    if (!token) return;
+    setChatLoading(true);
+    setChatError("");
+    try {
+      const r = await fetch(`/api/workspaces/${wsId}/chat`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error("Không thể tải lịch sử chat");
+      const data = await r.json();
+      setChatItems(data ?? []);
+    } catch (e: any) {
+      setChatError(e.message);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const sendChatQuestion = async () => {
+    const trimmed = chatQuestion.trim();
+    if (!trimmed || chatRunning) return;
+    const token = getToken();
+    if (!token) return;
+    setChatRunning(true);
+    setChatError("");
+    try {
+      const r = await fetch(`/api/workspaces/${wsId}/chat`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ question: trimmed, persona: chatPersona }),
+      });
+      if (!r.ok) throw new Error("Không tạo được lượt chat");
+      const created = await r.json();
+      setChatQuestion("");
+      // Poll job (pattern giống các luồng async khác: 1.5s × tối đa 60 lần)
+      for (let attempt = 0; attempt < 60; attempt++) {
+        await new Promise((res) => setTimeout(res, 1500));
+        const jr = await fetch(`/api/jobs/${created.job_id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!jr.ok) continue;
+        const job = await jr.json();
+        if (job.status === "completed" || job.status === "failed") break;
+      }
+      await loadChatHistory();
+    } catch (e: any) {
+      setChatError(e.message);
+    } finally {
+      setChatRunning(false);
+    }
   };
 
   const selectedFile = ws?.files.find((f) => f.document_id === selDocId) ?? null;
@@ -448,6 +602,14 @@ export default function WorkspaceDetailPage() {
                   ❓ Câu hỏi AI
                 </button>
                 <button
+                  onClick={() => openTab("chat")}
+                  className={`px-5 py-2 text-[13px] font-semibold rounded-xl transition-colors ${
+                    rightTab === "chat" ? "bg-primary text-primary-foreground" : "text-zinc-500 hover:bg-zinc-800/60"
+                  }`}
+                >
+                  💬 Chat đề tài
+                </button>
+                <button
                   onClick={() => openTab("history")}
                   className={`px-5 py-2 text-[13px] font-semibold rounded-xl transition-colors ${
                     rightTab === "history" ? "bg-primary text-primary-foreground" : "text-zinc-500 hover:bg-zinc-800/60"
@@ -480,7 +642,100 @@ export default function WorkspaceDetailPage() {
               )}
 
               {rightTab === "questions" && (
-                <div>
+                <div className="flex flex-col gap-8">
+                  {/* R6: "Hỏi theo đề tài" — RAG toàn workspace */}
+                  <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-5">
+                    <h3 className="text-[15px] font-bold text-zinc-200 mb-1">🧭 Hỏi theo đề tài (toàn workspace)</h3>
+                    <p className="text-[12px] text-zinc-500 mb-4">AI tìm các đoạn liên quan nhất trong toàn bộ {ws.document_count} file rồi sinh câu hỏi kèm nguồn file:đoạn.</p>
+                    <div className="flex flex-col md:flex-row gap-3">
+                      <input
+                        value={topic}
+                        onChange={(e) => setTopic(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && askWorkspaceTopic()}
+                        placeholder="VD: Hệ thống xử lý bảo mật thế nào?"
+                        className="flex-1 px-4 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-[14px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-primary"
+                      />
+                      <select
+                        value={wsPersona}
+                        onChange={(e) => setWsPersona(e.target.value)}
+                        className="px-3 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-[13px] text-zinc-300 focus:outline-none focus:border-primary"
+                      >
+                        {PERSONAS.map((p) => (
+                          <option key={p.key} value={p.key}>{p.label}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={askWorkspaceTopic}
+                        disabled={!topic.trim() || wsRunning}
+                        className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-[14px] font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                      >
+                        {wsRunning ? "Đang xử lý..." : "Hỏi đề tài"}
+                      </button>
+                    </div>
+
+                    {wsQError && (
+                      <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-red-400 text-[13px]">{wsQError}</div>
+                    )}
+
+                    {wsLoading ? (
+                      <p className="text-zinc-500 text-[13px] py-4 text-center">Đang tải đề tài...</p>
+                    ) : wsQuestions.length > 0 ? (
+                      <div className="mt-5 flex flex-col gap-5">
+                        {wsQuestions.map((wq) => (
+                          <div key={wq.id} className="border border-zinc-800/60 rounded-xl p-4">
+                            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[14px] font-bold text-zinc-200">📌 {wq.topic}</span>
+                                <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 text-[11px] font-bold rounded-full">{personaLabel(wq.persona)}</span>
+                                <span
+                                  className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${
+                                    wq.status === "completed"
+                                      ? "bg-green-500/10 text-green-400"
+                                      : wq.status === "failed"
+                                      ? "bg-red-500/10 text-red-400"
+                                      : "bg-blue-500/10 text-blue-400"
+                                  }`}
+                                >
+                                  {wq.status}
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-zinc-500">{formatDate(wq.created_at)}</span>
+                            </div>
+                            {wq.status === "failed" ? (
+                              <p className="text-red-400 text-[13px]">{wq.error || "Tạo câu hỏi thất bại."}</p>
+                            ) : !wq.questions || wq.questions.length === 0 ? (
+                              <p className="text-zinc-500 text-[13px]">Đang xử lý hoặc chưa có câu hỏi.</p>
+                            ) : (
+                              <div className="flex flex-col gap-3">
+                                {wq.questions.map((q) => {
+                                  const d = difficulty(q.difficulty);
+                                  return (
+                                    <div key={q.id} className="bg-zinc-900/60 rounded-xl p-4">
+                                      <div className="flex items-center gap-2 flex-wrap mb-2">
+                                        <span className={`px-2.5 py-1 ${d.bg} ${d.txt} text-[11px] font-bold rounded-full`}>{d.label}</span>
+                                        <span className="text-[11px] text-zinc-500 font-medium">#{q.id}</span>
+                                      </div>
+                                      <h4 className="text-[14px] font-bold text-teal-400 leading-snug">{q.question}</h4>
+                                      {q.citations && q.citations.length > 0 && (
+                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                          {q.citations.map((c, i) => (
+                                            <span key={i} className="px-2 py-0.5 bg-primary/10 text-primary text-[11px] font-semibold rounded-md">📎 {c}</span>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {q.hint && <p className="mt-2 text-zinc-500 text-[12px] italic">💡 {q.hint}</p>}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {/* Câu hỏi theo từng file (giữ nguyên) */}
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-[15px] font-bold text-zinc-200">
                       ❓ Câu hỏi phản biện {selectedFile ? `— ${selectedFile.filename}` : ""}
@@ -543,6 +798,83 @@ export default function WorkspaceDetailPage() {
                       })}
                     </div>
                   )}
+                </div>
+              )}
+
+              {rightTab === "chat" && (
+                <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden flex flex-col h-[calc(100vh-340px)] min-h-[450px]">
+                  <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center justify-between gap-2">
+                    <span className="text-[13px] font-bold text-zinc-200">💬 Chat đề tài (toàn workspace)</span>
+                    <select
+                      value={chatPersona}
+                      onChange={(e) => setChatPersona(e.target.value)}
+                      className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 focus:outline-none focus:border-primary"
+                    >
+                      {PERSONAS.map((p) => (
+                        <option key={p.key} value={p.key}>{p.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
+                    {chatLoading ? (
+                      <p className="text-zinc-500 text-[13px] text-center py-8">Đang tải hội thoại...</p>
+                    ) : chatItems.length === 0 ? (
+                      <div className="flex-1 flex flex-col items-center justify-center text-zinc-500">
+                        <span className="text-4xl mb-3">💬</span>
+                        <p className="text-[13px] text-center max-w-[320px]">Hỏi bất kỳ điều gì về toàn bộ workspace — AI trả lời kèm nguồn file:đoạn, giữ ngữ cảnh 6 lượt trước.</p>
+                      </div>
+                    ) : (
+                      chatItems.slice().reverse().map((turn) => (
+                        <div key={turn.id} className="flex flex-col gap-2">
+                          <div className="self-end max-w-[85%] bg-primary text-primary-foreground rounded-2xl rounded-br-md px-4 py-2.5 text-[14px] leading-relaxed whitespace-pre-wrap">
+                            {turn.question}
+                          </div>
+                          {turn.status === "completed" && turn.answer ? (
+                            <div className="self-start max-w-[85%] bg-zinc-800/70 border border-zinc-700/50 rounded-2xl rounded-bl-md px-4 py-2.5">
+                              <div className="text-[13px] text-zinc-300 leading-relaxed whitespace-pre-wrap">{turn.answer}</div>
+                              {turn.citations && turn.citations.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {turn.citations.map((c, i) => (
+                                    <span key={i} className="px-2 py-0.5 bg-primary/10 text-primary text-[11px] font-semibold rounded-md">📎 {c}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : turn.status === "failed" ? (
+                            <div className="self-start max-w-[85%] bg-red-500/10 border border-red-500/20 rounded-2xl rounded-bl-md px-4 py-2.5 text-red-400 text-[13px]">
+                              {turn.error || "Trả lời thất bại."}
+                            </div>
+                          ) : (
+                            <div className="self-start max-w-[85%] bg-zinc-800/40 rounded-2xl rounded-bl-md px-4 py-2.5 text-zinc-500 text-[13px]">
+                              Đang xử lý...
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {chatError && (
+                    <div className="px-4 py-2 bg-red-500/10 border-t border-red-500/20 text-red-400 text-[12px]">{chatError}</div>
+                  )}
+
+                  <div className="px-4 py-3 border-t border-zinc-800/60 flex gap-3">
+                    <input
+                      value={chatQuestion}
+                      onChange={(e) => setChatQuestion(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && sendChatQuestion()}
+                      placeholder="Hỏi về workspace..."
+                      className="flex-1 px-4 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-[14px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-primary"
+                    />
+                    <button
+                      onClick={sendChatQuestion}
+                      disabled={!chatQuestion.trim() || chatRunning}
+                      className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-[14px] font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {chatRunning ? "..." : "Gửi"}
+                    </button>
+                  </div>
                 </div>
               )}
 
