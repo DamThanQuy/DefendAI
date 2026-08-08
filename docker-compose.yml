@@ -28,6 +28,9 @@ services:
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 30
 
+      # Google OAuth (điền Client ID từ Google Cloud Console)
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+
       # Redis connection
       REDIS_URL: redis://redis:6379/0
     volumes:
@@ -62,8 +65,11 @@ services:
       # Trong container, "api" là hostname của service backend (không phải localhost)
       NEXT_PUBLIC_API_URL: http://api:8000
       BACKEND_URL: http://api:8000
+      # Google OAuth Client ID (phải trùng với GOOGLE_CLIENT_ID bên api)
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     volumes:
       - ./apps/web:/app
+      - /app/node_modules
       - /app/.next
     depends_on:
       - api

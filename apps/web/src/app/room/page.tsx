@@ -1,6 +1,9 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { 
   Mic, 
@@ -11,8 +14,12 @@ import {
   MessageSquare,
   Settings,
   Users,
-  Send
+  Send,
+  Lock,
+  Loader2,
+  Clock
 } from "lucide-react";
+import { checkMeetingAccess, MeetingAccess } from "@/lib/api";
 
 type Message = {
   id?: number;
@@ -23,14 +30,45 @@ type Message = {
 };
 
 export default function MockRoomPage() {
+  const searchParams = useSearchParams();
+  const meetingId = Number(searchParams.get("meeting") ?? "1");
+
+  // Guard: kiểm tra phòng có mở không (chỉ mở trước 5 phút so với giờ chốt)
+  const [access, setAccess] = useState<MeetingAccess | null>(null);
+  const [checking, setChecking] = useState(true);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef<any>(null);
   const isIntentionalStopRef = useRef(false);
-  const meetingId = 1; // Temporary hardcoded for demo
 
   useEffect(() => {
+    let cancelled = false;
+    async function checkAccess() {
+      setChecking(true);
+      try {
+        const res = await checkMeetingAccess(meetingId);
+        if (!cancelled) setAccess(res.data);
+      } catch (err) {
+        console.error("Failed to check meeting access", err);
+        if (!cancelled) setAccess(null);
+      } finally {
+        if (!cancelled) setChecking(false);
+      }
+    }
+    checkAccess();
+    // Poll mỗi 15s để tự động mở khi tới giờ (trước 5 phút)
+    const poll = setInterval(checkAccess, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(poll);
+    };
+  }, [meetingId]);
+
+  useEffect(() => {
+    // Chỉ fetch messages khi phòng đã mở
+    if (!access?.open) return;
     const fetchMessages = async () => {
       try {
         const res = await fetch(`http://localhost:8000/api/meetings/${meetingId}/messages`);
@@ -47,7 +85,7 @@ export default function MockRoomPage() {
     // Auto-refresh (simple polling)
     const interval = setInterval(fetchMessages, 3000);
     return () => clearInterval(interval);
-  }, [meetingId]);
+  }, [meetingId, access?.open]);
 
   useEffect(() => {
     // Initialize SpeechRecognition once
@@ -151,6 +189,55 @@ export default function MockRoomPage() {
       console.error("Failed to send message", err);
     }
   };
+
+  // ---- Guard: màn hình chờ khi phòng chưa mở ----
+  if (checking) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] bg-[#0A0A0A] text-white">
+        <Loader2 className="w-10 h-10 animate-spin text-teal-400 mb-4" />
+        <p className="text-zinc-400">Đang kiểm tra trạng thái phòng họp…</p>
+      </div>
+    );
+  }
+
+  if (!access?.open) {
+    const confirmed = access?.confirmed_time
+      ? new Date(access.confirmed_time).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" })
+      : null;
+    const secs = access?.seconds_until_open ?? 0;
+    const mins = Math.max(0, Math.ceil(secs / 60));
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] bg-[#0A0A0A] text-white px-4 text-center">
+        <div className="w-20 h-20 rounded-full bg-[#1a1a1a] border border-gray-700 flex items-center justify-center mb-6">
+          <Lock className="w-9 h-9 text-zinc-500" />
+        </div>
+        <h2 className="text-xl font-semibold text-zinc-100 mb-2">Phòng họp chưa mở</h2>
+        {access?.reason === "too_early" && confirmed ? (
+          <p className="text-zinc-400 max-w-md">
+            Phòng sẽ tự động mở <b className="text-teal-400">5 phút trước</b> giờ chốt
+            (<b className="text-teal-400">{confirmed}</b>). Vui lòng quay lại sau khoảng{" "}
+            <b className="text-teal-400">{mins} phút</b>.
+          </p>
+        ) : access?.reason === "session_ended" ? (
+          <p className="text-zinc-400 max-w-md">Buổi mock này đã kết thúc.</p>
+        ) : (
+          <p className="text-zinc-400 max-w-md">
+            Lịch hẹn chưa được mentor xác nhận hoặc không hợp lệ. Vui lòng kiểm tra mục
+            &quot;Đặt lịch&quot; để xem trạng thái.
+          </p>
+        )}
+        <div className="mt-6 flex items-center gap-2 text-zinc-500 text-sm">
+          <Clock className="w-4 h-4" /> Trạng thái: {access?.reason ?? "unknown"}
+        </div>
+        <a
+          href="/bookings"
+          className="mt-6 rounded-full bg-teal-600 hover:bg-teal-500 px-6 py-2 text-sm font-medium transition-colors"
+        >
+          Xem lịch đặt phòng
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] text-foreground font-sans overflow-hidden">

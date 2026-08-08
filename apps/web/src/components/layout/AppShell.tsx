@@ -12,6 +12,7 @@ import {
   BarChart3,
   ShieldCheck,
   LogOut,
+  CalendarClock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isPublicPath } from "@/lib/shell";
@@ -22,13 +23,15 @@ import { isPublicPath } from "@/lib/shell";
  * giữ nguyên top nav marketing. Ngắt bằng usePathname.
  */
 
-const SIDEBAR_LINKS: { href: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const SIDEBAR_LINKS: { href: string; label: string; icon: React.ComponentType<{ className?: string }>; roles?: string[] }[] = [
   { href: "/documents", label: "Tài liệu", icon: FileText },
   { href: "/workspaces", label: "Workspace", icon: FolderKanban },
   { href: "/code-review", label: "Code Review", icon: Code2 },
+  { href: "/bookings", label: "Đặt lịch", icon: CalendarClock },
   { href: "/room", label: "Mock Room", icon: MonitorPlay },
   { href: "/report", label: "Báo cáo", icon: BarChart3 },
-  { href: "/admin", label: "Quản trị", icon: ShieldCheck },
+  { href: "/admin", label: "Quản trị", icon: ShieldCheck, roles: ["admin"] },
+  { href: "/mentor/bookings", label: "Quản lý lịch", icon: CalendarClock, roles: ["mentor"] },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -60,7 +63,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-          {SIDEBAR_LINKS.filter((l) => l.href !== "/admin" || hasRole("admin")).map((l) => {
+          {SIDEBAR_LINKS.filter(
+            (l) => !l.roles || l.roles.some((r) => hasRole(r)),
+          ).map((l) => {
             const active = isActive(l.href);
             return (
               <Link

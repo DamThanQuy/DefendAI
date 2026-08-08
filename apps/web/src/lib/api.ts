@@ -118,3 +118,94 @@ export function scanCode(documentId: number) {
 export function healthCheck() {
   return api.get("/health");
 }
+
+// ---------------------------------------------------------------------------
+// Bookings (đặt lịch Mock Room: student -> mentor confirm)
+// ---------------------------------------------------------------------------
+
+export type BookingStatus =
+  | "pending"
+  | "confirmed"
+  | "rejected"
+  | "completed"
+  | "cancelled";
+
+export interface Booking {
+  id: number;
+  student_id: number;
+  mentor_id: number;
+  proposed_time: string;
+  confirmed_time: string | null;
+  title: string;
+  note: string | null;
+  status: BookingStatus;
+  meeting_id: number | null;
+  created_at: string;
+  updated_at: string;
+  student_name?: string | null;
+  mentor_name?: string | null;
+  room_open?: boolean | null;
+}
+
+export interface MeetingAccess {
+  meeting_id: number;
+  open: boolean;
+  reason: string;
+  confirmed_time: string | null;
+  seconds_until_open: number | null;
+}
+
+// Student: tạo yêu cầu đặt lịch
+export function createBooking(payload: {
+  mentor_id: number;
+  proposed_time: string;
+  title: string;
+  note?: string;
+}) {
+  return api.post<Booking>("/api/bookings", payload);
+}
+
+// Student/Mentor: danh sách booking của mình
+export function getMyBookings() {
+  return api.get<Booking[]>("/api/bookings/mine");
+}
+
+// Student: huỷ booking chưa xác nhận
+export function cancelBooking(bookingId: number) {
+  return api.post<Booking>(`/api/bookings/${bookingId}/cancel`);
+}
+
+// Mentor: danh sách chờ xác nhận
+export function getPendingBookings() {
+  return api.get<Booking[]>("/api/bookings/pending");
+}
+
+// Mentor: xác nhận + chốt giờ
+export function confirmBooking(
+  bookingId: number,
+  payload: { confirmed_time: string; note?: string },
+) {
+  return api.post<Booking>(`/api/bookings/${bookingId}/confirm`, payload);
+}
+
+// Mentor: từ chối
+export function rejectBooking(bookingId: number) {
+  return api.post<Booking>(`/api/bookings/${bookingId}/reject`);
+}
+
+// Mentor: kết thúc buổi mock
+export function completeBooking(bookingId: number) {
+  return api.post<Booking>(`/api/bookings/${bookingId}/complete`);
+}
+
+// Kiểm tra phòng có mở không (trước 5 phút)
+export function checkMeetingAccess(meetingId: number) {
+  return api.get<MeetingAccess>(`/api/meetings/${meetingId}/access`);
+}
+
+// Danh sách mentor (cho student chọn khi đặt lịch)
+export function getMentors() {
+  return api.get<{ id: number; full_name: string | null; email: string }[]>(
+    "/api/auth/mentors",
+  );
+}
