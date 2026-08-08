@@ -371,7 +371,7 @@ export default function WorkspaceDetailPage() {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ topic: "", persona: wsPersona }),
+        body: JSON.stringify({ topic: ws?.name ?? "", persona: wsPersona }),
       });
       if (!r.ok) throw new Error("Không tạo được yêu cầu sinh câu hỏi");
       const created = await r.json();
