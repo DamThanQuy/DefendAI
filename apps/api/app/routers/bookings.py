@@ -11,13 +11,6 @@ Quy tắc phân quyền (ADR-005: no-auth MVP, nhưng đã có RBAC cơ bản):
 """
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
-
-
-def _naive_utc(dt: datetime) -> datetime:
-    """Chuẩn hóa datetime về naive UTC (DB column là TIMESTAMP WITHOUT TIME ZONE)."""
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-    return dt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
@@ -29,6 +22,13 @@ from app.models.booking import BookingStatus, MockBooking
 from app.models.meeting import Meeting, MeetingStatus
 from app.repositories.booking import BookingRepository
 from app.schemas.booking import BookingCreate, BookingConfirm, BookingOut
+
+
+def _naive_utc(dt: datetime) -> datetime:
+    """Chuẩn hóa datetime về naive UTC (DB column là TIMESTAMP WITHOUT TIME ZONE)."""
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 # Phòng mở trước bao nhiêu phút so với confirmed_time
 ROOM_OPEN_BEFORE_MINUTES = 5

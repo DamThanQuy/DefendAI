@@ -8,7 +8,8 @@ import {
   Wallet, 
   Star,
   CheckCircle2,
-  Clock3
+  Clock3,
+  Video
 } from "lucide-react";
 
 export default function MentorDashboard() {
