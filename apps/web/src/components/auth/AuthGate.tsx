@@ -13,6 +13,8 @@ const PROTECTED_PATHS = [
   "/report",
   "/analyze",
   "/documents",
+  "/bookings",
+  "/mentor/bookings",
 ];
 
 // Route → role được phép. Thiếu role → redirect "/".

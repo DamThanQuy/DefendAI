@@ -223,3 +223,27 @@ async def refresh(req: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
         refresh_token=new_refresh,
         user=UserResponse.from_user(user),
     )
+
+# ---------------------------------------------------------------------------
+# Danh sách mentor (cho student chọn khi đặt lịch Mock Room)
+# ---------------------------------------------------------------------------
+
+@router.get("/mentors", tags=["Auth"], summary="Danh sách mentor để đặt lịch")
+async def list_mentors(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.roles))
+        .join(user_roles, User.id == user_roles.c.user_id)
+        .join(Role, Role.id == user_roles.c.role_id)
+        .where(Role.name == "mentor", User.is_active == 1)
+        .order_by(User.full_name)
+    )
+    users = result.scalars().all()
+    return [
+        {
+            "id": u.id,
+            "full_name": u.full_name,
+            "email": u.email,
+        }
+        for u in users
+    ]

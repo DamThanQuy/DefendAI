@@ -5,6 +5,8 @@ from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 from app.models.association import user_roles
+from app.models.role import Role  # noqa: F401 — cần thiết để SQLAlchemy resolve relationship "roles"
+from app.models.refresh_token import RefreshToken  # noqa: F401 — resolve relationship "refresh_tokens"
 
 
 class User(Base):

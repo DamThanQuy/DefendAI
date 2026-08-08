@@ -1,0 +1,30 @@
+﻿defense-web  | 
+defense-web  | > @defense-system/web@0.1.0 dev
+defense-web  | > next dev
+defense-web  | 
+defense-web  | sh: next: not found
+defense-web  | 
+defense-web  | > @defense-system/web@0.1.0 dev
+defense-web  | > next dev
+defense-web  | 
+defense-web  | sh: next: not found
+defense-web  | 
+defense-web  | > @defense-system/web@0.1.0 dev
+defense-web  | > next dev
+defense-web  | 
+defense-web  | sh: next: not found
+defense-web  | 
+defense-web  | > @defense-system/web@0.1.0 dev
+defense-web  | > next dev
+defense-web  | 
+defense-web  | sh: next: not found
+defense-web  | 
+defense-web  | > @defense-system/web@0.1.0 dev
+defense-web  | > next dev
+defense-web  | 
+defense-web  | sh: next: not found
+defense-web  | 
+defense-web  | > @defense-system/web@0.1.0 dev
+defense-web  | > next dev
+defense-web  | 
+defense-web  | sh: next: not found
