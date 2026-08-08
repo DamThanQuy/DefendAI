@@ -21,7 +21,7 @@ const navLinks: { href: string; label: string; roles?: string[]; public?: boolea
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, hasRole } = useAuth();
+  const { user } = useAuth();
 
   function handleLogout() {
     // Xóa cả access_token + refresh_token + user — nếu không refresh token còn sống 7 ngày
@@ -42,12 +42,7 @@ export function Navbar() {
 
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium h-full">
           {navLinks
-            .filter((link) => {
-              if (link.roles && !link.roles.some((r) => hasRole(r))) return false;
-              // Guest chỉ thấy Trang chủ + Xem demo; đã đăng nhập thấy tất cả
-              if (!user && !link.public) return false;
-              return true;
-            })
+            .filter((link) => link.public)
             .map((link) => {
               const isActive = pathname === link.href;
               return (
@@ -73,6 +68,11 @@ export function Navbar() {
               <span className="hidden text-sm font-medium text-zinc-400 sm:inline">
                 {user.full_name || user.email}
               </span>
+              <Link href="/documents">
+                <Button size="sm" className="rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:brightness-110 active:scale-[0.98] shadow-[0_0_15px_rgba(13,148,136,0.3)] transition-all">
+                  Dashboard
+                </Button>
+              </Link>
               <Button
                 size="sm"
                 variant="outline"

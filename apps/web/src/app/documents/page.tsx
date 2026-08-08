@@ -2,9 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { UploadModal } from "@/components/features/assessment/UploadModal";
-import { AnalyzeModal } from "@/components/features/assessment/AnalyzeModal";
 import { ArchiveBrowser } from "@/components/features/assessment/ArchiveBrowser";
 
 interface DocumentItem {
@@ -36,32 +34,15 @@ const docTypeLabel: Record<string, string> = {
   rar: "RAR",
 };
 
-const statusLabel: Record<string, string> = {
-  uploaded: "Đã tải lên",
-  processing: "Đang xử lý",
-  completed: "Hoàn tất",
-  failed: "Thất bại",
-};
-
-const statusColor: Record<string, string> = {
-  uploaded: "text-blue-400 bg-blue-500/10",
-  processing: "text-yellow-400 bg-yellow-500/10",
-  completed: "text-green-400 bg-green-500/10",
-  failed: "text-red-400 bg-red-500/10",
-};
-
 function getToken(): string | null {
   return localStorage.getItem("access_token");
 }
 
 export default function DocumentsPage() {
-  const router = useRouter();
   const [docs, setDocs] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showUpload, setShowUpload] = useState(false);
-  const [analyzingId, setAnalyzingId] = useState<number | null>(null);
-  const [pendingDoc, setPendingDoc] = useState<DocumentItem | null>(null);
   const [browseDoc, setBrowseDoc] = useState<DocumentItem | null>(null);
 
   // Thêm vào workspace
@@ -142,67 +123,6 @@ export default function DocumentsPage() {
     }
   };
 
-  // Bắt đầu phân tích 1 document (status = uploaded) → gọi generate → poll job → cập nhật status
-  const handleAnalyze = async (doc: DocumentItem, persona: string) => {
-    if (analyzingId) return;
-    setPendingDoc(null);
-    setAnalyzingId(doc.id);
-    setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "processing" } : d)));
-
-    const token = getToken();
-    try {
-      const res = await fetch("/api/questions/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ documentId: doc.id, persona }),
-      });
-      const data = await res.json();
-
-      if (!data.job_id) {
-        setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "failed" } : d)));
-        setError(data.detail || data.error || "Không thể bắt đầu phân tích");
-        setAnalyzingId(null);
-        return;
-      }
-
-      // Poll job cho đến khi hoàn tất
-      const jobId = data.job_id;
-      const pollInterval = 1500;
-      const maxAttempts = 60;
-      for (let i = 0; i < maxAttempts; i++) {
-        const pollRes = await fetch(`/api/jobs/${jobId}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        const job = await pollRes.json();
-
-        if (job.status === "completed") {
-          setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "completed" } : d)));
-          setAnalyzingId(null);
-          router.push(`/documents/${doc.id}`);
-          return;
-        }
-        if (job.status === "failed") {
-          setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "failed" } : d)));
-          setError(job.error || "Phân tích thất bại");
-          setAnalyzingId(null);
-          return;
-        }
-        await new Promise((r) => setTimeout(r, pollInterval));
-      }
-
-      setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "failed" } : d)));
-      setError("Phân tích quá lâu, vui lòng thử lại");
-      setAnalyzingId(null);
-    } catch (e: any) {
-      setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "failed" } : d)));
-      setError(e.message || "Không thể kết nối máy chủ");
-      setAnalyzingId(null);
-    }
-  };
-
   const token = typeof window !== "undefined" ? getToken() : null;
 
   if (!token) {
@@ -230,7 +150,7 @@ export default function DocumentsPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
             <h1 className="text-[28px] font-bold text-foreground mb-2">Tài liệu của tôi</h1>
-            <p className="text-zinc-500 text-[14px]">Quản lý tài liệu đã tải lên và xem câu hỏi phản biện.</p>
+            <p className="text-zinc-500 text-[14px]">Quản lý tài liệu đã tải lên cho buổi bảo vệ.</p>
           </div>
           <button
             onClick={() => setShowUpload(true)}
@@ -261,7 +181,7 @@ export default function DocumentsPage() {
               </svg>
             </div>
             <h2 className="text-lg font-bold text-foreground mb-2">Chưa có tài liệu nào</h2>
-            <p className="text-zinc-500 text-[14px] mb-6">Tải lên tài liệu đầu tiên để AI phân tích và tạo câu hỏi.</p>
+            <p className="text-zinc-500 text-[14px] mb-6">Tải lên tài liệu đầu tiên để bắt đầu.</p>
             <button onClick={() => setShowUpload(true)} className="inline-block px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90">
               Tải lên ngay
             </button>
@@ -277,7 +197,6 @@ export default function DocumentsPage() {
                     <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Tên file</th>
                     <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Loại</th>
                     <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Ngày tải lên</th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Trạng thái</th>
                     <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider text-right">Thao tác</th>
                   </tr>
                 </thead>
@@ -302,39 +221,8 @@ export default function DocumentsPage() {
                         </span>
                       </td>
                       <td className="px-5 py-4 text-[13px] text-zinc-500">{formatDate(doc.created_at)}</td>
-                      <td className="px-5 py-4">
-                        <span className={`text-[12px] font-semibold px-2.5 py-1 rounded-full ${statusColor[doc.status] ?? "text-zinc-400 bg-zinc-800/60"}`}>
-                          {statusLabel[doc.status] ?? doc.status}
-                        </span>
-                      </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {doc.status === "uploaded" && (
-                            <button
-                              onClick={() => setPendingDoc(doc)}
-                              disabled={analyzingId !== null}
-                              className="px-3 py-1.5 text-[12px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Phân tích
-                            </button>
-                          )}
-                          {doc.status === "failed" && (
-                            <button
-                              onClick={() => setPendingDoc(doc)}
-                              disabled={analyzingId !== null}
-                              className="px-3 py-1.5 text-[12px] font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Thử lại
-                            </button>
-                          )}
-                          {(doc.status === "completed" || doc.status === "processing") && (
-                            <Link
-                              href={`/documents/${doc.id}`}
-                              className="px-3 py-1.5 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors"
-                            >
-                              Xem câu hỏi
-                            </Link>
-                          )}
                           {doc.doc_type === "zip" && (
                             <button
                               onClick={() => setBrowseDoc(doc)}
@@ -367,12 +255,6 @@ export default function DocumentsPage() {
       </div>
 
       <UploadModal open={showUpload} onClose={() => { setShowUpload(false); fetchDocs(); }} />
-      <AnalyzeModal
-        open={pendingDoc !== null}
-        filename={pendingDoc?.filename ?? ""}
-        onClose={() => setPendingDoc(null)}
-        onConfirm={(persona) => pendingDoc && handleAnalyze(pendingDoc, persona)}
-      />
 
       {/* Archive browser modal */}
       {browseDoc && (

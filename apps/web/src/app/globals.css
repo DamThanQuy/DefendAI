@@ -93,4 +93,24 @@
     -webkit-background-clip: text;
     color: transparent;
   }
+
+  /* Custom scrollbar — dark theme, mỏng, hover highlight.
+     Dùng chung cho các khung chat/room; không cần tailwind-scrollbar plugin. */
+  .custom-scrollbar {
+    scrollbar-width: thin;                       /* Firefox */
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 8px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(240, 3.7%, 30%);
+  }
 }

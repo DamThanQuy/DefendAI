@@ -1,12 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import { MAX_FILE_SIZE, PERSONAS } from "@/lib/constants";
-import { PersonaPicker } from "@/components/features/assessment/PersonaPicker";
+import { MAX_FILE_SIZE } from "@/lib/constants";
 
 type Props = {
   onFileSelected?: (file: File) => void;
+  onDone?: () => void;
   title?: string;
   description?: string;
   accept?: string;
@@ -15,12 +14,12 @@ type Props = {
 
 export function UploadZone({
   onFileSelected,
+  onDone,
   title = "Kéo thả hoặc chọn tệp",
   description = "Hỗ trợ định dạng PDF, DOCX, ZIP, RAR (Tối đa 100MB)",
   accept = ".pdf,.docx,.zip,.rar",
   buttonLabel = "Chọn từ máy tính",
 }: Props) {
-  const router = useRouter();
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [uploaded, setUploaded] = useState(false);
@@ -29,8 +28,6 @@ export function UploadZone({
   const [statusText, setStatusText] = useState("");
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
-  const [documentId, setDocumentId] = useState("");
-  const [persona, setPersona] = useState<string>(PERSONAS[0].key);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -60,7 +57,6 @@ export function UploadZone({
     }
     setFile(f);
     setUploaded(false);
-    setDocumentId("");
     return true;
   };
 
@@ -97,7 +93,6 @@ export function UploadZone({
       const data = await res.json();
 
       if (data.success) {
-        setDocumentId(data.documentId);
         setUploaded(true);
       } else {
         const msg = data.error || data.detail?.detail || data.message || "Tải lên thất bại";
@@ -124,97 +119,6 @@ export function UploadZone({
     setProgress(0);
     setStatusText("");
     setError("");
-  };
-
-  const generateQuestions = async (docId?: string) => {
-    const targetId = docId || documentId;
-    if (!targetId) return;
-    setIsProcessing(true);
-    setProgress(0);
-    setStatusText("Đang xếp hàng chờ xử lý...");
-
-    const ac = new AbortController();
-    setAbortController(ac);
-
-    try {
-      const token = localStorage.getItem("access_token");
-      // 1. Gọi generate → nhận job_id
-      const res = await fetch("/api/questions/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ documentId: targetId, persona })
-      });
-      const data = await res.json();
-
-      if (!data.job_id) {
-        console.error("Generate API failed:", data);
-        setStatusText("Lỗi: " + (data.detail || data.error || "Không nhận được job_id"));
-        setIsProcessing(false);
-        return;
-      }
-
-      // 2. Poll job cho đến khi hoàn tất
-      const jobId = data.job_id;
-      const pollInterval = 1500;
-
-      while (true) {
-        if (ac.signal.aborted) {
-          handleCancel();
-          return;
-        }
-        const pollRes = await fetch(`/api/jobs/${jobId}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          signal: ac.signal,
-        });
-        const job = await pollRes.json();
-
-        if (job.status === "completed") {
-          setProgress(100);
-          setStatusText("Hoàn tất! Đang chuyển hướng...");
-
-          // Store full result so /documents/[id] page can show document_name, persona, etc.
-          const payload = job.result ? { ...job.result, questions: job.result.questions || [] } : { questions: [] };
-          sessionStorage.setItem("questionsData", JSON.stringify(payload));
-          // Force synchronous write before navigation
-          const written = sessionStorage.getItem("questionsData");
-          if (!written) {
-            // Fallback: try again
-            sessionStorage.setItem("questionsData", JSON.stringify(payload));
-          }
-          router.push(`/documents/${targetId}`);
-          return;
-        }
-
-        if (job.status === "failed") {
-          setStatusText(`Lỗi AI: ${job.error || "Xử lý thất bại"}`);
-          setIsProcessing(false);
-          return;
-        }
-
-        // Cập nhật progress từ backend
-        if (job.progress) {
-          const pct = parseInt(job.progress, 10);
-          setProgress(pct);
-          const msgs: Record<string, string> = {
-            "10": "Đang chuẩn bị tài liệu...",
-            "30": "Đang phân tích nội dung...",
-            "50": "AI đang tạo câu hỏi...",
-            "70": "Đang xử lý kết quả AI...",
-            "90": "Đang lưu kết quả...",
-          };
-          setStatusText(msgs[job.progress] || `Đang xử lý... (${pct}%)`);
-        }
-
-        await new Promise(r => setTimeout(r, pollInterval));
-      }
-    } catch (error: any) {
-      if (error?.name === "AbortError") { handleCancel(); return; }
-      console.error("Generate questions error:", error);
-      setIsProcessing(false);
-    }
   };
 
   return (
@@ -248,10 +152,8 @@ export function UploadZone({
         {[
           { n: 1, label: "Chọn tài liệu" },
           { n: 2, label: "Tải lên" },
-          { n: 3, label: "Chọn persona" },
-          { n: 4, label: "Phân tích" },
         ].map((s, i) => {
-          const current = !file ? 1 : !uploaded ? 2 : isProcessing ? 4 : 3;
+          const current = !file ? 1 : 2;
           const done = s.n < current;
           const active = s.n === current;
           return (
@@ -312,31 +214,26 @@ export function UploadZone({
                 <button onClick={(e) => { e.stopPropagation(); processFile(); }} className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full shadow-md transition-colors text-sm">
                   Tải lên
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); setFile(null); setUploaded(false); setDocumentId(""); }} className="w-full py-3 text-sm font-medium text-zinc-500 hover:text-zinc-300 transition-colors">
+                <button onClick={(e) => { e.stopPropagation(); setFile(null); setUploaded(false); }} className="w-full py-3 text-sm font-medium text-zinc-500 hover:text-zinc-300 transition-colors">
                   Hủy & Chọn tệp khác
                 </button>
               </div>
             )}
 
-            {/* Bước 2 & 3: Đã upload → chọn persona rồi phân tích */}
+            {/* Bước 2: Đã upload xong */}
             {!isProcessing && uploaded && (
-              <>
-                <div className="mt-8 pt-6 border-t border-zinc-800/60 text-left">
-                  <h4 className="text-[15px] font-bold text-foreground mb-1">Chọn Giám Khảo AI</h4>
-                  <p className="text-[13px] text-zinc-500 mb-4">Chọn phong cách hỏi phù hợp với buổi bảo vệ của bạn.</p>
-                  <PersonaPicker value={persona} onChange={setPersona} />
+              <div className="pt-4 border-t border-zinc-800/60">
+                <div className="flex items-center justify-center gap-2 mb-3 text-green-400">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-[14px] font-semibold">Đã tải lên thành công</span>
                 </div>
-
-                {/* Bước 3: Bắt đầu phân tích */}
-                <div className="flex flex-col gap-3 pt-4 border-t border-zinc-800/60">
-                  <button onClick={(e) => { e.stopPropagation(); generateQuestions(); }} className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full shadow-md transition-colors text-sm">
-                    Bắt đầu phân tích
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); setFile(null); setUploaded(false); setDocumentId(""); }} className="w-full py-3 text-sm font-medium text-zinc-500 hover:text-zinc-300 transition-colors">
-                    Hủy & Chọn tệp khác
-                  </button>
-                </div>
-              </>
+                <p className="text-[13px] text-zinc-500 text-center mb-4">Dùng nút ➕ Workspace trong danh sách để đưa tài liệu vào workspace và tạo câu hỏi AI.</p>
+                <button onClick={(e) => { e.stopPropagation(); onDone?.(); }} className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full shadow-md transition-colors text-sm">
+                  Xong
+                </button>
+              </div>
             )}
           </div>
         ) : (
@@ -360,7 +257,7 @@ export function UploadZone({
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
           </svg>
           <div>
-            <p className="text-[14px] font-semibold text-red-400 mb-1">Không thể phân tích tệp này</p>
+            <p className="text-[14px] font-semibold text-red-400 mb-1">Không thể tải tài liệu này</p>
             <p className="text-[13px] text-red-400 leading-relaxed">{error}</p>
           </div>
         </div>

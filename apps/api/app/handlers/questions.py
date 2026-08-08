@@ -14,6 +14,7 @@ from app.core.database import async_session_maker
 from app.models.entities import Assessment, AssessmentStatus, Document, DocumentStatus
 from app.schemas.assessment import AssessmentQuestion
 from app.services.ai_client import ai_gateway
+from app.services.chunk_indexer import index_chunks
 from app.services.document_parser import DocumentParserError, parse_and_chunk
 from app.services.job_queue import register_handler, update_job
 
@@ -270,6 +271,9 @@ async def handle_generate_questions(params: dict) -> dict:
             assessment.chunks = []
             await db.commit()
             raise ValueError("Document không có text để phân tích")
+
+        # ── R4: index chunks vào document_chunks (RAG) — best-effort, không chặn job ──
+        await index_chunks(document, chunks)
 
         if job_id:
             await update_job(job_id, progress="30")

@@ -43,6 +43,15 @@ class MinioConfig(BaseModel):
     secure: bool = os.getenv("MINIO_SECURE", "false").lower() == "true"
 
 
+class RAGConfig(BaseModel):
+    """Config cho RAG retrieval (R5) — đổi qua .env, không cần sửa code."""
+    top_k: int = int(os.getenv("RAG_TOP_K", "8"))
+    min_score: float = float(os.getenv("RAG_MIN_SCORE", "0.3"))
+    # R10: reference chunks (chuẩn) — query thứ 2, top_k/ngưỡng riêng
+    ref_top_k: int = int(os.getenv("RAG_REF_TOP_K", "4"))
+    ref_min_score: float = float(os.getenv("RAG_REF_MIN_SCORE", "0.25"))
+
+
 class Settings(BaseSettings):
     """Cấu hình chính của ứng dụng."""
     app_name: str = "AI Project Defense System API"
@@ -67,6 +76,7 @@ class Settings(BaseSettings):
     local: LocalConfig = LocalConfig()
     routing: RoutingConfig = RoutingConfig()
     minio: MinioConfig = MinioConfig()
+    rag: RAGConfig = RAGConfig()
 
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore")
 

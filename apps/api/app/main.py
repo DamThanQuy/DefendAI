@@ -10,6 +10,7 @@ from app.core.config import settings
 # Import routers (mỗi module đăng ký 1 router)
 from app.routers import ai as ai_router
 from app.routers import admin as admin_router
+from app.routers import admin_reference as admin_reference_router
 from app.routers import auth as auth_router
 from app.routers import code_scan as code_scan_router
 from app.routers import documents as documents_router
@@ -17,6 +18,8 @@ from app.routers import questions as questions_router
 from app.routers import meeting as meeting_router
 from app.routers import jobs as jobs_router
 from app.routers import workspaces as workspaces_router
+from app.routers import workspace_chats as workspace_chats_router
+from app.routers import workspace_questions as workspace_questions_router
 # Khởi tạo AI gateway ngay khi import (sẽ log providers nào đã ready)
 from app.services.ai_client import ai_gateway
 
@@ -40,6 +43,8 @@ app.add_middleware(
 app.include_router(ai_router.router)
 # Admin endpoints (settings, chỉ admin)
 app.include_router(admin_router.router)
+# Admin: tài liệu chuẩn (R9) — upload/index reference_chunks
+app.include_router(admin_reference_router.router)
 # Auth endpoints (login, register)
 app.include_router(auth_router.router)
 # Document upload endpoints (upload, get, list)
@@ -54,6 +59,10 @@ app.include_router(meeting_router.router)
 app.include_router(jobs_router.router)
 # Workspace endpoints (gom file theo đề tài)
 app.include_router(workspaces_router.router)
+# Workspace RAG questions ("Hỏi theo đề tài" — R6)
+app.include_router(workspace_questions_router.router)
+# Workspace RAG chat ("Chat đề tài" — R7)
+app.include_router(workspace_chats_router.router)
 
 @app.on_event("startup")
 async def _ensure_storage() -> None:

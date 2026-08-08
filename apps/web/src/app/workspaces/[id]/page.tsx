@@ -4,9 +4,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
-import { PERSONA_LABELS } from "@/lib/constants";
+import { PERSONA_LABELS, PERSONAS } from "@/lib/constants";
 import { FileTree } from "@/components/features/assessment/FileTree";
 import { FilePreview } from "@/components/features/assessment/FilePreview";
+import WorkspaceChat from "@/components/features/workspace/WorkspaceChat";
 
 interface WorkspaceFile {
   document_id: number;
@@ -37,16 +38,7 @@ interface Question {
   hint: string;
   difficulty: string;
   persona: string;
-}
-
-interface AssessmentResponse {
-  assessment_id: number;
-  document_id: number;
-  document_name: string;
-  doc_type: string;
-  persona: string;
-  status: string;
-  questions: Question[];
+  citations?: string[];
 }
 
 interface SessionItem {
@@ -63,6 +55,26 @@ interface SessionItem {
 interface SessionsResponse {
   assessments: SessionItem[];
   code_analyses: SessionItem[];
+}
+
+interface WorkspaceSourceItem {
+  num: number;
+  source: string; // "user" | "ref"
+  title: string;
+  chunk_index?: number;
+  content?: string;
+}
+
+interface WorkspaceQuestionItem {
+  id: number;
+  workspace_id: number;
+  topic: string;
+  persona: string;
+  status: string;
+  questions: Question[] | null;
+  sources?: WorkspaceSourceItem[] | null;
+  error: string | null;
+  created_at: string;
 }
 
 const docTypeLabel: Record<string, string> = {
@@ -148,6 +160,25 @@ function DocPreview({ docId, filename }: { docId: number; filename: string }) {
   );
 }
 
+// Render text kèm tham chiếu dạng [N] thành badge số tròn kiểu ChatGPT/DeepSeek
+function renderWithRefs(text: string) {
+  if (!text) return text;
+  return text.split(/(\[\d+\])/g).map((p, i) => {
+    const m = p.match(/^\[(\d+)\]$/);
+    if (m) {
+      return (
+        <sup
+          key={i}
+          className="ml-0.5 inline-flex items-center justify-center w-[17px] h-[17px] rounded-full bg-teal-500/15 text-teal-300 text-[10px] font-bold leading-none"
+        >
+          {m[1]}
+        </sup>
+      );
+    }
+    return <span key={i}>{p}</span>;
+  });
+}
+
 export default function WorkspaceDetailPage() {
   const params = useParams();
   const wsId = Number(params.id);
@@ -163,13 +194,15 @@ export default function WorkspaceDetailPage() {
   const [zipExpanded, setZipExpanded] = useState<Set<number>>(new Set());
 
   // Right tabs
-  const [rightTab, setRightTab] = useState<"preview" | "questions" | "history">("preview");
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const [rightTab, setRightTab] = useState<"preview" | "questions" | "history" | "chat">("preview");
 
-  // Questions
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [loadingQuestions, setLoadingQuestions] = useState(false);
-  const [qError, setQError] = useState("");
+  // "Hỏi theo đề tài" (R6 — toàn workspace)
+  const [topic, setTopic] = useState("");
+  const [wsPersona, setWsPersona] = useState("theory");
+  const [wsQuestions, setWsQuestions] = useState<WorkspaceQuestionItem[]>([]);
+  const [wsLoading, setWsLoading] = useState(false);
+  const [wsQError, setWsQError] = useState("");
+  const [wsRunning, setWsRunning] = useState(false);
 
   // History
   const [sessions, setSessions] = useState<SessionsResponse | null>(null);
@@ -226,39 +259,9 @@ export default function WorkspaceDetailPage() {
     if (f.doc_type === "zip" || f.doc_type === "rar") openZip(f.document_id);
   };
 
-  const loadQuestions = async () => {
-    const token = getToken();
-    if (!token || !selDocId) return;
-    setLoadingQuestions(true);
-    setQError("");
-    try {
-      const r = await fetch(`/api/documents/${selDocId}/assessments`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!r.ok) throw new Error("Không thể tải câu hỏi");
-      const data = await r.json();
-      const items = data.items ?? [];
-      if (items.length === 0) {
-        setQuestions([]);
-        return;
-      }
-      const latest = items[0];
-      const qr = await fetch(`/api/questions/${latest.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!qr.ok) throw new Error("Không thể tải câu hỏi");
-      const payload: AssessmentResponse = await qr.json();
-      setQuestions(payload.questions ?? []);
-    } catch (e: any) {
-      setQError(e.message);
-    } finally {
-      setLoadingQuestions(false);
-    }
-  };
-
-  const openTab = (tab: "preview" | "questions" | "history") => {
+  const openTab = (tab: "preview" | "questions" | "history" | "chat") => {
     setRightTab(tab);
-    if (tab === "questions" && questions.length === 0 && !qError && !loadingQuestions) loadQuestions();
+    if (tab === "questions" && wsQuestions.length === 0 && !wsLoading) loadWorkspaceQuestions();
     if (tab === "history" && !sessions && !loadingSessions) loadSessions();
   };
 
@@ -279,13 +282,60 @@ export default function WorkspaceDetailPage() {
     }
   };
 
-  const toggleExpand = (id: number) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const loadWorkspaceQuestions = async () => {
+    const token = getToken();
+    if (!token) return;
+    setWsLoading(true);
+    setWsQError("");
+    try {
+      const r = await fetch(`/api/workspaces/${wsId}/questions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error("Không thể tải lịch sử đề tài");
+      const data = await r.json();
+      setWsQuestions(data ?? []);
+    } catch (e: any) {
+      setWsQError(e.message);
+    } finally {
+      setWsLoading(false);
+    }
+  };
+
+  const askWorkspaceTopic = async () => {
+    const trimmed = topic.trim();
+    if (!trimmed || wsRunning) return;
+    const token = getToken();
+    if (!token) return;
+    setWsRunning(true);
+    setWsQError("");
+    try {
+      const r = await fetch(`/api/workspaces/${wsId}/questions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ topic: trimmed, persona: wsPersona }),
+      });
+      if (!r.ok) throw new Error("Không tạo được yêu cầu hỏi đề tài");
+      const created = await r.json();
+      setTopic("");
+      // Poll job (pattern giống các luồng async khác: 1.5s × tối đa 60 lần)
+      for (let attempt = 0; attempt < 60; attempt++) {
+        await new Promise((res) => setTimeout(res, 1500));
+        const jr = await fetch(`/api/jobs/${created.job_id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!jr.ok) continue;
+        const job = await jr.json();
+        if (job.status === "completed" || job.status === "failed") break;
+      }
+      await loadWorkspaceQuestions();
+    } catch (e: any) {
+      setWsQError(e.message);
+    } finally {
+      setWsRunning(false);
+    }
   };
 
   const selectedFile = ws?.files.find((f) => f.document_id === selDocId) ?? null;
@@ -448,6 +498,14 @@ export default function WorkspaceDetailPage() {
                   ❓ Câu hỏi AI
                 </button>
                 <button
+                  onClick={() => openTab("chat")}
+                  className={`px-5 py-2 text-[13px] font-semibold rounded-xl transition-colors ${
+                    rightTab === "chat" ? "bg-primary text-primary-foreground" : "text-zinc-500 hover:bg-zinc-800/60"
+                  }`}
+                >
+                  💬 Chat đề tài
+                </button>
+                <button
                   onClick={() => openTab("history")}
                   className={`px-5 py-2 text-[13px] font-semibold rounded-xl transition-colors ${
                     rightTab === "history" ? "bg-primary text-primary-foreground" : "text-zinc-500 hover:bg-zinc-800/60"
@@ -480,70 +538,124 @@ export default function WorkspaceDetailPage() {
               )}
 
               {rightTab === "questions" && (
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-[15px] font-bold text-zinc-200">
-                      ❓ Câu hỏi phản biện {selectedFile ? `— ${selectedFile.filename}` : ""}
-                    </h3>
-                    <Link
-                      href={selectedFile ? `/documents/${selectedFile.document_id}` : "/documents"}
-                      className="px-3 py-1.5 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors"
-                    >
-                      Tạo câu hỏi mới →
-                    </Link>
-                  </div>
-
-                  {loadingQuestions ? (
-                    <p className="text-zinc-500 text-[14px] py-10 text-center">Đang tải câu hỏi...</p>
-                  ) : qError ? (
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-[14px]">{qError}</div>
-                  ) : questions.length === 0 ? (
-                    <div className="bg-card rounded-2xl border-2 border-dashed border-zinc-700 p-12 text-center">
-                      <div className="text-4xl mb-3">💬</div>
-                      <p className="text-zinc-500 text-[14px] mb-4">File này chưa có câu hỏi nào. Bấm "Tạo câu hỏi mới" để AI sinh câu hỏi phản biện.</p>
-                      <Link
-                        href={selectedFile ? `/documents/${selectedFile.document_id}` : "/documents"}
-                        className="inline-block px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90"
+                <div className="flex flex-col gap-8">
+                  {/* R6: "Hỏi theo đề tài" — RAG toàn workspace */}
+                  <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-5">
+                    <h3 className="text-[15px] font-bold text-zinc-200 mb-1">🧭 Hỏi theo đề tài (toàn workspace)</h3>
+                    <p className="text-[12px] text-zinc-500 mb-4">AI tìm các đoạn liên quan nhất trong toàn bộ {ws.document_count} file rồi sinh câu hỏi kèm nguồn file:đoạn.</p>
+                    <div className="flex flex-col md:flex-row gap-3">
+                      <input
+                        value={topic}
+                        onChange={(e) => setTopic(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && askWorkspaceTopic()}
+                        placeholder="VD: Hệ thống xử lý bảo mật thế nào?"
+                        className="flex-1 px-4 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-[14px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-primary"
+                      />
+                      <select
+                        value={wsPersona}
+                        onChange={(e) => setWsPersona(e.target.value)}
+                        className="px-3 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-[13px] text-zinc-300 focus:outline-none focus:border-primary"
                       >
-                        Tạo câu hỏi
-                      </Link>
+                        {PERSONAS.map((p) => (
+                          <option key={p.key} value={p.key}>{p.label}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={askWorkspaceTopic}
+                        disabled={!topic.trim() || wsRunning}
+                        className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-[14px] font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                      >
+                        {wsRunning ? "Đang xử lý..." : "Hỏi đề tài"}
+                      </button>
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                      {questions.map((q) => {
-                        const d = difficulty(q.difficulty);
-                        return (
-                          <div key={q.id} className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-5 flex flex-col gap-3 hover:shadow-md transition-shadow">
-                            <div className="flex items-center justify-between">
+
+                    {wsQError && (
+                      <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-red-400 text-[13px]">{wsQError}</div>
+                    )}
+
+                    {wsLoading ? (
+                      <p className="text-zinc-500 text-[13px] py-4 text-center">Đang tải đề tài...</p>
+                    ) : wsQuestions.length > 0 ? (
+                      <div className="mt-5 flex flex-col gap-5">
+                        {wsQuestions.map((wq) => (
+                          <div key={wq.id} className="border border-zinc-800/60 rounded-xl p-4">
+                            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`px-2.5 py-1 ${d.bg} ${d.txt} text-[11px] font-bold rounded-full`}>{d.label}</span>
-                                <span className="px-2.5 py-1 bg-zinc-800 text-zinc-300 text-[11px] font-bold rounded-full">{personaLabel(q.persona)}</span>
+                                <span className="text-[14px] font-bold text-zinc-200">📌 {wq.topic}</span>
+                                <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 text-[11px] font-bold rounded-full">{personaLabel(wq.persona)}</span>
+                                <span
+                                  className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${
+                                    wq.status === "completed"
+                                      ? "bg-green-500/10 text-green-400"
+                                      : wq.status === "failed"
+                                      ? "bg-red-500/10 text-red-400"
+                                      : "bg-blue-500/10 text-blue-400"
+                                  }`}
+                                >
+                                  {wq.status}
+                                </span>
                               </div>
-                              <span className="text-[11px] text-zinc-500 font-medium">#{q.id}</span>
+                              <span className="text-[11px] text-zinc-500">{formatDate(wq.created_at)}</span>
                             </div>
-                            <h3 className="text-[15px] font-bold text-teal-400 leading-snug">{q.question}</h3>
-                            <div className="bg-zinc-900 rounded-xl overflow-hidden">
-                              <button
-                                onClick={() => toggleExpand(q.id)}
-                                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-zinc-800/60 transition-colors"
-                              >
-                                <span className="flex items-center gap-2 text-primary font-semibold text-[13px]">💡 Gợi ý trả lời</span>
-                                <svg className={`w-4 h-4 text-zinc-500 transition-transform ${expandedIds.has(q.id) ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </button>
-                              {expandedIds.has(q.id) && (
-                                <div className="px-4 pb-3">
-                                  <p className="text-zinc-400 text-[13px] leading-relaxed italic">{q.hint}</p>
+                            {wq.status === "failed" ? (
+                              <p className="text-red-400 text-[13px]">{wq.error || "Tạo câu hỏi thất bại."}</p>
+                            ) : !wq.questions || wq.questions.length === 0 ? (
+                              <p className="text-zinc-500 text-[13px]">Đang xử lý hoặc chưa có câu hỏi.</p>
+                            ) : (
+                              <div className="flex flex-col gap-3">
+                                {wq.questions.map((q) => {
+                                  const d = difficulty(q.difficulty);
+                                  return (
+                                    <div key={q.id} className="bg-zinc-900/60 rounded-xl p-4">
+                                      <div className="flex items-center gap-2 flex-wrap mb-2">
+                                        <span className={`px-2.5 py-1 ${d.bg} ${d.txt} text-[11px] font-bold rounded-full`}>{d.label}</span>
+                                        <span className="text-[11px] text-zinc-500 font-medium">#{q.id}</span>
+                                      </div>
+                                      <h4 className="text-[14px] font-bold text-teal-400 leading-snug">{renderWithRefs(q.question)}</h4>
+                                      {(!wq.sources || wq.sources.length === 0) && q.citations && q.citations.length > 0 && (
+                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                          {q.citations.map((c, i) => (
+                                            <span key={i} className="px-2 py-0.5 bg-primary/10 text-primary text-[11px] font-semibold rounded-md">📎 {c}</span>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {q.hint && <p className="mt-2 text-zinc-500 text-[12px] italic">💡 {q.hint}</p>}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {!!wq.sources && wq.sources.length > 0 && (
+                              <details className="mt-3 border border-zinc-800/60 rounded-lg">
+                                <summary className="cursor-pointer px-3 py-2 text-[12px] font-bold text-zinc-300 select-none">📚 Nguồn tham khảo ({wq.sources.length})</summary>
+                                <div className="px-3 pb-3 flex flex-col gap-2">
+                                  {wq.sources.map((s) => (
+                                    <div key={s.num} className="text-[12px]">
+                                      <div className="flex items-start gap-2">
+                                        <span className="inline-flex items-center justify-center w-[17px] h-[17px] rounded-full bg-zinc-700 text-zinc-200 text-[10px] font-bold leading-none shrink-0 mt-0.5">{s.num}</span>
+                                        <div>
+                                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${s.source === "ref" ? "bg-purple-500/15 text-purple-300" : "bg-zinc-800 text-zinc-400"}`}>{s.source === "ref" ? "REF" : "USER"}</span>
+                                          <span className="ml-2 font-semibold text-zinc-300">{s.title}</span>
+                                          {typeof s.chunk_index === "number" && <span className="text-zinc-500"> — đoạn {s.chunk_index}</span>}
+                                        </div>
+                                      </div>
+                                      {s.content && <p className="pl-[25px] text-zinc-500 leading-relaxed mt-1">{s.content}</p>}
+                                    </div>
+                                  ))}
                                 </div>
-                              )}
-                            </div>
+                              </details>
+                            )}
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
+              )}
+
+              {rightTab === "chat" && (
+                <WorkspaceChat workspaceId={wsId} />
               )}
 
               {rightTab === "history" && (
