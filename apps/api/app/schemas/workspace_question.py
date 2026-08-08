@@ -17,6 +17,7 @@ class WorkspaceQuestionResponse(BaseModel):
     persona: str
     status: str
     questions: Optional[List[Any]] = None
+    sources: Optional[List[Any]] = None  # [{num, source, title, chunk_index, content}] — nguồn đã dùng
     error: Optional[str] = None
     created_at: datetime
 

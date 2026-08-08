@@ -23,6 +23,19 @@ async function proxy(request: NextRequest, { params }: { params: { path?: string
     }
 
     const res = await fetch(url, init);
+
+    // Endpoint stream (chat/stream): pass-through body, không buffer/JSON-parse
+    if (params.path && params.path[params.path.length - 1] === 'stream') {
+      return new Response(res.body, {
+        status: res.status,
+        headers: {
+          'Content-Type': res.headers.get('content-type') || 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      });
+    }
+
     const text = await res.text();
     const data = text ? JSON.parse(text) : null;
 

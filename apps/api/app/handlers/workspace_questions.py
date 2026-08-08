@@ -96,6 +96,8 @@ def _build_rag_prompt(topic: str, persona: str, contexts: List[str]) -> str:
         "Hãy sinh 5-10 câu hỏi phản biện sắc bén, bám sát đề tài và từng đoạn trích trên. "
         "MỖI câu hỏi PHẢI kèm 'citations' là mảng nguồn [\"file: đoạn X\", ...] mà câu hỏi dựa vào "
         "(chỉ dùng ĐÚNG tên nguồn đã liệt kê ở các đoạn trên). "
+        "ĐỒNG THỜI, trong chính nội dung câu hỏi, hãy chèn tham chiếu dạng [số] (VD: \"... hệ thống xử lý như thế nào? [3]\") "
+        "ngay sau ý dựa vào nguồn số đó (các nguồn đã được đánh số 1..N ở trên). "
         "Trả về đúng một object JSON: "
         '{"questions": [{"question": "...", "hint": "...", "difficulty": "easy|medium|hard", "citations": ["Nhom5_.pdf: đoạn 1"]}]}. '
         "TUYỆT ĐỐI không bịa đặt nội dung không có trong các đoạn trích.",
@@ -191,9 +193,22 @@ async def handle_workspace_questions(params: dict) -> dict:
             qs = _heuristic_questions(topic, contexts, persona)
             questions = [q.model_dump() | {"citations": []} for q in qs]
 
+        # Nguồn đã dùng, đánh số 1..N đúng thứ tự context trong prompt (circle style)
+        sources = [
+            {
+                "num": i + 1,
+                "source": r["source"],
+                "title": str(r.get("title") or r.get("filename") or ""),
+                "chunk_index": r.get("chunk_index"),
+                "content": str(r.get("content") or "")[:500],
+            }
+            for i, r in enumerate(user_results + ref_results)
+        ]
+
         async with async_session_maker() as db:
             row = await db.get(WorkspaceQuestion, question_id)
             row.questions = questions
+            row.sources = sources
             row.status = AssessmentStatus.completed
             await db.commit()
 

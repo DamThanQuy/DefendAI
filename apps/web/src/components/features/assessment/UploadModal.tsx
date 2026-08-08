@@ -38,7 +38,7 @@ export function UploadModal({ open, onClose }: Props) {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <UploadZone />
+            <UploadZone onDone={onClose} />
           </motion.div>
         </motion.div>
       )}

@@ -7,7 +7,7 @@ AI trả lời JSON → lưu. Reuse mọi helper có sẵn; không build lại h
 from __future__ import annotations
 
 import logging
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import String, select
 
@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.core.database import async_session_maker
 from app.handlers.questions import (
     MAX_PROMPT_CHARS,
+    PERSONA_DESCRIPTIONS,
     _build_system_prompt,
     _extract_json_payload,
     _normalize_persona,
@@ -32,18 +33,23 @@ _HISTORY_TURNS = 6
 _MAX_CITATIONS = 4
 
 
-async def _load_history(db, workspace_id: int) -> List[dict]:
-    """6 turn completed gần nhất (question + answer), cũ → mới, làm ngữ cảnh đa-turn."""
+async def _load_history(db, workspace_id: int, conversation_id: Optional[str] = None) -> List[dict]:
+    """6 turn completed gần nhất (question + answer), cũ → mới, làm ngữ cảnh đa-turn.
+
+    Lọc theo conversation_id (NULL = đoạn mặc định) để mỗi đoạn chat giữ ngữ cảnh riêng.
+    """
+    stmt = select(WorkspaceChat).where(
+        WorkspaceChat.workspace_id == workspace_id,
+        # status là cột varchar trong DB (xem migration 0004); cast String để
+        # so sánh không sinh param ::assessmentstatus trên cột varchar
+        WorkspaceChat.status.cast(String) == "completed",
+    )
+    if conversation_id is not None:
+        stmt = stmt.where(WorkspaceChat.conversation_id == (conversation_id or None))
+    else:
+        stmt = stmt.where(WorkspaceChat.conversation_id.is_(None))
     result = await db.execute(
-        select(WorkspaceChat)
-        .where(
-            WorkspaceChat.workspace_id == workspace_id,
-            # status là cột varchar trong DB (xem migration 0004); cast String để
-            # so sánh không sinh param ::assessmentstatus trên cột varchar
-            WorkspaceChat.status.cast(String) == "completed",
-        )
-        .order_by(WorkspaceChat.created_at.desc())
-        .limit(_HISTORY_TURNS)
+        stmt.order_by(WorkspaceChat.created_at.desc()).limit(_HISTORY_TURNS)
     )
     turns = list(reversed(result.scalars().all()))
     return [{"question": t.question, "answer": t.answer or ""} for t in turns]
@@ -59,8 +65,20 @@ def _format_history(history: List[dict]) -> str:
     return "\n".join(lines)
 
 
-def _build_rag_answer_prompt(question: str, persona: str, history: List[dict], contexts: List[str]) -> str:
+def _build_rag_answer_prompt(question: str, persona: str, history: List[dict], contexts: List[str], json_mode: bool = True) -> str:
     body = "\n\n".join(f"{i}. {c}" for i, c in enumerate(contexts, start=1))
+    if json_mode:
+        format_instr = (
+            "Trả về đúng một object JSON: "
+            '{"answer": "...", "citations": ["Nhom5_.pdf: đoạn 1", ...]}. '
+            "citations là mảng nguồn [\"file: đoạn X\", ...] mà câu trả lời dựa vào "
+            "(chỉ dùng ĐÚNG tên nguồn đã liệt kê ở các đoạn trên, tối đa 4 nguồn). "
+        )
+    else:
+        format_instr = (
+            "Trả lời thuần văn bản markdown, KHÔNG gói trong JSON, không tự thêm "
+            "mục citations hay nguồn — hệ thống tự gắn nguồn file:đoạn cho câu trả lời. "
+        )
     return _truncate_text(
         f"Câu hỏi cần trả lời: {question}\n"
         f"Persona: {persona}\n\n"
@@ -70,12 +88,23 @@ def _build_rag_answer_prompt(question: str, persona: str, history: List[dict], c
         "nhãn [REF: ...] là tiêu chuẩn/rubric của hội đồng (mỗi đoạn đầu có nguồn).\n\n"
         f"{body}\n\n"
         "Hãy trả lời câu hỏi thật chi tiết, bám sát câu hỏi và các đoạn trích trên. "
-        "Trả về đúng một object JSON: "
-        '{"answer": "...", "citations": ["Nhom5_.pdf: đoạn 1", ...]}. '
-        "citations là mảng nguồn [\"file: đoạn X\", ...] mà câu trả lời dựa vào "
-        "(chỉ dùng ĐÚNG tên nguồn đã liệt kê ở các đoạn trên, tối đa 4 nguồn). "
+        f"{format_instr}"
         "TUYỆT ĐỐI không bịa đặt nội dung không có trong các đoạn trích.",
         MAX_PROMPT_CHARS,
+    )
+
+
+def _build_chat_system_prompt(persona: str) -> str:
+    """System prompt cho chat (khác hẳn bản tạo câu hỏi): trả lời thuần text, không ép JSON."""
+    description = PERSONA_DESCRIPTIONS.get(persona, PERSONA_DESCRIPTIONS["theory"])
+    return (
+        "Bạn là trợ lý học thuật trả lời câu hỏi của sinh viên về đồ án của họ. "
+        "Đọc kỹ các đoạn trích từ đồ án được cung cấp và trả lời chi tiết, bám sát nội dung đó.\n\n"
+        f"Persona: {persona}\n"
+        f"Mô tả persona: {description}\n\n"
+        "⚠️ ANTI-HALLUCINATION: TUYỆT ĐỐI KHÔNG bịa đặt, suy diễn, hay thêm thông tin "
+        "không có trong các đoạn trích. Nếu thông tin không có trong đồ án, hãy nói rõ điều đó.\n\n"
+        "Trả lời thuần văn bản markdown. KHÔNG gói trong JSON, không tự thêm mục citations."
     )
 
 
@@ -98,6 +127,7 @@ async def handle_chat_ask(params: dict) -> dict:
     workspace_id: int = params["workspace_id"]
     question: str = params["question"]
     persona = _normalize_persona(params.get("persona", "theory"))
+    conversation_id: Optional[str] = params.get("conversation_id")
     job_id = params.get("_job_id")
 
     async with async_session_maker() as db:
@@ -138,7 +168,7 @@ async def handle_chat_ask(params: dict) -> dict:
 
         # Reference rỗng thì bỏ qua (chỉ dùng user chunks) — không chặn job
         async with async_session_maker() as db:
-            history = await _load_history(db, workspace_id)
+            history = await _load_history(db, workspace_id, conversation_id)
         contexts = [_format_context(r) for r in user_results + ref_results]
         prompt = _build_rag_answer_prompt(question, persona, history, contexts)
         ai_result = await ai_gateway.generate(

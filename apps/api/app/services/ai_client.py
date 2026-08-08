@@ -176,6 +176,35 @@ class AIGateway:
             **kwargs,
         )
 
+    def generate_stream(
+        self,
+        *,
+        prompt: str,
+        provider: str | None = None,
+        model: str | None = None,
+        system_prompt: str = "",
+        **kwargs: Any,
+    ):
+        """
+        Gọi provider với stream=True — trả async generator yield từng chunk
+        {"content": str | None, "finish_reason": str | None}.
+        """
+        provider_name = provider or settings.routing.default_provider
+
+        if provider_name not in self.providers:
+            available = sorted(self.providers.keys())
+            raise RuntimeError(
+                f"Provider '{provider_name}' not available. "
+                f"Available: {available or 'NONE - check your API keys in .env'}"
+            )
+
+        return self.providers[provider_name].generate_stream(
+            prompt=prompt,
+            model=model,
+            system_prompt=system_prompt,
+            **kwargs,
+        )
+
     async def worker(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
         """
         Helper: gọi model worker (nhanh) cho task phụ.

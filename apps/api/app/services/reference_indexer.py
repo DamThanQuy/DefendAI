@@ -61,7 +61,18 @@ async def index_reference(document, category: str, title: str, source: str = "")
     ]
 
     async with async_session_maker() as db:
-        # Re-index thay thế: cùng (category, title) → bỏ bản cũ, không nhân đôi
+        # Re-index thay thế: cùng (category, title) → bỏ bản cũ, không nhân đôi.
+        # Thu thập document_id cũ TRƯỚC khi xoá chunks (để dọn Document mồ côi).
+        old_result = await db.execute(
+            select(ReferenceChunk.meta["document_id"].astext)
+            .where(
+                ReferenceChunk.category == category,
+                ReferenceChunk.title == title,
+            )
+            .distinct()
+        )
+        old_doc_ids = [int(r[0]) for r in old_result.fetchall() if r[0]]
+
         await db.execute(
             delete(ReferenceChunk).where(
                 ReferenceChunk.category == category,
@@ -70,6 +81,26 @@ async def index_reference(document, category: str, title: str, source: str = "")
         )
         db.add_all(rows)
         await db.commit()
+
+        old_storage_keys: List[str] = []
+        if old_doc_ids:
+            old_docs_result = await db.execute(
+                select(Document).where(
+                    Document.id.in_(old_doc_ids),
+                    Document.purpose == DocumentPurpose.staff_reference,
+                )
+            )
+            for doc in old_docs_result.scalars().all():
+                old_storage_keys.append(doc.storage_key)
+                await db.delete(doc)
+            await db.commit()
+
+    # File MinIO cũ best-effort — không chặn index
+    for key in old_storage_keys:
+        try:
+            await delete_doc(key)
+        except Exception as exc:
+            logger.warning("Delete old MinIO %s failed: %s", key, exc)
 
     return len(rows)
 

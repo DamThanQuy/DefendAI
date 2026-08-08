@@ -113,10 +113,10 @@ async def list_reference_chunks(
     result = await db.execute(
         text(
             """
-            SELECT chunk_index, content
-            FROM reference_chunks
-            WHERE category = :category AND title = :title
-            ORDER BY chunk_index
+            SELECT c.meta->>'chunk_index' AS chunk_index, c.content
+            FROM reference_chunks c
+            WHERE c.category = :category AND c.title = :title
+            ORDER BY (c.meta->>'chunk_index')::int
             """
         ),
         {"category": category, "title": title},

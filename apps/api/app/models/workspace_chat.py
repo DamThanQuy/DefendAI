@@ -20,6 +20,7 @@ class WorkspaceChat(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=False, index=True)
+    conversation_id = Column(String(50), nullable=True, index=True)  # đoạn chat (NULL = mặc định)
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=True)
     citations = Column(JSON, nullable=True)  # ["Nhom5_.pdf: đoạn 1.2"]
