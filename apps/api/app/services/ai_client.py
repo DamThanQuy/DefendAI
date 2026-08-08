@@ -21,9 +21,6 @@ Cách dùng:
     # Gọi model cụ thể
     result = await ai_gateway.generate(prompt="Hello", model="gemma-4-26b-a4b-it")
     
-    # Helper: gọi model lớn (orchestrator)
-    result = await ai_gateway.orchestrate(prompt="Phân tích tài liệu...")
-    
     # Helper: gọi model worker
     result = await ai_gateway.worker(prompt="Extract keywords...")
 """
@@ -32,7 +29,7 @@ import os
 from typing import Any
 
 from app.core.config import settings
-from app.services.ai_providers import NVIDIAProvider, GoogleProvider
+from app.services.ai_providers import NVIDIAProvider, LocalProvider
 
 
 logger = logging.getLogger(__name__)
@@ -62,11 +59,11 @@ class AIGateway:
                 "base_url": os.getenv("NVIDIA_BASE_URL"),
                 "model": os.getenv("NVIDIA_MODEL")
             },
-            "google": {
-                "class": GoogleProvider,
-                "api_key": os.getenv("GOOGLE_API_KEY"),
-                "base_url": os.getenv("GOOGLE_BASE_URL"),
-                "model": os.getenv("GOOGLE_MODEL")
+            "localhost": {
+                "class": LocalProvider,
+                "api_key": os.getenv("LOCAL_API_KEY"),
+                "base_url": os.getenv("LOCAL_BASE_URL"),
+                "model": os.getenv("LOCAL_MODEL")
             }
         }
 
@@ -132,12 +129,8 @@ class AIGateway:
                 "meta/llama-3.1-70b-instruct",
                 "mistralai/mistral-large-2-instruct",
             ],
-            "google": [
-                "gemma-4-31b-it",  # Default
-                "gemma-4-26b-a4b-it",  # MoE - nhanh hơn
-                "gemma-4-e4b-it",  # Nhỏ, rất nhanh
-                "gemini-2.0-flash",
-                "gemini-2.5-pro",
+            "localhost": [
+                "google",  # Default local model
             ],
         }
 
@@ -183,35 +176,43 @@ class AIGateway:
             **kwargs,
         )
 
-    async def orchestrate(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
+    def generate_stream(
+        self,
+        *,
+        prompt: str,
+        provider: str | None = None,
+        model: str | None = None,
+        system_prompt: str = "",
+        **kwargs: Any,
+    ):
         """
-        Helper: gọi model lớn (orchestrator) cho task phức tạp.
+        Gọi provider với stream=True — trả async generator yield từng chunk
+        {"content": str | None, "finish_reason": str | None}.
+        """
+        provider_name = provider or settings.routing.default_provider
 
-        Mặc định dùng `settings.routing.orchestrator_provider` (NVIDIA Step 3.7).
-        Hỗ trợ `reasoning_effort` (low | medium | high).
-        """
-        provider_name = settings.routing.orchestrator_provider
         if provider_name not in self.providers:
-            # Fallback: dùng provider bất kỳ đang available
-            if self.providers:
-                provider_name = sorted(self.providers.keys())[0]
-                logger.warning(
-                    "Orchestrator provider '%s' not available, fallback to '%s'",
-                    settings.routing.orchestrator_provider,
-                    provider_name,
-                )
-            else:
-                raise RuntimeError("No AI provider available for orchestration")
-        return await self.generate(prompt=prompt, provider=provider_name, **kwargs)
+            available = sorted(self.providers.keys())
+            raise RuntimeError(
+                f"Provider '{provider_name}' not available. "
+                f"Available: {available or 'NONE - check your API keys in .env'}"
+            )
+
+        return self.providers[provider_name].generate_stream(
+            prompt=prompt,
+            model=model,
+            system_prompt=system_prompt,
+            **kwargs,
+        )
 
     async def worker(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
         """
         Helper: gọi model worker (nhanh) cho task phụ.
 
-        Ưu tiên Google (nhanh hơn NVIDIA cho model nhỏ), fallback NVIDIA nếu Google không có.
+        Ưu tiên localhost (nhanh), fallback NVIDIA.
         """
-        if "google" in self.providers:
-            return await self.generate(prompt=prompt, provider="google", **kwargs)
+        if "localhost" in self.providers:
+            return await self.generate(prompt=prompt, provider="localhost", **kwargs)
         if "nvidia" in self.providers:
             return await self.generate(prompt=prompt, provider="nvidia", **kwargs)
         raise RuntimeError("No AI provider available for worker tasks")

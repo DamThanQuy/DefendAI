@@ -12,12 +12,21 @@ export async function POST(request: Request) {
     // Proxy request sang Python Backend FastAPI
     const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
     
+    // Forward Authorization header từ client request
+    const authHeader = request.headers.get('authorization') || '';
+
     // Tạo FormData mới để gửi qua Backend
     const backendFormData = new FormData();
     backendFormData.append('file', file);
 
+    const headers: Record<string, string> = {};
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
+
     const backendResponse = await fetch(`${backendUrl}/api/documents/upload`, {
       method: 'POST',
+      headers,
       body: backendFormData,
     });
 

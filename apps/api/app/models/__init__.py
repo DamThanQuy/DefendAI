@@ -15,6 +15,7 @@ from app.models.assessment import (  # noqa: F401
     Evaluation,
     Report,
 )
+from app.models.app_setting import AppSetting  # noqa: F401
 
 # Import Session (giữ nguyên)
 from app.models.session import Session  # noqa: F401
@@ -33,5 +34,6 @@ __all__ = [
     "MemberRole",
     "Evaluation",
     "Report",
+    "AppSetting",
     "Session",
 ]

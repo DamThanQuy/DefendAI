@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plan Implement — Seed 3 Role vào DB &amp; Auto-Migrate trong Docker</title>
+  <style>
+    :root {
+      --bg: #f7f9fb;
+      --surface: #ffffff;
+      --border: #d8dee6;
+      --teal: #0d9488;
+      --teal-dim: #0f766e;
+      --text: #1a2330;
+      --muted: #5b6776;
+      --warn: #b45309;
+      --danger: #dc2626;
+      --ok: #15803d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 32px 16px 80px;
+    }
+    .wrap { max-width: 1000px; margin: 0 auto; }
+    h1 { font-size: 30px; margin: 0 0 4px; }
+    h2 { font-size: 21px; margin: 40px 0 12px; color: var(--teal); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    h3 { font-size: 16px; margin: 22px 0 8px; color: var(--text); }
+    .sub { color: var(--muted); margin: 0 0 8px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin: 14px 0; }
+    .meta { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+    .chip { background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--muted); }
+    .chip b { color: var(--teal); }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    code { background: #eef2f6; padding: 2px 6px; border-radius: 6px; font-size: 13px; color: #0f766e; }
+    pre { background: #f1f4f8; border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; overflow: auto; font-size: 13px; line-height: 1.5; }
+    pre .c { color: var(--muted); }
+    ul, ol { padding-left: 22px; }
+    li { margin: 6px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--teal); font-weight: 600; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; letter-spacing: .03em; }
+    .tag.need { background: #ccfbf1; color: #0f766e; }
+    .tag.fix  { background: #ffedd5; color: #9a3412; }
+    .tag.warn { background: #fef3c7; color: #92400e; }
+    .tag.ok   { background: #dcfce7; color: #15803d; }
+    .tag.step { background: #dbeafe; color: #1d4ed8; }
+    .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0; }
+    .flow .node { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-size: 13px; }
+    .flow .arrow { color: var(--muted); }
+    .note { border-left: 3px solid var(--warn); background: #fffbeb; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 14px; }
+    .note b { color: var(--warn); }
+    .okbox { border-left: 3px solid var(--ok); background: #f0fdf4; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+    .file { color: var(--teal); }
+    .stepnum { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; background: var(--teal); color: #fff; border-radius: 50%; font-size: 13px; font-weight: 700; margin-right: 8px; }
+    .check { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; }
+    .terminal { color: #0f766e; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Plan Implement — Seed 3 Role vào DB &amp; Auto-Migrate trong Docker</h1>
+  <p class="sub">Dự án DefendAI · Chủ đề: đảm bảo 3 role (<code>student</code>, <code>admin</code>, <code>mentor</code>) luôn có sẵn trong DB của mọi máy sau khi <code>docker compose up</code>, không cần gõ lệnh tay.</p>
+
+  <div class="meta">
+    <span class="chip">Module: <b>Auth / DB Seed</b></span>
+    <span class="chip">BE: <b>apps/api (FastAPI + Alembic)</b></span>
+    <span class="chip">Infra: <b>docker-compose.yml</b></span>
+    <span class="chip">Ngày: <b>2026-07-15</b></span>
+    <span class="chip">Trạng thái: <b>Plan</b></span>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Mục tiêu</h3>
+    <ul>
+      <li>Bảng <code>roles</code> luôn chứa 3 row: <code>student</code>, <code>admin</code>, <code>mentor</code> (đã định nghĩa sẵn trong migration <span class="file">f1a2b3c4d5e6</span>).</li>
+      <li>(Mở rộng) Seed <b>3 tài khoản mẫu</b>, mỗi tài khoản thuộc 1 role — để test phân quyền ngay, không cần tự đăng ký (chi tiết §3 Bước 1b).</li>
+      <li>Collaborator <b>clone repo → <code>docker compose up</code> là có data</b>, không cần nhớ gõ <code>alembic upgrade head</code>.</li>
+      <li>Seed <b>idempotent</b> (chạy lại nhiều lần không lỗi, không trùng) — dùng <code>ON CONFLICT (email) DO NOTHING</code> + role đã có sẵn.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Danh sách tài khoản test (seed sẵn)</h3>
+    <p class="sub">Mật khẩu chung mặc định: <code>DefendAI@123</code> (bcrypt hash, override qua env <code>SEED_DEMO_PASSWORD</code>). Chỉ dùng cho dev/local.</p>
+    <table>
+      <tr><th>Email</th><th>Role</th><th>Password</th><th>Ghi chú</th></tr>
+      <tr><td class="file">admin@defendai.dev</td><td><b>admin</b></td><td><code>DefendAI@123</code></td><td>Quản trị hệ thống</td></tr>
+      <tr><td class="file">mentor@defendai.dev</td><td><b>mentor</b></td><td><code>DefendAI@123</code></td><td>Giảng viên / chấm điểm</td></tr>
+      <tr><td class="file">student@defendai.dev</td><td><b>student</b></td><td><code>DefendAI@123</code></td><td>Sinh viên bảo vệ đồ án</td></tr>
+    </table>
+  </div>
+
+  <h2>1. Hiện trạng (đã đọc code)</h2>
+  <table>
+    <tr><th>Vị trí</th><th>Trạng thái</th><th>Ghi chú</th></tr>
+    <tr>
+      <td class="file">apps/api/migrations/versions/f1a2b3c4d5e6_add_roles_and_user_auth.py</td>
+      <td><span class="tag ok">Sẵn có</span></td>
+      <td>Migration đã tạo bảng <code>roles</code>, <code>user_roles</code> và <b>đã seed 3 role</b> trong hàm <code>upgrade()</code> (dòng 51–57, có <code>ON CONFLICT DO NOTHING</code>).</td>
+    </tr>
+    <tr>
+      <td class="file">apps/api/Dockerfile</td>
+      <td><span class="tag warn">Thiếu</span></td>
+      <td><code>CMD</code> chỉ chạy <code>uvicorn</code>. <b>Không tự chạy migration</b> khi container khởi động → DB rỗng nếu chưa ai gõ tay.</td>
+    </tr>
+    <tr>
+      <td class="file">docker-compose.yml</td>
+      <td><span class="tag warn">Thiếu</span></td>
+      <td>Service <code>api</code> không có entrypoint chạy migrate. Volume <code>postgres_data</code> nằm ngoài git → data không đi theo clone.</td>
+    </tr>
+    <tr>
+      <td class="file">apps/api/app/routers/auth.py</td>
+      <td><span class="tag ok">Sẵn có</span></td>
+      <td>Đăng ký luôn gán role <code>student</code> mặc định (<code>_get_or_create_role</code>). Nếu bảng <code>roles</code> chưa có thì đăng ký sẽ lỗi.</td>
+    </tr>
+  </table>
+
+  <div class="note"><b>Phát hiện quan trọng:</b> Logic seed 3 role <b>đã có</b> trong migration. Vấn đề duy nhất là Docker <b>không tự chạy migration</b> lúc up. Nên data không tự xuất hiện ở máy mới. Chỉ cần bật auto-migrate là xong — không cần viết thêm code seed.</div>
+
+  <h2>2. Tại sao data không đi theo clone</h2>
+  <div class="flow">
+    <span class="node">git clone</span>
+    <span class="arrow">→</span>
+    <span class="node">code + image (rỗng)</span>
+    <span class="arrow">→</span>
+    <span class="node">docker compose up</span>
+    <span class="arrow">→</span>
+    <span class="node">Postgres volume mới (rỗng)</span>
+    <span class="arrow">→</span>
+    <span class="node">❌ chưa có roles</span>
+  </div>
+  <ul>
+    <li>DB data lưu trong Docker <b>volume</b> <code>postgres_data</code> trên ổ cứng máy bạn → <b>không</b> nằm trong git, <b>không</b> nằm trong image.</li>
+    <li>Khi clone về máy khác, volume là mới → bảng rỗng. Phải chạy migration để populate.</li>
+    <li>May mắn: migration đã chứa seed, nên "chạy migrate" = "có đủ 3 role". Không cần export/import data.</li>
+  </ul>
+
+  <h2>3. Các bước implement (auto-migrate)</h2>
+
+  <div class="card">
+    <h3 style="margin-top:0"><span class="stepnum">1</span>Tạo script entrypoint <span class="tag step">Mới</span></h3>
+    <p class="sub">File <span class="file">apps/api/entrypoint.sh</span></p>
+    <ul>
+      <li>Script chạy migration rồi mới khởi động uvicorn. Đảm bảo DB sẵn sàng trước khi app nhận request.</li>
+    </ul>
+    <pre><span class="c">#!/usr/bin/env sh</span>
+set -e
+<span class="c"># Chờ DB (optional, compose đã healthcheck db)</span>
+echo "⏳ Running Alembic migrations..."
+alembic upgrade head
+<span class="c"># Seed 3 tài khoản mẫu (bỏ qua nếu SEED_DEMO=false)</span>
+if [ "${SEED_DEMO:-true}" != "false" ]; then
+  echo "⏳ Seeding demo users..."
+  python seed_users.py
+fi
+echo "✅ Migrations done. Starting API..."
+exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload</pre>
+    <p>Lưu ý: đặt quyền thực thi <code>chmod +x entrypoint.sh</code> (hoặc dùng <code>sh entrypoint.sh</code> trong Dockerfile để không phụ thuộc permission trên Windows).</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0"><span class="stepnum">1b</span>Seed 3 tài khoản mẫu (1 role / 1 tài khoản) <span class="tag step">Mới</span></h3>
+    <p class="sub">File <span class="file">apps/api/seed_users.py</span> (chạy sau migrate, trong entrypoint)</p>
+    <ul>
+      <li>Tạo 3 user mẫu, mỗi user gán đúng 1 role tương ứng qua bảng <code>user_roles</code>. Dùng chung 1 mật khẩu demo (bcrypt hash).</li>
+      <li>Password hash phải sinh bằng <code>passlib</code> (bcrypt) — <b>không</b> lưu plaintext. Có thể hash trước ở build time hoặc hash trong script lúc chạy (đã có <code>passlib</code> trong requirements).</li>
+      <li>Username = prefix email. <code>auth_provider = 'email'</code>, <code>is_active = 1</code> (theo schema <span class="file">models/user.py</span>).</li>
+      <li>Idempotent: <code>INSERT ... ON CONFLICT (email) DO NOTHING</code>, role lấy theo name đã seed ở Bước 1.</li>
+    </ul>
+    <pre><span class="c"># apps/api/seed_users.py (chạy sync qua psycopg)</span>
+import os, psycopg
+from passlib.context import CryptContext
+pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+DEMO_PW = os.getenv("SEED_DEMO_PASSWORD", "DefendAI@123")
+HASH = pwd.hash(DEMO_PW)
+
+SEED = [
+    ("admin",   "admin@defendai.dev",   "Admin DefendAI", "admin"),
+    ("mentor",  "mentor@defendai.dev",  "Mentor DefendAI", "mentor"),
+    ("student", "student@defendai.dev", "Student DefendAI", "student"),
+]
+
+dsn = os.getenv("DATABASE_URL").replace("postgresql+asyncpg", "postgresql+psycopg")
+with psycopg.connect(dsn) as conn:
+    with conn.cursor() as cur:
+        for username, email, full_name, role in SEED:
+            cur.execute(
+                "INSERT INTO users (username, email, full_name, hashed_password, auth_provider, is_active, created_at) "
+                "VALUES (%s,%s,%s,%s,'email',1,now()) "
+                "ON CONFLICT (email) DO NOTHING "
+                "RETURNING id", (username, email, full_name, HASH))
+            uid = cur.fetchone()
+            if uid:  # chỉ gán role khi user mới được tạo
+                cur.execute("SELECT id FROM roles WHERE name=%s", (role,))
+                rid = cur.fetchone()[0]
+                cur.execute(
+                    "INSERT INTO user_roles (user_id, role_id) VALUES (%s,%s) "
+                    "ON CONFLICT DO NOTHING", (uid[0], rid))
+    conn.commit()
+print("✅ Seed users done")</pre>
+    <div class="note"><b>Lưu ý bảo mật:</b> Tài khoản demo chỉ dùng cho dev/local. <b>Không</b> chạy seed này trên prod (hoặc đổi mật khẩu mạnh + biến env <code>SEED_DEMO_PASSWORD</code>). Mật khẩu mặc định <code>DefendAI@123</code> phải được đổi ở môi trường thật.</div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0"><span class="stepnum">2</span>Sửa Dockerfile dùng entrypoint <span class="tag fix">Sửa</span></h3>
+    <p class="sub">File <span class="file">apps/api/Dockerfile</span></p>
+    <ul>
+      <li>Thay <code>CMD</code> cứng thành gọi <code>entrypoint.sh</code>.</li>
+    </ul>
+    <pre><span class="c"># cuối Dockerfile</span>
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+<span class="c"># thay vì: CMD ["uvicorn", ...]</span>
+ENTRYPOINT ["/app/entrypoint.sh"]</pre>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0"><span class="stepnum">3</span>Đảm bảo <code>alembic.ini</code> trỏ đúng <span class="tag fix">Kiểm tra</span></h3>
+    <p class="sub">File <span class="file">apps/api/alembic.ini</span></p>
+    <ul>
+      <li>Compose truyền <code>DATABASE_URL</code> qua env (<code>postgresql+asyncpg://...@db:5432/defense_db</code>).</li>
+      <li>Alembic phải đọc URL từ env, không hardcode localhost. Kiểm tra <span class="file">migrations/env.py</span> lấy <code>settings.DATABASE_URL</code> (async) → wrap bằng <code>sync_engine</code> nếu cần.</li>
+    </ul>
+    <pre><span class="c"># migrations/env.py (mẫu cần có)</span>
+from app.core.config import settings
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)</pre>
+    <div class="note"><b>Lưu ý asyncpg:</b> Alembic chạy sync. Nếu <code>DATABASE_URL</code> dùng <code>asyncpg</code>, cần thay bằng driver sync (<code>psycopg2</code>/<code>psycopg</code>) trong env.py hoặc cài <code>psycopg2-binary</code> vào requirements. Kiểm tra trước khi merge.</div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0"><span class="stepnum">4</span>(Tuỳ chọn) Tách migrate ra service riêng <span class="tag need">Cần quyết định</span></h3>
+    <ul>
+      <li><b>Cách A (đơn giản, khuyên):</b> entrypoint của <code>api</code> tự chạy <code>alembic upgrade head</code>. Đủ cho dev.</li>
+      <li><b>Cách B (sạch hơn):</b> thêm service <code>api-migrate</code> chỉ chạy migrate xong exit, <code>api</code> <code>depends_on</code> nó. Tránh race condition nếu scale api nhiều replica.</li>
+    </ul>
+    <pre><span class="c"># docker-compose.yml (Cách B)</span>
+  api-migrate:
+    build: ./apps/api
+    command: ["sh", "-c", "alembic upgrade head"]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/defense_db
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [defense-net]
+  api:
+    ...
+    depends_on: [api-migrate]</pre>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0"><span class="stepnum">5</span>Commit &amp; test local <span class="tag ok">Verify</span></h3>
+    <ul>
+      <li>Xoá volume cũ để mô phỏng "máy mới": <code>docker compose down -v</code>.</li>
+      <li>Build lại: <code>docker compose up --build</code>.</li>
+      <li>Kiểm tra roles tự xuất hiện (xem §4).</li>
+    </ul>
+  </div>
+
+  <h2>4. Cách verify (command)</h2>
+  <pre class="terminal"><span class="c"># Xem 3 role đã có chưa</span>
+docker compose exec db psql -U postgres -d defense_db -c "SELECT id, name, description FROM roles;"
+
+<span class="c"># Kết quả kỳ vọng:</span>
+<span class="c"> id |  name   |          description</span>
+<span class="c">----+---------+-----------------------------</span>
+<span class="c">  1 | student | Sinh viên bảo vệ đồ án</span>
+<span class="c">  2 | admin   | Quản trị hệ thống</span>
+<span class="c">  3 | mentor  | Giảng viên hướng dẫn / chấm điểm</span>
+
+<span class="c"># Xem 3 tài khoản mẫu + role tương ứng</span>
+docker compose exec db psql -U postgres -d defense_db -c \
+"SELECT u.email, r.name AS role FROM users u \
+JOIN user_roles ur ON ur.user_id=u.id \
+JOIN roles r ON r.id=ur.role_id ORDER BY r.name;"
+
+<span class="c"># Kết quả kỳ vọng:</span>
+<span class="c">        email         |  role</span>
+<span class="c">---------------------+---------</span>
+<span class="c"> admin@defendai.dev  | admin</span>
+<span class="c"> mentor@defendai.dev | mentor</span>
+<span class="c"> student@defendai.dev| student</span>
+
+<span class="c"># Đăng nhập thử (mật khẩu mặc định DefendAI@123)</span>
+curl -X POST http://localhost:8000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@defendai.dev","password":"DefendAI@123"}'
+
+<span class="c"># Xem head migration hiện tại (để chắc chắn f1a2... đã apply)</span>
+docker compose exec api alembic heads
+docker compose exec api alembic current</pre>
+
+  <h2>5. Fallback — nếu không muốn auto-migrate</h2>
+  <p>Vẫn giữ manual, collaborator tự gõ 1 lệnh sau khi up:</p>
+  <pre class="terminal">docker compose up -d db api
+docker compose exec api alembic upgrade head</pre>
+  <p>Hoặc insert tay (không cần migration, nhưng <b>không tạo được cấu trúc bảng</b> nếu chưa chạy migrate):</p>
+  <pre class="terminal">docker compose exec db psql -U postgres -d defense_db -c \
+"INSERT INTO roles (name, description, created_at) VALUES \
+('student','Sinh viên bảo vệ đồ án', now()), \
+('admin','Quản trị hệ thống', now()), \
+('mentor','Giảng viên hướng dẫn / chấm điểm', now()) \
+ON CONFLICT (name) DO NOTHING;"</pre>
+
+  <h2>6. Checklist kiểm thử</h2>
+  <div class="card check">
+    <span class="tag need">□</span><span><code>docker compose down -v</code> (xoá volume) → <code>up --build</code> → bảng <code>roles</code> tự có 3 row.</span>
+    <span class="tag need">□</span><span><code>users</code> + <code>user_roles</code> tự có 3 tài khoản mẫu, mỗi tài khoản đúng 1 role (xem §4).</span>
+    <span class="tag need">□</span><span>Login <code>admin@defendai.dev</code> / <code>DefendAI@123</code> → trả JWT thành công, role=admin.</span>
+    <span class="tag need">□</span><span>Log container api in ra "Migrations done" + "Seed users done" trước khi uvicorn listen.</span>
+    <span class="tag need">□</span><span>Chạy lại <code>docker compose up</code> (không xoá volume) → không lỗi duplicate, vẫn đúng 3 role + 3 user.</span>
+    <span class="tag need">□</span><span>Đăng ký user mới → gán được role <code>student</code> (auth không lỗi thiếu role).</span>
+    <span class="tag need">□</span><span><code>alembic current</code> trỏ đúng head <code>f1a2b3c4d5e6</code>.</span>
+    <span class="tag need">□</span><span>Set <code>SEED_DEMO=false</code> → bỏ qua seed user, chỉ chạy migrate.</span>
+    <span class="tag need">□</span><span>Máy collaborator clone sạch → chỉ <code>docker compose up</code> là có data, không gõ thêm lệnh.</span>
+  </div>
+
+  <h2>7. File touch / tạo mới</h2>
+  <table>
+    <tr><th>File</th><th>Hành động</th><th>Lý do</th></tr>
+    <tr><td class="file">apps/api/entrypoint.sh</td><td>Tạo mới</td><td>Chạy <code>alembic upgrade head</code> + seed users rồi uvicorn.</td></tr>
+    <tr><td class="file">apps/api/seed_users.py</td><td>Tạo mới</td><td>Seed 3 tài khoản mẫu (admin/mentor/student) gán đúng role.</td></tr>
+    <tr><td class="file">apps/api/Dockerfile</td><td>Sửa</td><td>COPY + chmod entrypoint, đổi CMD → ENTRYPOINT.</td></tr>
+    <tr><td class="file">docker-compose.yml</td><td>Sửa (nếu Cách B)</td><td>Thêm service <code>api-migrate</code>; api depends_on nó.</td></tr>
+    <tr><td class="file">apps/api/migrations/env.py</td><td>Kiểm tra</td><td>Đảm bảo đọc DATABASE_URL từ env (async→sync driver).</td></tr>
+    <tr><td class="file">apps/api/requirements.txt</td><td>Kiểm tra</td><td>Có <code>psycopg2-binary</code>/<code>psycopg</code> cho Alembic sync.</td></tr>
+  </table>
+
+  <div class="okbox">
+    <b>Phân tích YAGNI:</b> Không cần script seed riêng — migration <code>f1a2b3c4d5e6</code> đã làm nhiệm vụ đó. Không cần export DB dump hay copy volume. Chỉ cần bật auto-migrate ở entrypoint là đủ cho mọi máy. Cách B (service migrate riêng) chỉ cần khi scale nhiều api replica.
+  </div>
+
+  <h2>8. Rủi ro &amp; lưu ý</h2>
+  <ul>
+    <li><b>Race condition:</b> nếu api start trước khi migrate xong → lỗi connect. Entrypoint chạy migrate <i>trước</i> uvicorn giải quyết việc này (Cách A). Scale replica thì dùng Cách B.</li>
+    <li><b>asyncpg vs Alembic:</b> Alembic chạy sync, DB URL dùng <code>asyncpg</code>. Phải chuyển sang driver sync trong env.py hoặc cài <code>psycopg2-binary</code>.</li>
+    <li><b>Windows chmod:</b> git trên Windows có thể bỏ quyền thực thi. Dùng <code>sh entrypoint.sh</code> (không cần +x) để an toàn cross-platform.</li>
+    <li><b>Volume cũ:</b> máy dev đang có data cũ vẫn OK — migrate idempotent, <code>ON CONFLICT DO NOTHING</code> không trùng.</li>
+  </ul>
+
+</div>
+</body>
+</html>

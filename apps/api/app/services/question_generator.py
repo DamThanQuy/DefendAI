@@ -4,7 +4,7 @@ Question Generator Service — Generate 10 câu hỏi từ document.
 Luồng xử lý:
     POST /api/questions/generate {document_id, persona}
         ↓
-    Load document + validate (phải là PDF/DOCX/PPTX, không phải ZIP)
+    Load document + validate
         ↓
     Check assessment đã tồn tại chưa? (document_id + persona)
         ↓
@@ -131,13 +131,6 @@ async def generate_questions(
     if not document:
         raise QuestionGeneratorError(f"Document {document_id} not found")
 
-    # Validate doc_type — ZIP không hỗ trợ parse text
-    if document.doc_type == DocType.ZIP:
-        raise QuestionGeneratorError(
-            "ZIP files are not supported for question generation. "
-            "Upload PDF/DOCX/PPTX instead."
-        )
-
     # Check assessment đã tồn tại chưa
     existing = await db.execute(
         select(Assessment).where(
@@ -190,7 +183,7 @@ async def generate_questions(
         user_prompt = _build_user_prompt(chunks, persona_prompt, NUM_QUESTIONS)
 
         logger.info("Calling AI Gateway for question generation (persona=%s)...", persona)
-        ai_result = await ai_gateway.orchestrate(prompt=user_prompt, system_prompt=SYSTEM_PROMPT)
+        ai_result = await ai_gateway.generate(prompt=user_prompt, system_prompt=SYSTEM_PROMPT)
 
         # Step 4: Parse AI response
         content = ai_result.get("content", "")

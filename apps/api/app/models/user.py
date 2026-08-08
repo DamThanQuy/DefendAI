@@ -26,3 +26,4 @@ class User(Base):
 
     sessions = relationship("Session", back_populates="creator", foreign_keys="Session.created_by")
     roles = relationship("Role", secondary=user_roles, back_populates="users")
+    refresh_tokens = relationship("RefreshToken", back_populates="user")

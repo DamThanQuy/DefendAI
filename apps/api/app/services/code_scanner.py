@@ -1,4 +1,4 @@
-"""Service quét source code từ file ZIP và gọi AI review."""
+"""Service quét source code từ file ZIP/RAR và gọi AI review."""
 from __future__ import annotations
 
 import json
@@ -8,7 +8,7 @@ import zipfile
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Iterable
 
 from app.models.entities import DocType, Document
 from app.services.ai_client import ai_gateway
@@ -16,29 +16,37 @@ from app.core.config import settings
 from app.services.storage import get_doc
 
 
+try:
+    import rarfile
+except ImportError:  # pragma: no cover
+    rarfile = None  # type: ignore
+
+
 logger = logging.getLogger(__name__)
 
-ALLOWED_CODE_EXTENSIONS = {
-    ".py",
-    ".js",
-    ".jsx",
-    ".ts",
-    ".tsx",
-    ".java",
-    ".go",
-    ".rb",
-    ".php",
-    ".cs",
-    ".cpp",
-    ".c",
-    ".h",
-    ".html",
-    ".css",
-    ".json",
-    ".yml",
-    ".yaml",
-    ".md",
+# Code thật — đủ để kết luận "có source code"
+REAL_CODE_EXTENSIONS = {
+    ".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".go", ".rb",
+    ".php", ".cs", ".c", ".cpp", ".h", ".html", ".css",
 }
+
+# Cấu hình / dữ liệu — không tính là code thật
+CONFIG_EXTENSIONS = {".json", ".yml", ".yaml", ".toml", ".xml", ".sql"}
+
+# Tài liệu — không tính là code
+DOC_EXTENSIONS = {".md", ".txt", ".pdf", ".docx", ".pptx", ".xlsx"}
+
+# File manifest / khai báo dự án
+MANIFEST_FILES = {
+    "package.json", "requirements.txt", "pyproject.toml", "go.mod",
+    "pom.xml", "build.gradle", "composer.json", "Cargo.toml",
+}
+
+# Ngưỡng phân loại
+CLEAR_RATIO = 0.20      # Real Code > 20% → rõ ràng
+AMBIGUOUS_RATIO = 0.05  # Real Code < 5% → nghi ngờ tài liệu
+
+ALLOWED_CODE_EXTENSIONS = REAL_CODE_EXTENSIONS | CONFIG_EXTENSIONS | DOC_EXTENSIONS
 
 SKIP_DIR_NAMES = {
     ".git",
@@ -58,6 +66,7 @@ MAX_SCAN_FILES = 50
 MAX_TOTAL_UNCOMPRESSED_BYTES = 20 * 1024 * 1024
 MAX_FILE_CHARS = 5000
 MAX_TOTAL_CHARS = 200000
+CONTEXT_OVERFLOW_THRESHOLD = 150000  # switch to multi-pass when total chars exceed this
 
 
 class CodeScanError(Exception):
@@ -106,10 +115,65 @@ def _sort_key(file: ScannedFile) -> tuple[int, str]:
     return priority.get(Path(file.path).suffix.lower(), 99), file.path.lower()
 
 
-async def extract_code_files(document: Document) -> list[ScannedFile]:
-    """Read ZIP from MinIO, extract code files. async."""
+async def list_archive_members(document: Document) -> list[str]:
+    """Đọc danh sách member (path) đã lọc artifact, không giải nén toàn bộ."""
     if document.doc_type != DocType.ZIP:
-        raise CodeScanError("Code review chỉ hỗ trợ file .zip source code")
+        raise CodeScanError("Code review chỉ hỗ trợ file .zip / .rar source code")
+
+    raw = await get_doc(document.storage_key, bucket=settings.minio.bucket)
+    if not raw:
+        raise CodeScanError(f"File not found in MinIO: {document.storage_key}")
+
+    if raw[:8].startswith(b"Rar!\x1a\x07"):
+        if rarfile is None:
+            raise CodeScanError("Chưa cài thư viện rarfile để đọc file .rar")
+        with rarfile.RarFile(BytesIO(raw)) as archive:
+            return [i.filename for i in archive.infolist() if not i.isdir() and _is_safe_member(i.filename)]
+
+    with zipfile.ZipFile(BytesIO(raw)) as archive:
+        return [i.filename for i in archive.infolist() if not i.is_dir() and _is_safe_member(i.filename)]
+
+
+def classify_archive(members: list[str]) -> dict:
+    """Phân loại file nén: có phải source code dự án không."""
+    real_code = [m for m in members if PurePosixPath(m).suffix.lower() in REAL_CODE_EXTENSIONS]
+    config = [m for m in members if PurePosixPath(m).suffix.lower() in CONFIG_EXTENSIONS]
+    docs = [m for m in members if PurePosixPath(m).suffix.lower() in DOC_EXTENSIONS]
+
+    has_manifest = any(PurePosixPath(m).name.lower() in MANIFEST_FILES for m in members)
+    total = len(members)
+    ratio = len(real_code) / total if total else 0
+
+    return {
+        "member_names": members,
+        "real_code_count": len(real_code),
+        "config_count": len(config),
+        "doc_count": len(docs),
+        "total": total,
+        "has_manifest": has_manifest,
+        "code_ratio": ratio,
+    }
+
+
+def decide_source_code(classification: dict) -> str:
+    """Trả về: 'pass' | 'ambiguous' | 'reject'."""
+    real = classification["real_code_count"]
+    ratio = classification["code_ratio"]
+    has_manifest = classification["has_manifest"]
+
+    if real == 0:
+        return "reject"
+    if has_manifest or ratio > CLEAR_RATIO:
+        return "pass"
+    if ratio < AMBIGUOUS_RATIO:
+        return "reject"
+    return "ambiguous"
+
+
+async def extract_code_files(document: Document) -> list[ScannedFile]:
+    """Read ZIP/RAR from MinIO, extract code files. async."""
+    if document.doc_type != DocType.ZIP:
+        raise CodeScanError("Code review chỉ hỗ trợ file .zip / .rar source code")
 
     storage_key = document.storage_key
 
@@ -117,6 +181,13 @@ async def extract_code_files(document: Document) -> list[ScannedFile]:
     if not raw:
         raise CodeScanError(f"File not found in MinIO: {storage_key}")
 
+    if raw[:8].startswith(b"Rar!\x1a\x07"):
+        return _extract_from_rar(raw)
+    return _extract_from_zip(raw)
+
+
+def _extract_from_zip(raw: bytes) -> list[ScannedFile]:
+    """Giải nén code từ ZIP bytes."""
     scanned: list[ScannedFile] = []
     total_uncompressed = 0
 
@@ -141,24 +212,15 @@ async def extract_code_files(document: Document) -> list[ScannedFile]:
                     continue
 
                 try:
-                    raw = archive.read(info)
+                    member_raw = archive.read(info)
                 except Exception as exc:
                     logger.warning("Failed to read zip member %s: %s", info.filename, exc)
                     continue
 
-                if b"\x00" in raw:
+                scanned_file = _make_scanned_file(info.filename, member_raw)
+                if not scanned_file.content:
                     continue
-
-                try:
-                    text = raw.decode("utf-8")
-                except UnicodeDecodeError:
-                    text = raw.decode("latin-1", errors="replace")
-
-                text = text.strip()
-                if not text:
-                    continue
-
-                scanned.append(ScannedFile(path=info.filename, content=text))
+                scanned.append(scanned_file)
 
                 if len(scanned) >= MAX_SCAN_FILES:
                     break
@@ -169,6 +231,72 @@ async def extract_code_files(document: Document) -> list[ScannedFile]:
         raise CodeScanError("Không tìm thấy file code phù hợp trong ZIP")
 
     return sorted(scanned, key=_sort_key)
+
+
+def _extract_from_rar(raw: bytes) -> list[ScannedFile]:
+    """Giải nén code từ RAR bytes."""
+    if rarfile is None:
+        raise CodeScanError("Chưa cài thư viện rarfile để đọc file .rar")
+
+    scanned: list[ScannedFile] = []
+    total_uncompressed = 0
+
+    try:
+        with rarfile.RarFile(BytesIO(raw)) as archive:
+            infos = archive.infolist()
+            if len(infos) > MAX_ZIP_FILES:
+                raise CodeScanError(f"RAR contains too many files ({len(infos)} > {MAX_ZIP_FILES})")
+
+            for info in infos:
+                if info.isdir():
+                    continue
+                if not _is_safe_member(info.filename):
+                    continue
+
+                total_uncompressed += info.file_size
+                if total_uncompressed > MAX_TOTAL_UNCOMPRESSED_BYTES:
+                    raise CodeScanError("RAR giải nén vượt ngưỡng an toàn")
+
+                suffix = PurePosixPath(info.filename).suffix.lower()
+                if suffix not in ALLOWED_CODE_EXTENSIONS:
+                    continue
+
+                try:
+                    member_raw = archive.read(info)
+                except Exception as exc:
+                    logger.warning("Failed to read rar member %s: %s", info.filename, exc)
+                    continue
+
+                scanned_file = _make_scanned_file(info.filename, member_raw)
+                if not scanned_file.content:
+                    continue
+                scanned.append(scanned_file)
+
+                if len(scanned) >= MAX_SCAN_FILES:
+                    break
+    except rarfile.RarCannotExec as exc:
+        raise CodeScanError(
+            "Không tìm thấy chương trình unrar để giải nén. Hệ thống chỉ hỗ trợ RAR4 không mã hóa."
+        ) from exc
+    except rarfile.Error as exc:
+        raise CodeScanError("File RAR bị lỗi hoặc không thể giải nén") from exc
+
+    if not scanned:
+        raise CodeScanError("Không tìm thấy file code phù hợp trong RAR")
+
+    return sorted(scanned, key=_sort_key)
+
+
+def _make_scanned_file(path: str, raw: bytes) -> ScannedFile:
+    """Decode raw bytes thành text cho ScannedFile."""
+    if b"\x00" in raw:
+        return ScannedFile(path=path, content="")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("latin-1", errors="replace")
+    text = text.strip()
+    return ScannedFile(path=path, content=text)
 
 
 def _numbered_lines(text: str, max_chars: int = MAX_FILE_CHARS) -> str:
@@ -187,7 +315,7 @@ def _numbered_lines(text: str, max_chars: int = MAX_FILE_CHARS) -> str:
     return "\n".join(numbered)
 
 
-def build_prompt(files: list[ScannedFile]) -> tuple[str, str]:
+def build_prompt(files: list[ScannedFile]) -> tuple[str, str, bool]:
     system_prompt = (
         "Bạn là một Senior Software Engineer và code reviewer rất khắt khe. "
         "Hãy review source code, tìm bug, code smell, security issue, performance issue và thiếu validation. "
@@ -213,11 +341,13 @@ def build_prompt(files: list[ScannedFile]) -> tuple[str, str]:
 
     chunks: list[str] = []
     total_chars = 0
+    overflow = False
     for file in files:
         rendered = _numbered_lines(file.content)
         block = f"FILE: {file.path}\n```\n{rendered}\n```"
         total_chars += len(block)
-        if total_chars > MAX_TOTAL_CHARS:
+        if total_chars > CONTEXT_OVERFLOW_THRESHOLD:
+            overflow = True
             break
         chunks.append(block)
 
@@ -226,7 +356,7 @@ def build_prompt(files: list[ScannedFile]) -> tuple[str, str]:
         + "\n\n---\n\n".join(chunks)
         + "\n\nHãy review code và phát hiện issues. Output ONLY valid JSON."
     )
-    return system_prompt, user_prompt
+    return system_prompt, user_prompt, overflow
 
 
 def _extract_json_payload(content: str) -> dict[str, Any]:
@@ -367,9 +497,15 @@ def _heuristic_scan(files: list[ScannedFile]) -> dict[str, Any]:
 
 async def analyze_code_document(document: Document, provider: str | None = None, model: str | None = None) -> dict[str, Any]:
     files = await extract_code_files(document)
-    system_prompt, user_prompt = build_prompt(files)
+    system_prompt, user_prompt, overflow = build_prompt(files)
+
+    if overflow:
+        return _multi_pass_assessment(files, provider, model)
 
     try:
+        # ponytail: relay 9router rejects response_format=json_object (HTTP 400),
+        # so rely on prompt + _extract_json_payload instead. If provider supports
+        # json_object natively, re-enable via response_format_json=True.
         result = await ai_gateway.generate(
             prompt=user_prompt,
             provider=provider,
@@ -377,7 +513,6 @@ async def analyze_code_document(document: Document, provider: str | None = None,
             system_prompt=system_prompt,
             temperature=0.15,
             max_tokens=3000,
-            response_format_json=True,
         )
         payload = _extract_json_payload(result["content"])
         raw_issues = payload.get("issues") or []
@@ -402,7 +537,116 @@ async def analyze_code_document(document: Document, provider: str | None = None,
             "issues": normalized_issues,
             "provider": result["provider"],
             "model": result["model"],
+            "context_overflow": False,
         }
     except Exception as exc:
         logger.warning("AI code scan failed, falling back to heuristic scan: %s", exc)
         return _heuristic_scan(files)
+
+
+def _split_by_module(files: list[ScannedFile]) -> dict[str, list[ScannedFile]]:
+    modules: dict[str, list[ScannedFile]] = {}
+    for file in files:
+        parts = Path(file.path).parts
+        module = parts[0] if len(parts) > 1 else "shared"
+        modules.setdefault(module, []).append(file)
+    return modules
+
+
+async def _multi_pass_assessment(files: list[ScannedFile], provider: str | None, model: str | None) -> dict[str, Any]:
+    modules = _split_by_module(files)
+    all_issues: list[dict[str, Any]] = []
+    pass_rates: list[float] = []
+    processed_files = 0
+
+    for module_name, module_files in modules.items():
+        system_prompt, user_prompt, _ = build_prompt(module_files)
+        try:
+            result = await ai_gateway.generate(
+                prompt=user_prompt,
+                provider=provider,
+                model=model,
+                system_prompt=system_prompt,
+                temperature=0.15,
+                max_tokens=3000,
+            )
+            payload = _extract_json_payload(result["content"])
+            raw_issues = payload.get("issues") or []
+            for index, item in enumerate(raw_issues, start=1):
+                if not isinstance(item, dict):
+                    continue
+                normalized = _normalize_issue(item, index)
+                if normalized:
+                    normalized["module"] = module_name
+                    all_issues.append(normalized)
+            pass_rates.append(float(payload.get("pass_rate", 0)))
+            processed_files += len(module_files)
+        except Exception as exc:
+            logger.warning("Multi-pass module %s failed, using heuristic: %s", module_name, exc)
+            heuristic = _heuristic_scan(module_files)
+            all_issues.extend(heuristic.get("issues", []))
+            pass_rates.append(heuristic.get("pass_rate", 0))
+            processed_files += len(module_files)
+
+    avg_pass_rate = sum(pass_rates) / len(pass_rates) if pass_rates else 0.0
+    return {
+        "summary": f"Đánh giá đa module ({len(modules)} module, {processed_files} file). Context vượt ngưỡng 150K → tách module đánh giá song song.",
+        "pass_rate": max(min(avg_pass_rate, 100.0), 0.0),
+        "issues": all_issues,
+        "provider": provider or "unknown",
+        "model": model or "unknown",
+        "context_overflow": True,
+        "modules_processed": len(modules),
+    }
+
+
+# ============================================================
+# Agent Fast-Check — phân loại file nén mơ hồ (chỉ chạy khi ambiguous)
+# ============================================================
+
+def _build_tree_preview(classification: dict) -> str:
+    """Danh sách path đã lọc → text tree cho LLM."""
+    members = classification.get("member_names", [])
+    if not members:
+        return "(empty)"
+    return "\n".join(members)
+
+
+async def _read_top_snippets(document: Document, n: int = 3, max_chars: int = 2000) -> str:
+    """Lấy n file code lớn nhất, mỗi file trích đầu ~max_chars ký tự."""
+    try:
+        files = sorted(
+            await extract_code_files(document),
+            key=lambda f: len(f.content),
+            reverse=True,
+        )[:n]
+    except CodeScanError:
+        return "(không đọc được snippet)"
+    return "\n\n".join(f"--- {f.path} ---\n{f.content[:max_chars]}" for f in files)
+
+
+async def agent_fast_check(document: Document, classification: dict) -> dict:
+    """LLM đọc tree + snippet 2-3 file → trả JSON schema đầy đủ."""
+    tree = _build_tree_preview(classification)
+    snippets = await _read_top_snippets(document, n=3)
+
+    prompt = (
+        "Đây là cấu trúc file nén của một đồ án sinh viên. "
+        "Hãy xác định đây là SOURCE CODE dự án hay chỉ là TÀI LIỆU/NOISE.\n\n"
+        f"Tree:\n{tree}\n\nSnippets:\n{snippets}\n\n"
+        "Trả về JSON theo schema sau:\n"
+        "{\n"
+        '  "is_source_code": true | false,\n'
+        '  "confidence_score": 0.0 -> 1.0,\n'
+        '  "reason": "Giải thích ngắn gọn lý do (ví dụ: Phát hiện cấu trúc React App với các file Component và Route rõ ràng)",\n'
+        '  "primary_language": "TypeScript / Python / Java..."\n'
+        "}"
+    )
+    result = await ai_gateway.generate(prompt=prompt, temperature=0)
+    payload = _extract_json_payload(result["content"])
+    # Chuẩn hoá thiếu trường → không crash nơi gọi
+    payload.setdefault("is_source_code", False)
+    payload.setdefault("confidence_score", 0.5)
+    payload.setdefault("reason", "")
+    payload.setdefault("primary_language", "")
+    return payload

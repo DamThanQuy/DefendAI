@@ -4,25 +4,30 @@ Endpoints:
 - POST /api/documents/upload  → upload file (multipart), validate type + size
 - GET  /api/documents/{id}   → lấy metadata 1 file
 - GET  /api/documents         → list tất cả files
+- GET  /api/documents/{id}/download → download file gốc từ MinIO
+- GET  /api/documents/{id}/assessments → lấy danh sách assessment của document
+- GET  /api/documents/{id}/contents → liệt kê nội dung file nén (ZIP/RAR)
 """
 import os
 import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.entities import Document, DocType, DocumentStatus, DocumentPurpose, User
+from app.models.entities import Document, DocType, DocumentStatus, DocumentPurpose, Assessment, User
 from app.schemas.document import DocumentResponse, DocumentListResponse
-from app.services.storage import save_doc
+from app.services.storage import save_doc, get_doc
+from app.services.archive_service import list_archive_members, read_archive_member, ArchiveError
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
 # ===== Config =====
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".zip"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".zip", ".rar", ".md"}
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 
 EXTENSION_TO_DOCTYPE = {
@@ -30,6 +35,8 @@ EXTENSION_TO_DOCTYPE = {
     ".docx": DocType.DOCX,
     ".pptx": DocType.PPTX,
     ".zip": DocType.ZIP,
+    ".rar": DocType.ZIP,  # treat rar as ZIP-type (archive chứa source code)
+    ".md": DocType.PDF,  # treat md as PDF-type (text-based)
 }
 
 EXTENSION_TO_MIME = {
@@ -37,6 +44,8 @@ EXTENSION_TO_MIME = {
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     ".zip": "application/zip",
+    ".rar": "application/vnd.rar",
+    ".md": "text/markdown",
 }
 
 
@@ -70,6 +79,8 @@ def _determine_mime(filename: str) -> str:
 MAGIC_BYTES = {
     b"%PDF": ".pdf",
     b"PK\x03\x04": ".zip",
+    b"Rar!\x1a\x07\x00": ".rar",  # RAR 4.x
+    b"Rar!\x1a\x07\x01\x00": ".rar",  # RAR 5.x
     b"\xd0\xcf\x11\xe0": ".doc",
     b"MZ": ".exe",
 }
@@ -78,7 +89,7 @@ MAGIC_BYTES = {
 def _validate_magic_bytes(content: bytes, expected_ext: str) -> None:
     if len(content) < 4:
         return
-    file_magic = content[:4]
+    file_magic = content[:8]
     detected_ext = None
     for magic, ext in MAGIC_BYTES.items():
         if file_magic.startswith(magic):
@@ -160,3 +171,126 @@ async def list_documents(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Document).order_by(Document.created_at.desc()))
     docs = list(result.scalars().all())
     return DocumentListResponse(total=len(docs), items=docs)
+
+
+@router.get("/{doc_id}/download")
+async def download_document(
+    doc_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Download file gốc từ MinIO."""
+    result = await db.execute(select(Document).where(Document.id == doc_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+
+    try:
+        data = await get_doc(doc.storage_key)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to read file from storage")
+
+    return Response(
+        content=data,
+        media_type=_determine_mime(doc.filename),
+        headers={
+            "Content-Disposition": f'attachment; filename="{doc.filename}"',
+            "Content-Length": str(len(data)),
+        },
+    )
+
+
+@router.get("/{doc_id}/assessments")
+async def list_document_assessments(
+    doc_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Lấy danh sách assessment của 1 document."""
+    result = await db.execute(
+        select(Assessment)
+        .where(Assessment.document_id == doc_id)
+        .order_by(Assessment.created_at.desc())
+    )
+    assessments = list(result.scalars().all())
+    return {
+        "total": len(assessments),
+        "items": [
+            {
+                "id": a.id,
+                "persona": a.persona,
+                "status": a.status.value,
+                "chunks_count": len(a.chunks or []),
+                "questions_count": len(a.questions or []),
+                "created_at": a.created_at.isoformat(),
+            }
+            for a in assessments
+        ],
+    }
+
+
+@router.get("/{doc_id}/contents")
+async def list_document_contents(
+    doc_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Liệt kê toàn bộ file/folder trong ZIP/RAR như cây thư mục."""
+    result = await db.execute(select(Document).where(Document.id == doc_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+
+    if doc.doc_type != DocType.ZIP:
+        raise HTTPException(status_code=400, detail="Chỉ hỗ trợ xem nội dung file ZIP/RAR")
+
+    try:
+        members = await list_archive_members(doc)
+    except ArchiveError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return {
+        "document_id": doc_id,
+        "filename": doc.filename,
+        "total": len(members),
+        "items": [
+            {"path": m.path, "size": m.size, "is_dir": m.is_dir}
+            for m in members
+        ],
+    }
+
+
+@router.get("/{doc_id}/contents/{member_path:path}")
+async def get_document_member_content(
+    doc_id: int,
+    member_path: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Đọc nội dung 1 file bên trong ZIP/RAR (bytes gốc, kèm content-type)."""
+    result = await db.execute(select(Document).where(Document.id == doc_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+
+    try:
+        data = await read_archive_member(doc, member_path)
+    except ArchiveError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    ext = Path(member_path).suffix.lower()
+    mime = EXTENSION_TO_MIME.get(ext, "application/octet-stream")
+    # File text → UTF-8 để FE render preview đúng (đặc biệt tiếng Việt)
+    if ext in {".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rb", ".php",
+               ".cs", ".cpp", ".c", ".h", ".html", ".css", ".json", ".yml", ".yaml",
+               ".md", ".txt", ".xml", ".sh", ".sql", ".ini", ".toml", ".env"}:
+        mime = "text/plain; charset=utf-8"
+
+    return Response(
+        content=data,
+        media_type=mime,
+        headers={
+            "Content-Disposition": f'inline; filename="{Path(member_path).name}"',
+            "Content-Length": str(len(data)),
+        },
+    )

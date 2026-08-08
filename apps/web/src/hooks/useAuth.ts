@@ -16,7 +16,7 @@ export function useAuth() {
   useEffect(() => {
     const read = () => {
       const raw = localStorage.getItem("user");
-      if (!localStorage.getItem("token") || !raw) {
+      if (!localStorage.getItem("access_token") || !raw) {
         setUser(null);
         return;
       }

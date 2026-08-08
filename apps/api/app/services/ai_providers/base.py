@@ -8,10 +8,11 @@ Cả NVIDIA NIM và Google AI Studio đều dùng OpenAI API spec:
 
 → Class này cung cấp logic chung, các provider con chỉ cần override `get_default_model()`.
 """
+import json
 import time
 import logging
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, AsyncIterator
 
 import httpx
 
@@ -181,3 +182,63 @@ class OpenAICompatibleProvider(ABC):
             "latency_ms": round(latency_ms, 2),
             "raw": data,
         }
+
+    async def generate_stream(
+        self,
+        *,
+        prompt: str,
+        model: str | None = None,
+        system_prompt: str = "",
+        temperature: float = 0.2,
+        max_tokens: int | None = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """
+        Gọi chat completions API với stream=True (SSE).
+
+        Yields từng chunk: {"content": str | None, "finish_reason": str | None}
+        Kết thúc khi gặp [DONE] hoặc hết stream.
+        """
+        if not prompt or not prompt.strip():
+            raise ValueError("prompt is required and cannot be empty")
+
+        model = model or self.get_default_model()
+        url = f"{self.base_url}/chat/completions"
+        headers = self._build_headers()
+
+        messages: list[dict[str, str]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "stream": True,
+        }
+        if max_tokens:
+            payload["max_tokens"] = max_tokens
+        for key, value in kwargs.items():
+            if value is not None:
+                payload[key] = value
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(600.0)) as client:
+            async with client.stream("POST", url, headers=headers, json=payload) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if not data or data == "[DONE]":
+                        return
+                    try:
+                        chunk = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+                    choice = (chunk.get("choices") or [{}])[0]
+                    delta = choice.get("delta") or {}
+                    yield {
+                        "content": delta.get("content"),
+                        "finish_reason": choice.get("finish_reason"),
+                    }

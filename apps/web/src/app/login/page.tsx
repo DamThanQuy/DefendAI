@@ -44,12 +44,13 @@ export default function LoginPage() {
       }
 
       // Lưu token + user info
-      localStorage.setItem("token", data.token);
+      localStorage.setItem("access_token", data.token);
+localStorage.setItem("refresh_token", data.refresh_token || "");localStorage.setItem("refresh_token", data.refresh_token || "");
       localStorage.setItem("user", JSON.stringify(data.user));
       // Báo Navbar (cùng tab) cập nhật trạng thái login
       window.dispatchEvent(new Event("storage"));
 
-      router.push("/");
+      router.push("/documents");
     } catch {
       setError("Không thể kết nối server");
     } finally {
@@ -74,10 +75,11 @@ export default function LoginPage() {
         setError(data.detail || "Đăng nhập Google thất bại");
         return;
       }
-      localStorage.setItem("token", data.token);
+      localStorage.setItem("access_token", data.token);
+localStorage.setItem("refresh_token", data.refresh_token || "");localStorage.setItem("refresh_token", data.refresh_token || "");
       localStorage.setItem("user", JSON.stringify(data.user));
       window.dispatchEvent(new Event("storage"));
-      router.push("/");
+      router.push("/documents");
     } catch {
       setError("Không thể kết nối server");
     }
@@ -198,3 +200,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+
