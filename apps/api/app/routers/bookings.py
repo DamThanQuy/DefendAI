@@ -20,8 +20,9 @@ from app.core.deps import get_current_user, require_role
 from app.models.user import User
 from app.models.booking import BookingStatus, MockBooking
 from app.models.meeting import Meeting, MeetingStatus
+from app.models.availability import MentorAvailability
 from app.repositories.booking import BookingRepository
-from app.schemas.booking import BookingCreate, BookingConfirm, BookingOut
+from app.schemas.booking import BookingCreate, BookingConfirm, BookingReschedule, BookingReject, BookingOut
 
 
 def _naive_utc(dt: datetime) -> datetime:
@@ -63,6 +64,33 @@ def _is_room_open(booking: MockBooking) -> bool:
     delta = booking.confirmed_time - now
     return timedelta(0) <= delta <= timedelta(minutes=ROOM_OPEN_BEFORE_MINUTES)
 
+async def _assert_slot_available(db: AsyncSession, mentor_id: int, proposed: datetime) -> None:
+    """Sinh viên chỉ được đặt vào khung giờ mentor đã bật rảnh (is_available=True)."""
+    # proposed là naive UTC; chuyển sang giờ local của hệ thống để lấy thứ/giờ.
+    # Giả định server chạy giờ VN (UTC+7) khi deploy; local dev cũng ổn vì chỉ so thứ/giờ.
+    import os
+    tz_offset = int(os.getenv("TZ_OFFSET_HOURS", "7"))
+    local = proposed + timedelta(hours=tz_offset)
+    weekday = local.weekday()  # 0=Thứ 2 ... 6=Chủ nhật
+    hhmm = local.strftime("%H:%M")
+
+    slot = (
+        await db.execute(
+            select(MentorAvailability).where(
+                MentorAvailability.mentor_id == mentor_id,
+                MentorAvailability.day_of_week == weekday,
+                MentorAvailability.start_time <= hhmm,
+                MentorAvailability.end_time > hhmm,
+                MentorAvailability.is_available == True,  # noqa: E712
+            )
+        )
+    ).scalar_one_or_none()
+    if not slot:
+        raise HTTPException(
+            status_code=400,
+            detail="Thời gian này mentor không rảnh. Vui lòng chọn khung giờ mentor đã mở trong lịch.",
+        )
+
 
 # ---------------------------------------------------------------------------
 # Student endpoints
@@ -89,6 +117,9 @@ async def create_booking(
     proposed = _naive_utc(payload.proposed_time)
     if proposed <= datetime.utcnow():
         raise HTTPException(status_code=400, detail="Thời gian đề xuất phải ở tương lai")
+
+    # Ràng buộc: chỉ được đặt vào khung giờ mentor đã bật rảnh
+    await _assert_slot_available(db, payload.mentor_id, proposed)
 
     booking = MockBooking(
         student_id=user.id,
@@ -203,6 +234,7 @@ async def confirm_booking(
 @router.post("/{booking_id}/reject", response_model=BookingOut)
 async def reject_booking(
     booking_id: int,
+    payload: BookingReject,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("mentor")),
 ):
@@ -215,7 +247,56 @@ async def reject_booking(
     if booking.status != BookingStatus.pending:
         raise HTTPException(status_code=400, detail="Booking này không ở trạng thái chờ xác nhận")
     booking.status = BookingStatus.rejected
+    booking.reject_reason = payload.reason
     booking = await repo.update(booking)
+    return _serialize(booking)
+
+@router.post("/{booking_id}/reschedule", response_model=BookingOut)
+async def reschedule_booking(
+    booking_id: int,
+    payload: BookingReschedule,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("mentor")),
+):
+    """Mentor đề xuất đổi giờ (reschedule).
+
+    Booking quay về trạng thái pending với proposed_time mới; sinh viên sẽ nhận
+    thông báo và có thể xác nhận lại (hoặc huỷ). Không tạo meeting ở bước này.
+    """
+    repo = BookingRepository(db)
+    booking = await repo.get_with_participants(booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking không tồn tại")
+    if booking.mentor_id != user.id:
+        raise HTTPException(status_code=403, detail="Chỉ mentor được chỉ định mới đổi giờ")
+    if booking.status not in (BookingStatus.pending, BookingStatus.confirmed):
+        raise HTTPException(status_code=400, detail="Chỉ booking chờ/xác nhận mới đổi được giờ")
+
+    proposed = _naive_utc(payload.proposed_time)
+    if proposed <= datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Thời gian đề xuất phải ở tương lai")
+
+    # Mentor chỉ được đề xuất giờ nằm trong slot rảnh của chính mình
+    await _assert_slot_available(db, user.id, proposed)
+
+    booking.proposed_time = proposed
+    booking.status = BookingStatus.pending
+    # Xoá confirmed_time cũ (chờ sinh viên xác nhận lại)
+    booking.confirmed_time = None
+    if payload.note is not None:
+        booking.note = payload.note
+    # Huỷ meeting cũ nếu có
+    if booking.meeting_id:
+        meeting = (
+            await db.execute(select(Meeting).where(Meeting.id == booking.meeting_id))
+        ).scalar_one_or_none()
+        if meeting:
+            meeting.status = MeetingStatus.ended
+            await db.flush()
+        booking.meeting_id = None
+
+    booking = await repo.update(booking)
+    booking = await repo.get_with_participants(booking.id)
     return _serialize(booking)
 
 

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.booking import BookingStatus
 
@@ -22,6 +22,17 @@ class BookingConfirm(BaseModel):
     # Mentor có thể ghi chú thêm khi xác nhận
     note: Optional[str] = None
 
+class BookingReschedule(BaseModel):
+    """Mentor đề xuất đổi giờ (reschedule) — sinh viên sẽ nhận thông báo."""
+
+    proposed_time: datetime
+    note: Optional[str] = None
+
+class BookingReject(BaseModel):
+    """Mentor từ chối kèm lý do."""
+
+    reason: str = Field(..., min_length=1, max_length=500)
+
 
 class BookingOut(BaseModel):
     """Response hiển thị thông tin booking."""
@@ -37,6 +48,7 @@ class BookingOut(BaseModel):
     note: Optional[str] = None
     status: BookingStatus
     meeting_id: Optional[int] = None
+    reject_reason: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

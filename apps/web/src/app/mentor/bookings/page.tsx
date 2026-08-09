@@ -10,6 +10,8 @@ import {
   confirmBooking,
   rejectBooking,
   completeBooking,
+  rescheduleBooking,
+  rejectBookingWithReason,
   checkMeetingAccess,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -36,6 +38,15 @@ export default function MentorBookingsPage() {
   const [confirmTime, setConfirmTime] = useState("");
   const [confirmNote, setConfirmNote] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Form từ chối (lý do)
+  const [rejectId, setRejectId] = useState<number | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  // Form đổi lịch (reschedule)
+  const [reschedId, setReschedId] = useState<number | null>(null);
+  const [reschedTime, setReschedTime] = useState("");
+  const [reschedNote, setReschedNote] = useState("");
 
   async function load() {
     setLoading(true);
@@ -89,6 +100,48 @@ export default function MentorBookingsPage() {
       await load();
     } catch (e: any) {
       setError(e?.response?.data?.detail || "Từ chối thất bại");
+    }
+  }
+
+  async function handleRejectWithReason(id: number) {
+    if (!rejectReason.trim()) {
+      setError("Vui lòng nhập lý do từ chối");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await rejectBookingWithReason(id, rejectReason.trim());
+      setRejectId(null);
+      setRejectReason("");
+      await load();
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || "Từ chối thất bại");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReschedule(id: number) {
+    if (!reschedTime) {
+      setError("Vui lòng chọn thời gian đề xuất mới");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await rescheduleBooking(id, {
+        proposed_time: new Date(reschedTime).toISOString(),
+        note: reschedNote || undefined,
+      });
+      setReschedId(null);
+      setReschedTime("");
+      setReschedNote("");
+      await load();
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || "Đổi lịch thất bại");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -158,10 +211,25 @@ export default function MentorBookingsPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleReject(b.id)}
+                    onClick={() => {
+                      setRejectId(b.id);
+                      setRejectReason("");
+                    }}
                     className="rounded-full border-zinc-700 text-red-300"
                   >
                     <XCircle className="w-4 h-4 mr-1" /> Từ chối
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setReschedId(b.id);
+                      setReschedTime("");
+                      setReschedNote("");
+                    }}
+                    className="rounded-full border-zinc-700 text-amber-300"
+                  >
+                    <Clock className="w-4 h-4 mr-1" /> Đổi lịch
                   </Button>
                   <Button
                     size="sm"
@@ -209,6 +277,59 @@ export default function MentorBookingsPage() {
                       onClick={() => setConfirmId(null)}
                       className="rounded-full border-zinc-700"
                     >
+                      Huỷ
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {rejectId === b.id && (
+                <div className="mt-4 border-t border-zinc-800 pt-4">
+                  <label className="block text-xs text-zinc-400 mb-1">Lý do từ chối</label>
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    rows={2}
+                    placeholder="VD: Khung giờ này tôi đã bận..."
+                    className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  />
+                  <div className="mt-2 flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => handleRejectWithReason(b.id)} disabled={busy} className="rounded-full border-red-700 text-red-300">
+                      {busy ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                      Gửi từ chối
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setRejectId(null)} className="rounded-full border-zinc-700">
+                      Huỷ
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {reschedId === b.id && (
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-zinc-800 pt-4">
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">Đề xuất thời gian mới</label>
+                    <input
+                      type="datetime-local"
+                      value={reschedTime}
+                      onChange={(e) => setReschedTime(e.target.value)}
+                      className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">Ghi chú (tuỳ chọn)</label>
+                    <input
+                      value={reschedNote}
+                      onChange={(e) => setReschedNote(e.target.value)}
+                      className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                    />
+                  </div>
+                  <div className="md:col-span-2 flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => handleReschedule(b.id)} disabled={busy} className="rounded-full border-amber-700 text-amber-300">
+                      {busy ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                      Gửi đổi lịch
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setReschedId(null)} className="rounded-full border-zinc-700">
                       Huỷ
                     </Button>
                   </div>
