@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-echo "Running migrations (alembic upgrade heads)..."
-alembic upgrade heads
+echo "Running migrations (alembic upgrade head)..."
+alembic upgrade head
 
 echo "Seeding demo users..."
 python seed_users.py

@@ -132,6 +132,7 @@ async def google_login(req: GoogleLoginRequest, db: AsyncSession = Depends(get_d
             req.id_token,
             google_requests.Request(),
             settings.google_client_id,
+            clock_skew_in_seconds=60,  # bù sai lệch đồng hồ container/host
         )
     except Exception as e:
         logger.warning("Google token verify failed: %s", e)
