@@ -2,10 +2,10 @@
 
 import React from "react";
 import Link from "next/link";
-import { 
-  Users, 
-  Clock, 
-  Wallet, 
+import {
+  Users,
+  Clock,
+  Wallet,
   Star,
   CheckCircle2,
   Clock3,
