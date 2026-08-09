@@ -17,6 +17,7 @@ from app.routers import documents as documents_router
 from app.routers import questions as questions_router
 from app.routers import meeting as meeting_router
 from app.routers import bookings as bookings_router
+from app.routers import availability as availability_router
 from app.routers import jobs as jobs_router
 from app.routers import workspaces as workspaces_router
 from app.routers import workspace_chats as workspace_chats_router
@@ -58,6 +59,8 @@ app.include_router(code_scan_router.router)
 app.include_router(meeting_router.router)
 # Bookings (đặt lịch Mock Room: student -> mentor confirm)
 app.include_router(bookings_router.router)
+# Availability (lịch rảnh của mentor)
+app.include_router(availability_router.router)
 # Async Job Queue polling endpoints
 app.include_router(jobs_router.router)
 # Workspace endpoints (gom file theo đề tài)

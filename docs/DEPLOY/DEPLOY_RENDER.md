@@ -58,8 +58,13 @@
 | **Branch** | `master` |
 | **Runtime** | `Python 3` |
 | **Build Command** | `cd apps/api && pip install -r requirements.txt` |
-| **Start Command** | `cd apps/api && uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| **Start Command** | `cd apps/api && ./entrypoint.sh` |
 | **Instance Type** | `Free` |
+
+> **Quan trọng**: Dùng `./entrypoint.sh` thay vì `uvicorn` trực tiếp để tự động chạy
+> `alembic upgrade heads` (tạo/migrate bảng) và `seed_users.py` (tạo tài khoản hệ thống
+> admin + mentor, cần thiết để student đặt lịch chọn được mentor).
+> Nếu dùng `uvicorn` trực tiếp, DB sẽ thiếu bảng và thiếu mentor → student không thấy mentor.
 
 > **Lưu ý**: Render tự gán biến `PORT`, không cần hardcode port 8000.
 
@@ -128,6 +133,13 @@ File `main.py` hiện tại đang dùng `allow_origins=["*"]` → **không cần
 | 2 | BE docs | Browser: `https://defendai-api.onrender.com/docs` | Swagger UI |
 | 3 | FE trang chủ | Browser: Vercel URL | Trang chủ hiển thị |
 | 4 | FE gọi BE | F12 Console trên FE | Không có CORS error |
+| 5 | Mentor có trong DB | Browser: `https://defendai-api.onrender.com/api/auth/mentors` | Trả về mảng chứa `mentor@defendai.dev` |
+
+> **Nếu bước 5 trống**: Seed chưa chạy. Vào Render Shell (tab "Shell") chạy:
+> ```bash
+> cd apps/api && python seed_users.py
+> ```
+> Hoặc redeploy để `entrypoint.sh` chạy lại.
 | 5 | Upload tài liệu | Thử upload file PDF | Thành công |
 
 ***

@@ -209,3 +209,66 @@ export function getMentors() {
     "/api/auth/mentors",
   );
 }
+
+// Thông tin user hiện tại (nguồn chân lý về roles — đồng bộ sau khi backend đổi role)
+export interface MeResponse {
+  id: number;
+  email: string;
+  full_name: string | null;
+  is_active: boolean;
+  roles: string[];
+}
+export function getMe() {
+  return api.get<MeResponse>("/api/auth/me");
+}
+
+// ---------------------------------------------------------------------------
+// Availability (lịch rảnh của mentor)
+// ---------------------------------------------------------------------------
+
+export interface AvailabilitySlot {
+  id: number;
+  mentor_id: number;
+  day_of_week: number;
+  start_time: string; // "08:00"
+  end_time: string; // "09:00"
+  is_available: boolean;
+  week_pattern: string;
+  day_name?: string | null;
+}
+
+// Mentor: lấy lịch rảnh của mình
+export function getMyAvailability() {
+  return api.get<AvailabilitySlot[]>("/api/availability");
+}
+
+// Mentor: cập nhật toàn bộ lịch rảnh
+export function updateMyAvailability(slots: Partial<AvailabilitySlot>[]) {
+  return api.put<AvailabilitySlot[]>("/api/availability", slots);
+}
+
+// Student: xem slot rảnh của 1 mentor
+export function getMentorAvailability(mentorId: number) {
+  return api.get<AvailabilitySlot[]>(`/api/availability/${mentorId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Booking: Reschedule / Reject (mentor)
+// ---------------------------------------------------------------------------
+
+// Mentor: đề xuất đổi giờ
+export function rescheduleBooking(
+  bookingId: number,
+  payload: { proposed_time: string; note?: string },
+) {
+  return api.post<Booking>(`/api/bookings/${bookingId}/reschedule`, payload);
+}
+
+// Mentor: từ chối kèm lý do
+export function rejectBookingWithReason(
+  bookingId: number,
+  reason: string,
+) {
+  return api.post<Booking>(`/api/bookings/${bookingId}/reject`, { reason });
+}
+
