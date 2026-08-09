@@ -186,7 +186,10 @@ async def handle_workspace_questions(params: dict) -> dict:
             prompt=prompt,
             system_prompt=_build_system_prompt(persona),
             temperature=0.2,
-            max_tokens=4000,
+            # Gateway routes to a reasoning model (step-3.7-flash) that spends most of
+            # max_tokens on `reasoning`; 4000 left no budget for the JSON answer (empty
+            # content → heuristic fallback writing `hint`). 12000 leaves room for both.
+            max_tokens=12000,
         )
         payload = _extract_json_payload(ai_result["content"])
         questions = _normalize_rag_questions(payload.get("questions", []), persona)
