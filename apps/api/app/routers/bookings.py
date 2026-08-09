@@ -152,6 +152,21 @@ async def my_bookings(
         result.append(_serialize(b, _is_room_open(b)))
     return result
 
+@router.get("/mentor/{mentor_id}", response_model=List[BookingOut])
+async def bookings_by_mentor(
+    mentor_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Lịch đã đặt của 1 mentor — sinh viên dùng để lọc slot trùng giờ khi chọn giờ đề xuất."""
+    repo = BookingRepository(db)
+    bookings = await repo.list_by_mentor(mentor_id)
+    result = []
+    for b in bookings:
+        b = await repo.get_with_participants(b.id)
+        result.append(_serialize(b))
+    return result
+
 
 @router.post("/{booking_id}/cancel", response_model=BookingOut)
 async def cancel_booking(

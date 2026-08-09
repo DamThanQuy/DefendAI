@@ -13,6 +13,12 @@ import {
   ShieldCheck,
   LogOut,
   CalendarClock,
+  LayoutDashboard,
+  CalendarDays,
+  Video,
+  User,
+  Star,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isPublicPath } from "@/lib/shell";
@@ -21,17 +27,28 @@ import { isPublicPath } from "@/lib/shell";
  * Shell cho các trang "app" (sau khi đăng nhập): sidebar trái + top bar mỏng.
  * Trang public/landing (/, /demo, /login, /register) KHÔNG dùng shell này —
  * giữ nguyên top nav marketing. Ngắt bằng usePathname.
+ *
+ * Menu mentor được gộp trực tiếp vào đây (thay vì dùng MentorLayout riêng)
+ * để tránh 2 sidebar chồng nhau. Các mục có roles:["mentor"] chỉ hiện với mentor.
  */
 
 const SIDEBAR_LINKS: { href: string; label: string; icon: React.ComponentType<{ className?: string }>; roles?: string[] }[] = [
-  { href: "/documents", label: "Tài liệu", icon: FileText },
-  { href: "/workspaces", label: "Workspace", icon: FolderKanban },
-  { href: "/code-review", label: "Code Review", icon: Code2 },
-  { href: "/bookings", label: "Đặt lịch", icon: CalendarClock },
-  { href: "/room", label: "Mock Room", icon: MonitorPlay },
-  { href: "/report", label: "Báo cáo", icon: BarChart3 },
+  // --- Tính năng sinh viên (không hiện với mentor) ---
+  { href: "/documents", label: "Tài liệu", icon: FileText, roles: ["student", "admin"] },
+  { href: "/workspaces", label: "Workspace", icon: FolderKanban, roles: ["student", "admin"] },
+  { href: "/code-review", label: "Code Review", icon: Code2, roles: ["student", "admin"] },
+  { href: "/bookings", label: "Đặt lịch", icon: CalendarClock, roles: ["student", "admin"] },
+  { href: "/room", label: "Mock Room", icon: MonitorPlay, roles: ["student", "admin"] },
+  { href: "/report", label: "Báo cáo", icon: BarChart3, roles: ["student", "admin"] },
   { href: "/admin", label: "Quản trị", icon: ShieldCheck, roles: ["admin"] },
-  { href: "/mentor/bookings", label: "Quản lý lịch", icon: CalendarClock, roles: ["mentor"] },
+  // --- Mentor section (chỉ hiện với role mentor) ---
+  { href: "/mentor/dashboard", label: "Tổng quan Mentor", icon: LayoutDashboard, roles: ["mentor", "admin"] },
+  { href: "/mentor/calendar", label: "Lịch rảnh", icon: CalendarDays, roles: ["mentor", "admin"] },
+  { href: "/mentor/bookings", label: "Quản lý lịch", icon: CalendarClock, roles: ["mentor", "admin"] },
+  { href: "/mentor/sessions", label: "Lịch sử Mentor", icon: Video, roles: ["mentor", "admin"] },
+  { href: "/mentor/profile", label: "Hồ sơ cá nhân", icon: User, roles: ["mentor", "admin"] },
+  { href: "/mentor/reviews", label: "Đánh giá học viên", icon: Star, roles: ["mentor", "admin"] },
+  { href: "/mentor/wallet", label: "Ví & Thu nhập", icon: Wallet, roles: ["mentor", "admin"] },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

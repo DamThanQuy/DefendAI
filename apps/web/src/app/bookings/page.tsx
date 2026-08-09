@@ -8,6 +8,7 @@ import {
   createBooking,
   getMentors,
   getMentorAvailability,
+  getMentorBookings,
   getMyBookings,
   cancelBooking,
   checkMeetingAccess,
@@ -54,6 +55,23 @@ export default function BookingsPage() {
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
   const [availLoading, setAvailLoading] = useState(false);
 
+  // Lọc bỏ các slot đã có người đặt (confirmed/pending) của mentor
+  function filterFreeSlots(slots: AvailabilitySlot[], bookings: Booking[]): AvailabilitySlot[] {
+    // Tập hợp các "ngày trong tuần + giờ" đã bị占用
+    const booked = new Set<string>();
+    for (const b of bookings) {
+      if (b.status === "rejected" || b.status === "cancelled" || b.status === "completed") continue;
+      const t = b.confirmed_time || b.proposed_time;
+      if (!t) continue;
+      const d = new Date(t);
+      const dow = d.getDay(); // 0=CN
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      booked.add(`${dow}-${hh}:${mm}`);
+    }
+    return slots.filter((s) => !booked.has(`${s.day_of_week}-${s.start_time}`));
+  }
+
   const isStudent = hasRole("student") || (!hasRole("mentor") && !hasRole("admin"));
 
   async function load() {
@@ -73,8 +91,15 @@ export default function BookingsPage() {
     setAvailLoading(true);
     setAvailability([]);
     try {
-      const res = await getMentorAvailability(id);
-      setAvailability(res.data.filter((s) => s.is_available));
+      const [availRes, bookRes] = await Promise.all([
+        getMentorAvailability(id),
+        getMentorBookings(id),
+      ]);
+      const free = filterFreeSlots(
+        availRes.data.filter((s) => s.is_available),
+        bookRes.data,
+      );
+      setAvailability(free);
     } catch {
       setAvailability([]);
     } finally {
@@ -209,7 +234,7 @@ export default function BookingsPage() {
                     <span className="text-xs text-amber-400">Mentor chưa cài lịch rảnh. Bạn vẫn có thể đề xuất giờ, mentor sẽ xác nhận.</span>
                   ) : (
                     <div className="flex flex-wrap gap-1.5 mt-1">
-                      <span className="text-xs text-zinc-500 w-full">Khung giờ rảnh của mentor (bấm để chọn):</span>
+                      <span className="text-xs text-zinc-500 w-full">Khung giờ rảnh &amp; chưa ai đặt (bấm để chọn):</span>
                       {availability.map((s) => {
                         const dayName = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][s.day_of_week] ?? `T${s.day_of_week}`;
                         return (
