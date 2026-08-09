@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
@@ -8,6 +8,7 @@ import { PERSONA_LABELS, PERSONAS } from "@/lib/constants";
 import { FileTree } from "@/components/features/assessment/FileTree";
 import { FilePreview } from "@/components/features/assessment/FilePreview";
 import WorkspaceChat from "@/components/features/workspace/WorkspaceChat";
+import { useCollapsedSidebar } from "@/hooks/useCollapsedSidebar";
 
 interface WorkspaceFile {
   document_id: number;
@@ -55,6 +56,7 @@ interface SessionItem {
 interface SessionsResponse {
   assessments: SessionItem[];
   code_analyses: SessionItem[];
+  workspace_questions: WqSessionItem[];
 }
 
 interface WorkspaceSourceItem {
@@ -74,6 +76,16 @@ interface WorkspaceQuestionItem {
   questions: Question[] | null;
   sources?: WorkspaceSourceItem[] | null;
   error: string | null;
+  created_at: string;
+}
+
+interface WqSessionItem {
+  id: number;
+  workspace_id: number;
+  topic: string;
+  persona: string;
+  status: string;
+  question_count: number;
   created_at: string;
 }
 
@@ -192,17 +204,27 @@ export default function WorkspaceDetailPage() {
   const [selMember, setSelMember] = useState<string | null>(null);
   const [zipMembers, setZipMembers] = useState<Record<number, Member[]>>({});
   const [zipExpanded, setZipExpanded] = useState<Set<number>>(new Set());
+  const { open: filesOpen, toggle: toggleFilesSidebar } = useCollapsedSidebar("files_sidebar");
 
   // Right tabs
   const [rightTab, setRightTab] = useState<"preview" | "questions" | "history" | "chat">("preview");
 
-  // "Hỏi theo đề tài" (R6 — toàn workspace)
-  const [topic, setTopic] = useState("");
+  // "Luyện phản biện" (R6 — AI giả lập hội đồng, sinh 10 câu hỏi từ toàn bộ workspace)
   const [wsPersona, setWsPersona] = useState("theory");
   const [wsQuestions, setWsQuestions] = useState<WorkspaceQuestionItem[]>([]);
   const [wsLoading, setWsLoading] = useState(false);
   const [wsQError, setWsQError] = useState("");
+  // Lịch sử phiên (grid + filter + pagination)
+  const [wqAll, setWqAll] = useState<WorkspaceQuestionItem[]>([]);
+  const [wqPage, setWqPage] = useState(1);
+  const WQ_LIMIT = 9;
+  const [wqFPersona, setWqFPersona] = useState("all");
+  const [wqFStatus, setWqFStatus] = useState("all");
+  const [wqFDate, setWqFDate] = useState("all");
+  const [wqDeleting, setWqDeleting] = useState(false);
   const [wsRunning, setWsRunning] = useState(false);
+  const [wsStageText, setWsStageText] = useState("");
+  const wsJobId = useRef<string | null>(null);
 
   // History
   const [sessions, setSessions] = useState<SessionsResponse | null>(null);
@@ -261,7 +283,7 @@ export default function WorkspaceDetailPage() {
 
   const openTab = (tab: "preview" | "questions" | "history" | "chat") => {
     setRightTab(tab);
-    if (tab === "questions" && wsQuestions.length === 0 && !wsLoading) loadWorkspaceQuestions();
+    if (tab === "questions" && wqAll.length === 0 && !wsLoading) loadWorkspaceQuestions();
     if (tab === "history" && !sessions && !loadingSessions) loadSessions();
   };
 
@@ -275,7 +297,11 @@ export default function WorkspaceDetailPage() {
       });
       if (r.ok) {
         const data = await r.json();
-        setSessions({ assessments: data.assessments ?? [], code_analyses: data.code_analyses ?? [] });
+        setSessions({
+          assessments: data.assessments ?? [],
+          code_analyses: data.code_analyses ?? [],
+          workspace_questions: data.workspace_questions ?? [],
+        });
       }
     } finally {
       setLoadingSessions(false);
@@ -288,12 +314,12 @@ export default function WorkspaceDetailPage() {
     setWsLoading(true);
     setWsQError("");
     try {
-      const r = await fetch(`/api/workspaces/${wsId}/questions`, {
+      const r = await fetch(`/api/workspaces/${wsId}/questions?limit=50&offset=0`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!r.ok) throw new Error("Không thể tải lịch sử đề tài");
       const data = await r.json();
-      setWsQuestions(data ?? []);
+      setWqAll(data.items ?? []);
     } catch (e: any) {
       setWsQError(e.message);
     } finally {
@@ -301,13 +327,43 @@ export default function WorkspaceDetailPage() {
     }
   };
 
+  const deleteWq = async (id: number) => {
+    const token = getToken();
+    if (!token || wqDeleting) return;
+    setWqDeleting(true);
+    try {
+      const r = await fetch(`/api/workspaces/${wsId}/questions/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (r.ok) setWqAll((prev) => prev.filter((q) => q.id !== id));
+    } finally {
+      setWqDeleting(false);
+    }
+  };
+
+  const deleteAllWq = async () => {
+    const token = getToken();
+    if (!token || wqDeleting) return;
+    setWqDeleting(true);
+    try {
+      const r = await fetch(`/api/workspaces/${wsId}/questions`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (r.ok) setWqAll([]);
+    } finally {
+      setWqDeleting(false);
+    }
+  };
+
   const askWorkspaceTopic = async () => {
-    const trimmed = topic.trim();
-    if (!trimmed || wsRunning) return;
+    if (wsRunning) return;
     const token = getToken();
     if (!token) return;
     setWsRunning(true);
     setWsQError("");
+    setWsStageText("Đang chuẩn bị tài liệu...");
     try {
       const r = await fetch(`/api/workspaces/${wsId}/questions`, {
         method: "POST",
@@ -315,11 +371,11 @@ export default function WorkspaceDetailPage() {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ topic: trimmed, persona: wsPersona }),
+        body: JSON.stringify({ topic: ws?.name ?? "", persona: wsPersona }),
       });
-      if (!r.ok) throw new Error("Không tạo được yêu cầu hỏi đề tài");
+      if (!r.ok) throw new Error("Không tạo được yêu cầu sinh câu hỏi");
       const created = await r.json();
-      setTopic("");
+      wsJobId.current = created.job_id;
       // Poll job (pattern giống các luồng async khác: 1.5s × tối đa 60 lần)
       for (let attempt = 0; attempt < 60; attempt++) {
         await new Promise((res) => setTimeout(res, 1500));
@@ -328,14 +384,67 @@ export default function WorkspaceDetailPage() {
         });
         if (!jr.ok) continue;
         const job = await jr.json();
-        if (job.status === "completed" || job.status === "failed") break;
+        // Stage text theo progress thực (không hiển thị %)
+        const p = job.progress != null ? Number(job.progress) : 0;
+        setWsStageText(
+          p < 30 ? "Đang chuẩn bị tài liệu..."
+            : p < 50 ? "Đang phân tích nội dung..."
+            : p < 70 ? "Đang tìm kiếm ngữ cảnh..."
+            : "Đang sinh câu hỏi phản biện..."
+        );
+        if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") break;
       }
       await loadWorkspaceQuestions();
     } catch (e: any) {
       setWsQError(e.message);
     } finally {
       setWsRunning(false);
+      setWsStageText("");
+      wsJobId.current = null;
     }
+  };
+
+  const stopWorkspaceTopic = async () => {
+    const token = getToken();
+    const jobId = wsJobId.current;
+    if (!token || !jobId) return;
+    try {
+      await fetch(`/api/jobs/${jobId}/cancel`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch { /* ignore */ }
+    setWsRunning(false);
+    setWsStageText("");
+    wsJobId.current = null;
+    await loadWorkspaceQuestions();
+  };
+
+  // Lọc + phân trang lịch sử phiên
+  const wqFiltered = useMemo(() => {
+    const now = Date.now();
+    const day = 86400000;
+    return wqAll.filter((q) => {
+      if (wqFPersona !== "all" && q.persona !== wqFPersona) return false;
+      if (wqFStatus !== "all" && q.status !== wqFStatus) return false;
+      if (wqFDate !== "all") {
+        const age = now - new Date(q.created_at).getTime();
+        if (wqFDate === "today" && age > day) return false;
+        if (wqFDate === "7d" && age > 7 * day) return false;
+        if (wqFDate === "30d" && age > 30 * day) return false;
+      }
+      return true;
+    });
+  }, [wqAll, wqFPersona, wqFStatus, wqFDate]);
+
+  const wqTotalPages = Math.max(1, Math.ceil(wqFiltered.length / WQ_LIMIT));
+  const wqPageClamped = Math.min(wqPage, wqTotalPages);
+  const wqPageItems = wqFiltered.slice((wqPageClamped - 1) * WQ_LIMIT, wqPageClamped * WQ_LIMIT);
+
+  const wqTitle = (q: WorkspaceQuestionItem) => {
+    if (q.status === "failed") return `❌ Thất bại: ${q.error || "Lỗi không xác định"}`;
+    const first = q.questions?.[0];
+    return first ? `#${first.id} ${first.question}` : (q.topic || "Phiên luyện phản biện");
   };
 
   const selectedFile = ws?.files.find((f) => f.document_id === selDocId) ?? null;
@@ -357,6 +466,13 @@ export default function WorkspaceDetailPage() {
         kind: "🔍 Code Review" as const,
         meta: s.pass_rate != null ? `Pass rate: ${s.pass_rate}%` : "",
         detail: s.issue_count != null ? `${s.issue_count} vấn đề` : "",
+      })),
+      ...sessions.workspace_questions.map((s) => ({
+        ...s,
+        kind: "🎓 Luyện phản biện" as const,
+        meta: `Persona: ${personaLabel(s.persona)}`,
+        detail: s.status,
+        question_count: s.question_count,
       })),
     ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [sessions]);
@@ -424,14 +540,26 @@ export default function WorkspaceDetailPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5">
-            {/* Left: files sidebar (Windows Explorer style) */}
-            <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden lg:h-[calc(100vh-240px)] lg:sticky lg:top-4 flex flex-col">
+          <div className={`grid grid-cols-1 lg:grid-cols-[auto_1fr] ${filesOpen ? "gap-5" : "lg:gap-0"}`}>
+            {/* Left: files sidebar (Windows Explorer style) — thu gọn được */}
+            <div
+              className={`bg-card rounded-2xl shadow-sm overflow-hidden lg:h-[calc(100vh-240px)] lg:sticky lg:top-4 flex flex-col transition-[width,opacity] duration-300 ease-in-out ${
+                filesOpen ? "w-full lg:w-[300px] opacity-100 border border-zinc-800/60" : "hidden lg:flex lg:w-0 lg:opacity-0 lg:border-0"
+              }`}
+            >
               <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2">
+                <button
+                  onClick={toggleFilesSidebar}
+                  title="Ẩn danh sách file"
+                  className="px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors shrink-0"
+                >
+                  ◀
+                </button>
                 <span className="text-sm">📁</span>
                 <span className="text-[13px] font-bold text-zinc-200">Files</span>
                 <span className="ml-auto text-[11px] text-zinc-500">{ws.document_count} file</span>
               </div>
+              {filesOpen && (
               <div className="p-2 overflow-y-auto flex-1">
                 {ws.files.map((f) => {
                   const isActive = selDocId === f.document_id;
@@ -476,11 +604,20 @@ export default function WorkspaceDetailPage() {
                   );
                 })}
               </div>
+              )}
             </div>
 
             {/* Right: tabs + content */}
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-1 bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-1 w-fit flex-wrap">
+                <button
+                  onClick={toggleFilesSidebar}
+                  title={filesOpen ? "Ẩn danh sách file" : "Hiện danh sách file"}
+                  className={`px-3 py-2 text-[13px] font-semibold rounded-xl transition-colors ${filesOpen ? "bg-zinc-800 text-teal-400" : "text-zinc-500 hover:bg-zinc-800/60"}`}
+                >
+                  📁 Files
+                </button>
+                <span className="w-px h-5 bg-zinc-800 mx-1" />
                 <button
                   onClick={() => openTab("preview")}
                   className={`px-5 py-2 text-[13px] font-semibold rounded-xl transition-colors ${
@@ -495,7 +632,7 @@ export default function WorkspaceDetailPage() {
                     rightTab === "questions" ? "bg-primary text-primary-foreground" : "text-zinc-500 hover:bg-zinc-800/60"
                   }`}
                 >
-                  ❓ Câu hỏi AI
+                  🎓 Luyện phản biện
                 </button>
                 <button
                   onClick={() => openTab("chat")}
@@ -539,117 +676,173 @@ export default function WorkspaceDetailPage() {
 
               {rightTab === "questions" && (
                 <div className="flex flex-col gap-8">
-                  {/* R6: "Hỏi theo đề tài" — RAG toàn workspace */}
+                  {/* R6: "Luyện phản biện" — AI giả lập hội đồng, sinh 10 câu hỏi kèm gợi ý */}
                   <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-5">
-                    <h3 className="text-[15px] font-bold text-zinc-200 mb-1">🧭 Hỏi theo đề tài (toàn workspace)</h3>
-                    <p className="text-[12px] text-zinc-500 mb-4">AI tìm các đoạn liên quan nhất trong toàn bộ {ws.document_count} file rồi sinh câu hỏi kèm nguồn file:đoạn.</p>
+                    <h3 className="text-[15px] font-bold text-zinc-200 mb-1">🎓 Luyện phản biện (Giả lập hội đồng)</h3>
+                    <p className="text-[12px] text-zinc-500 mb-4">AI đóng vai hội đồng, tự động sinh <b>10 câu hỏi</b> bắt bẻ chuyên sâu kèm gợi ý trả lời từ toàn bộ {ws.document_count} file — giúp bạn ôn tập trước khi bảo vệ thật. Chọn chế độ hội đồng bên dưới rồi bấm "Sinh 10 câu hỏi".</p>
                     <div className="flex flex-col md:flex-row gap-3">
-                      <input
-                        value={topic}
-                        onChange={(e) => setTopic(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && askWorkspaceTopic()}
-                        placeholder="VD: Hệ thống xử lý bảo mật thế nào?"
-                        className="flex-1 px-4 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-[14px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-primary"
-                      />
                       <select
                         value={wsPersona}
                         onChange={(e) => setWsPersona(e.target.value)}
-                        className="px-3 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-[13px] text-zinc-300 focus:outline-none focus:border-primary"
+                        disabled={wsRunning}
+                        className="px-3 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-[13px] text-zinc-300 focus:outline-none focus:border-primary disabled:opacity-50"
                       >
                         {PERSONAS.map((p) => (
                           <option key={p.key} value={p.key}>{p.label}</option>
                         ))}
                       </select>
-                      <button
-                        onClick={askWorkspaceTopic}
-                        disabled={!topic.trim() || wsRunning}
-                        className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-[14px] font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                      >
-                        {wsRunning ? "Đang xử lý..." : "Hỏi đề tài"}
-                      </button>
+                      {wsRunning ? (
+                        <button
+                          onClick={stopWorkspaceTopic}
+                          className="px-5 py-2.5 bg-red-500/90 text-white rounded-xl text-[14px] font-semibold hover:bg-red-500 whitespace-nowrap"
+                        >
+                          ⏹ Dừng
+                        </button>
+                      ) : (
+                        <button
+                          onClick={askWorkspaceTopic}
+                          className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-[14px] font-semibold hover:bg-primary/90 whitespace-nowrap"
+                        >
+                          Sinh 10 câu hỏi
+                        </button>
+                      )}
                     </div>
+
+                    {wsRunning && (
+                      <div className="mt-3 flex items-center gap-2 text-[12px] text-zinc-400">
+                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <span>{wsStageText || "Đang xử lý..."}</span>
+                      </div>
+                    )}
 
                     {wsQError && (
                       <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-red-400 text-[13px]">{wsQError}</div>
                     )}
 
-                    {wsLoading ? (
-                      <p className="text-zinc-500 text-[13px] py-4 text-center">Đang tải đề tài...</p>
-                    ) : wsQuestions.length > 0 ? (
-                      <div className="mt-5 flex flex-col gap-5">
-                        {wsQuestions.map((wq) => (
-                          <div key={wq.id} className="border border-zinc-800/60 rounded-xl p-4">
-                            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-[14px] font-bold text-zinc-200">📌 {wq.topic}</span>
-                                <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 text-[11px] font-bold rounded-full">{personaLabel(wq.persona)}</span>
-                                <span
-                                  className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${
-                                    wq.status === "completed"
-                                      ? "bg-green-500/10 text-green-400"
-                                      : wq.status === "failed"
-                                      ? "bg-red-500/10 text-red-400"
-                                      : "bg-blue-500/10 text-blue-400"
+                    {/* Lịch sử phiên luyện phản biện (grid + filter + pagination) */}
+                    {wqAll.length > 0 && (
+                      <div className="mt-6">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-[13px] font-bold text-zinc-400">📋 Lịch sử luyện phản biện ({wqAll.length} phiên)</h4>
+                          <button
+                            onClick={deleteAllWq}
+                            disabled={wqDeleting}
+                            className="px-3 py-1.5 text-[12px] font-semibold text-red-400 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                          >
+                            🗑️ Xoá tất cả
+                          </button>
+                        </div>
+
+                        {wqAll.length > 9 && (
+                          <div className="flex flex-wrap items-center gap-2 mb-3">
+                            <span className="text-[12px] text-zinc-500 font-semibold">Lọc:</span>
+                            <select
+                              value={wqFPersona}
+                              onChange={(e) => { setWqFPersona(e.target.value); setWqPage(1); }}
+                              className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300"
+                            >
+                              <option value="all">Tất cả persona</option>
+                              {PERSONAS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+                            </select>
+                            <select
+                              value={wqFStatus}
+                              onChange={(e) => { setWqFStatus(e.target.value); setWqPage(1); }}
+                              className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300"
+                            >
+                              <option value="all">Tất cả trạng thái</option>
+                              <option value="completed">✅ Thành công</option>
+                              <option value="failed">❌ Thất bại</option>
+                            </select>
+                            <select
+                              value={wqFDate}
+                              onChange={(e) => { setWqFDate(e.target.value); setWqPage(1); }}
+                              className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300"
+                            >
+                              <option value="all">Tất cả thời gian</option>
+                              <option value="today">Hôm nay</option>
+                              <option value="7d">7 ngày qua</option>
+                              <option value="30d">30 ngày qua</option>
+                            </select>
+                            <span className="text-[12px] text-zinc-500 ml-auto">Hiển thị {wqFiltered.length} / {wqAll.length} phiên</span>
+                          </div>
+                        )}
+
+                        {wsLoading ? (
+                          <p className="text-zinc-500 text-[13px] py-4">Đang tải...</p>
+                        ) : wqPageItems.length === 0 ? (
+                          <p className="text-zinc-500 text-[13px] py-4">Không có phiên nào khớp bộ lọc.</p>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {wqPageItems.map((q) => {
+                              const failed = q.status === "failed";
+                              const qCount = q.questions?.length ?? 0;
+                              return (
+                                <div
+                                  key={q.id}
+                                  onClick={() => { if (!failed) window.location.href = `/workspaces/${wsId}/questions/${q.id}`; }}
+                                  className={`relative bg-zinc-900/60 border rounded-xl p-3.5 cursor-pointer transition-colors hover:border-primary/50 ${
+                                    failed ? "border-red-500/30" : "border-zinc-800"
                                   }`}
                                 >
-                                  {wq.status}
-                                </span>
-                              </div>
-                              <span className="text-[11px] text-zinc-500">{formatDate(wq.created_at)}</span>
-                            </div>
-                            {wq.status === "failed" ? (
-                              <p className="text-red-400 text-[13px]">{wq.error || "Tạo câu hỏi thất bại."}</p>
-                            ) : !wq.questions || wq.questions.length === 0 ? (
-                              <p className="text-zinc-500 text-[13px]">Đang xử lý hoặc chưa có câu hỏi.</p>
-                            ) : (
-                              <div className="flex flex-col gap-3">
-                                {wq.questions.map((q) => {
-                                  const d = difficulty(q.difficulty);
-                                  return (
-                                    <div key={q.id} className="bg-zinc-900/60 rounded-xl p-4">
-                                      <div className="flex items-center gap-2 flex-wrap mb-2">
-                                        <span className={`px-2.5 py-1 ${d.bg} ${d.txt} text-[11px] font-bold rounded-full`}>{d.label}</span>
-                                        <span className="text-[11px] text-zinc-500 font-medium">#{q.id}</span>
-                                      </div>
-                                      <h4 className="text-[14px] font-bold text-teal-400 leading-snug">{renderWithRefs(q.question)}</h4>
-                                      {(!wq.sources || wq.sources.length === 0) && q.citations && q.citations.length > 0 && (
-                                        <div className="mt-2 flex flex-wrap gap-1.5">
-                                          {q.citations.map((c, i) => (
-                                            <span key={i} className="px-2 py-0.5 bg-primary/10 text-primary text-[11px] font-semibold rounded-md">📎 {c}</span>
-                                          ))}
-                                        </div>
-                                      )}
-                                      {q.hint && <p className="mt-2 text-zinc-500 text-[12px] italic">💡 {q.hint}</p>}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-
-                            {!!wq.sources && wq.sources.length > 0 && (
-                              <details className="mt-3 border border-zinc-800/60 rounded-lg">
-                                <summary className="cursor-pointer px-3 py-2 text-[12px] font-bold text-zinc-300 select-none">📚 Nguồn tham khảo ({wq.sources.length})</summary>
-                                <div className="px-3 pb-3 flex flex-col gap-2">
-                                  {wq.sources.map((s) => (
-                                    <div key={s.num} className="text-[12px]">
-                                      <div className="flex items-start gap-2">
-                                        <span className="inline-flex items-center justify-center w-[17px] h-[17px] rounded-full bg-zinc-700 text-zinc-200 text-[10px] font-bold leading-none shrink-0 mt-0.5">{s.num}</span>
-                                        <div>
-                                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${s.source === "ref" ? "bg-purple-500/15 text-purple-300" : "bg-zinc-800 text-zinc-400"}`}>{s.source === "ref" ? "REF" : "USER"}</span>
-                                          <span className="ml-2 font-semibold text-zinc-300">{s.title}</span>
-                                          {typeof s.chunk_index === "number" && <span className="text-zinc-500"> — đoạn {s.chunk_index}</span>}
-                                        </div>
-                                      </div>
-                                      {s.content && <p className="pl-[25px] text-zinc-500 leading-relaxed mt-1">{s.content}</p>}
-                                    </div>
-                                  ))}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); deleteWq(q.id); }}
+                                    disabled={wqDeleting}
+                                    className="absolute top-2.5 right-2.5 px-2 py-1 text-[11px] text-red-400 bg-red-500/10 rounded-lg hover:bg-red-500/20 disabled:opacity-50"
+                                  >
+                                    🗑️
+                                  </button>
+                                  <div className="flex items-center gap-2 mb-2 pr-8">
+                                    <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${
+                                      q.persona === "theory" ? "bg-green-500/10 text-green-400"
+                                      : q.persona === "strict" ? "bg-red-500/10 text-red-400"
+                                      : "bg-purple-500/10 text-purple-300"
+                                    }`}>{personaLabel(q.persona)}</span>
+                                    <span className={`w-2 h-2 rounded-full ${failed ? "bg-red-400" : "bg-green-400"}`} />
+                                  </div>
+                                  <p className={`text-[13px] font-semibold leading-snug line-clamp-2 mb-3 ${failed ? "text-red-400 italic" : "text-zinc-200"}`}>
+                                    {wqTitle(q)}
+                                  </p>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[11px] text-zinc-500">{formatDate(q.created_at)}</span>
+                                    <span className="text-[11px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full">{qCount} câu</span>
+                                  </div>
                                 </div>
-                              </details>
-                            )}
+                              );
+                            })}
                           </div>
-                        ))}
+                        )}
+
+                        {wqTotalPages > 1 && (
+                          <div className="flex items-center justify-center gap-1.5 mt-4 flex-wrap">
+                            <button
+                              onClick={() => setWqPage((p) => Math.max(1, p - 1))}
+                              disabled={wqPageClamped === 1}
+                              className="px-3 py-1.5 text-[12px] font-semibold bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-300 disabled:opacity-40 hover:border-primary"
+                            >
+                              ‹ Trước
+                            </button>
+                            {Array.from({ length: wqTotalPages }, (_, i) => i + 1).map((p) => (
+                              <button
+                                key={p}
+                                onClick={() => setWqPage(p)}
+                                className={`px-3 py-1.5 text-[12px] font-semibold rounded-lg ${
+                                  p === wqPageClamped ? "bg-primary/15 border border-primary text-primary" : "bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-primary"
+                                }`}
+                              >
+                                {p}
+                              </button>
+                            ))}
+                            <button
+                              onClick={() => setWqPage((p) => Math.min(wqTotalPages, p + 1))}
+                              disabled={wqPageClamped === wqTotalPages}
+                              className="px-3 py-1.5 text-[12px] font-semibold bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-300 disabled:opacity-40 hover:border-primary"
+                            >
+                              Sau ›
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    ) : null}
+                    )}
                   </div>
                 </div>
               )}
@@ -669,24 +862,41 @@ export default function WorkspaceDetailPage() {
                     <p className="text-zinc-500 text-[13px] p-5">Chưa có phiên nào cho workspace này.</p>
                   ) : (
                     <div className="divide-y divide-zinc-800/60">
-                      {allSessions.map((s) => (
-                        <div key={`${s.kind}-${s.id}`} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-zinc-800/40">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[12px] font-bold text-zinc-500">{s.kind}</span>
-                              <span className="text-[13px] font-semibold text-zinc-200 truncate">{s.document_name}</span>
-                              {s.meta && <span className="text-[11px] text-zinc-500">{s.meta}</span>}
+                      {allSessions.map((s) => {
+                        const isWq = s.kind === "🎓 Luyện phản biện";
+                        return (
+                          <div key={`${s.kind}-${s.id}`} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-zinc-800/40">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[12px] font-bold text-zinc-500">{s.kind}</span>
+                                <span className="text-[13px] font-semibold text-zinc-200 truncate">
+                                  {isWq ? (s.topic || "Luyện phản biện") : s.document_name}
+                                </span>
+                                {s.meta && <span className="text-[11px] text-zinc-500">{s.meta}</span>}
+                                {isWq && (s as any).question_count > 0 && (
+                                  <span className="text-[11px] text-zinc-500">· {(s as any).question_count} câu</span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-zinc-500 mt-0.5">{s.detail} · {formatDate(s.created_at)}</div>
                             </div>
-                            <div className="text-[11px] text-zinc-500 mt-0.5">{s.detail} · {formatDate(s.created_at)}</div>
+                            {isWq ? (
+                              <Link
+                                href={`/workspaces/${wsId}/questions/${s.id}`}
+                                className="px-3 py-1 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors shrink-0"
+                              >
+                                Xem
+                              </Link>
+                            ) : (
+                              <Link
+                                href={s.kind.includes("Code") ? "/code-review" : `/documents/${s.document_id}`}
+                                className="px-3 py-1 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors shrink-0"
+                              >
+                                Xem
+                              </Link>
+                            )}
                           </div>
-                          <Link
-                            href={s.kind.includes("Code") ? "/code-review" : `/documents/${s.document_id}`}
-                            className="px-3 py-1 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors shrink-0"
-                          >
-                            Xem
-                          </Link>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
