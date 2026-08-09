@@ -4,9 +4,10 @@ Embedder Service — sinh vector embedding cho RAG (chunk retrieval).
 Gọi OpenAI-compatible `/v1/embeddings` qua local endpoint (Gemini server,
 port 20128) thay vì sentence-transformers: không tải model cục bộ, 0 phí API ngoài.
 
-Model: gemini-embedding-2-preview via local endpoint. Dim ép xuống 1024 qua param
-`dimensions` (proxy hỗ trợ OpenAI-compat) — < 2000 để HNSW index của pgvector hoạt động
-(pgvector chặn index với vector > 2000 dim). Khớp `vector(1024)` trong migration rag0000000002.
+Model: gemini/gemini-embedding-001 via local 9router endpoint (port 20128). Dim ép xuống
+1024 qua param `dimensions` (proxy hỗ trợ OpenAI-compat) — < 2000 để HNSW index của
+pgvector hoạt động (pgvector chặn index với vector > 2000 dim). Khớp `vector(1024)` trong
+migration rag0000000002.
 """
 import logging
 import os
@@ -18,7 +19,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-EMBEDDING_MODEL = "gemini-embedding-2-preview"
+EMBEDDING_MODEL = "gemini/gemini-embedding-001"
 EMBEDDING_DIM = 1024  # vì pgvector hnsw/ivfflat chỉ index ≤ 2000 dim
 BATCH_SIZE = int(os.getenv("EMBED_BATCH_SIZE", "32"))
 _TIMEOUT = httpx.Timeout(600.0)

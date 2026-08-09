@@ -19,6 +19,7 @@ from app.schemas.workspace_question import (
     WorkspaceQuestionCreateRequest,
     WorkspaceQuestionCreateResponse,
     WorkspaceQuestionResponse,
+    WorkspaceQuestionListResponse,
 )
 from app.services.job_queue import create_job
 
@@ -71,16 +72,76 @@ async def create_workspace_questions(
     return WorkspaceQuestionCreateResponse(question_id=row.id, job_id=job_id, status="queued")
 
 
-@router.get("/{workspace_id}/questions", response_model=list[WorkspaceQuestionResponse])
+@router.get("/{workspace_id}/questions", response_model=WorkspaceQuestionListResponse)
 async def list_workspace_questions(
+    workspace_id: int,
+    limit: int = 10,
+    offset: int = 0,
+    user: User = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    ws = await _get_owned_workspace(workspace_id, user, db)
+    limit = max(1, min(limit, 50))  # clamp 1..50
+    offset = max(0, offset)
+    total_result = await db.execute(
+        select(WorkspaceQuestion)
+        .where(WorkspaceQuestion.workspace_id == ws.id)
+    )
+    total = len(total_result.scalars().all())
+    result = await db.execute(
+        select(WorkspaceQuestion)
+        .where(WorkspaceQuestion.workspace_id == ws.id)
+        .order_by(WorkspaceQuestion.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return WorkspaceQuestionListResponse(
+        total=total,
+        limit=limit,
+        offset=offset,
+        items=[WorkspaceQuestionResponse.model_validate(q.__dict__) for q in result.scalars().all()],
+    )
+
+
+@router.get("/{workspace_id}/questions/{question_id}", response_model=WorkspaceQuestionResponse)
+async def get_workspace_question(
+    workspace_id: int,
+    question_id: int,
+    user: User = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    ws = await _get_owned_workspace(workspace_id, user, db)
+    q = await db.get(WorkspaceQuestion, question_id)
+    if not q or q.workspace_id != ws.id:
+        raise HTTPException(status_code=404, detail="Question session not found")
+    return WorkspaceQuestionResponse.model_validate(q.__dict__)
+
+
+@router.delete("/{workspace_id}/questions/{question_id}", status_code=204)
+async def delete_workspace_question(
+    workspace_id: int,
+    question_id: int,
+    user: User = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    ws = await _get_owned_workspace(workspace_id, user, db)
+    q = await db.get(WorkspaceQuestion, question_id)
+    if not q or q.workspace_id != ws.id:
+        raise HTTPException(status_code=404, detail="Question session not found")
+    await db.delete(q)
+    await db.commit()
+
+
+@router.delete("/{workspace_id}/questions", status_code=204)
+async def delete_all_workspace_questions(
     workspace_id: int,
     user: User = Depends(get_current_user),
     db=Depends(get_db),
 ):
     ws = await _get_owned_workspace(workspace_id, user, db)
     result = await db.execute(
-        select(WorkspaceQuestion)
-        .where(WorkspaceQuestion.workspace_id == ws.id)
-        .order_by(WorkspaceQuestion.created_at.desc())
+        select(WorkspaceQuestion).where(WorkspaceQuestion.workspace_id == ws.id)
     )
-    return result.scalars().all()
+    for q in result.scalars().all():
+        await db.delete(q)
+    await db.commit()
