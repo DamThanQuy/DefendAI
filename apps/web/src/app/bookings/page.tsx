@@ -7,9 +7,11 @@ import {
   Booking,
   createBooking,
   getMentors,
+  getMentorAvailability,
   getMyBookings,
   cancelBooking,
   checkMeetingAccess,
+  AvailabilitySlot,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Loader2, CalendarPlus, Clock, CheckCircle2, XCircle, Hourglass } from "lucide-react";
@@ -48,6 +50,10 @@ export default function BookingsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Lịch rảnh của mentor đang chọn
+  const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
+  const [availLoading, setAvailLoading] = useState(false);
+
   const isStudent = hasRole("student") || (!hasRole("mentor") && !hasRole("admin"));
 
   async function load() {
@@ -60,6 +66,19 @@ export default function BookingsPage() {
       setError(e?.response?.data?.detail || "Không thể tải dữ liệu");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadAvailability(id: number) {
+    setAvailLoading(true);
+    setAvailability([]);
+    try {
+      const res = await getMentorAvailability(id);
+      setAvailability(res.data.filter((s) => s.is_available));
+    } catch {
+      setAvailability([]);
+    } finally {
+      setAvailLoading(false);
     }
   }
 
@@ -158,7 +177,12 @@ export default function BookingsPage() {
               <label className="block text-xs text-zinc-400 mb-1">Mentor</label>
               <select
                 value={mentorId}
-                onChange={(e) => setMentorId(e.target.value ? Number(e.target.value) : "")}
+                onChange={(e) => {
+                  const v = e.target.value ? Number(e.target.value) : "";
+                  setMentorId(v);
+                  setProposedTime("");
+                  if (v) loadAvailability(v);
+                }}
                 className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
               >
                 <option value="">-- Chọn mentor --</option>
@@ -177,6 +201,46 @@ export default function BookingsPage() {
                 onChange={(e) => setProposedTime(e.target.value)}
                 className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
               />
+              {mentorId && (
+                <div className="mt-2">
+                  {availLoading ? (
+                    <span className="text-xs text-zinc-500">Đang tải lịch rảnh...</span>
+                  ) : availability.length === 0 ? (
+                    <span className="text-xs text-amber-400">Mentor chưa cài lịch rảnh. Bạn vẫn có thể đề xuất giờ, mentor sẽ xác nhận.</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      <span className="text-xs text-zinc-500 w-full">Khung giờ rảnh của mentor (bấm để chọn):</span>
+                      {availability.map((s) => {
+                        const dayName = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][s.day_of_week] ?? `T${s.day_of_week}`;
+                        return (
+                          <button
+                            key={`${s.day_of_week}-${s.start_time}`}
+                            type="button"
+                            onClick={() => {
+                              // Gợi ý ngày gần nhất có slot này
+                              const now = new Date();
+                              const curDow = now.getDay(); // 0=CN
+                              let diff = (s.day_of_week - curDow + 7) % 7;
+                              if (diff === 0) diff = 7;
+                              const d = new Date(now);
+                              d.setDate(now.getDate() + diff);
+                              const [h, m] = s.start_time.split(":").map(Number);
+                              d.setHours(h, m, 0, 0);
+                              const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+                                .toISOString()
+                                .slice(0, 16);
+                              setProposedTime(iso);
+                            }}
+                            className="px-2 py-1 rounded-md bg-teal-500/10 border border-teal-500/30 text-teal-300 text-xs hover:bg-teal-500/20"
+                          >
+                            {dayName} {s.start_time}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs text-zinc-400 mb-1">Tiêu đề</label>

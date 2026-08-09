@@ -75,6 +75,17 @@ def _determine_mime(filename: str) -> str:
     ext = Path(filename).suffix.lower()
     return EXTENSION_TO_MIME.get(ext, "application/octet-stream")
 
+def _is_privileged(user: User) -> bool:
+    """Admin / Mentor được xem tất cả documents."""
+    return bool({r.name for r in user.roles} & {"admin", "mentor"})
+
+def _assert_doc_access(doc: Document, user: User) -> None:
+    """Chỉ chủ sở hữu (uploaded_by) hoặc admin/mentor mới truy cập được."""
+    if _is_privileged(user):
+        return
+    if doc.uploaded_by is None or doc.uploaded_by != user.id:
+        raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập tài liệu này")
+
 
 MAGIC_BYTES = {
     b"%PDF": ".pdf",
@@ -156,19 +167,30 @@ async def upload_document(
 
 
 @router.get("/{doc_id}", response_model=DocumentResponse)
-async def get_document(doc_id: int, db: AsyncSession = Depends(get_db)):
+async def get_document(
+    doc_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """Lấy metadata của 1 document theo ID."""
     result = await db.execute(select(Document).where(Document.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+    _assert_doc_access(doc, user)
     return doc
 
 
 @router.get("/", response_model=DocumentListResponse)
-async def list_documents(db: AsyncSession = Depends(get_db)):
-    """List tất cả documents, sắp xếp mới nhất lên đầu."""
-    result = await db.execute(select(Document).order_by(Document.created_at.desc()))
+async def list_documents(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """List documents. User thường chỉ thấy file mình upload; admin/mentor thấy tất cả."""
+    query = select(Document).order_by(Document.created_at.desc())
+    if not _is_privileged(user):
+        query = query.where(Document.uploaded_by == user.id)
+    result = await db.execute(query)
     docs = list(result.scalars().all())
     return DocumentListResponse(total=len(docs), items=docs)
 
@@ -184,6 +206,7 @@ async def download_document(
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+    _assert_doc_access(doc, user)
 
     try:
         data = await get_doc(doc.storage_key)
@@ -240,6 +263,7 @@ async def list_document_contents(
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+    _assert_doc_access(doc, user)
 
     if doc.doc_type != DocType.ZIP:
         raise HTTPException(status_code=400, detail="Chỉ hỗ trợ xem nội dung file ZIP/RAR")
@@ -272,6 +296,7 @@ async def get_document_member_content(
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+    _assert_doc_access(doc, user)
 
     try:
         data = await read_archive_member(doc, member_path)

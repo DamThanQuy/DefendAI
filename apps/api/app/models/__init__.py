@@ -14,6 +14,7 @@ from app.models.document_chunk import DocumentChunk  # noqa: F401
 from app.models.reference_chunk import ReferenceChunk  # noqa: F401
 from app.models.meeting import Meeting, MeetingMember, MeetingStatus, MemberRole  # noqa: F401
 from app.models.booking import MockBooking, BookingStatus  # noqa: F401
+from app.models.availability import MentorAvailability  # noqa: F401
 from app.models.assessment import (  # noqa: F401
     Assessment,
     AssessmentStatus,

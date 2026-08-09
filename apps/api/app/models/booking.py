@@ -46,6 +46,8 @@ class MockBooking(Base):
     # Tiêu đề / ghi chú buổi mock (vd: "Bảo vệ đồ án Nhóm 5")
     title = Column(String(255), nullable=False)
     note = Column(String(1000), nullable=True)
+    # Lý do mentor từ chối (chỉ khi status=rejected)
+    reject_reason = Column(String(500), nullable=True)
 
     status = Column(
         SQLEnum(BookingStatus),
