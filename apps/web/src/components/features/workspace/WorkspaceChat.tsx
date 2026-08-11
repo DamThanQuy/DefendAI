@@ -427,13 +427,6 @@ export default function WorkspaceChat({
             ))}
           </select>
           <button
-            onClick={createConversation}
-            title="Tạo đoạn chat mới"
-            className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
-          >
-            ➕ Đoạn mới
-          </button>
-          <button
             onClick={toggleSidebar}
             title={sidebarOpen ? "Thu gọn danh sách đoạn" : "Mở danh sách đoạn"}
             className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
@@ -447,8 +440,20 @@ export default function WorkspaceChat({
       <div className="flex flex-1 min-h-0">
         {/* Sidebar đoạn chat — thu gọn được, trạng thái lưu theo user */}
         {sidebarOpen && (
-        <div className="w-44 shrink-0 border-r border-zinc-800/60 bg-zinc-900/40 overflow-y-auto custom-scrollbar p-2 flex flex-col gap-1 h-full">
-          <p className="px-2 pt-1 pb-1 text-[10px] font-bold uppercase tracking-wide text-zinc-500">Đoạn chat</p>
+        <div className="w-44 shrink-0 border-r border-zinc-800/60 bg-zinc-900/40 flex flex-col h-full min-h-0">
+          {/* Top bar cố định: tiêu đề + nút tạo đoạn mới (không trôi khi cuộn list) */}
+          <div className="shrink-0 px-2 pt-2 pb-2 border-b border-zinc-800/60 flex items-center justify-between gap-1">
+            <p className="px-1 text-[10px] font-bold uppercase tracking-wide text-zinc-500">Đoạn chat</p>
+            <button
+              onClick={createConversation}
+              title="Tạo đoạn chat mới"
+              className="px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-md text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors whitespace-nowrap"
+            >
+              ➕ Đoạn mới
+            </button>
+          </div>
+          {/* Danh sách đoạn chat — cuộn độc lập, không làm trôi top bar */}
+          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-2 flex flex-col gap-1">
           {convLoading ? (
             <p className="text-zinc-500 text-[11px] px-2 py-1">Đang tải...</p>
           ) : (
@@ -513,6 +518,7 @@ export default function WorkspaceChat({
               ))}
             </>
           )}
+          </div>
         </div>
         )}
 
