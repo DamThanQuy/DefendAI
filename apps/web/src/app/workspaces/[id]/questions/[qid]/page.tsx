@@ -90,7 +90,8 @@ export default function WqDetailPage() {
   }, [wsId, qid]);
 
   const formatDate = (iso: string) =>
-    new Date(iso).toLocaleString("vi-VN", {
+    // backend returns naive UTC; treat as UTC then localize to viewer TZ
+    new Date(iso + "Z").toLocaleString("vi-VN", {
       day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
     });
   const difficulty = (d: string) => diffCfg[d] ?? diffCfg.medium;

@@ -31,6 +31,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.core.database import get_db
 from app.models.entities import DocType, Document, DocumentStatus
+from app.routers import code_scan as code_scan_router
 from app.services.code_scanner import (
     CodeScanError,
     ScannedFile,
@@ -41,12 +42,38 @@ from app.services.code_scanner import (
     build_prompt,
     extract_code_files,
 )
-from app.services.storage import get_doc
 
 # ============================================================
 # MOCK DB
 # ============================================================
 mock_db = AsyncMock()
+
+# POST /api/code/scan creates a CodeAnalysis then enqueues a job. Both need a
+# usable id + a job_id when the DB is mocked.
+_created_analysis_id = {"value": 1000}
+
+
+def _fake_refresh(obj):
+    if getattr(obj, "__class__", None) and obj.__class__.__name__ == "CodeAnalysis":
+        obj.id = _created_analysis_id["value"]
+
+
+mock_db.add = MagicMock(side_effect=lambda obj: None)
+mock_db.commit = AsyncMock()
+mock_db.refresh = AsyncMock(side_effect=_fake_refresh)
+
+
+@pytest.fixture(autouse=True)
+def reset_mock():
+    mock_db.reset_mock()
+    mock_db.add = MagicMock(side_effect=lambda obj: None)
+    mock_db.commit = AsyncMock()
+    mock_db.refresh = AsyncMock(side_effect=_fake_refresh)
+    _created_analysis_id["value"] = 1000
+    _real_create_job = code_scan_router.create_job
+    code_scan_router.create_job = AsyncMock(return_value="job-test-uuid")
+    yield
+    code_scan_router.create_job = _real_create_job
 
 
 def override_get_db():
@@ -55,15 +82,6 @@ def override_get_db():
 
 app.dependency_overrides[get_db] = override_get_db
 client = TestClient(app)
-
-
-@pytest.fixture(autouse=True)
-def reset_mock():
-    mock_db.reset_mock()
-    mock_db.add = MagicMock()
-    mock_db.commit = AsyncMock()
-    mock_db.refresh = AsyncMock()
-    yield
 
 
 def _make_doc(
@@ -546,6 +564,7 @@ class TestCodeScanEndpoint:
         assert r.status_code == 202
         data = r.json()
         assert "job_id" in data
+        assert "analysis_id" in data
         assert data["status"] == "queued"
         assert data["job_id"] != ""
         os.unlink(zip_path)
@@ -586,6 +605,7 @@ class TestCodeScanEndpoint:
         assert r.status_code == 202
         data = r.json()
         assert "job_id" in data
+        assert "analysis_id" in data
         os.unlink(zip_path)
 
     def test_scan_error_sets_failed_status(self):
@@ -599,6 +619,7 @@ class TestCodeScanEndpoint:
         assert r.status_code == 202
         data = r.json()
         assert "job_id" in data
+        assert "analysis_id" in data
         os.unlink(zip_path)
 
     def test_scan_heuristic_fallback(self):

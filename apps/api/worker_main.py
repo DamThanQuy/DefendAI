@@ -12,6 +12,7 @@ import logging
 # noqa: F401 — imported for side-effect (handler registration)
 from app.handlers import (  # noqa: F401
     handle_code_scan,
+    handle_code_scan_module,
     handle_generate_questions,
 )
 from app.services.job_queue import worker_loop

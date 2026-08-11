@@ -26,7 +26,8 @@ services:
       # Auth (cho tuần 2-3)
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       ALGORITHM: HS256
-      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
 
       # Google OAuth (điền Client ID từ Google Cloud Console)
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -67,6 +68,9 @@ services:
       BACKEND_URL: http://api:8000
       # Google OAuth Client ID (phải trùng với GOOGLE_CLIENT_ID bên api)
       NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      # Bind mount Windows->Linux không phát inotify event, phải poll mới hot reload.
+      # Next 14 dùng watchpack (WATCHPACK_POLLING); CHOKIDAR_* chỉ dành cho CRA.
+      WATCHPACK_POLLING: "true"
     volumes:
       - ./apps/web:/app
       - /app/node_modules
@@ -127,7 +131,7 @@ services:
       start_period: 30s
 
   # ========================================================================
-  # Background worker — processes async jobs from Redis queue
+  # Background worker — processes async jobs from Redis queue (single process)
   # ========================================================================
   worker:
     build: ./apps/api
@@ -143,7 +147,8 @@ services:
       DEFAULT_PROVIDER: localhost
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       ALGORITHM: HS256
-      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
     volumes:
       - ./apps/api:/app
       - /app/__pycache__
@@ -152,6 +157,44 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - defense-net
+
+  # ========================================================================
+  # Multi-process worker (Cách B) — song song xử lý code_scan_module jobs.
+  # Scale: docker compose up -d --scale worker_multi=N
+  # ========================================================================
+  worker_multi:
+    build: ./apps/api
+    container_name: defense-worker-multi
+    restart: unless-stopped
+    entrypoint: [""]
+    command: python worker_multi.py
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/defense_db
+      REDIS_URL: redis://redis:6379/0
+      DEFAULT_PROVIDER: localhost
+      WORKER_PROCESSES: 4
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+    volumes:
+      - ./apps/api:/app
+      - /app/__pycache__
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9091/health', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - defense-net
 

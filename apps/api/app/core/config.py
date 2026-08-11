@@ -25,12 +25,27 @@ class LocalConfig(BaseModel):
     """Config cho local LLM (OpenAI-compatible, ví dụ LM Studio, Ollama)."""
     api_key: str = os.getenv("LOCAL_API_KEY", "sk-f3ac88abb90d894b-o4159v-470a9d6a")
     base_url: str = os.getenv("LOCAL_BASE_URL", "http://localhost:20128/v1")
-    model: str = os.getenv("LOCAL_MODEL", "google")
+    model: str = os.getenv("LOCAL_MODEL", "combo-3")
 
 
 class RoutingConfig(BaseModel):
     """Routing rules giữa các provider."""
     default_provider: str = os.getenv("DEFAULT_PROVIDER", "localhost")
+
+
+class GoogleEmbedConfig(BaseModel):
+    """Config cho Google Gemini Embedding (thay gateway 20128 cho RAG embed).
+
+    Gọi REST trực tiếp generativelanguage.googleapis.com, không qua local router.
+    Giữ dim=1024 để khớp vector(1024) pgvector (HNSW chỉ index <=2000 dim).
+    """
+    api_key: str = os.getenv("GOOGLE_EMBED_API_KEY", "AIzaSyD5vJeRXwcx5xuqDtEjUCIfNx80Cq6vkgI")
+    model: str = os.getenv("GOOGLE_EMBED_MODEL", "gemini-embedding-001")
+    base_url: str = os.getenv(
+        "GOOGLE_EMBED_BASE_URL",
+        "https://generativelanguage.googleapis.com/v1beta/models",
+    )
+    dim: int = int(os.getenv("GOOGLE_EMBED_DIM", "1024"))
 
 
 class MinioConfig(BaseModel):
@@ -67,8 +82,8 @@ class Settings(BaseSettings):
     # Auth
     secret_key: str = os.getenv("SECRET_KEY", "change-me-in-production")
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
-    refresh_token_expire_days: int = 7
+    access_token_expire_minutes: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))
+    refresh_token_expire_days: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
     google_client_id: str = os.getenv("GOOGLE_CLIENT_ID", "")
 
     # Sub-configs
@@ -77,6 +92,7 @@ class Settings(BaseSettings):
     routing: RoutingConfig = RoutingConfig()
     minio: MinioConfig = MinioConfig()
     rag: RAGConfig = RAGConfig()
+    google_embed: GoogleEmbedConfig = GoogleEmbedConfig()
 
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore")
 

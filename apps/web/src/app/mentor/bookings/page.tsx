@@ -19,7 +19,8 @@ import { Loader2, CheckCircle2, XCircle, Flag, Clock } from "lucide-react";
 
 function fmt(dt: string | null) {
   if (!dt) return "—";
-  return new Date(dt).toLocaleString("vi-VN", {
+  // backend returns naive UTC; treat as UTC then localize to viewer TZ
+  return new Date(dt + "Z").toLocaleString("vi-VN", {
     dateStyle: "short",
     timeStyle: "short",
   });

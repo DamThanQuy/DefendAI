@@ -353,7 +353,7 @@ export default function AdminPage() {
                           </td>
                           <td className="py-2 pr-4 font-medium text-zinc-200">{it.title}</td>
                           <td className="py-2 pr-4 text-right text-zinc-400">{it.chunks}</td>
-                          <td className="py-2 pr-4 text-zinc-500">{new Date(it.updated_at).toLocaleString("vi-VN")}</td>
+                          <td className="py-2 pr-4 text-zinc-500">{new Date(it.updated_at + "Z").toLocaleString("vi-VN")}</td>
                           <td className="py-2 text-right whitespace-nowrap">
                             <button
                               onClick={() => togglePreview(it.category, it.title)}

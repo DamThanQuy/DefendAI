@@ -1,11 +1,11 @@
 import axios, { AxiosError, AxiosRequestConfig } from "axios";
-import { API_BASE_URL } from "./constants";
 import { refreshAccessToken, handleSessionExpired } from "./auth";
 
-/** Axios instance mặc định trỏ tới backend API. */
+// Dùng relative URL (Next.js proxy) thay vì API_BASE_URL trực tiếp:
+// trong docker API_BASE_URL = http://api:8000, browser không resolve được host `api` → "Failed to fetch".
 export const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 300000, 
+  baseURL: "",
+  timeout: 300000,
   headers: { "Content-Type": "application/json" },
 });
 
