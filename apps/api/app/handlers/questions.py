@@ -162,6 +162,7 @@ def _build_user_prompt(filename: str, doc_type: str, chunks: list[str], persona:
 
 def _extract_json_payload(content: str) -> dict[str, Any]:
     text = content.strip()
+    # combo-3 (stepfun) may prepend a free-text reasoning preamble before the JSON.
     tick3 = "`" * 3
     if text.startswith(tick3):
         text = re.sub(r"^" + tick3 + r"(?:json)?\s*", "", text, flags=re.IGNORECASE)
@@ -169,11 +170,13 @@ def _extract_json_payload(content: str) -> dict[str, Any]:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        match = re.search(r'\[\s*\{.*?\}\s*\]', text, flags=re.DOTALL)
+        # Greedy bracket capture drops leading reasoning / trailing prose; handles
+        # both object and array shapes (the latter normalised to {"questions": [...]}).
+        match = re.search(r"[\{\[].*[\}\]]", text, flags=re.DOTALL)
         if match:
             try:
-                array_data = json.loads(match.group(0))
-                return {"questions": array_data}
+                data = json.loads(match.group(0))
+                return {"questions": data} if isinstance(data, list) else data
             except json.JSONDecodeError:
                 pass
         logger.error("Failed to parse JSON: %s", text[:200])

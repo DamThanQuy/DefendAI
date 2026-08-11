@@ -18,6 +18,8 @@ from app.models.assessment import (
     Assessment,
     AssessmentStatus,
     CodeAnalysis,
+    CodeAnalysisIssue,
+    CodeAnalysisStatus,
     Evaluation,
     Report,
 )
@@ -41,6 +43,8 @@ __all__ = [
     "Assessment",
     "AssessmentStatus",
     "CodeAnalysis",
+    "CodeAnalysisIssue",
+    "CodeAnalysisStatus",
     "Evaluation",
     "Report",
     "DocumentChunk", "RefreshToken",

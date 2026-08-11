@@ -23,8 +23,8 @@ except ImportError:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-MAX_ARCHIVE_FILES = 2000
-MAX_TOTAL_UNCOMPRESSED_BYTES = 200 * 1024 * 1024  # 200MB
+MAX_ARCHIVE_FILES = 100000  # 100k, align with 100k-file goal
+MAX_TOTAL_UNCOMPRESSED_BYTES = 10 * 1024 * 1024 * 1024  # 10GB
 
 SKIP_DIR_NAMES = {
     ".git",

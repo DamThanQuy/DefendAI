@@ -9,7 +9,13 @@ from app.schemas.assessment import (
     GenerateQuestionsRequest,
     GenerateQuestionsResponse,
 )
-from app.schemas.code_scan import CodeIssue, CodeScanRequest, CodeScanResponse
+from app.schemas.code_scan import (
+    CodeAnalysisIssueOut,
+    CodeAnalysisStatusResponse,
+    CodeIssue,
+    CodeScanRequest,
+    CodeScanSubmitResponse,
+)
 from app.schemas.user import (
     RegisterRequest,
     LoginRequest,
@@ -28,7 +34,9 @@ __all__ = [
     "GenerateQuestionsResponse",
     "CodeIssue",
     "CodeScanRequest",
-    "CodeScanResponse",
+    "CodeScanSubmitResponse",
+    "CodeAnalysisStatusResponse",
+    "CodeAnalysisIssueOut",
     "RegisterRequest",
     "LoginRequest",
     "GoogleLoginRequest",

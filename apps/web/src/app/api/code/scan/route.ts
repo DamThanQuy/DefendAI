@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 
-// Scan theo document_id (đã upload) → poll job → trả kết quả chuẩn hóa
+// Scan theo document_id (đã upload) → backend tạo CodeAnalysis + job → poll analysis
 async function scanDocument(documentId: number, authHeader: string) {
   const scanRes = await fetch(`${backendUrl}/api/code/scan`, {
     method: 'POST',
@@ -16,60 +16,82 @@ async function scanDocument(documentId: number, authHeader: string) {
   }
 
   const scanData = await scanRes.json();
-  const jobId = scanData.job_id;
+  const analysisId = scanData.analysis_id;
+  if (!analysisId) {
+    return NextResponse.json({ error: 'Backend did not return analysis_id' }, { status: 502 });
+  }
 
-  // Poll job cho đến khi hoàn tất (timeout 90s — AI scan có thể lâu)
-  const pollInterval = 1500;
-  const maxAttempts = 60;
-  let job: any = null;
+  // Poll GET /api/code/analyses/{id} cho đến khi completed/failed (timeout 10 phút cho file lớn)
+  const pollInterval = 2000;
+  const maxAttempts = 300;
+  let analysis: any = null;
 
   for (let i = 0; i < maxAttempts; i++) {
-    const pollRes = await fetch(`${backendUrl}/api/jobs/${jobId}`, {
+    const pollRes = await fetch(`${backendUrl}/api/code/analyses/${analysisId}`, {
       headers: authHeader ? { Authorization: authHeader } : {},
     });
     if (!pollRes.ok) {
       const err = await pollRes.json();
-      return NextResponse.json({ error: 'Job polling failed', details: err }, { status: pollRes.status });
+      return NextResponse.json({ error: 'Analysis polling failed', details: err }, { status: pollRes.status });
     }
-    job = await pollRes.json();
+    analysis = await pollRes.json();
 
-    if (job.status === 'completed') break;
-    if (job.status === 'failed') {
+    if (analysis.status === 'completed') break;
+    if (analysis.status === 'failed') {
       return NextResponse.json({
         success: false,
-        error: job.error || 'Code scan thất bại',
+        error: analysis.error || 'Code scan thất bại',
         documentId,
       }, { status: 422 });
     }
-    await new Promise(r => setTimeout(r, pollInterval));
+    await new Promise((r) => setTimeout(r, pollInterval));
   }
 
-  if (!job || job.status !== 'completed') {
+  if (!analysis || analysis.status !== 'completed') {
     return NextResponse.json({ error: 'Code scan timeout' }, { status: 504 });
   }
 
-  const issues = job.result?.issues || [];
-  const summary = job.result?.summary || '';
-  const passRate = job.result?.pass_rate ?? 0;
+  const issues = analysis.issues || [];
+  const stats = analysis.stats || {};
 
-  // Tính toán lại stats để hiển thị UI
+  // Tính toán lại stats để hiển thị UI (fallback nếu backend chưa tổng hợp)
   let critical = 0;
   let warnings = 0;
   let optimizations = 0;
-
-  issues.forEach((issue: any) => {
-    const sev = issue.severity?.toLowerCase();
-    if (sev === 'critical' || sev === 'high') critical++;
-    else if (sev === 'medium') warnings++;
-    else optimizations++;
-  });
+  if (Object.keys(stats).length) {
+    critical = (stats.critical || 0) + (stats.high || 0);
+    warnings = stats.medium || 0;
+    optimizations = (stats.low || 0) + (stats.info || 0);
+  } else {
+    issues.forEach((issue: any) => {
+      const sev = issue.severity?.toLowerCase();
+      if (sev === 'critical' || sev === 'high') critical++;
+      else if (sev === 'medium') warnings++;
+      else optimizations++;
+    });
+  }
 
   return NextResponse.json({
     success: true,
     documentId,
     stats: { critical, warnings, optimizations },
-    backendData: { ...job.result, pass_rate: passRate, summary },
-    details: issues,
+    backendData: {
+      pass_rate: analysis.pass_rate ?? 0,
+      summary: analysis.summary || '',
+      provider: analysis.provider,
+      model: analysis.model,
+      total_modules: analysis.total_modules,
+      done_modules: analysis.done_modules,
+    },
+    details: issues.map((it: any, idx: number) => ({
+      id: it.id ?? idx + 1,
+      type: it.type || 'code_smell',
+      file: it.file,
+      line: it.line ?? 1,
+      description: it.description || '',
+      severity: it.severity,
+      suggestion: it.suggestion || '',
+    })),
   });
 }
 

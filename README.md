@@ -151,12 +151,15 @@ CREATE DATABASE defense_db;
 
 ### 3. Environment Variables
 
-Tạo file `apps/api/.env`:
+Tạo file `.env` ở thư mục gốc `DefendAI/` (một file duy nhất — `docker-compose.yml`
+đọc file này và tiêm biến vào cả `api` lẫn `worker`):
 ```env
-DATABASE_URL=postgresql://user:pass@localhost:5432/defense_db
-NVIDIA_API_KEY=nvapi-xxx...
-GOOGLE_API_KEY=AIzaxxx...
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/defense_db
+LOCAL_API_KEY=sk-xxx...
+LOCAL_BASE_URL=http://host.docker.internal:20128/v1
+LOCAL_MODEL=combo-3
 SECRET_KEY=your-secret-key
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
 ```
 
 Tạo file `apps/web/.env.local`:

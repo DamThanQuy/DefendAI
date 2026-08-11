@@ -17,8 +17,8 @@ export const ACCEPTED_EXTENSIONS = [
 /** File input accept attribute. */
 export const FILE_INPUT_ACCEPT = ACCEPTED_EXTENSIONS.join(",");
 
-/** Max file size in bytes (100 MB). */
-export const MAX_FILE_SIZE = 100 * 1024 * 1024;
+/** Max file size in bytes (10 GB). */
+export const MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024;
 
 /** Question personas — key khớp với backend FastAPI (theory/strict/enterprise). */
 export const PERSONAS = [

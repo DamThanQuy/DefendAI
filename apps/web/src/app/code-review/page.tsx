@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CodePreview } from "@/components/features/code-review/CodePreview";
+import { FileTree } from "@/components/features/assessment/FileTree";
 import type { CodeIssue } from "@/types";
 
 type ScanStatus = "idle" | "uploading" | "scanning" | "done" | "rejected" | "error";
@@ -21,18 +22,6 @@ interface ScanResult {
   backendData: { pass_rate: number; summary: string; provider?: string; model?: string };
   details: CodeIssue[];
   documentId?: number;
-}
-
-function fileIcon(name: string): string {
-  const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  const icons: Record<string, string> = {
-    py: "🐍", js: "🟨", ts: "🔷", tsx: "⚛️", jsx: "⚛️", java: "☕",
-    go: "🐹", rb: "💎", php: "🐘", cs: "🟣", cpp: "➕", c: "➕",
-    html: "🌐", css: "🎨", json: "🧾", yml: "⚙️", yaml: "⚙️",
-    md: "📝", txt: "📄", pdf: "📕", docx: "📘", pptx: "📙", xlsx: "📗",
-    zip: "🗜️", rar: "🗜️", sh: "🐚", sql: "🗄️", xml: "📄", toml: "⚙️",
-  };
-  return icons[ext] ?? "📄";
 }
 
 export default function CodeReviewPage() {
@@ -70,16 +59,7 @@ export default function CodeReviewPage() {
   };
 
   const issues = result?.details ?? [];
-  const allFiles = useMemo(
-    () => members.filter((m) => !m.is_dir).map((m) => m.path),
-    [members]
-  );
-
-  const issueCountByFile = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const i of issues) m.set(i.file, (m.get(i.file) ?? 0) + 1);
-    return m;
-  }, [issues]);
+  const fileCount = useMemo(() => members.filter((m) => !m.is_dir).length, [members]);
 
   // Lấy nội dung 1 file để preview
   const loadFile = (path: string, docIdOverride?: number) => {
@@ -142,25 +122,7 @@ export default function CodeReviewPage() {
       }
       const data = await res.json();
       if (data.success) {
-        setStatus("done");
-        setResult({ ...(data as ScanResult), documentId: data.documentId });
-        setActiveIssue(null);
-        // Tải danh sách file để render tree
-        const docId = data.documentId;
-        if (docId && token) {
-          fetch(`/api/documents/${docId}/contents`, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-            .then((r) => r.json())
-            .then((c) => {
-              setMembers(c.items ?? []);
-              const firstCode = (c.items ?? []).find(
-                (m: any) => !m.is_dir && /\.(py|js|ts|tsx|jsx|java|go|cs|c|cpp|h|php|rb)$/i.test(m.path)
-              );
-              if (firstCode) loadFile(firstCode.path, docId);
-            })
-            .catch(() => {});
-        }
+        applyResult(data);
       } else if (data.error) {
         setStatus("rejected");
         setErrorMsg(data.error);
@@ -171,6 +133,28 @@ export default function CodeReviewPage() {
     } catch (e: any) {
       setStatus("error");
       setErrorMsg(e?.message || "Không thể kết nối máy chủ");
+    }
+  };
+
+  // Áp kết quả scan/history vào state + tải file tree
+  const applyResult = (data: ScanResult) => {
+    setStatus("done");
+    setResult({ ...data, documentId: data.documentId });
+    setActiveIssue(null);
+    const docId = data.documentId;
+    if (docId && token) {
+      fetch(`/api/documents/${docId}/contents`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => r.json())
+        .then((c) => {
+          setMembers(c.items ?? []);
+          const firstCode = (c.items ?? []).find(
+            (m: any) => !m.is_dir && /\.(py|js|ts|tsx|jsx|java|go|cs|c|cpp|h|php|rb)$/i.test(m.path)
+          );
+          if (firstCode) loadFile(firstCode.path, docId);
+        })
+        .catch(() => {});
     }
   };
 
@@ -194,6 +178,30 @@ export default function CodeReviewPage() {
       router.replace("/code-review", { scroll: false });
     }
   }, [searchParams, router]);
+
+  // Query param ?analysis=id → mở lại kết quả code review đã lưu
+  useEffect(() => {
+    const analysisId = searchParams.get("analysis");
+    if (!analysisId || !token) return;
+    setStatus("scanning");
+    fetch(`/api/code/analyses/${analysisId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok || !data.success) {
+          setStatus("error");
+          setErrorMsg(data.error || "Không thể tải kết quả đã lưu");
+          return;
+        }
+        applyResult(data);
+      })
+      .catch((e: any) => {
+        setStatus("error");
+        setErrorMsg(e?.message || "Không thể kết nối máy chủ");
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, token]);
 
   const filteredIssues = issues.filter((i) => {
     const s = i.severity?.toLowerCase();
@@ -250,6 +258,12 @@ export default function CodeReviewPage() {
                 🗂️ {selectedDoc ? selectedDoc.filename : "Chọn từ đã upload"}
               </button>
             )}
+            <Link
+              href="/code-review/history"
+              className="flex items-center gap-2 px-5 py-2.5 bg-card border border-zinc-700 text-zinc-300 font-semibold text-[14px] rounded-lg hover:bg-zinc-800 transition-colors shadow-sm"
+            >
+              🕘 Lịch sử
+            </Link>
             <button
               onClick={startScan}
               disabled={(!file && !selectedDoc) || status === "uploading" || status === "scanning"}
@@ -411,34 +425,11 @@ export default function CodeReviewPage() {
                 <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2">
                   <span className="text-sm">🗜️</span>
                   <span className="text-[13px] font-bold text-zinc-200">Files</span>
-                  <span className="ml-auto text-[11px] text-zinc-500">{allFiles.length} file</span>
+                  <span className="ml-auto text-[11px] text-zinc-500">{fileCount} file</span>
                 </div>
                 <div className="p-2 overflow-y-auto flex-1">
-                  {allFiles.length === 0 && <p className="text-zinc-500 text-[13px] p-3">Không có file</p>}
-                  {allFiles.map((p) => {
-                    const n = issueCountByFile.get(p) ?? 0;
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => loadFile(p)}
-                        className={`w-full flex items-center gap-2 px-2 py-1.5 text-[13px] rounded-md text-left ${
-                          selectedFile === p ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-zinc-400 hover:bg-zinc-800/60"
-                        }`}
-                      >
-                        <span>{fileIcon(p)}</span>
-                        <span className="truncate flex-1">{p.split("/").pop()}</span>
-                        {n > 0 ? (
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                            n >= 3 ? "bg-red-500/10 text-red-400" : "bg-orange-500/10 text-orange-400"
-                          }`}>
-                            {n}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-green-400">✓</span>
-                        )}
-                      </button>
-                    );
-                  })}
+                  {members.length === 0 && <p className="text-zinc-500 text-[13px] p-3">Không có file</p>}
+                  <FileTree members={members} selected={selectedFile} onSelect={loadFile} />
                 </div>
               </div>
 

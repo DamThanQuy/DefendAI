@@ -478,7 +478,8 @@ export default function WorkspaceDetailPage() {
   }, [sessions]);
 
   const formatDate = (iso: string) =>
-    new Date(iso).toLocaleString("vi-VN", {
+    // backend returns naive UTC; treat as UTC then localize to viewer TZ
+    new Date(iso + "Z").toLocaleString("vi-VN", {
       day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
     });
 
@@ -678,8 +679,8 @@ export default function WorkspaceDetailPage() {
                 <div className="flex flex-col gap-8">
                   {/* R6: "Luyện phản biện" — AI giả lập hội đồng, sinh 10 câu hỏi kèm gợi ý */}
                   <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-5">
-                    <h3 className="text-[15px] font-bold text-zinc-200 mb-1">🎓 Luyện phản biện (Giả lập hội đồng)</h3>
-                    <p className="text-[12px] text-zinc-500 mb-4">AI đóng vai hội đồng, tự động sinh <b>10 câu hỏi</b> bắt bẻ chuyên sâu kèm gợi ý trả lời từ toàn bộ {ws.document_count} file — giúp bạn ôn tập trước khi bảo vệ thật. Chọn chế độ hội đồng bên dưới rồi bấm "Sinh 10 câu hỏi".</p>
+                    <h3 className="text-[15px] font-bold text-zinc-200 mb-1">🎓 Luyện phản biện</h3>
+                    <p className="text-[12px] text-zinc-500 mb-4">AI đóng vai hội đồng, tự động sinh <b>bộ câu hỏi</b> bắt bẻ chuyên sâu kèm gợi ý trả lời từ toàn bộ {ws.document_count} file — giúp bạn ôn tập trước khi bảo vệ thật. Chọn chế độ hội đồng bên dưới rồi bấm "Sinh câu hỏi".</p>
                     <div className="flex flex-col md:flex-row gap-3">
                       <select
                         value={wsPersona}
@@ -703,7 +704,7 @@ export default function WorkspaceDetailPage() {
                           onClick={askWorkspaceTopic}
                           className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-[14px] font-semibold hover:bg-primary/90 whitespace-nowrap"
                         >
-                          Sinh 10 câu hỏi
+                          Sinh câu hỏi
                         </button>
                       )}
                     </div>
@@ -792,6 +793,7 @@ export default function WorkspaceDetailPage() {
                                     🗑️
                                   </button>
                                   <div className="flex items-center gap-2 mb-2 pr-8">
+                                    <span className="px-2 py-0.5 text-[11px] font-mono font-bold rounded-full bg-zinc-800 text-zinc-400 shrink-0">#{q.id}</span>
                                     <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${
                                       q.persona === "theory" ? "bg-green-500/10 text-green-400"
                                       : q.persona === "strict" ? "bg-red-500/10 text-red-400"

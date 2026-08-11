@@ -28,7 +28,7 @@ router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
 # ===== Config =====
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".zip", ".rar", ".md"}
-MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024  # 10GB
 
 EXTENSION_TO_DOCTYPE = {
     ".pdf": DocType.PDF,

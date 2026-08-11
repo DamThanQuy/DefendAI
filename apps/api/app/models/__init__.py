@@ -47,6 +47,8 @@ __all__ = [
     "Assessment",
     "AssessmentStatus",
     "CodeAnalysis",
+    "CodeAnalysisIssue",
+    "CodeAnalysisStatus",
     "Evaluation",
     "Report",
     "AppSetting",

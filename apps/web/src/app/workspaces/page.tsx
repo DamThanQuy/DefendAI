@@ -351,12 +351,6 @@ export default function WorkspacesPage() {
                     🗑️ Xoá
                   </button>
                   <button
-                    onClick={() => toggleSessions(ws)}
-                    className="px-3 py-1.5 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors"
-                  >
-                    {openSessions.has(ws.id) ? "▲ Lịch sử" : "▼ Lịch sử"}
-                  </button>
-                  <button
                     onClick={() => openAddModal(ws)}
                     className="px-3 py-1.5 text-[12px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors"
                   >
@@ -542,7 +536,7 @@ function SessionsView({ sessions }: { sessions?: SessionsResponse }) {
               <span className="text-[13px] font-semibold text-zinc-200 truncate">{s.document_name}</span>
               {s.meta && <span className="text-[11px] text-zinc-500">{s.meta}</span>}
             </div>
-            <div className="text-[11px] text-zinc-500 mt-0.5">{s.detail} · {new Date(s.created_at).toLocaleString("vi-VN")}</div>
+            <div className="text-[11px] text-zinc-500 mt-0.5">{s.detail} · {new Date(s.created_at + "Z").toLocaleString("vi-VN")}</div>
           </div>
           <Link
             href={s.kind.includes("Code") ? "/code-review" : `/documents/${s.document_id}`}

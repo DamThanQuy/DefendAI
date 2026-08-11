@@ -25,14 +25,60 @@ class CodeScanRequest(BaseModel):
     model: str | None = None
 
 
-class CodeScanResponse(BaseModel):
+class CodeScanSubmitResponse(BaseModel):
+    """202 Accepted: analysis đã được tạo và job đã xếp hàng. Poll GET /api/code/analyses/{id}."""
+    analysis_id: int
+    job_id: str
+    status: str = "queued"
+
+
+class CodeAnalysisIssueOut(BaseModel):
+    id: int
+    module: str | None = None
+    file: str
+    line: int
+    type: str | None = None
+    severity: str
+    description: str | None = None
+    suggestion: str | None = None
+
+
+class CodeAnalysisStatusResponse(BaseModel):
     analysis_id: int
     document_id: int
-    document_name: str
     status: str
-    summary: str
-    pass_rate: float
-    files_scanned: int
-    issues: list[CodeIssue]
+    summary: str | None = None
+    pass_rate: int | None = None
+    total_files: int | None = None
+    total_modules: int = 0
+    done_modules: int = 0
+    stats: dict | None = None
+    error: str | None = None
+    issues: list[CodeAnalysisIssueOut] = []
+
+
+class CodeAnalysisStatsResponse(BaseModel):
+    """Reduce output: thống kê issues theo severity cho một analysis."""
+
+    analysis_id: int
+    status: str
+    pass_rate: int | None = None
+    stats: dict  # {"critical": n, "high": n, "medium": n, "low": n, "info": n}
+    total_issues: int
+
+
+class CodeAnalysisListItem(BaseModel):
+    analysis_id: int
+    document_id: int
+    document_name: str | None = None
+    status: str
+    pass_rate: int | None = None
+    total_files: int | None = None
+    stats: dict | None = None
     provider: str | None = None
     model: str | None = None
+    created_at: str | None = None
+
+
+class CodeAnalysisListResponse(BaseModel):
+    analyses: list[CodeAnalysisListItem] = []

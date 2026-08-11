@@ -98,8 +98,10 @@ def _build_rag_prompt(topic: str, persona: str, contexts: List[str]) -> str:
         "(chỉ dùng ĐÚNG tên nguồn đã liệt kê ở các đoạn trên). "
         "ĐỒNG THỜI, trong chính nội dung câu hỏi, hãy chèn tham chiếu dạng [số] (VD: \"... hệ thống xử lý như thế nào? [3]\") "
         "ngay sau ý dựa vào nguồn số đó (các nguồn đã được đánh số 1..N ở trên). "
+        "MỖI câu hỏi PHẢI có 'suggested_answer' là CÂU TRẢ LỜI MẪU CHI TIẾT (2-4 câu, bám sát "
+        "đoạn trích, nêu được lập luận/key point để sinh viên đối đáp tốt với hội đồng). "
         "Trả về đúng một object JSON: "
-        '{"questions": [{"question": "...", "hint": "...", "difficulty": "easy|medium|hard", "citations": ["Nhom5_.pdf: đoạn 1"]}]}. '
+        '{"questions": [{"question": "...", "suggested_answer": "...", "difficulty": "easy|medium|hard", "citations": ["Nhom5_.pdf: đoạn 1"]}]}. '
         "TUYỆT ĐỐI không bịa đặt nội dung không có trong các đoạn trích.",
         MAX_PROMPT_CHARS,
     )
@@ -120,7 +122,7 @@ def _normalize_rag_questions(raw_questions: List[Any], persona: str) -> List[dic
         out.append({
             "id": count,
             "question": str(item["question"]).strip(),
-            "hint": str(item.get("hint", "")).strip(),
+            "suggested_answer": str(item.get("suggested_answer") or item.get("hint", "")).strip(),
             "difficulty": difficulty if difficulty in _VALID_DIFFICULTIES else "medium",
             "persona": persona,
             "citations": citations,
@@ -184,7 +186,10 @@ async def handle_workspace_questions(params: dict) -> dict:
             prompt=prompt,
             system_prompt=_build_system_prompt(persona),
             temperature=0.2,
-            max_tokens=4000,
+            # Gateway routes to a reasoning model (step-3.7-flash) that spends most of
+            # max_tokens on `reasoning`; 4000 left no budget for the JSON answer (empty
+            # content → heuristic fallback writing `hint`). 12000 leaves room for both.
+            max_tokens=12000,
         )
         payload = _extract_json_payload(ai_result["content"])
         questions = _normalize_rag_questions(payload.get("questions", []), persona)
