@@ -336,6 +336,15 @@ def _rubric_block(rubric: dict | None) -> str:
         'Phân loại mỗi issue vào đúng 1 `type` thuộc nhóm trên. '
         "Tính điểm tổng: score = max(100 - Σ(deduction), 0)."
     )
+    # Yêu cầu đồ án SEP490 cần soi (features + business_rules)
+    feats = rubric.get("features", [])
+    brs = rubric.get("business_rules", [])
+    if feats or brs:
+        lines.append("Yêu cầu đồ án SEP490 cần soi:")
+        for f in feats:
+            lines.append(f"  - Tính năng {f['code']}: {f['desc']} (nếu thiếu → issue missing_requirement)")
+        for b in brs[:12]:
+            lines.append(f"  - BR {b['code']}: {b['desc']} (nếu vi phạm → issue security/logic_error)")
     return "\n".join(lines) + "\n"
 
 
@@ -350,7 +359,7 @@ def build_prompt(files: list[ScannedFile], rubric: dict | None = None) -> tuple[
         '  "summary": "string",\n'
         '  "issues": [\n'
         "    {\n"
-        '      "type": "logic_error|code_smell|security|performance|convention",\n'
+        '      "type": "logic_error|code_smell|security|performance|convention|missing_requirement",\n'
         '      "file": "path/to/file.py",\n'
         '      "line": 12,\n'
         '      "description": "string",\n'

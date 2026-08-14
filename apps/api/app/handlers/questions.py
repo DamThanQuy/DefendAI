@@ -123,6 +123,24 @@ def _rubric_defense_block(rubric: dict | None) -> str:
             f"Trọng số: OGA {grading.get('oga', {}).get('weight')}% + "
             f"TDA {grading.get('tda', {}).get('weight')}%."
         )
+    # Tính năng phải có
+    feats = rubric.get("features", [])
+    if feats:
+        lines.append("Tính năng chuẩn (phải realize đủ): " +
+                     ", ".join(f"{f['code']} ({f['desc']})" for f in feats))
+    # Quy tắc nghiệp vụ
+    brs = rubric.get("business_rules", [])
+    if brs:
+        lines.append("Quy tắc nghiệp vụ chuẩn (BR phải enforce): " +
+                     ", ".join(f"{b['code']}: {b['desc']}" for b in brs[:12]) + " ...")
+    # Mốc tiến độ
+    ms = rubric.get("milestones", [])
+    if ms:
+        lines.append("Mốc tiến độ: " + ", ".join(f"T{m['week']}={m['deliverable']}" for m in ms))
+    # Checklist báo cáo
+    chk = rubric.get("report_checklist", {})
+    if chk:
+        lines.append("Checklist báo cáo cần phủ: " + "; ".join(f"{k}: {', '.join(v)}" for k, v in chk.items()))
     return "\n".join(lines) + "\n"
 
 

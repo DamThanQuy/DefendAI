@@ -113,11 +113,12 @@ RUBRICS: list[dict] = [
 
 
 async def seed() -> None:
+    """Seed chỉ tạo row nếu chưa tồn tại. DB là bản gốc — sửa data qua /admin."""
     async with async_session_maker() as db:
         for r in RUBRICS:
             existing = (await db.execute(select(Rubric).where(Rubric.key == r["key"]))).scalar_one_or_none()
             if existing:
-                logger.info("skip (exists): %s", r["key"])
+                logger.info("skip (DB-first, exists): %s", r["key"])
                 continue
             db.add(Rubric(**r))
             logger.info("seeded: %s", r["key"])
