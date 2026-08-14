@@ -87,7 +87,6 @@ export interface CodeScanResponse {
   model?: string;
   files_scanned: number;
   issues: CodeIssue[];
-  pass_rate: number;
 }
 
 // Upload

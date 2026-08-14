@@ -44,6 +44,7 @@ from app.services.code_scanner import (
     extract_code_files,
     list_archive_members,
 )
+from app.services.rubric_service import get_active_rubric
 from app.services.job_queue import create_job, register_handler
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,9 @@ async def handle_code_scan(params: dict) -> dict:
             analysis.done_modules = 0
             await db.commit()
 
+            # Load rubric 1 lần (thước đo) → truyền vào mọi module job
+            rubric = await get_active_rubric(db, scope="code_review")
+
             if not module_jobs:
                 await _reduce_analysis(db, analysis_id)
                 return {"analysis_id": analysis_id, "status": "completed"}
@@ -118,6 +122,7 @@ async def handle_code_scan(params: dict) -> dict:
                     "files": [{"path": f.path, "content": f.content} for f in module_files],
                     "provider": provider,
                     "model": model,
+                    "rubric": rubric,
                 }
                 await create_job("code_scan_module", payload)
 
@@ -134,15 +139,12 @@ async def handle_code_scan(params: dict) -> dict:
 @register_handler("code_scan_module")
 async def handle_code_scan_module(params: dict) -> dict:
     """L3 module worker: 1 LLM call → write issues → atomic done_modules increment → reduce."""
-    analysis_id: int = params["analysis_id"]
-    module: str = params["module"]
-    provider: str | None = params.get("provider")
-    model: str | None = params.get("model")
+    rubric = params.get("rubric")
     files = [ScannedFile(path=f["path"], content=f["content"]) for f in params.get("files", [])]
 
     async with async_session_maker() as db:
         try:
-            issues = await analyze_module_files(files, provider=provider, model=model)
+            issues = await analyze_module_files(files, provider=provider, model=model, rubric=rubric)
             await _module_issues_to_rows(db, analysis_id, module, issues)
 
             # Atomic increment + read back the new value

@@ -8,7 +8,6 @@ interface AnalysisItem {
   document_id: number;
   document_name: string | null;
   status: string;
-  pass_rate: number | null;
   total_files: number | null;
   stats: { critical?: number; high?: number; medium?: number; low?: number; info?: number } | null;
   provider: string | null;
@@ -82,7 +81,6 @@ export default function CodeReviewHistoryPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {analyses.map((a) => {
               const s = statsOf(a);
-              const score = a.pass_rate ?? 0;
               const statusBadge =
                 a.status === "completed"
                   ? "bg-teal-500/10 text-teal-400"
@@ -110,14 +108,9 @@ export default function CodeReviewHistoryPage() {
 
                   {a.status === "completed" && (
                     <>
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-11 h-11 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-lg font-bold">
-                          {score}
-                        </div>
-                        <div className="text-[11px] text-zinc-500">
-                          <div>{a.total_files ?? 0} file</div>
-                          <div>{s.critical + s.warnings + s.optimizations} vấn đề</div>
-                        </div>
+                      <div className="text-[11px] text-zinc-500 mb-3">
+                        <div>{a.total_files ?? 0} file</div>
+                        <div>{s.critical + s.warnings + s.optimizations} vấn đề</div>
                       </div>
                       <div className="flex gap-1.5">
                         {([["critical", "Lỗi"], ["warnings", "Cảnh báo"], ["optimizations", "Tối ưu"]] as const).map(([k, label]) => {

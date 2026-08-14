@@ -510,10 +510,9 @@ class TestNormalizeIssue:
 
 class TestExtractJsonPayload:
     def test_clean_json(self):
-        text = '{"summary": "ok", "pass_rate": 80}'
+        text = '{"summary": "ok"}'
         result = _extract_json_payload(text)
         assert result["summary"] == "ok"
-        assert result["pass_rate"] == 80
 
     def test_json_in_markdown_block(self):
         text = '```json\n{"summary": "ok"}\n```'
@@ -722,7 +721,6 @@ class TestHeuristicScan:
         assert len(result["issues"]) >= 1
         security_issues = [i for i in result["issues"] if i["type"] == "security"]
         assert len(security_issues) >= 1
-        assert result["pass_rate"] < 100
 
     def test_detect_todo_markers(self):
         from app.services.code_scanner import _heuristic_scan
@@ -748,7 +746,6 @@ class TestHeuristicScan:
         from app.services.code_scanner import _heuristic_scan
         files = [ScannedFile(path="app.py", content='def hello():\n    return "hello"')]
         result = _heuristic_scan(files)
-        assert result["pass_rate"] == 100
         assert len(result["issues"]) == 0
 
     def test_provider_is_heuristic(self):

@@ -318,18 +318,39 @@ def _numbered_lines(text: str, max_chars: int = MAX_FILE_CHARS) -> str:
     return "\n".join(numbered)
 
 
-def build_prompt(files: list[ScannedFile]) -> tuple[str, str, bool]:
+def _rubric_block(rubric: dict | None) -> str:
+    """Inject tiêu chí từ rubric (thước đo) vào system prompt thay hardcode."""
+    if not rubric:
+        return (
+            "Hãy review source code, tìm bug, code smell, security issue, performance issue và thiếu validation.\n"
+        )
+    cats = rubric.get("categories", {})
+    sev = rubric.get("severity_deduction", {})
+    lines = ["Tiêu chí đánh giá (rubric chuẩn):"]
+    for code, meta in cats.items():
+        lines.append(f"- {code} ({meta.get('label', code)}): trọng số {meta.get('weight', 1)}")
+    lines.append("Mức độ & điểm trừ (deduction):")
+    for s, d in sev.items():
+        lines.append(f"- {s}: -{d}")
+    lines.append(
+        'Phân loại mỗi issue vào đúng 1 `type` thuộc nhóm trên. '
+        "Tính điểm tổng: score = max(100 - Σ(deduction), 0)."
+    )
+    return "\n".join(lines) + "\n"
+
+
+def build_prompt(files: list[ScannedFile], rubric: dict | None = None) -> tuple[str, str, bool]:
     system_prompt = (
         "Bạn là một Senior Software Engineer và code reviewer rất khắt khe. "
-        "Hãy review source code, tìm bug, code smell, security issue, performance issue và thiếu validation. "
-        "Chỉ trả về JSON object hợp lệ, không markdown, không giải thích ngoài JSON.\n\n"
+        "Hãy review source code theo đúng tiêu chí dưới đây.\n"
+        + _rubric_block(rubric)
+        + "Chỉ trả về JSON object hợp lệ, không markdown, không giải thích ngoài JSON.\n\n"
         "Output schema:\n"
         "{\n"
         '  "summary": "string",\n'
-        '  "pass_rate": 0-100,\n'
         '  "issues": [\n'
         "    {\n"
-        '      "type": "logic_error|code_smell|security|performance",\n'
+        '      "type": "logic_error|code_smell|security|performance|convention",\n'
         '      "file": "path/to/file.py",\n'
         '      "line": 12,\n'
         '      "description": "string",\n'
@@ -475,17 +496,6 @@ def _heuristic_scan(files: list[ScannedFile]) -> dict[str, Any]:
                     }
                 )
 
-    penalty = 0
-    for issue in issues:
-        penalty += {
-            "critical": 14,
-            "high": 10,
-            "medium": 6,
-            "low": 3,
-            "info": 1,
-        }.get(issue["severity"], 5)
-
-    pass_rate = max(100 - penalty, 0)
     summary = (
         f"Phát hiện {len(issues)} vấn đề từ {len(files)} file code. "
         "Kết quả này được tạo bằng heuristic fallback do AI provider chưa sẵn sàng."
@@ -493,7 +503,6 @@ def _heuristic_scan(files: list[ScannedFile]) -> dict[str, Any]:
 
     return {
         "summary": summary,
-        "pass_rate": pass_rate,
         "issues": issues,
         "provider": "heuristic",
         "model": "rules-v1",
@@ -528,12 +537,15 @@ def _split_into_module_jobs(files: list[ScannedFile], module_cap: int = 40) -> l
 
 
 async def analyze_module_files(
-    files: list[ScannedFile], provider: str | None = None, model: str | None = None
+    files: list[ScannedFile],
+    provider: str | None = None,
+    model: str | None = None,
+    rubric: dict | None = None,
 ) -> list[dict[str, Any]]:
     """1 LLM pass over a module's files (≤ MODULE_FILE_CAP). Returns normalized issues."""
     if not files:
         return []
-    system_prompt, user_prompt, _ = build_prompt(files)
+    system_prompt, user_prompt, _ = build_prompt(files, rubric=rubric)
     try:
         result = await ai_gateway.generate(
             prompt=user_prompt,

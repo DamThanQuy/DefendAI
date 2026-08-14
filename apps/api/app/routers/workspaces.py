@@ -271,7 +271,6 @@ async def workspace_sessions(
                 document_id=c.document_id,
                 document_name=doc_names.get(c.document_id, "Unknown"),
                 status="completed",
-                pass_rate=c.pass_rate,
                 issue_count=len(c.issues or []),
                 created_at=c.created_at,
             )

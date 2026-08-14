@@ -43,7 +43,6 @@ class CodeAnalysis(Base):
     # Backward-compatible fields (single-shot legacy path)
     issues = Column(JSON, nullable=True)
     summary = Column(Text, nullable=True)
-    pass_rate = Column(Integer, nullable=True)
     # New fields for async map-reduce pipeline (100k files)
     status = Column(SQLEnum(CodeAnalysisStatus), default=CodeAnalysisStatus.queued, nullable=False)
     provider = Column(String(50), nullable=True)
