@@ -54,7 +54,7 @@ export function CodePreview({
   }, [activeIssue, path]);
 
   return (
-    <div className="flex-1 overflow-auto font-mono text-[13px] leading-[1.6]">
+    <div className="flex-1 overflow-auto font-mono text-[13px] leading-[1.6] custom-scrollbar">
       {lines.map((line, idx) => {
         const n = idx + 1;
         const iss = issueByLine.get(n) ?? [];

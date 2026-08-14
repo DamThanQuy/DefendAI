@@ -39,7 +39,6 @@ interface SessionItem {
   document_name: string;
   persona?: string;
   status: string;
-  pass_rate?: number | null;
   issue_count?: number | null;
   created_at: string;
 }
@@ -517,7 +516,7 @@ function SessionsView({ sessions }: { sessions?: SessionsResponse }) {
     ...sessions.code_analyses.map((s) => ({
       ...s,
       kind: "🔍 Code Review" as const,
-      meta: s.pass_rate != null ? `Pass rate: ${s.pass_rate}%` : "",
+        meta: "",
       detail: s.issue_count != null ? `${s.issue_count} vấn đề` : "",
     })),
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());

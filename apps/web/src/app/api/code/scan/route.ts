@@ -76,7 +76,6 @@ async function scanDocument(documentId: number, authHeader: string) {
     documentId,
     stats: { critical, warnings, optimizations },
     backendData: {
-      pass_rate: analysis.pass_rate ?? 0,
       summary: analysis.summary || '',
       provider: analysis.provider,
       model: analysis.model,

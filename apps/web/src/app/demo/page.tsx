@@ -161,11 +161,7 @@ export default function DemoPage() {
             <WindowFrame>
               <div className="p-5">
                 {/* Stats */}
-                <div className="grid grid-cols-2 gap-3 mb-5">
-                  <div className="bg-zinc-800/40 rounded-xl p-4 border border-zinc-800/60">
-                    <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-wide">Điểm chất lượng</div>
-                    <div className="text-[24px] font-bold text-teal-400 mt-1">78% · Khá</div>
-                  </div>
+                <div className="grid grid-cols-1 gap-3 mb-5">
                   <div className="bg-zinc-800/40 rounded-xl p-4 border border-zinc-800/60">
                     <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-wide">Lỗi nghiêm trọng</div>
                     <div className="text-[24px] font-bold text-red-400 mt-1">3</div>

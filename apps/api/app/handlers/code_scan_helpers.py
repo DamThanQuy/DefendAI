@@ -11,9 +11,6 @@ from app.models.entities import CodeAnalysis, CodeAnalysisIssue, CodeAnalysisSta
 
 logger = logging.getLogger(__name__)
 
-_SEVERITY_PENALTY = {"critical": 14, "high": 10, "medium": 6, "low": 3, "info": 1}
-
-
 async def _module_issues_to_rows(
     db: AsyncSession, analysis_id: int, module: str, issues: list[dict[str, Any]]
 ) -> None:
@@ -33,7 +30,7 @@ async def _module_issues_to_rows(
 
 
 async def _reduce_analysis(db: AsyncSession, analysis_id: int) -> None:
-    """Aggregate all issues for an analysis into summary + pass_rate (no extra LLM call).
+    """Aggregate all issues for an analysis into a summary (no extra LLM call).
 
     ponytail: current reduce is pure aggregation; upgrade to a single LLM summary over
     per-module summaries when a narrative summary is needed.
@@ -43,13 +40,10 @@ async def _reduce_analysis(db: AsyncSession, analysis_id: int) -> None:
     )
     issues = result.scalars().all()
 
-    stats = {sev: 0 for sev in _SEVERITY_PENALTY}
+    stats = {sev: 0 for sev in ("critical", "high", "medium", "low", "info")}
     for issue in issues:
         sev = (issue.severity or "info").lower()
         stats[sev] = stats.get(sev, 0) + 1
-
-    penalty = sum(_SEVERITY_PENALTY.get(issue.severity or "info", 1) for issue in issues)
-    pass_rate = max(100 - penalty, 0)
 
     total = len(issues)
     summary = (
@@ -64,7 +58,6 @@ async def _reduce_analysis(db: AsyncSession, analysis_id: int) -> None:
         return
     analysis.status = CodeAnalysisStatus.completed
     analysis.summary = summary
-    analysis.pass_rate = pass_rate
     analysis.stats_json = stats
     analysis.done_modules = analysis.total_modules or analysis.done_modules
     await db.commit()

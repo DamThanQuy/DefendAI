@@ -41,7 +41,6 @@ export async function GET(request: Request, { params }: { params: { id: string }
       documentId: analysis.document_id,
       stats: { critical, warnings, optimizations },
       backendData: {
-        pass_rate: analysis.pass_rate ?? 0,
         summary: analysis.summary || '',
         provider: analysis.provider,
         model: analysis.model,

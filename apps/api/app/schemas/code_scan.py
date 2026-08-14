@@ -48,7 +48,6 @@ class CodeAnalysisStatusResponse(BaseModel):
     document_id: int
     status: str
     summary: str | None = None
-    pass_rate: int | None = None
     total_files: int | None = None
     total_modules: int = 0
     done_modules: int = 0
@@ -62,7 +61,6 @@ class CodeAnalysisStatsResponse(BaseModel):
 
     analysis_id: int
     status: str
-    pass_rate: int | None = None
     stats: dict  # {"critical": n, "high": n, "medium": n, "low": n, "info": n}
     total_issues: int
 
@@ -72,7 +70,6 @@ class CodeAnalysisListItem(BaseModel):
     document_id: int
     document_name: str | None = None
     status: str
-    pass_rate: int | None = None
     total_files: int | None = None
     stats: dict | None = None
     provider: str | None = None

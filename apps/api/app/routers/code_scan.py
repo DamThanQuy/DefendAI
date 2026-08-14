@@ -109,7 +109,6 @@ async def get_analysis(analysis_id: int, db: AsyncSession = Depends(get_db)) -> 
         document_id=analysis.document_id,
         status=analysis.status.value,
         summary=analysis.summary,
-        pass_rate=analysis.pass_rate,
         total_files=analysis.total_files,
         total_modules=analysis.total_modules or 0,
         done_modules=analysis.done_modules or 0,
@@ -140,7 +139,6 @@ async def list_analyses(
             document_id=a.document_id,
             document_name=doc_name,
             status=a.status.value,
-            pass_rate=a.pass_rate,
             total_files=a.total_files,
             stats=a.stats_json,
             provider=a.provider,
@@ -173,7 +171,6 @@ async def get_analysis_stats(analysis_id: int, db: AsyncSession = Depends(get_db
     return CodeAnalysisStatsResponse(
         analysis_id=analysis.id,
         status=analysis.status.value,
-        pass_rate=analysis.pass_rate,
         stats=stats,
         total_issues=total,
     )

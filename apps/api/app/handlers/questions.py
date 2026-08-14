@@ -17,6 +17,7 @@ from app.services.ai_client import ai_gateway
 from app.services.chunk_indexer import index_chunks
 from app.services.document_parser import DocumentParserError, parse_and_chunk
 from app.services.job_queue import register_handler, update_job
+from app.services.rubric_service import get_active_rubric
 
 logger = logging.getLogger(__name__)
 
@@ -106,14 +107,34 @@ def _is_teacher_doc(text: str) -> bool:
     return False
 
 
-def _build_system_prompt(persona: str) -> str:
+def _rubric_defense_block(rubric: dict | None) -> str:
+    """Inject tiêu chí chấm bảo vệ (SEP490) từ rubric vào system prompt."""
+    if not rubric:
+        return ""
+    lines = ["\nTiêu chí chấm bảo vệ chuẩn (hội đồng sẽ soi theo các điểm sau):"]
+    for c in rubric.get("quality_criteria", []):
+        lines.append(f"- {c.get('label')}: đánh giá mức {', '.join(c.get('levels', []))}")
+    clo = rubric.get("clo", [])
+    if clo:
+        lines.append("CLO cần phủ: " + ", ".join(f"{c['code']} ({c['desc']})" for c in clo))
+    grading = rubric.get("grading", {})
+    if grading:
+        lines.append(
+            f"Trọng số: OGA {grading.get('oga', {}).get('weight')}% + "
+            f"TDA {grading.get('tda', {}).get('weight')}%."
+        )
+    return "\n".join(lines) + "\n"
+
+
+def _build_system_prompt(persona: str, rubric: dict | None = None) -> str:
     description = PERSONA_DESCRIPTIONS.get(persona, PERSONA_DESCRIPTIONS["theory"])
     return (
         "Bạn là AI phản biện cho đồ án. Nhiệm vụ của bạn là đọc tài liệu đã được cung cấp, "
         "suy nghĩ như thành viên hội đồng, và tạo ra bộ câu hỏi tranh biện sâu sắc, thực tế, có tính soi lỗi.\n\n"
         f"Persona: {persona}\n"
-        f"Mô tả persona: {description}\n\n"
-        "⚠️ ANTI-HALLUCINATION: TUYỆT ĐỐI KHÔNG bịa đặt, suy diễn, hay thêm thông tin "
+        f"Mô tả persona: {description}\n"
+        + _rubric_defense_block(rubric)
+        + "\n⚠️ ANTI-HALLUCINATION: TUYỆT ĐỐI KHÔNG bịa đặt, suy diễn, hay thêm thông tin "
         "không có trong nội dung. Mỗi câu hỏi PHẢI bám sâu vào ít nhất một chi tiết cụ thể "
         "từ tài liệu. Nếu tài liệu quá ngắn hoặc không đủ nội dung để tạo câu hỏi chất lượng, "
         "hãy tạo ÍT câu hỏi hơn nhưng chất lượng hơn. Mảng questions có thể có 0 phần tử.\n\n"
@@ -281,6 +302,9 @@ async def handle_generate_questions(params: dict) -> dict:
         if job_id:
             await update_job(job_id, progress="30")
 
+        # ── load rubric chấm bảo vệ (thước đo) ──
+        rubric = await get_active_rubric(db, scope="defense")
+
         # ── heuristic: nếu tài liệu do giảng viên soạn → trả về rỗng ──
         full_text = "\n\n".join(chunks)
         if _is_teacher_doc(full_text):
@@ -306,7 +330,7 @@ async def handle_generate_questions(params: dict) -> dict:
                 "note": "Tài liệu được phát hiện là hướng dẫn của giảng viên, không phải đồ án sinh viên.",
             }
 
-        system_prompt = _build_system_prompt(persona)
+        system_prompt = _build_system_prompt(persona, rubric=rubric)
 
         try:
             if job_id:

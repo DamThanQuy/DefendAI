@@ -48,7 +48,6 @@ interface SessionItem {
   document_name: string;
   persona?: string;
   status: string;
-  pass_rate?: number | null;
   issue_count?: number | null;
   created_at: string;
 }
@@ -464,7 +463,7 @@ export default function WorkspaceDetailPage() {
       ...sessions.code_analyses.map((s) => ({
         ...s,
         kind: "🔍 Code Review" as const,
-        meta: s.pass_rate != null ? `Pass rate: ${s.pass_rate}%` : "",
+        meta: "",
         detail: s.issue_count != null ? `${s.issue_count} vấn đề` : "",
       })),
       ...sessions.workspace_questions.map((s) => ({

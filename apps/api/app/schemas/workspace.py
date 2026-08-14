@@ -54,7 +54,6 @@ class SessionItem(BaseModel):
     document_name: str
     persona: Optional[str] = None  # assessments only
     status: str
-    pass_rate: Optional[int] = None  # code_analyses only
     issue_count: Optional[int] = None  # code_analyses only
     created_at: datetime
 
