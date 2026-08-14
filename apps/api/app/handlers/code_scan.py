@@ -140,6 +140,10 @@ async def handle_code_scan(params: dict) -> dict:
 async def handle_code_scan_module(params: dict) -> dict:
     """L3 module worker: 1 LLM call → write issues → atomic done_modules increment → reduce."""
     rubric = params.get("rubric")
+    analysis_id = params.get("analysis_id")
+    module = params.get("module")
+    provider = params.get("provider")
+    model = params.get("model")
     files = [ScannedFile(path=f["path"], content=f["content"]) for f in params.get("files", [])]
 
     async with async_session_maker() as db:
