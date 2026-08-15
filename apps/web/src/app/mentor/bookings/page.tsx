@@ -27,7 +27,7 @@ function fmt(dt: string | null) {
 }
 
 export default function MentorBookingsPage() {
-  const { hasRole } = useAuth();
+  const { hasRole, loading: authLoading } = useAuth();
   const router = useRouter();
   const [pending, setPending] = useState<Booking[]>([]);
   const [all, setAll] = useState<Booking[]>([]);
@@ -63,13 +63,15 @@ export default function MentorBookingsPage() {
   }
 
   useEffect(() => {
+    // Đợi /me resolve xong rồi mới check role (tránh redirect sai khi user=null tạm thời)
+    if (authLoading) return;
     if (!hasRole("mentor")) {
       router.replace("/bookings");
       return;
     }
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authLoading]);
 
   async function handleConfirm(id: number) {
     if (!confirmTime) {

@@ -63,8 +63,9 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # Trong container, "api" là hostname của service backend (không phải localhost)
-      NEXT_PUBLIC_API_URL: http://api:8000
+      # Browser chạy trên host → dùng localhost:8000 (host port mapping của api).
+      # "api" chỉ resolve được BẢO trong Docker network, không resolve từ browser.
+      NEXT_PUBLIC_API_URL: http://localhost:8000
       BACKEND_URL: http://api:8000
       # Google OAuth Client ID (phải trùng với GOOGLE_CLIENT_ID bên api)
       NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}

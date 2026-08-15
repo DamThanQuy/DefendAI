@@ -139,6 +139,7 @@ export interface Booking {
   note: string | null;
   status: BookingStatus;
   meeting_id: number | null;
+  reject_reason?: string | null;
   created_at: string;
   updated_at: string;
   student_name?: string | null;
@@ -249,6 +250,11 @@ export function updateMyAvailability(slots: Partial<AvailabilitySlot>[]) {
 // Student: xem slot rảnh của 1 mentor
 export function getMentorAvailability(mentorId: number) {
   return api.get<AvailabilitySlot[]>(`/api/availability/${mentorId}`);
+}
+
+// Student: xem lịch đã đặt của 1 mentor (để lọc slot trùng giờ)
+export function getMentorBookings(mentorId: number) {
+  return api.get<Booking[]>(`/api/bookings/mentor/${mentorId}`);
 }
 
 // ---------------------------------------------------------------------------

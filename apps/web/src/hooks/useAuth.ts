@@ -9,20 +9,28 @@ export interface AuthUser {
   roles: string[];
 }
 
-// Đọc user + roles từ localStorage làm cache nhanh, SAU ĐÓ luôn đồng bộ từ
-// /api/auth/me (nguồn chân lý). Điều này fix lỗi: backend đổi role (vd student
-// → mentor) mà frontend vẫn dùng roles cũ trong localStorage → sai giao diện.
+// Hiển thị sidebar TỨC THÌ từ localStorage cache (tránh flash trống menu sau
+// khi login), đồng thời gọi /api/auth/me (nguồn chân lý) để đồng bộ roles.
+// Nếu backend đổi role (vd student → mentor) mà cache cũ giữ roles sai, /me
+// sẽ trả roles đúng và ta cập nhật lại (chỉ re-render 1 lần, không flash sai menu).
 export function useAuth() {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Đọc cache localStorage ngay (để guard UI không bị chớp)
   useEffect(() => {
-    const read = () => {
-      const raw = localStorage.getItem("user");
-      if (!localStorage.getItem("access_token") || !raw) {
-        setUser(null);
-        return;
-      }
+    let cancelled = false;
+    setLoading(true);
+
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
+    // 1) Set user từ cache NGAY để sidebar hiện tức thì (không trống sau login)
+    const raw = localStorage.getItem("user");
+    if (raw) {
       try {
         const u = JSON.parse(raw) as Partial<AuthUser>;
         setUser({
@@ -31,18 +39,11 @@ export function useAuth() {
           roles: u.roles ?? [],
         });
       } catch {
-        setUser(null);
+        /* ignore */
       }
-    };
-    read();
-    window.addEventListener("storage", read);
-    return () => window.removeEventListener("storage", read);
-  }, []);
+    }
 
-  // Đồng bộ roles từ server (chạy sau khi mount để không block render)
-  useEffect(() => {
-    if (!localStorage.getItem("access_token")) return;
-    let cancelled = false;
+    // 2) Gọi /me để đồng bộ roles chính xác từ server
     getMe()
       .then((res) => {
         if (cancelled) return;
@@ -53,18 +54,31 @@ export function useAuth() {
           roles: me.roles ?? [],
         };
         setUser(synced);
-        // Ghi đè cache cũ để các tab/lần sau đọc đúng
+        // Ghi đè cache cũ để các lần sau đọc đúng
         localStorage.setItem("user", JSON.stringify(synced));
+        setLoading(false);
       })
       .catch(() => {
-        /* giữ nguyên cache cũ nếu lỗi mạng */
+        if (cancelled) return;
+        // /me fail (mạng lỗi) → giữ nguyên user từ cache (đã set ở bước 1)
+        setLoading(false);
       });
+
+    // Đồng bộ khi user đăng nhập/đăng xuất ở tab khác
+    const onStorage = () => {
+      if (!localStorage.getItem("access_token")) {
+        setUser(null);
+      }
+    };
+    window.addEventListener("storage", onStorage);
+
     return () => {
       cancelled = true;
+      window.removeEventListener("storage", onStorage);
     };
   }, []);
 
   const roles = user?.roles ?? [];
   const hasRole = (...r: string[]) => roles.some((x) => r.includes(x));
-  return { user, roles, hasRole, isAuthed: !!user };
+  return { user, roles, hasRole, isAuthed: !!user, loading };
 }

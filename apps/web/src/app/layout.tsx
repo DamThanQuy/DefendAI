@@ -8,6 +8,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { TopProgress } from "@/components/common/TopProgress";
 import { ThemeProvider } from "@/components/theme-provider";
+import { FloatingThemeToggle } from "@/components/theme-toggle-floating";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
@@ -36,6 +37,7 @@ export default function RootLayout({
               </AuthGate>
             </main>
             <Footer />
+            <FloatingThemeToggle />
           </ThemeProvider>
         </body>
       </GoogleOAuthProvider>

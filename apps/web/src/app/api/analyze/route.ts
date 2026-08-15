@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { Project } from 'ts-morph';
+import * as ts from 'typescript';
 
 export async function POST(request: Request) {
   try {
@@ -12,9 +12,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const project = new Project({ useInMemoryFileSystem: true });
-    // Create a virtual file to analyze
-    const sourceFile = project.createSourceFile('temp.tsx', code);
+    const sourceFile = ts.createSourceFile(
+      'temp.tsx',
+      code,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX
+    );
 
     const result = {
       imports: [] as any[],
@@ -22,102 +26,140 @@ export async function POST(request: Request) {
       classes: [] as any[],
       functions: [] as any[],
       interfaces: [] as any[],
-      types: [] as any[]
+      types: [] as any[],
     };
 
-    // Analyze Imports
-    sourceFile.getImportDeclarations().forEach(imp => {
-      result.imports.push({
-        module: imp.getModuleSpecifierValue(),
-        names: imp.getNamedImports().map(n => n.getName()),
-        default: imp.getDefaultImport() ? imp.getDefaultImport()?.getText() : null
-      });
-    });
+    function getTypeText(typeNode: ts.TypeNode | undefined): string {
+      return typeNode ? typeNode.getText(sourceFile) : 'any';
+    }
 
-    // Analyze Exports
-    sourceFile.getExportDeclarations().forEach(exp => {
-      if (exp.getModuleSpecifierValue()) {
-        result.exports.push({
-          module: exp.getModuleSpecifierValue(),
-          names: exp.getNamedExports().map(n => n.getName())
+    function isExported(node: ts.Node): boolean {
+      if (!ts.canHaveModifiers(node)) return false;
+      return (
+        (ts.getModifiers(node)?.some(
+          (m) => m.kind === ts.SyntaxKind.ExportKeyword
+        ) as boolean) ?? false
+      );
+    }
+
+    // Analyze imports
+    sourceFile.forEachChild((node) => {
+      if (ts.isImportDeclaration(node)) {
+        const moduleSpec = node.moduleSpecifier as ts.StringLiteral;
+        const namedImports = node.importClause?.namedBindings;
+        const names: string[] = [];
+        let defaultImport: string | null = null;
+        if (node.importClause?.name) {
+          defaultImport = node.importClause.name.text;
+        }
+        if (namedImports && ts.isNamedImports(namedImports)) {
+          namedImports.elements.forEach((e) => names.push(e.name.text));
+        }
+        result.imports.push({
+          module: moduleSpec.text,
+          names,
+          default: defaultImport,
         });
       }
     });
 
-    // Analyze Classes
-    sourceFile.getClasses().forEach(cls => {
-      const clsData = {
-        name: cls.getName(),
-        isExported: cls.isExported(),
-        methods: [] as any[],
-        properties: [] as any[]
-      };
+    // Analyze exports (export declarations / export from)
+    sourceFile.forEachChild((node) => {
+      if (ts.isExportDeclaration(node) && node.moduleSpecifier) {
+        const moduleSpec = node.moduleSpecifier as ts.StringLiteral;
+        const names: string[] = [];
+        if (node.exportClause && ts.isNamedExports(node.exportClause)) {
+          node.exportClause.elements.forEach((e) => names.push(e.name.text));
+        }
+        result.exports.push({ module: moduleSpec.text, names });
+      }
+    });
 
-      cls.getMethods().forEach(method => {
-        clsData.methods.push({
-          name: method.getName(),
-          parameters: method.getParameters().map(p => ({
-            name: p.getName(),
-            type: p.getTypeNode() ? p.getTypeNode()?.getText() : 'any'
-          })),
-          returnType: method.getReturnTypeNode() ? method.getReturnTypeNode()?.getText() : 'any'
+    // Analyze classes, functions, interfaces, type aliases
+    sourceFile.forEachChild((node) => {
+      if (ts.isClassDeclaration(node) && node.name) {
+        const clsData = {
+          name: node.name.text,
+          isExported: isExported(node),
+          methods: [] as any[],
+          properties: [] as any[],
+        };
+        node.members.forEach((member) => {
+          if (ts.isMethodDeclaration(member)) {
+            clsData.methods.push({
+              name: member.name.getText(sourceFile),
+              parameters: member.parameters.map((p) => ({
+                name: p.name.getText(sourceFile),
+                type: getTypeText(p.type),
+              })),
+              returnType: getTypeText(member.type),
+            });
+          } else if (ts.isPropertyDeclaration(member)) {
+            clsData.properties.push({
+              name: member.name.getText(sourceFile),
+              type: getTypeText(member.type),
+            });
+          }
         });
-      });
-
-      result.classes.push(clsData);
-    });
-
-    // Analyze Functions
-    sourceFile.getFunctions().forEach(func => {
-      result.functions.push({
-        name: func.getName(),
-        isExported: func.isExported(),
-        isAsync: func.isAsync(),
-        parameters: func.getParameters().map(p => ({
-          name: p.getName(),
-          type: p.getTypeNode() ? p.getTypeNode()?.getText() : 'any'
-        })),
-        returnType: func.getReturnTypeNode() ? func.getReturnTypeNode()?.getText() : 'any'
-      });
-    });
-
-    // Analyze Arrow Functions (React components often use these)
-    sourceFile.getVariableDeclarations().forEach(vd => {
-      const init = vd.getInitializer();
-      if (init && (init.getKindName() === 'ArrowFunction' || init.getKindName() === 'FunctionExpression')) {
-        const func = init as any;
+        result.classes.push(clsData);
+      } else if (ts.isFunctionDeclaration(node) && node.name) {
         result.functions.push({
-          name: vd.getName(),
-          isExported: vd.getFirstAncestorByKind(238 /* ExportDeclaration */) !== undefined,
-          isAsync: func.getModifiers().some((m: any) => m.getText() === 'async'),
-          parameters: func.getParameters().map((p: any) => ({
-            name: p.getName(),
-            type: p.getTypeNode() ? p.getTypeNode()?.getText() : 'any'
+          name: node.name.text,
+          isExported: isExported(node),
+          isAsync:
+            (ts.getModifiers(node)?.some(
+              (m) => m.kind === ts.SyntaxKind.AsyncKeyword
+            ) as boolean) ?? false,
+          parameters: node.parameters.map((p) => ({
+            name: p.name.getText(sourceFile),
+            type: getTypeText(p.type),
           })),
-          returnType: func.getReturnTypeNode() ? func.getReturnTypeNode()?.getText() : 'any'
+          returnType: getTypeText(node.type),
+        });
+      } else if (ts.isInterfaceDeclaration(node)) {
+        result.interfaces.push({
+          name: node.name.text,
+          isExported: isExported(node),
+          properties: node.members.map((m) => ({
+            name: (m as ts.PropertySignature).name?.getText(sourceFile) ?? '',
+            type: getTypeText((m as ts.PropertySignature).type),
+          })),
+        });
+      } else if (ts.isTypeAliasDeclaration(node)) {
+        result.types.push({
+          name: node.name.text,
+          isExported: isExported(node),
+          type: getTypeText(node.type),
         });
       }
     });
 
-    // Analyze Interfaces
-    sourceFile.getInterfaces().forEach(iface => {
-      result.interfaces.push({
-        name: iface.getName(),
-        isExported: iface.isExported(),
-        properties: iface.getProperties().map(p => ({
-          name: p.getName(),
-          type: p.getTypeNode() ? p.getTypeNode()?.getText() : 'any'
-        }))
-      });
-    });
-
-    // Analyze Type Aliases
-    sourceFile.getTypeAliases().forEach(typeAlias => {
-      result.types.push({
-        name: typeAlias.getName(),
-        isExported: typeAlias.isExported(),
-        type: typeAlias.getTypeNode() ? typeAlias.getTypeNode()?.getText() : 'any'
-      });
+    // Analyze arrow / function expression variable declarations (React components)
+    sourceFile.forEachChild((node) => {
+      if (ts.isVariableStatement(node)) {
+        node.declarationList.declarations.forEach((decl) => {
+          if (!ts.isIdentifier(decl.name)) return;
+          const init = decl.initializer;
+          if (
+            init &&
+            (ts.isArrowFunction(init) || ts.isFunctionExpression(init))
+          ) {
+            result.functions.push({
+              name: decl.name.text,
+              isExported: isExported(node),
+              isAsync:
+                (ts.getModifiers(init)?.some(
+                  (m) => m.kind === ts.SyntaxKind.AsyncKeyword
+                ) as boolean) ?? false,
+              parameters: init.parameters.map((p) => ({
+                name: p.name.getText(sourceFile),
+                type: getTypeText(p.type),
+              })),
+              returnType: getTypeText(init.type),
+            });
+          }
+        });
+      }
     });
 
     return NextResponse.json({ success: true, ast: result });

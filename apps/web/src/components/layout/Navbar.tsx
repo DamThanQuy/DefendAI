@@ -34,7 +34,7 @@ export function Navbar() {
   if (!isPublicPath(pathname)) return null;
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-zinc-800/60 bg-background/80 backdrop-blur-sm transition-all">
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-sm transition-all">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 lg:px-8">
         <Link href="/" className="text-2xl font-extrabold tracking-tighter flex items-center gap-2 transition-transform hover:scale-105">
           <span className="text-gradient">GraduAI</span>
@@ -50,7 +50,7 @@ export function Navbar() {
                   key={link.href}
                   href={link.href}
                   className={`relative flex items-center h-full transition-colors ${
-                    isActive ? "text-teal-400 font-semibold" : "text-zinc-400 hover:text-zinc-200"
+                    isActive ? "text-teal-500 font-semibold" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {link.label}
@@ -84,7 +84,7 @@ export function Navbar() {
             </>
           ) : (
             <>
-              <Link href="/login" className="text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors">
+              <Link href="/login" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                 Đăng nhập
               </Link>
               <Link href="/register">
