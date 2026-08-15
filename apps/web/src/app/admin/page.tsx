@@ -52,6 +52,37 @@ export default function AdminPage() {
   const [refPreview, setRefPreview] = useState<Record<string, string[]>>({});
   const [refDeleting, setRefDeleting] = useState<string | null>(null);
 
+  // Quản lý người dùng
+  interface UserRow {
+    id: number;
+    username: string;
+    email: string;
+    full_name: string | null;
+    is_active: boolean;
+    roles: string[];
+    created_at: string | null;
+  }
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [roleOptions, setRoleOptions] = useState<string[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [userMsg, setUserMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [userSaving, setUserSaving] = useState<number | null>(null);
+
+  // Giám sát code review (oversight)
+  interface ReviewRow {
+    analysis_id: number;
+    document_name: string;
+    user_email: string;
+    status: string;
+    total_files: number | null;
+    stats: Record<string, number> | null;
+    created_at: string | null;
+  }
+  const [reviews, setReviews] = useState<ReviewRow[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewDetail, setReviewDetail] = useState<Record<string, unknown> | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
   const authHeaders = () => {
     const token = localStorage.getItem("access_token");
     return token ? { Authorization: `Bearer ${token}` } : {};
@@ -111,6 +142,76 @@ export default function AdminPage() {
 
   useEffect(() => {
     loadReference();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      const res = await fetch("/api/admin/users", { headers: authHeaders() });
+      const data = await res.json();
+      if (data.users) {
+        setUsers(data.users);
+        setRoleOptions(data.role_options ?? []);
+      } else setUserMsg({ type: "err", text: data.error || "Không tải được người dùng" });
+    } catch {
+      setUserMsg({ type: "err", text: "Không kết nối được máy chủ" });
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const updateUser = async (id: number, patch: { is_active?: boolean; roles?: string[] }) => {
+    setUserSaving(id);
+    setUserMsg(null);
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(patch),
+      });
+      const data = await res.json();
+      if (!res.ok) setUserMsg({ type: "err", text: data.detail || data.error || "Cập nhật thất bại" });
+      else {
+        setUserMsg({ type: "ok", text: `Đã cập nhật ${data.user.email}` });
+        await loadUsers();
+      }
+    } catch {
+      setUserMsg({ type: "err", text: "Không kết nối được máy chủ" });
+    } finally {
+      setUserSaving(null);
+    }
+  };
+
+  const loadReviews = async () => {
+    try {
+      const res = await fetch("/api/admin/code-reviews", { headers: authHeaders() });
+      const data = await res.json();
+      if (data.items) setReviews(data.items);
+      else setUserMsg({ type: "err", text: data.error || "Không tải được code review" });
+    } catch {
+      setUserMsg({ type: "err", text: "Không kết nối được máy chủ" });
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  const openReview = async (id: number) => {
+    setDetailLoading(true);
+    setReviewDetail(null);
+    try {
+      const res = await fetch(`/api/code/analyses/${id}`, { headers: authHeaders() });
+      const data = await res.json();
+      setReviewDetail(res.ok ? data : { error: data.detail || "Không tải được" });
+    } catch {
+      setReviewDetail({ error: "Không kết nối được máy chủ" });
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadUsers();
+    loadReviews();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -265,6 +366,155 @@ export default function AdminPage() {
         </div>
       </div>
 
+      {/* Quản lý người dùng */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>👥 Người dùng</CardTitle>
+          <CardDescription>Khoá/mở tài khoản và đổi vai trò (student / mentor / admin).</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {userMsg && (
+            <p className={`text-sm font-medium ${userMsg.type === "ok" ? "text-teal-400" : "text-red-400"}`}>
+              {userMsg.text}
+            </p>
+          )}
+          {usersLoading ? (
+            <p className="text-sm text-muted-foreground">Đang tải...</p>
+          ) : users.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Chưa có người dùng.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-800 text-left text-zinc-500">
+                    <th className="py-2 pr-4 font-medium">Email</th>
+                    <th className="py-2 pr-4 font-medium">Họ tên</th>
+                    <th className="py-2 pr-4 font-medium">Vai trò</th>
+                    <th className="py-2 pr-4 font-medium">Trạng thái</th>
+                    <th className="py-2 font-medium text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/60">
+                  {users.map((u) => (
+                    <tr key={u.id}>
+                      <td className="py-2 pr-4 font-medium text-zinc-200">{u.email}</td>
+                      <td className="py-2 pr-4 text-zinc-400">{u.full_name ?? "—"}</td>
+                      <td className="py-2 pr-4">
+                        <select
+                          value={u.roles[0] ?? "student"}
+                          disabled={userSaving === u.id}
+                          onChange={(e) => updateUser(u.id, { roles: [e.target.value] })}
+                          className="px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 focus:outline-none focus:border-primary"
+                        >
+                          {roleOptions.map((r) => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-2 pr-4">
+                        <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${u.is_active ? "bg-teal-500/10 text-teal-400" : "bg-red-500/10 text-red-400"}`}>
+                          {u.is_active ? "Hoạt động" : "Khoá"}
+                        </span>
+                      </td>
+                      <td className="py-2 text-right whitespace-nowrap">
+                        <button
+                          onClick={() => updateUser(u.id, { is_active: !u.is_active })}
+                          disabled={userSaving === u.id}
+                          className="px-3 py-1 text-[12px] font-semibold text-zinc-200 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                        >
+                          {u.is_active ? "Khoá" : "Mở"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Giám sát code review (oversight) */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>📊 Đánh giá AI — Code Review</CardTitle>
+          <CardDescription>Xem mọi lượt quét của mọi user (giám sát hệ thống).</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {reviewsLoading ? (
+            <p className="text-sm text-muted-foreground">Đang tải...</p>
+          ) : reviews.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Chưa có lượt code review nào.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-800 text-left text-zinc-500">
+                    <th className="py-2 pr-4 font-medium">User</th>
+                    <th className="py-2 pr-4 font-medium">File</th>
+                    <th className="py-2 pr-4 font-medium">Trạng thái</th>
+                    <th className="py-2 pr-4 font-medium text-right">Files</th>
+                    <th className="py-2 pr-4 font-medium">Thống kê</th>
+                    <th className="py-2 font-medium text-right">Chi tiết</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/60">
+                  {reviews.map((r) => (
+                    <tr key={r.analysis_id}>
+                      <td className="py-2 pr-4 font-medium text-zinc-200">{r.user_email}</td>
+                      <td className="py-2 pr-4 text-zinc-400">{r.document_name}</td>
+                      <td className="py-2 pr-4">
+                        <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${r.status === "completed" ? "bg-teal-500/10 text-teal-400" : r.status === "failed" ? "bg-red-500/10 text-red-400" : "bg-zinc-700/40 text-zinc-300"}`}>
+                          {r.status}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-4 text-right text-zinc-400">{r.total_files ?? "—"}</td>
+                      <td className="py-2 pr-4 text-zinc-500">
+                        {r.stats ? Object.entries(r.stats).map(([k, v]) => `${k}:${v}`).join(" · ") : "—"}
+                      </td>
+                      <td className="py-2 text-right">
+                        <button
+                          onClick={() => openReview(r.analysis_id)}
+                          className="px-3 py-1 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors"
+                        >
+                          Xem
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {detailLoading && <p className="text-sm text-muted-foreground">Đang tải chi tiết...</p>}
+          {reviewDetail && (
+            <div className="bg-zinc-900/60 rounded-xl p-4 space-y-2 max-h-80 overflow-y-auto">
+              <div className="flex justify-between items-center">
+                <span className="text-[12px] font-semibold text-primary">Chi tiết analysis</span>
+                <button onClick={() => setReviewDetail(null)} className="text-[12px] text-zinc-400 hover:text-zinc-200">Đóng</button>
+              </div>
+              {reviewDetail.error ? (
+                <p className="text-[12px] text-red-400">{String(reviewDetail.error)}</p>
+              ) : (
+                <pre className="text-[12px] text-zinc-400 whitespace-pre-wrap">
+                  {JSON.stringify(
+                    {
+                      status: reviewDetail.status,
+                      summary: reviewDetail.summary,
+                      total_files: reviewDetail.total_files,
+                      stats: reviewDetail.stats,
+                      issues_count: Array.isArray(reviewDetail.issues) ? reviewDetail.issues.length : 0,
+                    },
+                    null,
+                    2,
+                  )}
+                </pre>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* R9: Tài liệu chuẩn (reference_chunks) */}
       <Card className="mt-6">
         <CardHeader>
@@ -353,7 +603,7 @@ export default function AdminPage() {
                           </td>
                           <td className="py-2 pr-4 font-medium text-zinc-200">{it.title}</td>
                           <td className="py-2 pr-4 text-right text-zinc-400">{it.chunks}</td>
-                          <td className="py-2 pr-4 text-zinc-500">{new Date(it.updated_at).toLocaleString("vi-VN")}</td>
+                          <td className="py-2 pr-4 text-zinc-500">{new Date(it.updated_at + "Z").toLocaleString("vi-VN")}</td>
                           <td className="py-2 text-right whitespace-nowrap">
                             <button
                               onClick={() => togglePreview(it.category, it.title)}

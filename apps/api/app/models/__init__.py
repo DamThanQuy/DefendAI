@@ -12,6 +12,7 @@ from app.models.association import user_roles  # noqa: F401
 from app.models.document import Document, DocType, DocumentStatus  # noqa: F401
 from app.models.document_chunk import DocumentChunk  # noqa: F401
 from app.models.reference_chunk import ReferenceChunk  # noqa: F401
+from app.models.rubric import Rubric  # noqa: F401
 from app.models.meeting import Meeting, MeetingMember, MeetingStatus, MemberRole  # noqa: F401
 from app.models.booking import MockBooking, BookingStatus  # noqa: F401
 from app.models.availability import MentorAvailability  # noqa: F401
@@ -38,6 +39,7 @@ __all__ = [
     "DocumentStatus",
     "DocumentChunk",
     "ReferenceChunk",
+    "Rubric",
     "Meeting",
     "MeetingMember",
     "MeetingStatus",
@@ -47,6 +49,8 @@ __all__ = [
     "Assessment",
     "AssessmentStatus",
     "CodeAnalysis",
+    "CodeAnalysisIssue",
+    "CodeAnalysisStatus",
     "Evaluation",
     "Report",
     "AppSetting",

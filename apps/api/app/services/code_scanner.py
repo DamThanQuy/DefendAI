@@ -61,9 +61,12 @@ SKIP_DIR_NAMES = {
     ".venv",
 }
 
-MAX_ZIP_FILES = 500
-MAX_SCAN_FILES = 50
-MAX_TOTAL_UNCOMPRESSED_BYTES = 20 * 1024 * 1024
+MAX_ZIP_FILES = 100000  # 100k, align with 100k-file goal
+# ponytail: removed hard cap on extract (was 50). Orchestrator reads ALL files then
+# splits into modules <= MODULE_FILE_CAP for 1 LLM call each. Upgrade path: 100k files.
+MAX_SCAN_FILES = 100000
+MODULE_FILE_CAP = 40  # files per module job -> ~40*5000=200K chars <= MAX_TOTAL_CHARS
+MAX_TOTAL_UNCOMPRESSED_BYTES = 10 * 1024 * 1024 * 1024  # 10GB, align with upload cap
 MAX_FILE_CHARS = 5000
 MAX_TOTAL_CHARS = 200000
 CONTEXT_OVERFLOW_THRESHOLD = 150000  # switch to multi-pass when total chars exceed this
@@ -315,18 +318,48 @@ def _numbered_lines(text: str, max_chars: int = MAX_FILE_CHARS) -> str:
     return "\n".join(numbered)
 
 
-def build_prompt(files: list[ScannedFile]) -> tuple[str, str, bool]:
+def _rubric_block(rubric: dict | None) -> str:
+    """Inject tiêu chí từ rubric (thước đo) vào system prompt thay hardcode."""
+    if not rubric:
+        return (
+            "Hãy review source code, tìm bug, code smell, security issue, performance issue và thiếu validation.\n"
+        )
+    cats = rubric.get("categories", {})
+    sev = rubric.get("severity_deduction", {})
+    lines = ["Tiêu chí đánh giá (rubric chuẩn):"]
+    for code, meta in cats.items():
+        lines.append(f"- {code} ({meta.get('label', code)}): trọng số {meta.get('weight', 1)}")
+    lines.append("Mức độ & điểm trừ (deduction):")
+    for s, d in sev.items():
+        lines.append(f"- {s}: -{d}")
+    lines.append(
+        'Phân loại mỗi issue vào đúng 1 `type` thuộc nhóm trên. '
+        "Tính điểm tổng: score = max(100 - Σ(deduction), 0)."
+    )
+    # Yêu cầu đồ án SEP490 cần soi (features + business_rules)
+    feats = rubric.get("features", [])
+    brs = rubric.get("business_rules", [])
+    if feats or brs:
+        lines.append("Yêu cầu đồ án SEP490 cần soi:")
+        for f in feats:
+            lines.append(f"  - Tính năng {f['code']}: {f['desc']} (nếu thiếu → issue missing_requirement)")
+        for b in brs[:12]:
+            lines.append(f"  - BR {b['code']}: {b['desc']} (nếu vi phạm → issue security/logic_error)")
+    return "\n".join(lines) + "\n"
+
+
+def build_prompt(files: list[ScannedFile], rubric: dict | None = None) -> tuple[str, str, bool]:
     system_prompt = (
         "Bạn là một Senior Software Engineer và code reviewer rất khắt khe. "
-        "Hãy review source code, tìm bug, code smell, security issue, performance issue và thiếu validation. "
-        "Chỉ trả về JSON object hợp lệ, không markdown, không giải thích ngoài JSON.\n\n"
+        "Hãy review source code theo đúng tiêu chí dưới đây.\n"
+        + _rubric_block(rubric)
+        + "Chỉ trả về JSON object hợp lệ, không markdown, không giải thích ngoài JSON.\n\n"
         "Output schema:\n"
         "{\n"
         '  "summary": "string",\n'
-        '  "pass_rate": 0-100,\n'
         '  "issues": [\n'
         "    {\n"
-        '      "type": "logic_error|code_smell|security|performance",\n'
+        '      "type": "logic_error|code_smell|security|performance|convention|missing_requirement",\n'
         '      "file": "path/to/file.py",\n'
         '      "line": 12,\n'
         '      "description": "string",\n'
@@ -361,6 +394,7 @@ def build_prompt(files: list[ScannedFile]) -> tuple[str, str, bool]:
 
 def _extract_json_payload(content: str) -> dict[str, Any]:
     text = content.strip()
+    # combo-3 (stepfun) emits a free-text reasoning preamble before the JSON object.
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
         text = re.sub(r"\s*```$", "", text)
@@ -368,7 +402,8 @@ def _extract_json_payload(content: str) -> dict[str, Any]:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+        # Greedy bracket capture also drops any leading reasoning / trailing prose.
+        match = re.search(r"[\{\[].*[\}\]]", text, flags=re.DOTALL)
         if match:
             return json.loads(match.group(0))
         raise
@@ -470,17 +505,6 @@ def _heuristic_scan(files: list[ScannedFile]) -> dict[str, Any]:
                     }
                 )
 
-    penalty = 0
-    for issue in issues:
-        penalty += {
-            "critical": 14,
-            "high": 10,
-            "medium": 6,
-            "low": 3,
-            "info": 1,
-        }.get(issue["severity"], 5)
-
-    pass_rate = max(100 - penalty, 0)
     summary = (
         f"Phát hiện {len(issues)} vấn đề từ {len(files)} file code. "
         "Kết quả này được tạo bằng heuristic fallback do AI provider chưa sẵn sàng."
@@ -488,24 +512,50 @@ def _heuristic_scan(files: list[ScannedFile]) -> dict[str, Any]:
 
     return {
         "summary": summary,
-        "pass_rate": pass_rate,
         "issues": issues,
         "provider": "heuristic",
         "model": "rules-v1",
     }
 
 
-async def analyze_code_document(document: Document, provider: str | None = None, model: str | None = None) -> dict[str, Any]:
-    files = await extract_code_files(document)
-    system_prompt, user_prompt, overflow = build_prompt(files)
+def _module_of_path(path: str) -> str:
+    parts = Path(path).parts
+    return parts[0] if len(parts) > 1 else "shared"
 
-    if overflow:
-        return _multi_pass_assessment(files, provider, model)
 
+def _split_by_module(files: list[ScannedFile]) -> dict[str, list[ScannedFile]]:
+    modules: dict[str, list[ScannedFile]] = {}
+    for file in files:
+        modules.setdefault(_module_of_path(file.path), []).append(file)
+    return modules
+
+
+def _split_into_module_jobs(files: list[ScannedFile], module_cap: int = 40) -> list[tuple[str, list[ScannedFile]]]:
+    """Group files by top-level folder then chunk each group to ``module_cap`` files.
+
+    Returns ``[(module_name, [ScannedFile, ...]), ...]`` — one LLM job per tuple.
+    """
+    grouped: dict[str, list[ScannedFile]] = _split_by_module(files)
+    jobs: list[tuple[str, list[ScannedFile]]] = []
+    for module_name, module_files in grouped.items():
+        for i in range(0, len(module_files), module_cap):
+            chunk = module_files[i : i + module_cap]
+            suffix = f"::{i // module_cap + 1}" if len(module_files) > module_cap else ""
+            jobs.append((f"{module_name}{suffix}", chunk))
+    return jobs
+
+
+async def analyze_module_files(
+    files: list[ScannedFile],
+    provider: str | None = None,
+    model: str | None = None,
+    rubric: dict | None = None,
+) -> list[dict[str, Any]]:
+    """1 LLM pass over a module's files (≤ MODULE_FILE_CAP). Returns normalized issues."""
+    if not files:
+        return []
+    system_prompt, user_prompt, _ = build_prompt(files, rubric=rubric)
     try:
-        # ponytail: relay 9router rejects response_format=json_object (HTTP 400),
-        # so rely on prompt + _extract_json_payload instead. If provider supports
-        # json_object natively, re-enable via response_format_json=True.
         result = await ai_gateway.generate(
             prompt=user_prompt,
             provider=provider,
@@ -516,88 +566,16 @@ async def analyze_code_document(document: Document, provider: str | None = None,
         )
         payload = _extract_json_payload(result["content"])
         raw_issues = payload.get("issues") or []
-        normalized_issues: list[dict[str, Any]] = []
+        normalized: list[dict[str, Any]] = []
         for index, item in enumerate(raw_issues, start=1):
-            if not isinstance(item, dict):
-                continue
-            normalized = _normalize_issue(item, index)
-            if normalized:
-                normalized_issues.append(normalized)
-
-        summary = str(payload.get("summary") or f"Phân tích xong {len(files)} file code.")
-        pass_rate = payload.get("pass_rate", payload.get("estimated_pass_rate", 0))
-        try:
-            pass_rate_value = float(pass_rate)
-        except (TypeError, ValueError):
-            pass_rate_value = 0.0
-
-        return {
-            "summary": summary,
-            "pass_rate": max(min(pass_rate_value, 100.0), 0.0),
-            "issues": normalized_issues,
-            "provider": result["provider"],
-            "model": result["model"],
-            "context_overflow": False,
-        }
-    except Exception as exc:
-        logger.warning("AI code scan failed, falling back to heuristic scan: %s", exc)
-        return _heuristic_scan(files)
-
-
-def _split_by_module(files: list[ScannedFile]) -> dict[str, list[ScannedFile]]:
-    modules: dict[str, list[ScannedFile]] = {}
-    for file in files:
-        parts = Path(file.path).parts
-        module = parts[0] if len(parts) > 1 else "shared"
-        modules.setdefault(module, []).append(file)
-    return modules
-
-
-async def _multi_pass_assessment(files: list[ScannedFile], provider: str | None, model: str | None) -> dict[str, Any]:
-    modules = _split_by_module(files)
-    all_issues: list[dict[str, Any]] = []
-    pass_rates: list[float] = []
-    processed_files = 0
-
-    for module_name, module_files in modules.items():
-        system_prompt, user_prompt, _ = build_prompt(module_files)
-        try:
-            result = await ai_gateway.generate(
-                prompt=user_prompt,
-                provider=provider,
-                model=model,
-                system_prompt=system_prompt,
-                temperature=0.15,
-                max_tokens=3000,
-            )
-            payload = _extract_json_payload(result["content"])
-            raw_issues = payload.get("issues") or []
-            for index, item in enumerate(raw_issues, start=1):
-                if not isinstance(item, dict):
-                    continue
-                normalized = _normalize_issue(item, index)
-                if normalized:
-                    normalized["module"] = module_name
-                    all_issues.append(normalized)
-            pass_rates.append(float(payload.get("pass_rate", 0)))
-            processed_files += len(module_files)
-        except Exception as exc:
-            logger.warning("Multi-pass module %s failed, using heuristic: %s", module_name, exc)
-            heuristic = _heuristic_scan(module_files)
-            all_issues.extend(heuristic.get("issues", []))
-            pass_rates.append(heuristic.get("pass_rate", 0))
-            processed_files += len(module_files)
-
-    avg_pass_rate = sum(pass_rates) / len(pass_rates) if pass_rates else 0.0
-    return {
-        "summary": f"Đánh giá đa module ({len(modules)} module, {processed_files} file). Context vượt ngưỡng 150K → tách module đánh giá song song.",
-        "pass_rate": max(min(avg_pass_rate, 100.0), 0.0),
-        "issues": all_issues,
-        "provider": provider or "unknown",
-        "model": model or "unknown",
-        "context_overflow": True,
-        "modules_processed": len(modules),
-    }
+            if isinstance(item, dict):
+                n = _normalize_issue(item, index)
+                if n:
+                    normalized.append(n)
+        return normalized
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Module LLM scan failed, using heuristic: %s", exc)
+        return _heuristic_scan(files).get("issues", [])
 
 
 # ============================================================

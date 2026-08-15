@@ -34,6 +34,10 @@ class ConversationCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=100)
 
 
+class ConversationRenameRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+
 class ConversationItem(BaseModel):
     conversation_id: str
     name: str

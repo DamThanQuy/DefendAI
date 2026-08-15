@@ -4,7 +4,9 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CodePreview } from "@/components/features/code-review/CodePreview";
+import { FileTree } from "@/components/features/assessment/FileTree";
 import type { CodeIssue } from "@/types";
+import { Maximize2, Minimize2 } from "lucide-react";
 
 type ScanStatus = "idle" | "uploading" | "scanning" | "done" | "rejected" | "error";
 
@@ -18,21 +20,9 @@ interface UploadedDoc {
 
 interface ScanResult {
   stats: { critical: number; warnings: number; optimizations: number };
-  backendData: { pass_rate: number; summary: string; provider?: string; model?: string };
+  backendData: { summary: string; provider?: string; model?: string };
   details: CodeIssue[];
   documentId?: number;
-}
-
-function fileIcon(name: string): string {
-  const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  const icons: Record<string, string> = {
-    py: "🐍", js: "🟨", ts: "🔷", tsx: "⚛️", jsx: "⚛️", java: "☕",
-    go: "🐹", rb: "💎", php: "🐘", cs: "🟣", cpp: "➕", c: "➕",
-    html: "🌐", css: "🎨", json: "🧾", yml: "⚙️", yaml: "⚙️",
-    md: "📝", txt: "📄", pdf: "📕", docx: "📘", pptx: "📙", xlsx: "📗",
-    zip: "🗜️", rar: "🗜️", sh: "🐚", sql: "🗄️", xml: "📄", toml: "⚙️",
-  };
-  return icons[ext] ?? "📄";
 }
 
 export default function CodeReviewPage() {
@@ -48,43 +38,43 @@ export default function CodeReviewPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [result, setResult] = useState<ScanResult | null>(null);
   const [members, setMembers] = useState<{ path: string; size: number; is_dir: boolean }[]>([]);
+  const [loadingTree, setLoadingTree] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<{ path: string; text: string } | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
   const [activeIssue, setActiveIssue] = useState<CodeIssue | null>(null);
-  const [filter, setFilter] = useState<"all" | "critical" | "warning" | "optimization">("all");
+  const [filter, setFilter] = useState<"all" | "high" | "medium" | "low">("all");
+  const [issueQuery, setIssueQuery] = useState("");
+  const [expandedIssues, setExpandedIssues] = useState<Set<number>>(new Set());
+  const [fileIssueFilter, setFileIssueFilter] = useState<string | null>(null);
+  const [expandedPanel, setExpandedPanel] = useState<null | "issues">(null);
 
   const token = useMemo(
     () => (typeof window !== "undefined" ? localStorage.getItem("access_token") : null),
     []
   );
 
-  const passRate = result?.backendData?.pass_rate ?? 0;
-  const percentage = Math.round(passRate * 100);
-
-  const getScoreLabel = (score: number) => {
-    if (score >= 90) return "Tốt";
-    if (score >= 70) return "Khá";
-    if (score >= 50) return "Trung bình";
-    return "Cần cải thiện";
-  };
-
   const issues = result?.details ?? [];
-  const allFiles = useMemo(
-    () => members.filter((m) => !m.is_dir).map((m) => m.path),
-    [members]
-  );
+  const fileCount = useMemo(() => members.filter((m) => !m.is_dir).length, [members]);
 
-  const issueCountByFile = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const i of issues) m.set(i.file, (m.get(i.file) ?? 0) + 1);
+  // Số issue (và số critical) theo file — dùng cho badge trên FileTree
+  const fileIssueStats = useMemo(() => {
+    const m = new Map<string, { count: number; critical: number }>();
+    for (const i of issues) {
+      const cur = m.get(i.file) ?? { count: 0, critical: 0 };
+      cur.count += 1;
+      const s = i.severity?.toLowerCase();
+      if (s === "critical" || s === "high") cur.critical += 1;
+      m.set(i.file, cur);
+    }
     return m;
   }, [issues]);
 
   // Lấy nội dung 1 file để preview
-  const loadFile = (path: string, docIdOverride?: number) => {
+  const loadFile = (path: string, docIdOverride?: number, filterIssues = false) => {
     setSelectedFile(path);
     setActiveIssue(null);
+    if (filterIssues && fileIssueStats.get(path)?.count) viewAllFileIssues(path);
     const docId = docIdOverride ?? result?.documentId;
     if (!docId || !token) return;
     setLoadingFile(true);
@@ -111,10 +101,11 @@ export default function CodeReviewPage() {
   // Upload mới + scan (hoặc scan lại tài liệu đã upload)
   const startScan = async () => {
     if (!file && !selectedDoc) return;
-    setStatus("uploading");
+    setStatus(selectedDoc ? "scanning" : "uploading");
     setErrorMsg("");
     setResult(null);
     setMembers([]);
+    setLoadingTree(false);
     setSelectedFile(null);
     setFileContent(null);
 
@@ -142,25 +133,7 @@ export default function CodeReviewPage() {
       }
       const data = await res.json();
       if (data.success) {
-        setStatus("done");
-        setResult({ ...(data as ScanResult), documentId: data.documentId });
-        setActiveIssue(null);
-        // Tải danh sách file để render tree
-        const docId = data.documentId;
-        if (docId && token) {
-          fetch(`/api/documents/${docId}/contents`, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-            .then((r) => r.json())
-            .then((c) => {
-              setMembers(c.items ?? []);
-              const firstCode = (c.items ?? []).find(
-                (m: any) => !m.is_dir && /\.(py|js|ts|tsx|jsx|java|go|cs|c|cpp|h|php|rb)$/i.test(m.path)
-              );
-              if (firstCode) loadFile(firstCode.path, docId);
-            })
-            .catch(() => {});
-        }
+        applyResult(data);
       } else if (data.error) {
         setStatus("rejected");
         setErrorMsg(data.error);
@@ -171,6 +144,30 @@ export default function CodeReviewPage() {
     } catch (e: any) {
       setStatus("error");
       setErrorMsg(e?.message || "Không thể kết nối máy chủ");
+    }
+  };
+
+  // Áp kết quả scan/history vào state + tải file tree
+  const applyResult = (data: ScanResult) => {
+    setStatus("done");
+    setResult({ ...data, documentId: data.documentId });
+    setActiveIssue(null);
+    const docId = data.documentId;
+    if (docId && token) {
+      setLoadingTree(true);
+      fetch(`/api/documents/${docId}/contents`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => r.json())
+        .then((c) => {
+          setMembers(c.items ?? []);
+          const firstCode = (c.items ?? []).find(
+            (m: any) => !m.is_dir && /\.(py|js|ts|tsx|jsx|java|go|cs|c|cpp|h|php|rb)$/i.test(m.path)
+          );
+          if (firstCode) loadFile(firstCode.path, docId);
+        })
+        .catch(() => {})
+        .finally(() => setLoadingTree(false));
     }
   };
 
@@ -195,13 +192,73 @@ export default function CodeReviewPage() {
     }
   }, [searchParams, router]);
 
+  // Query param ?analysis=id → mở lại kết quả code review đã lưu
+  useEffect(() => {
+    const analysisId = searchParams.get("analysis");
+    if (!analysisId || !token) return;
+    setStatus("scanning");
+    fetch(`/api/code/analyses/${analysisId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok || !data.success) {
+          setStatus("error");
+          setErrorMsg(data.error || "Không thể tải kết quả đã lưu");
+          return;
+        }
+        applyResult(data);
+      })
+      .catch((e: any) => {
+        setStatus("error");
+        setErrorMsg(e?.message || "Không thể kết nối máy chủ");
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, token]);
+
+  // Đóng overlay full-screen bằng Esc
+  useEffect(() => {
+    if (!expandedPanel) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpandedPanel(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expandedPanel]);
+
   const filteredIssues = issues.filter((i) => {
     const s = i.severity?.toLowerCase();
-    if (filter === "critical") return s === "critical" || s === "high";
-    if (filter === "warning") return s === "medium";
-    if (filter === "optimization") return s === "low" || s === "info";
+    if (filter === "high") return s === "critical" || s === "high";
+    if (filter === "medium") return s === "medium" || s === "warn" || s === "warning";
+    if (filter === "low") return s === "low" || s === "info" || s === "optimization";
     return true;
-  });
+  }).filter((i) => {
+    const q = issueQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (i.type || "").toLowerCase().includes(q) ||
+      (i.file || "").toLowerCase().includes(q) ||
+      (i.description || "").toLowerCase().includes(q)
+    );
+  }).filter((i) => (fileIssueFilter ? i.file === fileIssueFilter : true));
+
+  const toggleIssue = (id: number) => {
+    setExpandedIssues((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  // Xem toàn bộ issue của file đang mở: lọc theo file + mở rộng hết + auto-scroll
+  const viewAllFileIssues = (file: string) => {
+    setFileIssueFilter(file);
+    setFilter("all");
+    setExpandedIssues(new Set(issues.filter((i) => i.file === file).map((i) => i.id)));
+    requestAnimationFrame(() => {
+      document.querySelector('[data-issues-scroll]')?.scrollTo({ top: 0 });
+    });
+  };
 
   const severityLabel = (s: string) => {
     const low = s?.toLowerCase() || "low";
@@ -209,6 +266,127 @@ export default function CodeReviewPage() {
     if (low === "medium") return { label: "WARNING", bg: "bg-orange-500/10", txt: "text-orange-400" };
     return { label: "OPTIMIZATION", bg: "bg-green-500/10", txt: "text-green-400" };
   };
+
+  const renderIssuesCard = (full: boolean) => (
+    <div className={`bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden flex flex-col ${full ? "h-full" : ""}`}>
+      <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2">
+        <span className="text-[13px] font-bold text-zinc-200">Vấn đề ({issues.length})</span>
+        <button
+          onClick={() => setExpandedPanel(full ? null : "issues")}
+          className="ml-auto w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
+          title={full ? "Thu nhỏ" : "Toàn màn hình"}
+        >
+          {full ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+        </button>
+      </div>
+      <div className="p-2 flex flex-col gap-1.5 border-b border-zinc-800/60">
+        <div className="flex gap-1.5 flex-wrap">
+          {(() => {
+            const counts = {
+              high: issues.filter((i) => {
+                const s = i.severity?.toLowerCase();
+                return s === "critical" || s === "high";
+              }).length,
+              medium: issues.filter((i) => {
+                const s = i.severity?.toLowerCase();
+                return s === "medium" || s === "warn" || s === "warning";
+              }).length,
+              low: issues.filter((i) => {
+                const s = i.severity?.toLowerCase();
+                return s === "low" || s === "info" || s === "optimization";
+              }).length,
+            };
+            const tabs: { f: "all" | "high" | "medium" | "low"; label: string; count: number }[] = [
+              { f: "all", label: "Tất cả", count: issues.length },
+              { f: "high", label: "High", count: counts.high },
+              { f: "medium", label: "Medium", count: counts.medium },
+              { f: "low", label: "Low", count: counts.low },
+            ];
+            return tabs.map(({ f, label, count }) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-3 py-1 rounded-full text-[12px] font-semibold transition-colors ${
+                  filter === f ? "bg-primary text-primary-foreground" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                }`}
+              >
+                {label} ({count})
+              </button>
+            ));
+          })()}
+        </div>
+        <div className="flex gap-1.5">
+          <input
+            value={issueQuery}
+            onChange={(e) => setIssueQuery(e.target.value)}
+            placeholder="🔍 Tìm theo type, file hoặc mô tả..."
+            className="flex-1 min-w-0 px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-primary"
+          />
+          {selectedFile && fileIssueStats.get(selectedFile)?.count ? (
+            fileIssueFilter === selectedFile ? (
+              <button
+                onClick={() => { setFileIssueFilter(null); setExpandedIssues(new Set()); }}
+                className="px-2.5 py-1.5 text-[11px] font-semibold text-zinc-300 bg-zinc-800 rounded-lg hover:bg-zinc-700 shrink-0"
+              >
+                ✕ Bỏ lọc
+              </button>
+            ) : (
+              <button
+                onClick={() => viewAllFileIssues(selectedFile)}
+                className="px-2.5 py-1.5 text-[11px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 shrink-0"
+              >
+                👁 Xem hết ({fileIssueStats.get(selectedFile)?.count})
+              </button>
+            )
+          ) : null}
+        </div>
+      </div>
+      <div data-issues-scroll className={`divide-y divide-zinc-800/60 overflow-y-auto custom-scrollbar ${full ? "flex-1" : "max-h-[480px]"}`}>
+        {filteredIssues.length === 0 && (
+          <div className="p-6 text-center text-zinc-500 text-[13px]">Không có vấn đề trong bộ lọc này.</div>
+        )}
+        {filteredIssues.map((issue) => {
+          const cfg = severityLabel(issue.severity);
+          const active = activeIssue === issue;
+          const open = expandedIssues.has(issue.id);
+          return (
+            <div
+              key={issue.id}
+              className={`${active ? "bg-teal-500/5" : ""}`}
+            >
+              <button
+                onClick={() => toggleIssue(issue.id)}
+                className="w-full text-left px-3 py-2 hover:bg-zinc-800/40 transition-colors flex items-center gap-2"
+              >
+                <span className={`text-[9px] text-zinc-500 transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
+                <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded uppercase shrink-0 ${cfg.bg} ${cfg.txt}`}>
+                  {cfg.label}
+                </span>
+                <span className="text-[12px] font-semibold text-zinc-200 truncate flex-1">{issue.type}</span>
+                <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[45%] shrink-0">
+                  {issue.file.split("/").pop()}:{issue.line}
+                </span>
+              </button>
+              {open && (
+                <div className="px-5 pb-3">
+                  <p className="text-[12px] text-zinc-400 leading-relaxed">{issue.description}</p>
+                  {issue.suggestion && (
+                    <p className="text-[12px] text-teal-400 mt-1.5 italic">💡 {issue.suggestion}</p>
+                  )}
+                  <button
+                    onClick={() => pickIssue(issue)}
+                    className="mt-2 px-2.5 py-1 text-[11px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors"
+                  >
+                    👁 Xem trong code
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-background pb-16">
@@ -250,6 +428,12 @@ export default function CodeReviewPage() {
                 🗂️ {selectedDoc ? selectedDoc.filename : "Chọn từ đã upload"}
               </button>
             )}
+            <Link
+              href="/code-review/history"
+              className="flex items-center gap-2 px-5 py-2.5 bg-card border border-zinc-700 text-zinc-300 font-semibold text-[14px] rounded-lg hover:bg-zinc-800 transition-colors shadow-sm"
+            >
+              🕘 Lịch sử
+            </Link>
             <button
               onClick={startScan}
               disabled={(!file && !selectedDoc) || status === "uploading" || status === "scanning"}
@@ -365,16 +549,7 @@ export default function CodeReviewPage() {
         {status === "done" && result && (
           <>
             {/* Stats row */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="bg-card rounded-xl shadow-sm border border-zinc-800/60 p-4 flex items-center gap-3">
-                <div className="w-11 h-11 rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-lg font-bold">
-                  {percentage}
-                </div>
-                <div>
-                  <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-wide">Điểm chất lượng</div>
-                  <div className="text-[14px] font-bold text-zinc-200">{getScoreLabel(percentage)}</div>
-                </div>
-              </div>
+            <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="bg-card rounded-xl shadow-sm border border-zinc-800/60 p-4 flex items-center gap-3">
                 <div className="w-11 h-11 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center text-lg font-bold">
                   {result.stats?.critical ?? 0}
@@ -411,34 +586,19 @@ export default function CodeReviewPage() {
                 <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2">
                   <span className="text-sm">🗜️</span>
                   <span className="text-[13px] font-bold text-zinc-200">Files</span>
-                  <span className="ml-auto text-[11px] text-zinc-500">{allFiles.length} file</span>
+                  <span className="ml-auto text-[11px] text-zinc-500">{fileCount} file</span>
                 </div>
-                <div className="p-2 overflow-y-auto flex-1">
-                  {allFiles.length === 0 && <p className="text-zinc-500 text-[13px] p-3">Không có file</p>}
-                  {allFiles.map((p) => {
-                    const n = issueCountByFile.get(p) ?? 0;
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => loadFile(p)}
-                        className={`w-full flex items-center gap-2 px-2 py-1.5 text-[13px] rounded-md text-left ${
-                          selectedFile === p ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-zinc-400 hover:bg-zinc-800/60"
-                        }`}
-                      >
-                        <span>{fileIcon(p)}</span>
-                        <span className="truncate flex-1">{p.split("/").pop()}</span>
-                        {n > 0 ? (
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                            n >= 3 ? "bg-red-500/10 text-red-400" : "bg-orange-500/10 text-orange-400"
-                          }`}>
-                            {n}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-green-400">✓</span>
-                        )}
-                      </button>
-                    );
-                  })}
+                <div className="p-2 overflow-y-auto flex-1 custom-scrollbar">
+                  {loadingTree ? (
+                    <div className="flex flex-col items-center justify-center gap-2 py-8 text-zinc-500">
+                      <div className="w-6 h-6 border-2 border-zinc-700 border-t-primary rounded-full animate-spin" />
+                      <p className="text-[12px]">Đang tải cây thư mục...</p>
+                    </div>
+                  ) : members.length === 0 ? (
+                    <p className="text-zinc-500 text-[13px] p-3">Không có file</p>
+                  ) : (
+                    <FileTree members={members} selected={selectedFile} onSelect={(p) => loadFile(p, undefined, true)} fileStats={fileIssueStats} />
+                  )}
                 </div>
               </div>
 
@@ -481,65 +641,22 @@ export default function CodeReviewPage() {
                   )}
                 </div>
 
-                <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2">
-                    <span className="text-[13px] font-bold text-zinc-200">Vấn đề ({issues.length})</span>
-                  </div>
-                  <div className="p-2 flex gap-1.5 flex-wrap border-b border-zinc-800/60">
-                    {(["all", "critical", "warning", "optimization"] as const).map((f) => {
-                      const count =
-                        f === "all" ? issues.length
-                        : f === "critical" ? (result.stats?.critical ?? 0)
-                        : f === "warning" ? (result.stats?.warnings ?? 0)
-                        : (result.stats?.optimizations ?? 0);
-                      const label = f === "all" ? "Tất cả" : f === "critical" ? "Lỗi" : f === "warning" ? "Cảnh báo" : "Tối ưu";
-                      return (
-                        <button
-                          key={f}
-                          onClick={() => setFilter(f)}
-                          className={`px-3 py-1 rounded-full text-[12px] font-semibold transition-colors ${
-                            filter === f ? "bg-primary text-primary-foreground" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
-                          }`}
-                        >
-                          {label} ({count})
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="divide-y divide-zinc-800/60 max-h-[480px] overflow-y-auto">
-                    {filteredIssues.length === 0 && (
-                      <div className="p-6 text-center text-zinc-500 text-[13px]">Không có vấn đề trong bộ lọc này.</div>
-                    )}
-                    {filteredIssues.map((issue, idx) => {
-                      const cfg = severityLabel(issue.severity);
-                      const active = activeIssue === issue;
-                      return (
-                        <button
-                          key={idx}
-                          onClick={() => pickIssue(issue)}
-                          className={`w-full text-left p-4 hover:bg-zinc-800/40 transition-colors ${active ? "bg-teal-500/5" : ""}`}
-                        >
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase ${cfg.bg} ${cfg.txt}`}>
-                              {cfg.label}
-                            </span>
-                            <span className="text-[11px] text-zinc-500 font-mono truncate">
-                              {issue.file}:{issue.line}
-                            </span>
-                          </div>
-                          <p className="text-[13px] font-semibold text-zinc-200 mb-1">{issue.type}</p>
-                          <p className="text-[12px] text-zinc-400 leading-relaxed">{issue.description}</p>
-                          {issue.suggestion && (
-                            <p className="text-[12px] text-teal-400 mt-1.5 italic">💡 {issue.suggestion}</p>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                {renderIssuesCard(false)}
               </div>
             </div>
           </>
+        )}
+
+        {/* Overlay: panel Vấn đề full-screen */}
+        {expandedPanel === "issues" && (
+          <div className="fixed inset-0 z-[60] bg-black/80 p-4 md:p-8 flex" onClick={() => setExpandedPanel(null)}>
+            <div
+              className="w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {renderIssuesCard(true)}
+            </div>
+          </div>
         )}
       </div>
     </div>

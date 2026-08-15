@@ -8,7 +8,8 @@ import { PERSONA_LABELS } from "@/lib/constants";
 interface Question {
   id: number;
   question: string;
-  hint: string;
+  hint?: string;
+  suggested_answer?: string;
   difficulty: string;
   persona: string;
   citations?: string[];
@@ -89,7 +90,8 @@ export default function WqDetailPage() {
   }, [wsId, qid]);
 
   const formatDate = (iso: string) =>
-    new Date(iso).toLocaleString("vi-VN", {
+    // backend returns naive UTC; treat as UTC then localize to viewer TZ
+    new Date(iso + "Z").toLocaleString("vi-VN", {
       day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
     });
   const difficulty = (d: string) => diffCfg[d] ?? diffCfg.medium;
@@ -157,6 +159,7 @@ export default function WqDetailPage() {
           <div className="flex flex-col gap-3">
             {data.questions.map((q) => {
               const d = difficulty(q.difficulty);
+              const answer = q.suggested_answer || q.hint || "";
               return (
                 <div key={q.id} className="bg-card border border-zinc-800/60 rounded-2xl p-5">
                   <div className="flex items-center gap-2 flex-wrap mb-2">
@@ -164,7 +167,16 @@ export default function WqDetailPage() {
                     <span className="text-[11px] text-zinc-500 font-medium">#{q.id}</span>
                   </div>
                   <h4 className="text-[15px] font-bold text-teal-400 leading-snug">{renderWithRefs(q.question)}</h4>
-                  {q.hint && <p className="mt-2 text-zinc-500 text-[13px] italic">💡 {q.hint}</p>}
+                  {answer && (
+                    <details className="mt-3 group">
+                      <summary className="cursor-pointer select-none text-[13px] font-semibold text-zinc-300 hover:text-primary transition-colors">
+                        💡 Gợi ý câu trả lời
+                      </summary>
+                      <div className="mt-2 pl-3 border-l-2 border-zinc-700 text-zinc-400 text-[13px] leading-relaxed whitespace-pre-wrap">
+                        {answer}
+                      </div>
+                    </details>
+                  )}
                 </div>
               );
             })}

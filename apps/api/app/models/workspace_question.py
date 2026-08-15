@@ -22,7 +22,7 @@ class WorkspaceQuestion(Base):
     workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=False, index=True)
     topic = Column(Text, nullable=False)
     persona = Column(String(50), nullable=False, default="theory")
-    questions = Column(JSON, nullable=True)  # [{id, question, hint, difficulty, persona, citations:[file:đoạn]}]
+    questions = Column(JSON, nullable=True)  # [{id, question, suggested_answer, difficulty, persona, citations:[file:đoạn]}]
     sources = Column(JSON, nullable=True)  # [{num, source:"user"|"ref", title, chunk_index, content}] — nguồn đã dùng
     status = Column(SQLEnum(AssessmentStatus), default=AssessmentStatus.pending, nullable=False)
     error = Column(Text, nullable=True)

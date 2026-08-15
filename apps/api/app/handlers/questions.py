@@ -17,6 +17,7 @@ from app.services.ai_client import ai_gateway
 from app.services.chunk_indexer import index_chunks
 from app.services.document_parser import DocumentParserError, parse_and_chunk
 from app.services.job_queue import register_handler, update_job
+from app.services.rubric_service import get_active_rubric
 
 logger = logging.getLogger(__name__)
 
@@ -106,14 +107,52 @@ def _is_teacher_doc(text: str) -> bool:
     return False
 
 
-def _build_system_prompt(persona: str) -> str:
+def _rubric_defense_block(rubric: dict | None) -> str:
+    """Inject tiêu chí chấm bảo vệ (SEP490) từ rubric vào system prompt."""
+    if not rubric:
+        return ""
+    lines = ["\nTiêu chí chấm bảo vệ chuẩn (hội đồng sẽ soi theo các điểm sau):"]
+    for c in rubric.get("quality_criteria", []):
+        lines.append(f"- {c.get('label')}: đánh giá mức {', '.join(c.get('levels', []))}")
+    clo = rubric.get("clo", [])
+    if clo:
+        lines.append("CLO cần phủ: " + ", ".join(f"{c['code']} ({c['desc']})" for c in clo))
+    grading = rubric.get("grading", {})
+    if grading:
+        lines.append(
+            f"Trọng số: OGA {grading.get('oga', {}).get('weight')}% + "
+            f"TDA {grading.get('tda', {}).get('weight')}%."
+        )
+    # Tính năng phải có
+    feats = rubric.get("features", [])
+    if feats:
+        lines.append("Tính năng chuẩn (phải realize đủ): " +
+                     ", ".join(f"{f['code']} ({f['desc']})" for f in feats))
+    # Quy tắc nghiệp vụ
+    brs = rubric.get("business_rules", [])
+    if brs:
+        lines.append("Quy tắc nghiệp vụ chuẩn (BR phải enforce): " +
+                     ", ".join(f"{b['code']}: {b['desc']}" for b in brs[:12]) + " ...")
+    # Mốc tiến độ
+    ms = rubric.get("milestones", [])
+    if ms:
+        lines.append("Mốc tiến độ: " + ", ".join(f"T{m['week']}={m['deliverable']}" for m in ms))
+    # Checklist báo cáo
+    chk = rubric.get("report_checklist", {})
+    if chk:
+        lines.append("Checklist báo cáo cần phủ: " + "; ".join(f"{k}: {', '.join(v)}" for k, v in chk.items()))
+    return "\n".join(lines) + "\n"
+
+
+def _build_system_prompt(persona: str, rubric: dict | None = None) -> str:
     description = PERSONA_DESCRIPTIONS.get(persona, PERSONA_DESCRIPTIONS["theory"])
     return (
         "Bạn là AI phản biện cho đồ án. Nhiệm vụ của bạn là đọc tài liệu đã được cung cấp, "
         "suy nghĩ như thành viên hội đồng, và tạo ra bộ câu hỏi tranh biện sâu sắc, thực tế, có tính soi lỗi.\n\n"
         f"Persona: {persona}\n"
-        f"Mô tả persona: {description}\n\n"
-        "⚠️ ANTI-HALLUCINATION: TUYỆT ĐỐI KHÔNG bịa đặt, suy diễn, hay thêm thông tin "
+        f"Mô tả persona: {description}\n"
+        + _rubric_defense_block(rubric)
+        + "\n⚠️ ANTI-HALLUCINATION: TUYỆT ĐỐI KHÔNG bịa đặt, suy diễn, hay thêm thông tin "
         "không có trong nội dung. Mỗi câu hỏi PHẢI bám sâu vào ít nhất một chi tiết cụ thể "
         "từ tài liệu. Nếu tài liệu quá ngắn hoặc không đủ nội dung để tạo câu hỏi chất lượng, "
         "hãy tạo ÍT câu hỏi hơn nhưng chất lượng hơn. Mảng questions có thể có 0 phần tử.\n\n"
@@ -162,6 +201,7 @@ def _build_user_prompt(filename: str, doc_type: str, chunks: list[str], persona:
 
 def _extract_json_payload(content: str) -> dict[str, Any]:
     text = content.strip()
+    # combo-3 (stepfun) may prepend a free-text reasoning preamble before the JSON.
     tick3 = "`" * 3
     if text.startswith(tick3):
         text = re.sub(r"^" + tick3 + r"(?:json)?\s*", "", text, flags=re.IGNORECASE)
@@ -169,11 +209,13 @@ def _extract_json_payload(content: str) -> dict[str, Any]:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        match = re.search(r'\[\s*\{.*?\}\s*\]', text, flags=re.DOTALL)
+        # Greedy bracket capture drops leading reasoning / trailing prose; handles
+        # both object and array shapes (the latter normalised to {"questions": [...]}).
+        match = re.search(r"[\{\[].*[\}\]]", text, flags=re.DOTALL)
         if match:
             try:
-                array_data = json.loads(match.group(0))
-                return {"questions": array_data}
+                data = json.loads(match.group(0))
+                return {"questions": data} if isinstance(data, list) else data
             except json.JSONDecodeError:
                 pass
         logger.error("Failed to parse JSON: %s", text[:200])
@@ -278,6 +320,9 @@ async def handle_generate_questions(params: dict) -> dict:
         if job_id:
             await update_job(job_id, progress="30")
 
+        # ── load rubric chấm bảo vệ (thước đo) ──
+        rubric = await get_active_rubric(db, scope="defense")
+
         # ── heuristic: nếu tài liệu do giảng viên soạn → trả về rỗng ──
         full_text = "\n\n".join(chunks)
         if _is_teacher_doc(full_text):
@@ -303,7 +348,7 @@ async def handle_generate_questions(params: dict) -> dict:
                 "note": "Tài liệu được phát hiện là hướng dẫn của giảng viên, không phải đồ án sinh viên.",
             }
 
-        system_prompt = _build_system_prompt(persona)
+        system_prompt = _build_system_prompt(persona, rubric=rubric)
 
         try:
             if job_id:

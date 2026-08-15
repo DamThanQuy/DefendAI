@@ -61,6 +61,16 @@ export default function WorkspaceChat({
   const [activeConvId, setActiveConvId] = useState<string>(""); // "" = đoạn mặc định
   const [convLoading, setConvLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [menuConvId, setMenuConvId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  // Ước lượng context token của đoạn đang mở (char/4 ≈ token) so với trần ~12k.
+  const CONTEXT_MAX = 12000;
+  const contextTokens = Math.round(
+    chatItems.reduce((sum, t) => sum + (t.question.length + (t.answer?.length || 0)), 0) / 4
+  );
+  const contextPct = Math.min(100, Math.round((contextTokens / CONTEXT_MAX) * 100));
 
   // Khôi phục trạng thái sidebar từ localStorage (theo user) khi mount.
   useEffect(() => {
@@ -176,6 +186,34 @@ export default function WorkspaceChat({
     setChatItems([]);
     setChatError("");
     loadChatHistory(convId);
+  };
+
+  const startRename = (c: ConversationItem) => {
+    setRenamingId(c.conversation_id);
+    setRenameValue(c.name);
+    setMenuConvId(null);
+  };
+
+  const submitRename = async (convId: string) => {
+    const name = renameValue.trim();
+    if (!name) return;
+    const token = getToken();
+    if (!token) return;
+    try {
+      const r = await fetch(`/api/workspaces/${workspaceId}/chat/conversations/${convId}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!r.ok) throw new Error("Không đổi được tên");
+      setConversations((prev) =>
+        prev.map((c) => (c.conversation_id === convId ? { ...c, name } : c))
+      );
+    } catch (e: any) {
+      setChatError(e.message);
+    } finally {
+      setRenamingId(null);
+    }
   };
 
   const loadChatHistory = async (convId?: string) => {
@@ -361,9 +399,24 @@ export default function WorkspaceChat({
 
   return (
     <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden flex flex-col h-[calc(100vh-340px)] min-h-[450px]">
-      <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center justify-between gap-2">
+      <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center justify-between gap-2 sticky top-0 z-20">
         <span className="text-[13px] font-bold text-zinc-200">💬 Chat đề tài (toàn workspace)</span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {/* Circular progress: ước lượng context token của đoạn đang mở */}
+          <div className="flex items-center gap-2" title={`Context: ~${contextTokens} / ${CONTEXT_MAX} tokens`}>
+            <svg width="26" height="26" viewBox="0 0 36 36" className="shrink-0">
+              <circle cx="18" cy="18" r="15" fill="none" stroke="rgb(39 39 42)" strokeWidth="4" />
+              <circle
+                cx="18" cy="18" r="15" fill="none"
+                stroke={contextPct >= 90 ? "rgb(248 113 113)" : "rgb(45 212 191)"}
+                strokeWidth="4" strokeLinecap="round"
+                strokeDasharray={`${(contextPct / 100) * 94.2} 94.2`}
+                transform="rotate(-90 18 18)"
+              />
+            </svg>
+            <span className="text-[11px] text-zinc-400 tabular-nums">{contextPct}%</span>
+          </div>
+          <div className="flex items-center gap-2">
           <select
             value={chatPersona}
             onChange={(e) => setChatPersona(e.target.value)}
@@ -374,13 +427,6 @@ export default function WorkspaceChat({
             ))}
           </select>
           <button
-            onClick={createConversation}
-            title="Tạo đoạn chat mới"
-            className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
-          >
-            ➕ Đoạn mới
-          </button>
-          <button
             onClick={toggleSidebar}
             title={sidebarOpen ? "Thu gọn danh sách đoạn" : "Mở danh sách đoạn"}
             className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
@@ -388,13 +434,26 @@ export default function WorkspaceChat({
             {sidebarOpen ? "◀" : "▶"}
           </button>
         </div>
+        </div>
       </div>
 
       <div className="flex flex-1 min-h-0">
         {/* Sidebar đoạn chat — thu gọn được, trạng thái lưu theo user */}
         {sidebarOpen && (
-        <div className="w-44 shrink-0 border-r border-zinc-800/60 bg-zinc-900/40 overflow-y-auto custom-scrollbar p-2 flex flex-col gap-1">
-          <p className="px-2 pt-1 pb-1 text-[10px] font-bold uppercase tracking-wide text-zinc-500">Đoạn chat</p>
+        <div className="w-44 shrink-0 border-r border-zinc-800/60 bg-zinc-900/40 flex flex-col h-full min-h-0">
+          {/* Top bar cố định: tiêu đề + nút tạo đoạn mới (không trôi khi cuộn list) */}
+          <div className="shrink-0 px-2 pt-2 pb-2 border-b border-zinc-800/60 flex items-center justify-between gap-1">
+            <p className="px-1 text-[10px] font-bold uppercase tracking-wide text-zinc-500">Đoạn chat</p>
+            <button
+              onClick={createConversation}
+              title="Tạo đoạn chat mới"
+              className="px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-md text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors whitespace-nowrap"
+            >
+              ➕ Đoạn mới
+            </button>
+          </div>
+          {/* Danh sách đoạn chat — cuộn độc lập, không làm trôi top bar */}
+          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-2 flex flex-col gap-1">
           {convLoading ? (
             <p className="text-zinc-500 text-[11px] px-2 py-1">Đang tải...</p>
           ) : (
@@ -406,24 +465,60 @@ export default function WorkspaceChat({
                 💬 Đoạn mặc định
               </button>
               {conversations.map((c) => (
-                <div key={c.conversation_id} className="group flex items-center gap-1">
-                  <button
-                    onClick={() => switchConversation(c.conversation_id)}
-                    className={`flex-1 text-left px-2 py-1.5 rounded-md text-[12px] truncate transition-colors ${activeConvId === c.conversation_id ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-zinc-400 hover:bg-zinc-800/60"}`}
-                  >
-                    {c.name}
-                  </button>
-                  <button
-                    onClick={() => deleteConversation(c.conversation_id)}
-                    title="Xoá đoạn"
-                    className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-400 text-[12px] px-1 transition-opacity"
-                  >
-                    🗑
-                  </button>
+                <div key={c.conversation_id} className="group relative flex items-center gap-1">
+                  {renamingId === c.conversation_id ? (
+                    <input
+                      autoFocus
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={() => submitRename(c.conversation_id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") submitRename(c.conversation_id);
+                        if (e.key === "Escape") setRenamingId(null);
+                      }}
+                      className="flex-1 px-2 py-1.5 bg-zinc-900 border border-primary rounded-md text-[12px] text-zinc-200 focus:outline-none"
+                    />
+                  ) : (
+                    <button
+                      onClick={() => switchConversation(c.conversation_id)}
+                      className={`flex-1 text-left px-2 py-1.5 rounded-md text-[12px] truncate transition-colors ${activeConvId === c.conversation_id ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-zinc-400 hover:bg-zinc-800/60"}`}
+                    >
+                      {c.name}
+                    </button>
+                  )}
+                  {renamingId !== c.conversation_id && (
+                    <button
+                      onClick={() => setMenuConvId((prev) => (prev === c.conversation_id ? null : c.conversation_id))}
+                      title="Tuỳ chọn đoạn"
+                      className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-zinc-200 text-[14px] leading-none px-1 transition-opacity"
+                    >
+                      ⋮
+                    </button>
+                  )}
+                  {menuConvId === c.conversation_id && (
+                    <div className="absolute right-0 top-7 z-10 w-28 bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg py-1 text-[12px]">
+                      <button
+                        onClick={() => startRename(c)}
+                        className="w-full text-left px-3 py-1.5 text-zinc-300 hover:bg-zinc-800 transition-colors"
+                      >
+                        ✏️ Đổi tên
+                      </button>
+                      <button
+                        onClick={() => {
+                          setMenuConvId(null);
+                          deleteConversation(c.conversation_id);
+                        }}
+                        className="w-full text-left px-3 py-1.5 text-red-400 hover:bg-red-500/10 transition-colors"
+                      >
+                        🗑 Xoá đoạn
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </>
           )}
+          </div>
         </div>
         )}
 

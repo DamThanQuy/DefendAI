@@ -36,6 +36,12 @@ async function proxy(request: NextRequest, { params }: { params: { path?: string
       });
     }
 
+    // 204 No Content (vd: DELETE) — không có body, trả nguyên status để tránh
+    // NextResponse.json báo lỗi khi gán body cho response 204.
+    if (res.status === 204) {
+      return new Response(null, { status: 204 });
+    }
+
     const text = await res.text();
     const data = text ? JSON.parse(text) : null;
 

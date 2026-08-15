@@ -30,11 +30,13 @@ from app.handlers.chat_ask import (
 from app.handlers.questions import _normalize_persona
 from app.handlers.workspace_questions import _ensure_indexed, _format_context
 from app.models.entities import AssessmentStatus, User, Workspace, WorkspaceChat
+from app.models.workspace_conversation import WorkspaceConversation
 from app.schemas.workspace_chat import (
     WorkspaceChatCreateRequest,
     WorkspaceChatCreateResponse,
     WorkspaceChatResponse,
     ConversationCreateRequest,
+    ConversationRenameRequest,
     ConversationItem,
 )
 from app.services.ai_client import ai_gateway
@@ -236,6 +238,15 @@ async def list_conversations(
             .order_by(func.max(WorkspaceChat.created_at).desc())
         )
     ).all()
+    # Tên tuỳ chỉnh (nếu user đã đổi) — lấy 1 query thay vì N+1
+    conv_rows = (
+        await db.execute(
+            select(WorkspaceConversation.conversation_id, WorkspaceConversation.name).where(
+                WorkspaceConversation.workspace_id == ws.id
+            )
+        )
+    ).all()
+    names = {cid: name for cid, name in conv_rows}
     items = []
     for conv_id, count, last_at in rows:
         if not conv_id:
@@ -243,7 +254,7 @@ async def list_conversations(
         items.append(
             ConversationItem(
                 conversation_id=conv_id,
-                name=f"Đoạn {conv_id[:8]}",
+                name=names.get(conv_id, f"Đoạn {conv_id[:8]}"),
                 turn_count=count,
                 last_message_at=last_at,
             )
@@ -262,6 +273,35 @@ async def create_conversation(
     ws = await _get_owned_workspace(workspace_id, user, db)
     conv_id = uuid.uuid4().hex[:16]
     return {"conversation_id": conv_id, "name": body.name, "workspace_id": ws.id}
+
+
+@router.patch("/{workspace_id}/chat/conversations/{conversation_id}", status_code=200)
+async def rename_conversation(
+    workspace_id: int,
+    conversation_id: str,
+    body: ConversationRenameRequest,
+    user: User = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Đổi tên đoạn chat — upsert vào bảng workspace_conversations."""
+    ws = await _get_owned_workspace(workspace_id, user, db)
+    result = await db.execute(
+        select(WorkspaceConversation).where(
+            WorkspaceConversation.workspace_id == ws.id,
+            WorkspaceConversation.conversation_id == conversation_id,
+        )
+    )
+    conv = result.scalar_one_or_none()
+    if conv:
+        conv.name = body.name
+    else:
+        conv = WorkspaceConversation(
+            workspace_id=ws.id, conversation_id=conversation_id, name=body.name
+        )
+        db.add(conv)
+    await db.commit()
+    await db.refresh(conv)
+    return {"conversation_id": conv.conversation_id, "name": conv.name}
 
 
 @router.delete("/{workspace_id}/chat/conversations/{conversation_id}", status_code=204)

@@ -22,6 +22,7 @@ from app.routers import jobs as jobs_router
 from app.routers import workspaces as workspaces_router
 from app.routers import workspace_chats as workspace_chats_router
 from app.routers import workspace_questions as workspace_questions_router
+from app.routers import rubrics as rubrics_router
 # Khởi tạo AI gateway ngay khi import (sẽ log providers nào đã ready)
 from app.services.ai_client import ai_gateway
 
@@ -69,6 +70,8 @@ app.include_router(workspaces_router.router)
 app.include_router(workspace_questions_router.router)
 # Workspace RAG chat ("Chat đề tài" — R7)
 app.include_router(workspace_chats_router.router)
+# Rubrics (tiêu chí chuẩn — thước đo AI)
+app.include_router(rubrics_router.router)
 
 @app.on_event("startup")
 async def _ensure_storage() -> None:

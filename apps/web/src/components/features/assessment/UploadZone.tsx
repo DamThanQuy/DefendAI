@@ -48,11 +48,11 @@ export function UploadZone({
     }
   };
 
-  // Kiểm tra kích thước trước khi nhận file (khớp MAX_FILE_SIZE backend, 100MB)
+  // Kiểm tra kích thước trước khi nhận file (khớp MAX_FILE_SIZE backend, 10GB)
   const selectFile = (f: File): boolean => {
     setError("");
     if (f.size > MAX_FILE_SIZE) {
-      setError(`Tệp vượt quá ${MAX_FILE_SIZE / (1024 * 1024)}MB. Vui lòng chọn tệp nhỏ hơn.`);
+      setError(`Tệp vượt quá ${MAX_FILE_SIZE / (1024 * 1024 * 1024)}GB. Vui lòng chọn tệp nhỏ hơn.`);
       return false;
     }
     setFile(f);
