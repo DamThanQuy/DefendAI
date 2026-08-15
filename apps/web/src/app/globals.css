@@ -95,6 +95,13 @@
     background-attachment: fixed;
     min-height: 100vh;
   }
+
+  /* Light mode: soften the dark radial glows so the page reads as light */
+  .light body {
+    background-image:
+      radial-gradient(at 0% 0%, hsla(262, 83%, 58%, 0.06) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(330, 81%, 60%, 0.05) 0px, transparent 50%);
+  }
 }
 
 @layer utilities {
@@ -145,3 +152,68 @@
     background: hsl(240, 3.7%, 30%);
   }
 }
+
+/* =========================================================================
+   LIGHT MODE — remap các utility zinc-* tối sang token theme-aware.
+   Dự án đang hardcode rất nhiều màu tối (bg-zinc-900, text-zinc-200...).
+   Thay vì sửa tay 300+ chỗ, ta override ở lớp .light để light mode
+   hiển thị nhất quán. Các component dùng token (bg-card, text-foreground)
+   vẫn ưu tiên; block này chỉ "đổi màu" các class zinc cụ thể.
+   ========================================================================= */
+/* LIGHT MODE — remap utility zinc-* tối sang token theme-aware (selector phẳng). */
+.light .bg-zinc-900,
+.light .bg-zinc-950,
+.light .bg-zinc-900\/40,
+.light .bg-zinc-900\/30,
+.light .bg-zinc-800,
+.light .bg-zinc-800\/40,
+.light .bg-zinc-800\/60,
+.light .bg-zinc-800\/70,
+.light .bg-zinc-800\/50 {
+  background-color: hsl(var(--muted));
+}
+.light .bg-zinc-800\/20 {
+  background-color: hsl(var(--muted) / 0.6);
+}
+
+.light .border-zinc-800,
+.light .border-zinc-800\/60,
+.light .border-zinc-800\/50,
+.light .border-zinc-800\/40,
+.light .border-zinc-700,
+.light .border-zinc-700\/50 {
+  border-color: hsl(var(--border));
+}
+
+.light .text-zinc-100,
+.light .text-zinc-200,
+.light .text-zinc-300 {
+  color: hsl(var(--foreground));
+}
+.light .text-zinc-400,
+.light .text-zinc-500 {
+  color: hsl(var(--muted-foreground));
+}
+
+.light .hover\:bg-zinc-800:hover,
+.light .hover\:bg-zinc-800\/40:hover,
+.light .hover\:bg-zinc-800\/60:hover,
+.light .hover\:bg-zinc-800\/50:hover,
+.light .hover\:bg-zinc-700:hover,
+.light .hover\:bg-zinc-700\/50:hover {
+  background-color: hsl(var(--muted-foreground) / 0.1);
+}
+.light .hover\:text-zinc-200:hover,
+.light .hover\:text-zinc-300:hover,
+.light .hover\:text-zinc-100:hover {
+  color: hsl(var(--foreground));
+}
+
+.light input.bg-zinc-900,
+.light textarea.bg-zinc-900 {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* Room page dùng nền đen cố định (#0A0A0A) — giữ nguyên dark kể cả light
+   mode vì đây là "stage" video call. Không override. */

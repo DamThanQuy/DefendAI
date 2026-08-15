@@ -4,9 +4,9 @@ import { cn } from "@/lib/utils"
 const variants = {
   default: "bg-gradient-to-r from-teal-600 to-cyan-500 text-white hover:from-teal-500 hover:to-cyan-400 shadow-md shadow-teal-500/20 hover:shadow-lg hover:shadow-teal-500/30",
   destructive: "bg-red-600 text-white hover:bg-red-500 shadow-sm",
-  outline: "border border-zinc-700 bg-zinc-900/40 hover:border-teal-500 hover:text-teal-400 text-zinc-200",
-  secondary: "bg-zinc-800 text-zinc-200 hover:bg-zinc-700",
-  ghost: "hover:bg-zinc-800 hover:text-teal-400 text-zinc-300",
+  outline: "border border-border bg-background hover:border-teal-500 hover:text-teal-400 text-foreground",
+  secondary: "bg-muted text-foreground hover:bg-muted/70",
+  ghost: "hover:bg-muted hover:text-teal-400 text-muted-foreground",
   link: "text-teal-400 underline-offset-4 hover:underline",
 }
 

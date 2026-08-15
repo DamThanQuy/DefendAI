@@ -140,6 +140,7 @@ export interface Booking {
   note: string | null;
   status: BookingStatus;
   meeting_id: number | null;
+  reject_reason?: string | null;
   created_at: string;
   updated_at: string;
   student_name?: string | null;
