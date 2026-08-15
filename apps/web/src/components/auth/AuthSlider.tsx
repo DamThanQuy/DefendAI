@@ -60,6 +60,7 @@ function LoginForm(props: {
   onSwitch: () => void;
   onSubmit: (e: React.FormEvent) => void;
   onGoogle: (r: { credential?: string }) => void;
+  setError: (v: string) => void;
 }) {
   return (
     <>
@@ -184,6 +185,7 @@ function RegisterForm(props: {
   error: string;
   onSwitch: () => void;
   onGoogle: (r: { credential?: string }) => void;
+  setError: (v: string) => void;
 }) {
   return (
     <>
@@ -372,6 +374,7 @@ export function AuthSlider({
           onSwitch={() => setMode("register")}
           onSubmit={handleLogin}
           onGoogle={handleGoogle}
+          setError={setError}
         />
       </div>
 
@@ -385,6 +388,7 @@ export function AuthSlider({
           error={error}
           onSwitch={() => setMode("login")}
           onGoogle={handleGoogle}
+          setError={setError}
         />
       </div>
 
