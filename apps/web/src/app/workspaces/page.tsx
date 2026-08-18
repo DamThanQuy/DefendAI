@@ -37,7 +37,6 @@ interface SessionItem {
   id: number;
   document_id: number;
   document_name: string;
-  persona?: string;
   status: string;
   issue_count?: number | null;
   created_at: string;
@@ -510,17 +509,14 @@ function SessionsView({ sessions }: { sessions?: SessionsResponse }) {
     ...sessions.assessments.map((s) => ({
       ...s,
       kind: "💬 Hỏi đáp" as const,
-      meta: s.persona ? `Persona: ${s.persona}` : "",
       detail: s.status,
     })),
     ...sessions.code_analyses.map((s) => ({
       ...s,
       kind: "🔍 Code Review" as const,
-        meta: "",
-      detail: s.issue_count != null ? `${s.issue_count} vấn đề` : "",
+      detail: s.status,
     })),
-  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
+  ];
   if (all.length === 0) {
     return <p className="text-zinc-500 text-[13px]">Chưa có phiên nào cho workspace này.</p>;
   }
@@ -533,7 +529,6 @@ function SessionsView({ sessions }: { sessions?: SessionsResponse }) {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[12px] font-bold text-zinc-500">{s.kind}</span>
               <span className="text-[13px] font-semibold text-zinc-200 truncate">{s.document_name}</span>
-              {s.meta && <span className="text-[11px] text-zinc-500">{s.meta}</span>}
             </div>
             <div className="text-[11px] text-zinc-500 mt-0.5">{s.detail} · {new Date(s.created_at + "Z").toLocaleString("vi-VN")}</div>
           </div>

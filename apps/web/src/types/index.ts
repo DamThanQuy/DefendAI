@@ -17,7 +17,6 @@ export interface Question {
   question: string;
   hint: string;
   difficulty: Difficulty;
-  persona: string;
 }
 
 /** Code issue found by AI review. */

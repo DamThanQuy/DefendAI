@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
-import { PERSONA_LABELS, PERSONAS } from "@/lib/constants";
 import { FileTree } from "@/components/features/assessment/FileTree";
 import { FilePreview } from "@/components/features/assessment/FilePreview";
 import WorkspaceChat from "@/components/features/workspace/WorkspaceChat";
@@ -38,7 +37,6 @@ interface Question {
   question: string;
   hint: string;
   difficulty: string;
-  persona: string;
   citations?: string[];
 }
 
@@ -46,7 +44,6 @@ interface SessionItem {
   id: number;
   document_id: number;
   document_name: string;
-  persona?: string;
   status: string;
   issue_count?: number | null;
   created_at: string;
@@ -70,7 +67,6 @@ interface WorkspaceQuestionItem {
   id: number;
   workspace_id: number;
   topic: string;
-  persona: string;
   status: string;
   questions: Question[] | null;
   sources?: WorkspaceSourceItem[] | null;
@@ -82,10 +78,28 @@ interface WqSessionItem {
   id: number;
   workspace_id: number;
   topic: string;
-  persona: string;
   status: string;
   question_count: number;
   created_at: string;
+}
+
+interface DeliverableItem {
+  code: string;
+  name: string;
+  file_types: string[];
+  desc: string;
+  present: boolean;
+  matched_file: string | null;
+}
+
+interface DeliverableCheck {
+  workspace_id: number;
+  workspace_name: string;
+  total: number;
+  present_count: number;
+  percent: number;
+  missing: string[];
+  items: DeliverableItem[];
 }
 
 const docTypeLabel: Record<string, string> = {
@@ -209,7 +223,6 @@ export default function WorkspaceDetailPage() {
   const [rightTab, setRightTab] = useState<"preview" | "questions" | "history" | "chat">("preview");
 
   // "Luyện phản biện" (R6 — AI giả lập hội đồng, sinh 10 câu hỏi từ toàn bộ workspace)
-  const [wsPersona, setWsPersona] = useState("theory");
   const [wsQuestions, setWsQuestions] = useState<WorkspaceQuestionItem[]>([]);
   const [wsLoading, setWsLoading] = useState(false);
   const [wsQError, setWsQError] = useState("");
@@ -217,7 +230,6 @@ export default function WorkspaceDetailPage() {
   const [wqAll, setWqAll] = useState<WorkspaceQuestionItem[]>([]);
   const [wqPage, setWqPage] = useState(1);
   const WQ_LIMIT = 9;
-  const [wqFPersona, setWqFPersona] = useState("all");
   const [wqFStatus, setWqFStatus] = useState("all");
   const [wqFDate, setWqFDate] = useState("all");
   const [wqDeleting, setWqDeleting] = useState(false);
@@ -228,6 +240,11 @@ export default function WorkspaceDetailPage() {
   // History
   const [sessions, setSessions] = useState<SessionsResponse | null>(null);
   const [loadingSessions, setLoadingSessions] = useState(false);
+
+  // Stage 4 — Kiểm tra file nộp (deliverables)
+  const [dlvCheck, setDlvCheck] = useState<DeliverableCheck | null>(null);
+  const [loadingDlv, setLoadingDlv] = useState(false);
+  const [dlvError, setDlvError] = useState("");
 
   useEffect(() => {
     if (!wsId) return;
@@ -254,6 +271,12 @@ export default function WorkspaceDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wsId]);
 
+  useEffect(() => {
+    if (!wsId || !ws) return;
+    loadDeliverableCheck();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsId, ws?.document_count]);
+
   const openZip = async (docId: number) => {
     const token = getToken();
     if (!token) return;
@@ -271,6 +294,25 @@ export default function WorkspaceDetailPage() {
         setZipExpanded((prev) => new Set(prev).add(docId));
       }
     } catch { /* ignore */ }
+  };
+
+  const loadDeliverableCheck = async () => {
+    const token = getToken();
+    if (!token || !wsId) return;
+    setLoadingDlv(true);
+    setDlvError("");
+    try {
+      const r = await fetch(`/api/workspaces/${wsId}/deliverables-check`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error("Không thể tải kết quả kiểm tra file nộp");
+      const data: DeliverableCheck = await r.json();
+      setDlvCheck(data);
+    } catch (e: any) {
+      setDlvError(e.message);
+    } finally {
+      setLoadingDlv(false);
+    }
   };
 
   const selectFile = (f: WorkspaceFile) => {
@@ -370,7 +412,7 @@ export default function WorkspaceDetailPage() {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ topic: ws?.name ?? "", persona: wsPersona }),
+        body: JSON.stringify({ topic: ws?.name ?? "" }),
       });
       if (!r.ok) throw new Error("Không tạo được yêu cầu sinh câu hỏi");
       const created = await r.json();
@@ -424,7 +466,6 @@ export default function WorkspaceDetailPage() {
     const now = Date.now();
     const day = 86400000;
     return wqAll.filter((q) => {
-      if (wqFPersona !== "all" && q.persona !== wqFPersona) return false;
       if (wqFStatus !== "all" && q.status !== wqFStatus) return false;
       if (wqFDate !== "all") {
         const age = now - new Date(q.created_at).getTime();
@@ -434,7 +475,7 @@ export default function WorkspaceDetailPage() {
       }
       return true;
     });
-  }, [wqAll, wqFPersona, wqFStatus, wqFDate]);
+  }, [wqAll, wqFStatus, wqFDate]);
 
   const wqTotalPages = Math.max(1, Math.ceil(wqFiltered.length / WQ_LIMIT));
   const wqPageClamped = Math.min(wqPage, wqTotalPages);
@@ -449,7 +490,6 @@ export default function WorkspaceDetailPage() {
   const selectedFile = ws?.files.find((f) => f.document_id === selDocId) ?? null;
   const isZip = selectedFile && (selectedFile.doc_type === "zip" || selectedFile.doc_type === "rar");
   const difficulty = (d: string) => diffCfg[d] ?? diffCfg.medium;
-  const personaLabel = (p: string) => PERSONA_LABELS[p] ?? p;
 
   const allSessions = useMemo(() => {
     if (!sessions) return [];
@@ -457,19 +497,16 @@ export default function WorkspaceDetailPage() {
       ...sessions.assessments.map((s) => ({
         ...s,
         kind: "💬 Hỏi đáp" as const,
-        meta: s.persona ? `Persona: ${s.persona}` : "",
         detail: s.status,
       })),
       ...sessions.code_analyses.map((s) => ({
         ...s,
         kind: "🔍 Code Review" as const,
-        meta: "",
         detail: s.issue_count != null ? `${s.issue_count} vấn đề` : "",
       })),
       ...sessions.workspace_questions.map((s) => ({
         ...s,
         kind: "🎓 Luyện phản biện" as const,
-        meta: `Persona: ${personaLabel(s.persona)}`,
         detail: s.status,
         question_count: s.question_count,
       })),
@@ -652,6 +689,52 @@ export default function WorkspaceDetailPage() {
                 </button>
               </div>
 
+              {/* Stage 4 — Kiểm tra file nộp */}
+              <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-[15px] font-bold text-zinc-200">📦 Kiểm tra file nộp</h3>
+                    <p className="text-[12px] text-zinc-500">
+                      Đối chiếu theo chuẩn SEP490 · {dlvCheck ? `${dlvCheck.percent}% hoàn thành` : "Đang tải..."}
+                    </p>
+                  </div>
+                  <button
+                    onClick={loadDeliverableCheck}
+                    disabled={loadingDlv}
+                    className="px-3 py-1.5 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors disabled:opacity-50"
+                  >
+                    {loadingDlv ? "Đang kiểm tra..." : "Làm mới"}
+                  </button>
+                </div>
+
+                {dlvError && <p className="text-red-400 text-[13px] mb-3">{dlvError}</p>}
+
+                {dlvCheck && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                    {dlvCheck.items.map((it) => (
+                      <div
+                        key={it.code}
+                        className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 transition-colors ${
+                          it.present
+                            ? "bg-teal-950/30 border-teal-900/50"
+                            : "bg-red-950/20 border-red-900/40"
+                        }`}
+                      >
+                        <span
+                          className={`w-2 h-2 rounded-full shrink-0 ${
+                            it.present ? "bg-teal-400" : "bg-red-400"
+                          }`}
+                        />
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-bold text-zinc-200 truncate">{it.code}</p>
+                          <p className="text-[11px] text-zinc-500 truncate">{it.name}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {rightTab === "preview" && (
                 <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden h-[calc(100vh-340px)] min-h-[450px] flex flex-col">
                   {!selectedFile ? (
@@ -679,18 +762,8 @@ export default function WorkspaceDetailPage() {
                   {/* R6: "Luyện phản biện" — AI giả lập hội đồng, sinh 10 câu hỏi kèm gợi ý */}
                   <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-5">
                     <h3 className="text-[15px] font-bold text-zinc-200 mb-1">🎓 Luyện phản biện</h3>
-                    <p className="text-[12px] text-zinc-500 mb-4">AI đóng vai hội đồng, tự động sinh <b>bộ câu hỏi</b> bắt bẻ chuyên sâu kèm gợi ý trả lời từ toàn bộ {ws.document_count} file — giúp bạn ôn tập trước khi bảo vệ thật. Chọn chế độ hội đồng bên dưới rồi bấm "Sinh câu hỏi".</p>
+                    <p className="text-[12px] text-zinc-500 mb-4">AI đóng vai hội đồng, tự động sinh <b>bộ câu hỏi</b> bắt bẻ chuyên sâu kèm gợi ý trả lời từ toàn bộ {ws.document_count} file — giúp bạn ôn tập trước khi bảo vệ thật. Bấm "Sinh câu hỏi" để bắt đầu.</p>
                     <div className="flex flex-col md:flex-row gap-3">
-                      <select
-                        value={wsPersona}
-                        onChange={(e) => setWsPersona(e.target.value)}
-                        disabled={wsRunning}
-                        className="px-3 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-[13px] text-zinc-300 focus:outline-none focus:border-primary disabled:opacity-50"
-                      >
-                        {PERSONAS.map((p) => (
-                          <option key={p.key} value={p.key}>{p.label}</option>
-                        ))}
-                      </select>
                       {wsRunning ? (
                         <button
                           onClick={stopWorkspaceTopic}
@@ -736,14 +809,6 @@ export default function WorkspaceDetailPage() {
                         {wqAll.length > 9 && (
                           <div className="flex flex-wrap items-center gap-2 mb-3">
                             <span className="text-[12px] text-zinc-500 font-semibold">Lọc:</span>
-                            <select
-                              value={wqFPersona}
-                              onChange={(e) => { setWqFPersona(e.target.value); setWqPage(1); }}
-                              className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300"
-                            >
-                              <option value="all">Tất cả persona</option>
-                              {PERSONAS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-                            </select>
                             <select
                               value={wqFStatus}
                               onChange={(e) => { setWqFStatus(e.target.value); setWqPage(1); }}
@@ -793,11 +858,6 @@ export default function WorkspaceDetailPage() {
                                   </button>
                                   <div className="flex items-center gap-2 mb-2 pr-8">
                                     <span className="px-2 py-0.5 text-[11px] font-mono font-bold rounded-full bg-zinc-800 text-zinc-400 shrink-0">#{q.id}</span>
-                                    <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${
-                                      q.persona === "theory" ? "bg-green-500/10 text-green-400"
-                                      : q.persona === "strict" ? "bg-red-500/10 text-red-400"
-                                      : "bg-purple-500/10 text-purple-300"
-                                    }`}>{personaLabel(q.persona)}</span>
                                     <span className={`w-2 h-2 rounded-full ${failed ? "bg-red-400" : "bg-green-400"}`} />
                                   </div>
                                   <p className={`text-[13px] font-semibold leading-snug line-clamp-2 mb-3 ${failed ? "text-red-400 italic" : "text-zinc-200"}`}>
@@ -873,7 +933,6 @@ export default function WorkspaceDetailPage() {
                                 <span className="text-[13px] font-semibold text-zinc-200 truncate">
                                   {isWq ? (s.topic || "Luyện phản biện") : s.document_name}
                                 </span>
-                                {s.meta && <span className="text-[11px] text-zinc-500">{s.meta}</span>}
                                 {isWq && (s as any).question_count > 0 && (
                                   <span className="text-[11px] text-zinc-500">· {(s as any).question_count} câu</span>
                                 )}

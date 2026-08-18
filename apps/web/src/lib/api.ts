@@ -64,7 +64,6 @@ export interface Question {
   question: string;
   hint: string;
   difficulty: "easy" | "medium" | "hard";
-  persona: string;
 }
 
 export interface CodeIssue {
@@ -98,11 +97,10 @@ export function uploadDocument(file: File) {
   });
 }
 
-export function generateQuestions(documentId: number, persona: string) {
+export function generateQuestions(documentId: number) {
   // Thêm provider và model vào kiểu trả về ở đây:
   return api.post<{ questions: Question[]; provider?: string; model?: string }>("/api/questions/generate", {
     document_id: documentId,
-    persona,
   });
 }
 
