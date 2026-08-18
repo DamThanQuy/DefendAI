@@ -21,18 +21,12 @@ class AssessmentQuestion(BaseModel):
     question: str = Field(..., min_length=1)
     hint: str = Field(..., min_length=1)
     difficulty: Difficulty
-    persona: str = Field(..., min_length=1)
 
 
 class GenerateQuestionsRequest(BaseModel):
     """Body cho POST /api/questions/generate."""
 
     document_id: int = Field(..., ge=1, description="ID document đã upload")
-    persona: str = Field(
-        default="theory",
-        min_length=1,
-        description="Persona AI: theory | enterprise | strict (có alias tiếng Việt)",
-    )
     provider: Optional[str] = Field(
         default=None,
         description="Provider AI tùy chọn: nvidia | google. Nếu bỏ trống sẽ dùng routing mặc định.",
@@ -50,9 +44,9 @@ class GenerateQuestionsResponse(BaseModel):
     document_id: int
     document_name: str
     doc_type: str = ""
-    persona: str
     status: str
     chunks_count: int
     questions: list[AssessmentQuestion]
     provider: str
     model: str
+    missing_submissions: list[dict] = []

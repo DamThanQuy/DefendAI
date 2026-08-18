@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { API_BASE_URL } from "@/lib/constants";
 import { 
   Mic, 
   VideoIcon, 
@@ -33,7 +34,7 @@ export default function MockRoomPage() {
   useEffect(() => {
     const fetchMessages = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/meetings/${meetingId}/messages`);
+        const res = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}/messages`);
         if (res.ok) {
           const data = await res.json();
           setMessages(data);
@@ -70,7 +71,7 @@ export default function MockRoomPage() {
           setMessages(prev => [...prev, newMsg]);
           
           try {
-            await fetch(`http://localhost:8000/api/meetings/${meetingId}/messages`, {
+            await fetch(`${API_BASE_URL}/api/meetings/${meetingId}/messages`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(newMsg)
@@ -142,7 +143,7 @@ export default function MockRoomPage() {
     setInputValue("");
     
     try {
-      await fetch(`http://localhost:8000/api/meetings/${meetingId}/messages`, {
+      await fetch(`${API_BASE_URL}/api/meetings/${meetingId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newMsg)

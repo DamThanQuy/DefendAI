@@ -241,7 +241,6 @@ async def list_document_assessments(
         "items": [
             {
                 "id": a.id,
-                "persona": a.persona,
                 "status": a.status.value,
                 "chunks_count": len(a.chunks or []),
                 "questions_count": len(a.questions or []),

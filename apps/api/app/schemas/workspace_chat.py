@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 
 class WorkspaceChatCreateRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
-    persona: str = "theory"
     conversation_id: Optional[str] = None
 
 
@@ -18,7 +17,6 @@ class WorkspaceChatResponse(BaseModel):
     question: str
     answer: Optional[str] = None
     citations: Optional[List[str]] = None
-    persona: str
     status: str
     error: Optional[str] = None
     created_at: datetime

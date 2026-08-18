@@ -13,7 +13,6 @@ from sqlalchemy import select
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.handlers.questions import _normalize_persona
 from app.models.entities import AssessmentStatus, User, Workspace, WorkspaceQuestion
 from app.schemas.workspace_question import (
     WorkspaceQuestionCreateRequest,
@@ -48,12 +47,10 @@ async def create_workspace_questions(
     db=Depends(get_db),
 ):
     ws = await _get_owned_workspace(workspace_id, user, db)
-    persona = _normalize_persona(body.persona)
 
     row = WorkspaceQuestion(
         workspace_id=ws.id,
         topic=body.topic.strip(),
-        persona=persona,
         status=AssessmentStatus.pending,
     )
     db.add(row)
@@ -66,7 +63,6 @@ async def create_workspace_questions(
             "question_id": row.id,
             "workspace_id": ws.id,
             "topic": row.topic,
-            "persona": row.persona,
         },
     )
     return WorkspaceQuestionCreateResponse(question_id=row.id, job_id=job_id, status="queued")

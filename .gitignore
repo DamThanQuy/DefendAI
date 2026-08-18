@@ -84,3 +84,7 @@ test-google-headful.mjs
 test-google-login.mjs
 
 .agents/
+
+# Local large test fixture (manual checkpoint only, not used by CI)
+apps/api/report-cua-long.docx
+apps/web/tsconfig.tsbuildinfo

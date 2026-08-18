@@ -19,7 +19,6 @@ class Assessment(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     document_id = Column(Integer, ForeignKey("documents.id"), nullable=False, index=True)
-    persona = Column(String(50), nullable=False)
     chunks = Column(JSON, nullable=True)
     questions = Column(JSON, nullable=True)
     status = Column(SQLEnum(AssessmentStatus), default=AssessmentStatus.pending, nullable=False)

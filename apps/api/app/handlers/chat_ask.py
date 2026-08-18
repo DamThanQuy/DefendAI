@@ -15,10 +15,7 @@ from app.core.config import settings
 from app.core.database import async_session_maker
 from app.handlers.questions import (
     MAX_PROMPT_CHARS,
-    PERSONA_DESCRIPTIONS,
-    _build_system_prompt,
     _extract_json_payload,
-    _normalize_persona,
     _truncate_text,
 )
 from app.handlers.workspace_questions import _ensure_indexed, _format_context
@@ -65,7 +62,7 @@ def _format_history(history: List[dict]) -> str:
     return "\n".join(lines)
 
 
-def _build_rag_answer_prompt(question: str, persona: str, history: List[dict], contexts: List[str], json_mode: bool = True) -> str:
+def _build_rag_answer_prompt(question: str, history: List[dict], contexts: List[str], json_mode: bool = True) -> str:
     body = "\n\n".join(f"{i}. {c}" for i, c in enumerate(contexts, start=1))
     if json_mode:
         format_instr = (
@@ -80,8 +77,7 @@ def _build_rag_answer_prompt(question: str, persona: str, history: List[dict], c
             "mục citations hay nguồn — hệ thống tự gắn nguồn file:đoạn cho câu trả lời. "
         )
     return _truncate_text(
-        f"Câu hỏi cần trả lời: {question}\n"
-        f"Persona: {persona}\n\n"
+        f"Câu hỏi cần trả lời: {question}\n\n"
         "Lịch sử hội thoại trước đó (giữ ngữ cảnh cho câu trả lời):\n"
         f"{_format_history(history)}\n\n"
         "Dưới đây là các đoạn trích liên quan nhất. Nhãn [USER: ...] là nội dung đồ án, "
@@ -94,14 +90,11 @@ def _build_rag_answer_prompt(question: str, persona: str, history: List[dict], c
     )
 
 
-def _build_chat_system_prompt(persona: str) -> str:
+def _build_chat_system_prompt() -> str:
     """System prompt cho chat (khác hẳn bản tạo câu hỏi): trả lời thuần text, không ép JSON."""
-    description = PERSONA_DESCRIPTIONS.get(persona, PERSONA_DESCRIPTIONS["theory"])
     return (
         "Bạn là trợ lý học thuật trả lời câu hỏi của sinh viên về đồ án của họ. "
         "Đọc kỹ các đoạn trích từ đồ án được cung cấp và trả lời chi tiết, bám sát nội dung đó.\n\n"
-        f"Persona: {persona}\n"
-        f"Mô tả persona: {description}\n\n"
         "⚠️ ANTI-HALLUCINATION: TUYỆT ĐỐI KHÔNG bịa đặt, suy diễn, hay thêm thông tin "
         "không có trong các đoạn trích. Nếu thông tin không có trong đồ án, hãy nói rõ điều đó.\n\n"
         "Trả lời thuần văn bản markdown. KHÔNG gói trong JSON, không tự thêm mục citations."
@@ -126,7 +119,6 @@ async def handle_chat_ask(params: dict) -> dict:
     chat_id: int = params["chat_id"]
     workspace_id: int = params["workspace_id"]
     question: str = params["question"]
-    persona = _normalize_persona(params.get("persona", "theory"))
     conversation_id: Optional[str] = params.get("conversation_id")
     job_id = params.get("_job_id")
 
@@ -170,10 +162,10 @@ async def handle_chat_ask(params: dict) -> dict:
         async with async_session_maker() as db:
             history = await _load_history(db, workspace_id, conversation_id)
         contexts = [_format_context(r) for r in user_results + ref_results]
-        prompt = _build_rag_answer_prompt(question, persona, history, contexts)
+        prompt = _build_rag_answer_prompt(question, history, contexts)
         ai_result = await ai_gateway.generate(
             prompt=prompt,
-            system_prompt=_build_system_prompt(persona),
+            system_prompt=_build_chat_system_prompt(),
             temperature=0.3,
             max_tokens=4000,
         )

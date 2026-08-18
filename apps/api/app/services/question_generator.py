@@ -166,7 +166,7 @@ async def generate_questions(
     try:
         # Step 1: Parse + chunk document
         logger.info("Parsing document %s ...", document.filename)
-        chunks = await parse_and_chunk(document)
+        chunks, diagrams = await parse_and_chunk(document)
         if not chunks:
             raise QuestionGeneratorError(
                 f"Could not extract text from '{document.filename}'. "

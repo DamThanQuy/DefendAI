@@ -18,7 +18,6 @@ from app.handlers.questions import (
     _build_system_prompt,
     _extract_json_payload,
     _heuristic_questions,
-    _normalize_persona,
     _truncate_text,
 )
 from app.models.entities import (
@@ -71,9 +70,9 @@ async def _ensure_indexed(workspace_id: int) -> None:
 
     for doc in docs:
         try:
-            chunks = await parse_and_chunk(doc)
+            chunks, diagrams = await parse_and_chunk(doc)
             if chunks:
-                await index_chunks(doc, chunks)
+                await index_chunks(doc, chunks, diagrams)
                 logger.info("Index on-demand doc %s (%s chunks)", doc.id, len(chunks))
         except Exception as exc:  # best-effort từng doc, không chặn cả job
             logger.warning("Index-on-demand failed for doc %s: %s", doc.id, exc)
@@ -85,11 +84,10 @@ def _format_context(item: dict) -> str:
     return f"[USER: {item['filename']}: đoạn {item['chunk_index']}]\n{item['content']}"
 
 
-def _build_rag_prompt(topic: str, persona: str, contexts: List[str]) -> str:
+def _build_rag_prompt(topic: str, contexts: List[str]) -> str:
     body = "\n\n".join(f"{i}. {c}" for i, c in enumerate(contexts, start=1))
     return _truncate_text(
-        f"Đề tài cần hỏi: {topic}\n"
-        f"Persona: {persona}\n\n"
+        f"Đề tài cần hỏi: {topic}\n\n"
         "Dưới đây là các đoạn trích liên quan nhất. Nhãn [USER: ...] là nội dung đồ án, "
         "nhãn [REF: ...] là tiêu chuẩn/rubric của hội đồng (mỗi đoạn đầu có nguồn).\n\n"
         f"{body}\n\n"
@@ -107,7 +105,7 @@ def _build_rag_prompt(topic: str, persona: str, contexts: List[str]) -> str:
     )
 
 
-def _normalize_rag_questions(raw_questions: List[Any], persona: str) -> List[dict]:
+def _normalize_rag_questions(raw_questions: List[Any]) -> List[dict]:
     """Chuẩn hoá câu hỏi từ AI, giữ citations; lọc citations sai format/điều."""
     out: List[dict] = []
     count = 1
@@ -124,7 +122,6 @@ def _normalize_rag_questions(raw_questions: List[Any], persona: str) -> List[dic
             "question": str(item["question"]).strip(),
             "suggested_answer": str(item.get("suggested_answer") or item.get("hint", "")).strip(),
             "difficulty": difficulty if difficulty in _VALID_DIFFICULTIES else "medium",
-            "persona": persona,
             "citations": citations,
         })
         count += 1
@@ -138,7 +135,6 @@ async def handle_workspace_questions(params: dict) -> dict:
     question_id: int = params["question_id"]
     workspace_id: int = params["workspace_id"]
     topic: str = params["topic"]
-    persona = _normalize_persona(params.get("persona", "theory"))
     job_id = params.get("_job_id")
 
     async with async_session_maker() as db:
@@ -181,10 +177,10 @@ async def handle_workspace_questions(params: dict) -> dict:
 
         # Reference rỗng thì bỏ qua (chỉ dùng user chunks) — không chặn job
         contexts = [_format_context(r) for r in user_results + ref_results]
-        prompt = _build_rag_prompt(topic, persona, contexts)
+        prompt = _build_rag_prompt(topic, contexts)
         ai_result = await ai_gateway.generate(
             prompt=prompt,
-            system_prompt=_build_system_prompt(persona),
+            system_prompt=_build_system_prompt(),
             temperature=0.2,
             # Gateway routes to a reasoning model (step-3.7-flash) that spends most of
             # max_tokens on `reasoning`; 4000 left no budget for the JSON answer (empty
@@ -192,10 +188,10 @@ async def handle_workspace_questions(params: dict) -> dict:
             max_tokens=12000,
         )
         payload = _extract_json_payload(ai_result["content"])
-        questions = _normalize_rag_questions(payload.get("questions", []), persona)
+        questions = _normalize_rag_questions(payload.get("questions", []))
 
         if not questions:  # AI trả 0 câu → heuristic tối thiểu
-            qs = _heuristic_questions(topic, contexts, persona)
+            qs = _heuristic_questions(topic, contexts)
             questions = [q.model_dump() | {"citations": []} for q in qs]
 
         # Nguồn đã dùng, đánh số 1..N đúng thứ tự context trong prompt (circle style)

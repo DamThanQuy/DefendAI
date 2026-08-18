@@ -1,11 +1,13 @@
 """
 ChunkIndexer — đổ embedding cho chunks vào document_chunks (RAG).
 
-Sau `parse_and_chunk`, gọi `index_chunks(document, chunks)` để embed từng chunk
+Sau `parse_and_chunk`, gọi `index_chunks(document, chunks, diagrams)` để embed từng chunk
 (embedder — Gemini, dim 1024) và persist vào `document_chunks` kèm meta JSONB.
+Nếu có `diagrams` (từ vision reader), chunk cuối được gắn `meta.has_diagram=true` để
+AI sinh câu hỏi có thể cite đúng chunk sơ đồ.
 
 Idempotent: mỗi lần re-run, `parse_and_chunk` tạo lại chunks → xoá bản cũ rồi
-re-insert cho khớp với chunk hiện tại. Embed chỉ chạy lúc index, không lúc query.
+re-insert cho khớp chunks hiện tại. Embed chỉ chạy lúc index, không lúc query.
 
 Best-effort: lỗi embed/insert → log + trả 0, không raise — R4 là add-on của luồng
 sinh câu hỏi, không được chặn job. Transaction riêng, không đụng session của handler.
@@ -22,12 +24,14 @@ from app.services.embedder import embed
 logger = logging.getLogger(__name__)
 
 
-async def index_chunks(document, chunks: List[str]) -> int:
+async def index_chunks(document, chunks: List[str], diagrams: List[str] | None = None) -> int:
     """Embed chunks và persist vào document_chunks trong transaction riêng.
 
     Args:
         document: ORM Document (cần document.id, document.filename, document.doc_type).
         chunks: danh sách chunk text từ `parse_and_chunk`.
+        diagrams: mô tả diagram từ vision reader (optional). Nếu có, chunk cuối
+                  được gắn meta.has_diagram=true.
 
     Returns:
         Số chunk đã index; 0 nếu chunks rỗng hoặc có lỗi (best-effort, không raise).
@@ -42,6 +46,8 @@ async def index_chunks(document, chunks: List[str]) -> int:
         return 0
 
     doc_type = getattr(document.doc_type, "value", str(document.doc_type))
+    has_diagrams = bool(diagrams)
+
     rows = [
         DocumentChunk(
             document_id=document.id,
@@ -52,6 +58,8 @@ async def index_chunks(document, chunks: List[str]) -> int:
                 "doc_type": doc_type,
                 "filename": document.filename,
                 "chunk_index": i,
+                # Tag chunk cuối nếu tài liệu có diagram (để AI cite đúng sơ đồ)
+                "has_diagram": has_diagrams and i == len(chunks) - 1,
             },
         )
         for i, (content, vec) in enumerate(zip(chunks, vectors))

@@ -25,14 +25,18 @@ from io import BytesIO
 
 import logging
 import zipfile
-from typing import List
+from dataclasses import dataclass, field
+from typing import List, Optional
 
 from PyPDF2 import PdfReader
 from docx import Document as DocxDocument
 from pptx import Presentation
 
+from app.services.vision_read import ImagePart, ReadResult
+
 from app.models.document import DocType, Document
 from app.services.storage import get_doc
+from app.services.vision_read import read_file as vision_read_file
 
 try:
     import rarfile
@@ -40,6 +44,13 @@ except ImportError:  # pragma: no cover
     rarfile = None  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ParseResult:
+    """Kết quả parse: text thường + mô tả diagram (từ vision reader)."""
+    text: str
+    diagrams: List[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -257,15 +268,32 @@ _EXTRACTORS = {
 # ---------------------------------------------------------------------------
 # Public API — dùng từ router / service khác
 # ---------------------------------------------------------------------------
-async def extract_text(document) -> str:
+# Doc types routed PRIMARY through Gemini 3.1 Flash Lite vision reader.
+# Native extractors (PyPDF2/python-docx) only read text — they drop diagrams,
+# ERD/DFD/sequence shapes embedded as images. Vision reader captures both.
+VISION_PRIMARY_TYPES = {DocType.PDF, DocType.DOCX, DocType.PPTX}
+
+# Doc types that Gemini cannot meaningfully parse (archives, plain text).
+# Keep native extractors as the only path for these.
+_NATIVE_ONLY_TYPES = {DocType.ZIP}
+
+
+async def extract_text(document) -> ParseResult:
     """
-    Đọc file từ MinIO theo document.doc_type và trích xuất toàn bộ text.
+    Đọc file từ MinIO theo document.doc_type và trích xuất text + diagram.
+
+    Stage 5 (Option B): pdf/docx/pptx → PRIMARY qua Gemini 3.1 Flash Lite vision reader.
+    - PDF: gửi nguyên file, Gemini render ảnh nhúng trực tiếp (text + diagram 1 call).
+    - DOCX/PPTX: Gemini KHÔNG render được ảnh nhúng trong OOXML khi gửi nguyên file
+      (chỉ đọc document.xml). Nên unzip, trích ảnh raster, gửi TỪNG ảnh như 1 part
+      multimodal kèm native text làm context → Gemini mô tả từng sơ đồ (Option B).
+    - zip/md/text → giữ parser cũ (Gemini không đọc archive/code).
 
     Args:
         document: ORM Document (cần doc_type + storage_key).
 
     Returns:
-        Text thô, đã strip. Trả về "" nếu file không có text.
+        ParseResult(text, diagrams). diagrams rỗng nếu file không có sơ đồ.
 
     Raises:
         DocumentParserError: nếu doc_type không hỗ trợ hoặc file lỗi.
@@ -280,20 +308,78 @@ async def extract_text(document) -> str:
         logger.exception("Failed to download %s from MinIO", storage_key)
         raise DocumentParserError(f"Download failed for {storage_key}: {exc}") from exc
 
-    # Detect markdown/text files by extension
+    # Markdown / plain text: decode directly, no vision needed.
     if storage_key.lower().endswith(".md"):
         text = data.decode("utf-8", errors="replace").strip()
         if len(text) < MIN_TEXT_LENGTH_WARN:
             logger.warning("Extracted text is suspiciously short (%s chars) from %s", len(text), storage_key)
-        return text
+        return ParseResult(text=text, diagrams=[])
 
+    # ── PRIMARY: pdf/docx/pptx → Gemini vision reader ──
+    if document.doc_type in VISION_PRIMARY_TYPES:
+        mime_type = _doc_type_to_mime(document.doc_type)
+        if mime_type:
+            if document.doc_type == DocType.PDF:
+                # PDF: Gemini renders embedded images natively from the whole file.
+                try:
+                    vision = await vision_read_file(data, mime_type)
+                    if vision.text or vision.diagrams:
+                        logger.info(
+                            "Vision reader extracted %d chars, %d diagrams from %s (PRIMARY path)",
+                            len(vision.text), len(vision.diagrams), storage_key,
+                        )
+                        return ParseResult(text=vision.text, diagrams=vision.diagrams)
+                    logger.warning(
+                        "Vision reader returned empty for %s — falling back to native parser",
+                        storage_key,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Vision reader failed for %s (%s) — falling back to native parser",
+                        storage_key, exc,
+                    )
+            else:
+                # DOCX/PPTX (Option B): Gemini cannot render OOXML-embedded images when
+                # the whole file is sent (it only reads document.xml text). Unzip the
+                # office package, extract the embedded raster images, and send each as a
+                # separate multimodal part alongside the native text as context.
+                # On any vision failure we keep the native text (already extracted) —
+                # we do NOT fall through to the old parser, which would just re-read XML.
+                native_text = _extract_office_text(data, document.doc_type)
+                images = _extract_office_images(data, document.doc_type)
+                if images:
+                    try:
+                        vision = await vision_read_file(
+                            data, mime_type, images=images, body_text=native_text
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "Vision reader failed for %s (%s) — using native text only",
+                            storage_key, exc,
+                        )
+                        return ParseResult(text=native_text, diagrams=[])
+                    if vision.diagrams:
+                        logger.info(
+                            "Vision reader described %d diagrams from %s (Option B, %d images)",
+                            len(vision.diagrams), storage_key, len(images),
+                        )
+                        # text is the native text (authoritative); diagrams from vision.
+                        return ParseResult(text=native_text, diagrams=vision.diagrams)
+                    logger.warning(
+                        "Vision reader found no diagrams in %d images of %s — "
+                        "using native text only",
+                        len(images), storage_key,
+                    )
+                else:
+                    logger.info("No embedded images in %s — using native text only", storage_key)
+                return ParseResult(text=native_text, diagrams=[])
+
+    # ── FALLBACK / NATIVE-ONLY: parser cũ ──
     extractor = _EXTRACTORS.get(document.doc_type)
     if extractor is None:
         raise DocumentParserError(f"Unsupported doc_type: {document.doc_type}")
 
-    # Chuyển bytes → file-like object để parser đọc
     file_io = BytesIO(data)
-
     try:
         text = extractor(file_io)
     except DocumentParserError:
@@ -309,7 +395,107 @@ async def extract_text(document) -> str:
             len(text), storage_key,
         )
 
-    return text
+    return ParseResult(text=text, diagrams=[])
+
+
+def _doc_type_to_mime(doc_type: DocType) -> str | None:
+    """Map DocType to MIME type for vision reader."""
+    mapping = {
+        DocType.PDF: "application/pdf",
+        DocType.DOCX: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        DocType.PPTX: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        DocType.ZIP: "application/zip",
+    }
+    return mapping.get(doc_type)
+
+
+# ---------------------------------------------------------------------------
+# Office image extraction (Option B) — Gemini cannot render OOXML-embedded images
+# when the whole .docx/.pptx is sent, so we unzip and send each image separately.
+# ---------------------------------------------------------------------------
+# Media folders inside the OOXML zip.
+_OFFICE_MEDIA_FOLDERS = {
+    DocType.DOCX: "word/media",
+    DocType.PPTX: "ppt/media",
+}
+# Max dimension (px) for an image sent to Gemini — keeps payloads small (Gemini
+# inline_data limit is 20MB total; 82 images at full res would blow past it).
+_MAX_IMAGE_DIM = 1600
+# Skip tiny images (icons, bullets) that are not diagrams.
+_MIN_IMAGE_DIM = 200
+
+
+def _extract_office_text(data: bytes, doc_type: DocType) -> str:
+    """Native text extraction for office files (used as vision context)."""
+    extractor = _EXTRACTORS.get(doc_type)
+    if extractor is None:
+        return ""
+    try:
+        return extractor(BytesIO(data)) or ""
+    except Exception as exc:  # native extractor failed — vision still works on images
+        logger.warning("Native office text extraction failed for %s: %s", doc_type, exc)
+        return ""
+
+
+def _extract_office_images(data: bytes, doc_type: DocType) -> List[ImagePart]:
+    """Unzip the office package and return embedded raster images as ImagePart list.
+
+    Images are downscaled (longest side <= _MAX_IMAGE_DIM) and tiny images are skipped
+    to stay within Gemini's inline_data limits and avoid sending icons/bullets.
+    """
+    folder = _OFFICE_MEDIA_FOLDERS.get(doc_type)
+    if not folder:
+        return []
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as archive:
+            parts: List[ImagePart] = []
+            for info in archive.infolist():
+                if info.is_dir() or not info.filename.startswith(folder + "/"):
+                    continue
+                ext = info.filename.rsplit(".", 1)[-1].lower()
+                mime = {
+                    "png": "image/png",
+                    "jpg": "image/jpeg",
+                    "jpeg": "image/jpeg",
+                    "gif": "image/gif",
+                    "webp": "image/webp",
+                    "bmp": "image/bmp",
+                }.get(ext)
+                if not mime:
+                    continue
+                raw = archive.read(info)
+                raw = _downscale_image(raw, mime)
+                if raw is None:
+                    continue
+                parts.append(ImagePart(data=raw, mime_type=mime))
+            logger.info("Extracted %d embedded images from %s", len(parts), doc_type)
+            return parts
+    except zipfile.BadZipFile as exc:
+        logger.warning("Office file is not a valid zip (%s): %s", doc_type, exc)
+        return []
+
+
+def _downscale_image(raw: bytes, mime: str) -> Optional[bytes]:
+    """Downscale image if too large; return (possibly resized) bytes or None if invalid."""
+    try:
+        from PIL import Image
+    except ImportError:  # pragma: no cover — Pillow is a hard dep for Option B
+        return raw
+    try:
+        with Image.open(BytesIO(raw)) as img:
+            w, h = img.size
+            if w < _MIN_IMAGE_DIM and h < _MIN_IMAGE_DIM:
+                return None  # too small to be a diagram (icon/bullet)
+            if max(w, h) > _MAX_IMAGE_DIM:
+                scale = _MAX_IMAGE_DIM / max(w, h)
+                img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+            out = BytesIO()
+            save_fmt = "JPEG" if mime == "image/jpeg" else "PNG"
+            img.convert("RGB" if save_fmt == "JPEG" else "RGBA").save(out, save_fmt)
+            return out.getvalue()
+    except Exception as exc:
+        logger.debug("Skipping unreadable image (%s): %s", mime, exc)
+        return None
 
 
 def chunk_text(text: str,
@@ -400,11 +586,14 @@ def _split_sentences(text: str) -> List[str]:
 # ---------------------------------------------------------------------------
 async def parse_and_chunk(document,
                     chunk_size: int = CHUNK_SIZE_CHARS,
-                    overlap: int = CHUNK_OVERLAP_CHARS) -> List[str]:
+                    overlap: int = CHUNK_OVERLAP_CHARS) -> tuple[List[str], List[str]]:
     """
-    Helper: trích xuất text → chunk → trả về list chunks.
+    Helper: trích xuất text → chunk → trả về (chunks, diagrams).
 
-    Đây là hàm router/service khác sẽ gọi trực tiếp khi tạo Assessment.
+    Returns:
+        (chunks, diagrams): list chunk text + list mô tả diagram (có thể rỗng).
+        Đây là hàm router/service khác sẽ gọi trực tiếp khi tạo Assessment.
     """
-    text = await extract_text(document)
-    return chunk_text(text, chunk_size=chunk_size, overlap=overlap)
+    result = await extract_text(document)
+    chunks = chunk_text(result.text, chunk_size=chunk_size, overlap=overlap)
+    return chunks, result.diagrams

@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    const { documentId, persona } = await request.json();
+    const { documentId } = await request.json();
 
-    if (!documentId || !persona) {
-      return NextResponse.json({ error: 'Missing documentId or persona' }, { status: 400 });
+    if (!documentId) {
+      return NextResponse.json({ error: 'Missing documentId' }, { status: 400 });
     }
 
     // Proxy request sang Python Backend FastAPI
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     const res = await fetch(`${backendUrl}/api/questions/generate`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ document_id: documentId, persona }),
+      body: JSON.stringify({ document_id: documentId }),
     });
 
     const data = await res.json();

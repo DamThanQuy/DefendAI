@@ -3,15 +3,12 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { PERSONA_LABELS } from "@/lib/constants";
-
 interface Question {
   id: number;
   question: string;
   hint?: string;
   suggested_answer?: string;
   difficulty: string;
-  persona: string;
   citations?: string[];
 }
 
@@ -27,7 +24,6 @@ interface WorkspaceQuestionDetail {
   id: number;
   workspace_id: number;
   topic: string;
-  persona: string;
   status: string;
   questions: Question[] | null;
   sources?: WorkspaceSourceItem[] | null;
@@ -95,7 +91,6 @@ export default function WqDetailPage() {
       day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
     });
   const difficulty = (d: string) => diffCfg[d] ?? diffCfg.medium;
-  const personaLabel = (p: string) => PERSONA_LABELS[p] ?? p;
 
   if (loading) {
     return (
@@ -133,11 +128,6 @@ export default function WqDetailPage() {
         <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-5 mb-5">
           <div className="flex items-center gap-2 flex-wrap mb-2">
             <span className="text-[14px] font-bold text-zinc-200">🎓 Phiên luyện phản biện #{data.id}</span>
-            <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${
-              data.persona === "theory" ? "bg-green-500/10 text-green-400"
-              : data.persona === "strict" ? "bg-red-500/10 text-red-400"
-              : "bg-purple-500/10 text-purple-300"
-            }`}>{personaLabel(data.persona)}</span>
             <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${
               data.status === "completed" ? "bg-green-500/10 text-green-400"
               : data.status === "failed" ? "bg-red-500/10 text-red-400"

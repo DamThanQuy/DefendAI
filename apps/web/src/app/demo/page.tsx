@@ -36,21 +36,18 @@ const mockQuestions = [
   {
     id: 1,
     diff: "medium",
-    persona: "Giám khảo kỹ thuật",
     q: "Giải thích cách phân chia module trong kiến trúc phần mềm của bạn?",
     hint: "Nêu rõ trách nhiệm của từng module, cách chúng giao tiếp với nhau và lý do lựa chọn kiến trúc này.",
   },
   {
     id: 2,
     diff: "hard",
-    persona: "Phản biện",
     q: "Hệ thống có scale tốt khi đạt 10.000 bản ghi không? Bạn đã kiểm thử chưa?",
     hint: "Trình bày số liệu benchmark, chỉ số latency, và hướng tối ưu nếu dữ liệu tăng gấp 10 lần.",
   },
   {
     id: 3,
     diff: "easy",
-    persona: "Giám khảo công nghệ",
     q: "Thiếu null-check tại analyzer.ts:12 có nguy hiểm không?",
     hint: "Phân tích hậu quả khi dữ liệu null xuất hiện và cách phòng ngừa bằng optional chaining.",
   },
@@ -218,7 +215,6 @@ export default function DemoPage() {
                     <div key={q.id} className="bg-zinc-900/40 rounded-xl border border-zinc-800/60 p-4">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className={`px-2.5 py-1 ${d.bg} ${d.txt} text-[11px] font-bold rounded-full`}>{d.label}</span>
-                        <span className="px-2.5 py-1 bg-zinc-800 text-zinc-300 text-[11px] font-bold rounded-full">{q.persona}</span>
                       </div>
                       <h4 className="text-[14px] font-bold text-teal-400 leading-snug mb-2">{q.q}</h4>
                       <div className="bg-zinc-800/40 rounded-lg px-3 py-2 flex items-center gap-2">
