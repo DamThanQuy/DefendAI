@@ -36,7 +36,11 @@ from app.schemas.workspace import (
     WorkspaceFileOut,
     WorkspaceSessionsResponse,
     SessionItem,
+    DeliverableCheckResponse,
+    DeliverableCheckItem,
 )
+from app.services.deliverable_check import check_deliverables, DeliverableCheckResult
+from app.services.rubric_service import get_active_rubric
 
 router = APIRouter(prefix="/api/workspaces", tags=["Workspaces"])
 
@@ -252,7 +256,6 @@ async def workspace_sessions(
                 id=a.id,
                 document_id=a.document_id,
                 document_name=doc_names.get(a.document_id, "Unknown"),
-                persona=a.persona,
                 status=a.status.value,
                 created_at=a.created_at,
             )
@@ -281,4 +284,50 @@ async def workspace_sessions(
         workspace_name=workspace.name,
         assessments=assessments,
         code_analyses=code_analyses,
+    )
+
+
+@router.get("/{workspace_id}/deliverables-check", response_model=DeliverableCheckResponse)
+async def check_workspace_deliverables(
+    workspace_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Đối chiếu file trong workspace với deliverables chuẩn (rubric defense).
+
+    Trả về từng deliverable (R1..R7/SP/SL) present hay không + % hoàn thành.
+    0 LLM, 0 I/O — chỉ so khớp filename/file_type thuần logic.
+    """
+    workspace = await _get_owned_workspace(workspace_id, user, db)
+
+    rubric = await get_active_rubric(db, "defense")
+    deliverables = (rubric or {}).get("deliverables", [])
+    if not deliverables:
+        raise HTTPException(status_code=404, detail="Chưa có rubric deliverables (defense)")
+
+    files = [
+        {"filename": wf.document.filename, "file_type": wf.document.file_type}
+        for wf in workspace.files
+        if wf.document is not None
+    ]
+    result = check_deliverables(files, deliverables)
+
+    return DeliverableCheckResponse(
+        workspace_id=workspace.id,
+        workspace_name=workspace.name,
+        total=result.total,
+        present_count=result.present_count,
+        percent=result.percent,
+        missing=result.missing,
+        items=[
+            DeliverableCheckItem(
+                code=it.code,
+                name=it.name,
+                file_types=it.file_types,
+                desc=it.desc,
+                present=it.present,
+                matched_file=it.matched_file,
+            )
+            for it in result.items
+        ],
     )

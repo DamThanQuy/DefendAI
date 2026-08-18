@@ -7,14 +7,12 @@ from pydantic import BaseModel, Field
 
 class WorkspaceQuestionCreateRequest(BaseModel):
     topic: str = Field(min_length=0, max_length=1000, default="")
-    persona: str = "theory"
 
 
 class WorkspaceQuestionResponse(BaseModel):
     id: int
     workspace_id: int
     topic: str
-    persona: str
     status: str
     questions: Optional[List[Any]] = None
     sources: Optional[List[Any]] = None  # [{num, source, title, chunk_index, content}] — nguồn đã dùng

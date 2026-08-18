@@ -52,7 +52,6 @@ class SessionItem(BaseModel):
     id: int
     document_id: int
     document_name: str
-    persona: Optional[str] = None  # assessments only
     status: str
     issue_count: Optional[int] = None  # code_analyses only
     created_at: datetime
@@ -63,3 +62,22 @@ class WorkspaceSessionsResponse(BaseModel):
     workspace_name: str
     assessments: list[SessionItem] = []
     code_analyses: list[SessionItem] = []
+
+
+class DeliverableCheckItem(BaseModel):
+    code: str
+    name: str
+    file_types: list[str] = []
+    desc: str = ""
+    present: bool
+    matched_file: Optional[str] = None
+
+
+class DeliverableCheckResponse(BaseModel):
+    workspace_id: int
+    workspace_name: str
+    total: int
+    present_count: int
+    percent: int
+    missing: list[str] = []
+    items: list[DeliverableCheckItem] = []

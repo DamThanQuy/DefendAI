@@ -25,30 +25,11 @@ from app.schemas.assessment import (
 )
 from app.schemas.job import JobResponse
 from app.services.job_queue import create_job
+from app.services.rubric_service import get_active_rubric
 
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/questions", tags=["Questions"])
-
-PERSONA_ALIASES = {
-    "ly_thuyet": "theory",
-    "thuc_te": "enterprise",
-    "khat_khe": "strict",
-    "normal": "theory",
-    "hard": "strict",
-    "tech": "enterprise",
-}
-
-PERSONA_DESCRIPTIONS = {
-    "theory": "Giảng viên/hội đồng thiên về lý thuyết, phương pháp, tính chặt chẽ học thuật.",
-    "enterprise": "Chuyên gia doanh nghiệp, tập trung vào tính ứng dụng, vận hành và giá trị thực tế.",
-    "strict": "Hội đồng khắt khe, hỏi sâu logic, edge cases, số liệu và các điểm yếu.",
-}
-
-
-def _normalize_persona(raw_persona: str) -> str:
-    persona = (raw_persona or "theory").strip().lower()
-    return PERSONA_ALIASES.get(persona, persona)
 
 
 @router.post(
@@ -62,13 +43,6 @@ async def generate_questions(
     req: GenerateQuestionsRequest,
     db: AsyncSession = Depends(get_db),
 ) -> JobResponse:
-    persona = _normalize_persona(req.persona)
-    if persona not in PERSONA_DESCRIPTIONS:
-        raise HTTPException(
-            status_code=400,
-            detail="Persona không hợp lệ. Dùng theory, enterprise, strict hoặc alias ly_thuyet, thuc_te, khat_khe.",
-        )
-
     result = await db.execute(select(Document).where(Document.id == req.document_id))
     document = result.scalar_one_or_none()
     if not document:
@@ -76,7 +50,6 @@ async def generate_questions(
 
     job_id = await create_job("generate_questions", {
         "document_id": req.document_id,
-        "persona": req.persona,
     })
 
     return JobResponse(
@@ -105,13 +78,18 @@ async def get_latest_assessment(
     document = doc_result.scalar_one_or_none()
 
     questions = assessment.questions or []
+    rubric = await get_active_rubric(db, scope="defense")
+    missing = []
+    if document:
+        from app.handlers.questions import _check_missing_submissions
+        missing = await _check_missing_submissions(db, rubric, document.id)
     return {
         "assessment_id": assessment.id,
         "document_id": assessment.document_id,
         "document_name": document.filename if document else "Unknown",
-        "persona": assessment.persona,
         "questions": questions,
         "total": len(questions),
+        "missing_submissions": missing,
     }
 
 
@@ -142,7 +120,6 @@ async def get_assessment(
         document_id=assessment.document_id,
         document_name=doc_name,
         doc_type=document.doc_type.value if document else "",
-        persona=assessment.persona,
         status=assessment.status.value,
         chunks_count=len(assessment.chunks or []),
         questions=[

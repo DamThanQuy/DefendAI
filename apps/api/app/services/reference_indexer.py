@@ -38,7 +38,9 @@ async def index_reference(document, category: str, title: str, source: str = "")
     Raises:
         DocumentParserError / httpx.HTTPStatusError / ValueError: parse hoặc embed lỗi.
     """
-    chunks: List[str] = await parse_and_chunk(document)
+    chunks: List[str]
+    diagrams: List[str]
+    chunks, diagrams = await parse_and_chunk(document)
     if not chunks:
         raise ValueError(f"Không trích được text từ {document.filename}")
 

@@ -8,6 +8,7 @@ Cả NVIDIA NIM và Google AI Studio đều dùng OpenAI API spec:
 
 → Class này cung cấp logic chung, các provider con chỉ cần override `get_default_model()`.
 """
+import asyncio
 import json
 import time
 import logging
@@ -18,6 +19,11 @@ import httpx
 
 
 logger = logging.getLogger(__name__)
+
+# Lỗi upstream tạm thời nên retry (backend chập rồi tự recover sau vài chục giây).
+# 500 cũng tính là transient: opencode ACC:Public trả 500 Internal server error
+# cùng lúc với 502 fetch connect timeout (cùng backend, cùng cửa sổ chập).
+_RETRY_STATUS = (500, 502, 503, 429)
 
 
 class OpenAICompatibleProvider(ABC):
@@ -33,7 +39,7 @@ class OpenAICompatibleProvider(ABC):
     - get_default_model(): trả về model mặc định của provider
 
     Methods có sẵn:
-    - generate(): gọi chat completions API
+    - generate(): gọi chat completions API (có retry trên lỗi transient)
     """
 
     def __init__(self, api_key: str, base_url: str, provider_name: str) -> None:
@@ -72,6 +78,13 @@ class OpenAICompatibleProvider(ABC):
             "Content-Type": "application/json",
         }
 
+    async def _post_json(self, url: str, headers: dict, payload: dict) -> dict:
+        """Gọi 1 lần POST /chat/completions, trả về response.json()."""
+        async with httpx.AsyncClient(timeout=httpx.Timeout(600.0)) as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            return response.json()
+
     async def generate(
         self,
         *,
@@ -85,7 +98,7 @@ class OpenAICompatibleProvider(ABC):
         **kwargs: Any,
     ) -> dict[str, Any]:
         """
-        Gọi chat completions API.
+        Gọi chat completions API (có retry trên lỗi upstream tạm thời).
 
         Args:
             prompt: User prompt
@@ -140,26 +153,36 @@ class OpenAICompatibleProvider(ABC):
             if value is not None:
                 payload[key] = value
 
-        # Call API
+        # Retry trên lỗi upstream tạm thời (backend chập theo từng cửa sổ, ví dụ
+        # opencode ACC:Public trả 502 fetch connect timeout). Các lỗi này tự
+        # recover sau vài chục giây — retry bắt được cửa sổ sống thay vì fail job.
+        # ponytail: ceiling = 2 lần retry, backoff 45s; nâng khi có metrics ổn định.
         start = time.perf_counter()
-        try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(600.0)) as client:
-                response = await client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
-                data = response.json()
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                "[%s] HTTP %s: %s",
-                self.provider_name,
-                e.response.status_code,
-                e.response.text[:500],
-            )
-            raise
-        except Exception as e:
-            logger.error("[%s] Request failed: %s", self.provider_name,repr(e))
-            raise
-
-        latency_ms = (time.perf_counter() - start) * 1000
+        last_err: Exception | None = None
+        for attempt in range(3):  # 1 lần gốc + 2 retry
+            try:
+                data = await self._post_json(url, headers, payload)
+                latency_ms = (time.perf_counter() - start) * 1000
+                break
+            except httpx.HTTPStatusError as e:
+                last_err = e
+                if e.response.status_code not in _RETRY_STATUS:
+                    logger.error("[%s] HTTP %s: %s", self.provider_name,
+                                 e.response.status_code, e.response.text[:500])
+                    raise
+                logger.warning("[%s] HTTP %s (attempt %s/3) — retry sau 45s: %s",
+                               self.provider_name, e.response.status_code, attempt + 1,
+                               e.response.text[:200])
+            except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout) as e:
+                last_err = e
+                logger.warning("[%s] connect/timeout (attempt %s/3) — retry sau 45s: %s",
+                               self.provider_name, attempt + 1, repr(e))
+            if attempt < 2:
+                await asyncio.sleep(45.0)
+        else:
+            logger.error("[%s] Request failed after retries: %s",
+                         self.provider_name, repr(last_err))
+            raise last_err  # type: ignore[misc]
 
         # Parse response
         try:

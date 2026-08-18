@@ -27,7 +27,6 @@ from app.handlers.chat_ask import (
     _build_chat_system_prompt,
     _MAX_CITATIONS,
 )
-from app.handlers.questions import _normalize_persona
 from app.handlers.workspace_questions import _ensure_indexed, _format_context
 from app.models.entities import AssessmentStatus, User, Workspace, WorkspaceChat
 from app.models.workspace_conversation import WorkspaceConversation
@@ -68,13 +67,11 @@ async def create_workspace_chat(
     db=Depends(get_db),
 ):
     ws = await _get_owned_workspace(workspace_id, user, db)
-    persona = _normalize_persona(body.persona)
 
     row = WorkspaceChat(
         workspace_id=ws.id,
         conversation_id=body.conversation_id,
         question=body.question.strip(),
-        persona=persona,
         status=AssessmentStatus.pending,
     )
     db.add(row)
@@ -87,7 +84,6 @@ async def create_workspace_chat(
             "chat_id": row.id,
             "workspace_id": ws.id,
             "question": row.question,
-            "persona": row.persona,
             "conversation_id": row.conversation_id,
         },
     )
@@ -98,7 +94,7 @@ async def _sse_frame(payload: dict) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-async def _chat_sse(workspace_id: int, question: str, persona: str, conversation_id: Optional[str] = None) -> AsyncIterator[str]:
+async def _chat_sse(workspace_id: int, question: str, conversation_id: Optional[str] = None) -> AsyncIterator[str]:
     """Streaming RAG answer qua SSE. Tạo row processing → stream delta → lưu completed/failed."""
     # Tạo row ngay trong generator (client đã kết nối → không để row mồ côi processing)
     async with async_session_maker() as db:
@@ -106,7 +102,6 @@ async def _chat_sse(workspace_id: int, question: str, persona: str, conversation
             workspace_id=workspace_id,
             conversation_id=conversation_id,
             question=question,
-            persona=persona,
             status=AssessmentStatus.processing,
         )
         db.add(row)
@@ -143,12 +138,12 @@ async def _chat_sse(workspace_id: int, question: str, persona: str, conversation
             idx = r.get("chunk_index")
             citations.append(f"{title}: đoạn {idx}" if idx is not None else title)
 
-        prompt = _build_rag_answer_prompt(question, persona, history, contexts, json_mode=False)
+        prompt = _build_rag_answer_prompt(question, history, contexts, json_mode=False)
         yield await _sse_frame({"type": "status", "stage": "thinking"})
 
         async for chunk in ai_gateway.generate_stream(
             prompt=prompt,
-            system_prompt=_build_chat_system_prompt(persona),
+            system_prompt=_build_chat_system_prompt(),
             temperature=0.3,
             max_tokens=4000,
         ):
@@ -207,12 +202,11 @@ async def stream_workspace_chat(
     db=Depends(get_db),
 ):
     ws = await _get_owned_workspace(workspace_id, user, db)
-    persona = _normalize_persona(body.persona)
     question = body.question.strip()
     if not question:
         raise HTTPException(status_code=400, detail="question is required")
     return StreamingResponse(
-        _chat_sse(ws.id, question, persona, body.conversation_id),
+        _chat_sse(ws.id, question, body.conversation_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

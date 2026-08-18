@@ -9,86 +9,25 @@ from collections import Counter
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.core.database import async_session_maker
 from app.models.entities import Assessment, AssessmentStatus, Document, DocumentStatus
+from app.models.workspace import Workspace, WorkspaceFile
 from app.schemas.assessment import AssessmentQuestion
 from app.services.ai_client import ai_gateway
 from app.services.chunk_indexer import index_chunks
+from app.services.deliverable_check import check_deliverables
 from app.services.document_parser import DocumentParserError, parse_and_chunk
 from app.services.job_queue import register_handler, update_job
 from app.services.rubric_service import get_active_rubric
 
 logger = logging.getLogger(__name__)
 
-# ── constants (inlined from questions router) ──
-
-PERSONA_DESCRIPTIONS = {
-    "theory": "Giảng viên/hội đồng thiên về lý thuyết, phương pháp, tính chặt chẽ học thuật.",
-    "enterprise": "Chuyên gia doanh nghiệp, tập trung vào tính ứng dụng, vận hành và giá trị thực tế.",
-    "strict": "Hội đồng khắt khe, hỏi sâu logic, edge cases, số liệu và các điểm yếu.",
-}
-
-PERSONA_ALIASES = {
-    "ly_thuyet": "theory",
-    "thuc_te": "enterprise",
-    "khat_khe": "strict",
-    "normal": "theory",
-    "hard": "strict",
-    "tech": "enterprise",
-}
-
-QUESTION_BLUEPRINTS = {
-    "theory": [
-        "Vì sao nhóm chọn hướng tiếp cận này thay vì một phương án khác?",
-        "Cơ sở lý thuyết nào quan trọng nhất để bảo vệ lựa chọn của nhóm?",
-        "Nếu phải giải thích cho hội đồng, điểm cốt lõi của giải pháp là gì?",
-        "Nhóm đã đánh đổi điều gì để đạt được kết quả hiện tại?",
-        "Phần nào trong thiết kế dễ bị phản biện nhất và vì sao?",
-    ],
-    "enterprise": [
-        "Trong môi trường thực tế, giải pháp này sẽ được triển khai như thế nào?",
-        "Nhóm đo lường hiệu quả bằng tiêu chí nào để chứng minh giá trị thực tế?",
-        "Điều gì sẽ xảy ra khi hệ thống gặp dữ liệu xấu, tải cao hoặc thay đổi yêu cầu?",
-        "Giải pháp này phù hợp với bối cảnh nào và không phù hợp với bối cảnh nào?",
-        "Nếu đưa vào vận hành thật, rủi ro lớn nhất là gì?",
-    ],
-    "strict": [
-        "Điểm yếu lớn nhất của giải pháp này là gì nếu bị kiểm tra chặt?",
-        "Nhóm đã chứng minh thế nào rằng kết quả không chỉ là may mắn?",
-        "Có giả định ngầm nào có thể làm hỏng toàn bộ cách tiếp cận không?",
-        "Nếu thay đổi đầu vào hoặc điều kiện biên, hệ thống có còn đúng không?",
-        "Phần nào cần được kiểm chứng thêm trước khi kết luận là ổn?",
-    ],
-}
-
-FOLLOW_UP_TEMPLATES = [
-    "Nhóm đã cân nhắc phương án nào khác trước khi chốt lựa chọn này?",
-    "Nếu có thêm thời gian, nhóm sẽ cải thiện điểm nào đầu tiên?",
-]
-
-STOPWORDS = {
-    "the", "and", "or", "to", "of", "in", "on", "for", "with", "a", "an", "is", "are",
-    "this", "that", "it", "as", "by", "be", "from", "at", "into", "we", "you", "they",
-    "will", "can", "cho", "và", "là", "của", "các", "một", "những", "được", "trong",
-    "ra", "với", "khi", "này", "đó", "do", "vi", "ve", "de", "la", "du", "di", "co",
-    "khong", "phan", "he", "thong",
-}
-
-GENERIC_TOPICS = {
-    "index", "result", "results", "table", "figure", "section", "paper", "document",
-    "lifecycle", "heuristic", "degrading", "experiment", "experiments", "validation",
-    "dataset", "data", "system", "method", "methods", "approach", "analysis",
-    "implementation", "overview", "workflow",
-}
+# ── constants ──
 
 MAX_PROMPT_CHARS = 16000
 DEFAULT_QUESTION_COUNT = 10
-
-
-def _normalize_persona(raw_persona: str) -> str:
-    persona = (raw_persona or "theory").strip().lower()
-    return PERSONA_ALIASES.get(persona, persona)
 
 
 def _is_teacher_doc(text: str) -> bool:
@@ -105,6 +44,86 @@ def _is_teacher_doc(text: str) -> bool:
         if p in lower:
             return True
     return False
+
+
+def _get_required_submissions(rubric: dict | None) -> list[dict]:
+    """Lấy danh sách báo cáo bắt buộc từ rubric config."""
+    if not rubric:
+        return []
+    return rubric.get("required_submissions", [])
+
+
+async def _build_deliverable_missing_block(db, document_id: int, rubric: dict | None) -> str:
+    """Stage 3 — dùng kết quả Stage 1–2 (check_deliverables theo workspace) để inject vào prompt.
+
+    Tìm workspace chứa document → so khớp files ↔ rubric.deliverables → nếu thiếu thì cảnh báo AI.
+    0 LLM, chỉ so khớp thuần logic. Nếu document không thuộc workspace nào → trả rỗng (không ảnh hưởng).
+    """
+    if not rubric or not rubric.get("deliverables"):
+        return ""
+    result = await db.execute(
+        select(WorkspaceFile)
+        .where(WorkspaceFile.document_id == document_id)
+        .limit(1)
+    )
+    wf = result.scalar_one_or_none()
+    if not wf:
+        return ""
+    ws_result = await db.execute(
+        select(WorkspaceFile)
+        .options(selectinload(WorkspaceFile.document))
+        .where(WorkspaceFile.workspace_id == wf.workspace_id)
+    )
+    workspace_files = [
+        {"filename": w.document.filename, "file_type": w.document.file_type}
+        for w in ws_result.scalars().all()
+        if w.document is not None
+    ]
+    check = check_deliverables(workspace_files, rubric["deliverables"])
+    if not check.missing:
+        return ""
+    return (
+        "\n⚠️ KIỂM TRA FILE NỘP: Sinh viên CHƯA NỘP ĐỦ các sản phẩm bàn giao theo chuẩn SEP490. "
+        f"Thiếu: {', '.join(check.missing)} (mới nộp {check.present_count}/{check.total}). "
+        "Hãy hỏi sinh viên TẠI SAO chưa nộp các file này và tác động của việc thiếu chúng tới đồ án.\n"
+    )
+
+
+async def _check_missing_submissions(db, rubric: dict | None, document_id: int) -> list[dict]:
+    """Đếm documents của team đã upload, trả về các báo cáo bắt buộc còn thiếu."""
+    required = _get_required_submissions(rubric)
+    if not required:
+        return []
+    # Lấy document hiện tại để xác định team/workspace
+    result = await db.execute(select(Document).where(Document.id == document_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        return []
+    # Lấy tất cả documents của user đã upload (đơn giản: theo uploaded_by)
+    # TODO: nếu có workspace/team thì filter theo team
+    result = await db.execute(
+        select(Document).where(Document.uploaded_by == doc.uploaded_by)
+    )
+    user_docs = list(result.scalars().all())
+    uploaded_names = " ".join(d.filename.lower() for d in user_docs)
+    missing = []
+    for sub in required:
+        key = sub.get("key", "")
+        label = sub.get("label", "")
+        # Simple heuristic: check if filename contains report number or label
+        if key.startswith("report"):
+            report_num = key.replace("report", "")
+            if f"report {report_num}" not in uploaded_names and report_num not in uploaded_names:
+                missing.append(sub)
+        elif key == "software":
+            # Check for zip/rar/code files
+            has_software = any(
+                d.file_type in (".zip", ".rar") or "code" in d.filename.lower()
+                for d in user_docs
+            )
+            if not has_software:
+                missing.append(sub)
+    return missing
 
 
 def _rubric_defense_block(rubric: dict | None) -> str:
@@ -141,17 +160,22 @@ def _rubric_defense_block(rubric: dict | None) -> str:
     chk = rubric.get("report_checklist", {})
     if chk:
         lines.append("Checklist báo cáo cần phủ: " + "; ".join(f"{k}: {', '.join(v)}" for k, v in chk.items()))
+    # Sản phẩm bàn giao (file cần nộp)
+    dlv = rubric.get("deliverables", [])
+    if dlv:
+        lines.append(
+            "Sản phẩm bàn giao phải nộp đủ (dự án thiếu file nào → hỏi sinh viên): "
+            + "; ".join(f"{d['code']} {d['name']} ({', '.join(d.get('file_types', []))})" for d in dlv)
+        )
     return "\n".join(lines) + "\n"
 
 
-def _build_system_prompt(persona: str, rubric: dict | None = None) -> str:
-    description = PERSONA_DESCRIPTIONS.get(persona, PERSONA_DESCRIPTIONS["theory"])
+def _build_system_prompt(rubric: dict | None = None, missing_block: str = "") -> str:
     return (
         "Bạn là AI phản biện cho đồ án. Nhiệm vụ của bạn là đọc tài liệu đã được cung cấp, "
         "suy nghĩ như thành viên hội đồng, và tạo ra bộ câu hỏi tranh biện sâu sắc, thực tế, có tính soi lỗi.\n\n"
-        f"Persona: {persona}\n"
-        f"Mô tả persona: {description}\n"
         + _rubric_defense_block(rubric)
+        + missing_block
         + "\n⚠️ ANTI-HALLUCINATION: TUYỆT ĐỐI KHÔNG bịa đặt, suy diễn, hay thêm thông tin "
         "không có trong nội dung. Mỗi câu hỏi PHẢI bám sâu vào ít nhất một chi tiết cụ thể "
         "từ tài liệu. Nếu tài liệu quá ngắn hoặc không đủ nội dung để tạo câu hỏi chất lượng, "
@@ -165,8 +189,7 @@ def _build_system_prompt(persona: str, rubric: dict | None = None) -> str:
         '      "id": 1,\n'
         '      "question": "Nội dung câu hỏi...",\n'
         '      "hint": "Gợi ý trả lời...",\n'
-        '      "difficulty": "easy",\n'
-        f'      "persona": "{persona}"\n'
+        '      "difficulty": "easy"\n'
         '    }\n'
         '  ]\n'
         '}'
@@ -179,15 +202,14 @@ def _truncate_text(text: str, max_chars: int = MAX_PROMPT_CHARS) -> str:
     return text[:max_chars] + "\n\n[... truncated because document is too long ...]"
 
 
-def _build_user_prompt(filename: str, doc_type: str, chunks: list[str], persona: str) -> str:
+def _build_user_prompt(filename: str, doc_type: str, chunks: list[str]) -> str:
     chunk_text = []
     for index, chunk in enumerate(chunks, start=1):
         chunk_text.append(f"[Chunk {index}]\n{chunk}")
 
     prompt = (
         f"Document name: {filename}\n"
-        f"Document type: {doc_type}\n"
-        f"Persona: {persona}\n\n"
+        f"Document type: {doc_type}\n\n"
         "Hãy đọc các đoạn trích (chunks) bên dưới rồi sinh câu hỏi phản biện. "
         "Câu hỏi phải bám sát nội dung cụ thể, tránh chung chung. "
         "Ưu tiên hỏi về mục tiêu, kiến trúc, công nghệ, trade-off, giới hạn, rủi ro.\n\n"
@@ -222,7 +244,7 @@ def _extract_json_payload(content: str) -> dict[str, Any]:
         return {"questions": []}
 
 
-def _normalize_questions(raw_questions: list[Any], persona: str) -> list[AssessmentQuestion]:
+def _normalize_questions(raw_questions: list[Any]) -> list[AssessmentQuestion]:
     questions: list[AssessmentQuestion] = []
     count = 1
     for item in raw_questions:
@@ -232,7 +254,6 @@ def _normalize_questions(raw_questions: list[Any], persona: str) -> list[Assessm
         if "question" not in item:
             continue
         item["id"] = count
-        item["persona"] = persona
         if "difficulty" not in item or item["difficulty"] not in ["easy", "medium", "hard"]:
             item["difficulty"] = "medium"
         questions.append(AssessmentQuestion(**item))
@@ -242,9 +263,20 @@ def _normalize_questions(raw_questions: list[Any], persona: str) -> list[Assessm
     return questions
 
 
-def _heuristic_questions(filename: str, chunks: list[str], persona: str) -> list[AssessmentQuestion]:
-    templates = QUESTION_BLUEPRINTS.get(persona, QUESTION_BLUEPRINTS["theory"])
-    follow_ups = FOLLOW_UP_TEMPLATES
+def _heuristic_questions(filename: str, chunks: list[str]) -> list[AssessmentQuestion]:
+    templates = [
+        "Mục tiêu chính của đồ án này là gì và tại sao nhóm chọn hướng tiếp cận đó?",
+        "Kiến trúc hệ thống được thiết kế như thế nào, các module giao tiếp ra sao?",
+        "Công nghệ nào được sử dụng và tại sao lại chọn thay vì giải pháp thay thế?",
+        "Nhóm đã xử lý các trường hợp ngoại lệ (edge cases) như thế nào?",
+        "Có những rủi ro hay điểm yếu nào trong thiết kế hiện tại?",
+        "Kết quả thực nghiệm/đánh giá được đo lường bằng chỉ số nào?",
+        "Nếu phải mở rộng quy mô (scale), hệ thống có còn hoạt động tốt không?",
+        "Quy trình kiểm thử (testing) được thực hiện ra sao để đảm bảo chất lượng?",
+        "Đâu là điểm khác biệt so với các đồ án hoặc sản phẩm tương tự?",
+        "Bài học kinh nghiệm lớn nhất sau quá trình thực hiện là gì?",
+    ]
+    follow_ups = ["Hãy giải thích sâu hơn.", "Cho ví dụ cụ thể từ đồ án.", "Nhóm đã tối ưu điểm này chưa?"]
     questions: list[AssessmentQuestion] = []
     for index in range(DEFAULT_QUESTION_COUNT):
         difficulty = ["easy", "medium", "hard"][index % 3]
@@ -261,7 +293,6 @@ def _heuristic_questions(filename: str, chunks: list[str], persona: str) -> list
                 question=question_text,
                 hint=hint_text,
                 difficulty=difficulty,
-                persona=persona,
             )
         )
     return questions
@@ -270,12 +301,6 @@ def _heuristic_questions(filename: str, chunks: list[str], persona: str) -> list
 @register_handler("generate_questions")
 async def handle_generate_questions(params: dict) -> dict:
     document_id: int = params["document_id"]
-    persona_raw: str = params.get("persona", "theory")
-    persona = _normalize_persona(persona_raw)
-
-    if persona not in PERSONA_DESCRIPTIONS:
-        raise ValueError(f"Persona không hợp lệ: {persona_raw}")
-
     job_id = params.get("_job_id")
 
     async with async_session_maker() as db:
@@ -287,7 +312,6 @@ async def handle_generate_questions(params: dict) -> dict:
         document.status = DocumentStatus.processing
         assessment = Assessment(
             document_id=document.id,
-            persona=persona,
             status=AssessmentStatus.processing,
         )
         db.add(assessment)
@@ -300,7 +324,7 @@ async def handle_generate_questions(params: dict) -> dict:
             await update_job(job_id, progress="10")
 
         try:
-            chunks = await parse_and_chunk(document)
+            chunks, diagrams = await parse_and_chunk(document)
         except DocumentParserError as exc:
             document.status = DocumentStatus.failed
             assessment.status = AssessmentStatus.failed
@@ -315,13 +339,27 @@ async def handle_generate_questions(params: dict) -> dict:
             raise ValueError("Document không có text để phân tích")
 
         # ── R4: index chunks vào document_chunks (RAG) — best-effort, không chặn job ──
-        await index_chunks(document, chunks)
+        await index_chunks(document, chunks, diagrams)
 
         if job_id:
             await update_job(job_id, progress="30")
 
         # ── load rubric chấm bảo vệ (thước đo) ──
         rubric = await get_active_rubric(db, scope="defense")
+
+        # ── check missing submissions ──
+        missing = await _check_missing_submissions(db, rubric, document_id)
+        missing_block = ""
+        if missing:
+            missing_block = (
+                "\n⚠️ CẢNH BÁO: Nhóm này còn thiếu báo cáo bắt buộc: " +
+                ", ".join(f"{s['label']} (tuần {s['week']})" for s in missing) +
+                ". Hãy hỏi sâu về tiến độ và lý do chưa nộp các báo cáo này.\n"
+            )
+        # ── Stage 3: inject kết quả Stage 1–2 (check deliverables theo workspace) ──
+        deliverable_block = await _build_deliverable_missing_block(db, document_id, rubric)
+        if deliverable_block:
+            missing_block += deliverable_block
 
         # ── heuristic: nếu tài liệu do giảng viên soạn → trả về rỗng ──
         full_text = "\n\n".join(chunks)
@@ -339,7 +377,6 @@ async def handle_generate_questions(params: dict) -> dict:
                 "assessment_id": assessment.id,
                 "document_id": document.id,
                 "document_name": document.filename,
-                "persona": persona,
                 "status": assessment.status.value,
                 "chunks_count": len(chunks),
                 "questions": [],
@@ -348,7 +385,7 @@ async def handle_generate_questions(params: dict) -> dict:
                 "note": "Tài liệu được phát hiện là hướng dẫn của giảng viên, không phải đồ án sinh viên.",
             }
 
-        system_prompt = _build_system_prompt(persona, rubric=rubric)
+        system_prompt = _build_system_prompt(rubric=rubric, missing_block=missing_block)
 
         try:
             if job_id:
@@ -358,7 +395,7 @@ async def handle_generate_questions(params: dict) -> dict:
             chunk_groups = [chunks[i:i+3] for i in range(0, len(chunks), 3)]
             for group in chunk_groups:
                 tasks.append(ai_gateway.generate(
-                    prompt=_build_user_prompt(document.filename, document.doc_type.value, group, persona),
+                    prompt=_build_user_prompt(document.filename, document.doc_type.value, group),
                     system_prompt=system_prompt,
                     temperature=0.2,
                     max_tokens=3000,
@@ -378,12 +415,12 @@ async def handle_generate_questions(params: dict) -> dict:
                     payload = _extract_json_payload(res["content"])
                     all_raw_questions.extend(payload.get("questions", []))
 
-            questions = _normalize_questions(all_raw_questions, persona)
+            questions = _normalize_questions(all_raw_questions)
 
             # ── nếu AI trả về 0 câu hoặc lỗi hoàn toàn → dùng heuristic tối thiểu ──
             if len(questions) == 0:
                 logger.warning("AI returned zero questions, using heuristic fallback")
-                questions = _heuristic_questions(document.filename, chunks, persona)
+                questions = _heuristic_questions(document.filename, chunks)
             elif len(questions) < DEFAULT_QUESTION_COUNT:
                 logger.info("AI produced %d/%d questions (quality > quantity, no padding)", 
                             len(questions), DEFAULT_QUESTION_COUNT)
@@ -393,7 +430,7 @@ async def handle_generate_questions(params: dict) -> dict:
 
         except Exception as exc:
             logger.warning("AI generate failed, using heuristic: %s", exc)
-            questions = _heuristic_questions(document.filename, chunks, persona)
+            questions = _heuristic_questions(document.filename, chunks)
             provider_name = "heuristic"
             model_name = "rules-v1"
 
@@ -412,10 +449,10 @@ async def handle_generate_questions(params: dict) -> dict:
             "assessment_id": assessment.id,
             "document_id": document.id,
             "document_name": document.filename,
-            "persona": persona,
             "status": assessment.status.value,
             "chunks_count": len(chunks),
             "questions": [q.model_dump() for q in questions],
             "provider": provider_name,
             "model": model_name,
+            "missing_submissions": missing,
         }
