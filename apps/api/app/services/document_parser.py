@@ -597,3 +597,35 @@ async def parse_and_chunk(document,
     result = await extract_text(document)
     chunks = chunk_text(result.text, chunk_size=chunk_size, overlap=overlap)
     return chunks, result.diagrams
+
+
+# ---------------------------------------------------------------------------
+# Auto-embedding Hook — parse → chunk → embed → index (one-liner)
+# ---------------------------------------------------------------------------
+async def parse_chunk_index(document,
+                    chunk_size: int = CHUNK_SIZE_CHARS,
+                    overlap: int = CHUNK_OVERLAP_CHARS,
+                    index: bool = True) -> tuple[List[str], List[str], int]:
+    """
+    Parse document → chunk → embed & index (one-liner pipeline).
+    
+    Args:
+        document: ORM Document
+        chunk_size: ký tự mỗi chunk (default 4000)
+        overlap: overlap giữa chunks (default 600)
+        index: nếu True, auto embed + index vào document_chunks (default True)
+    
+    Returns:
+        (chunks, diagrams, indexed_count):
+            chunks: list chunk text
+            diagrams: list mô tả diagram
+            indexed_count: số chunk đã index (0 nếu index=False hoặc lỗi)
+    """
+    chunks, diagrams = await parse_and_chunk(document, chunk_size, overlap)
+    
+    indexed_count = 0
+    if index and chunks:
+        from app.services.chunk_indexer import index_chunks
+        indexed_count = await index_chunks(document, chunks, diagrams)
+    
+    return chunks, diagrams, indexed_count

@@ -9,8 +9,11 @@ Endpoints:
 - POST   /api/workspaces/{id}/files    → thêm file
 - DELETE /api/workspaces/{id}/files/{document_id} → gỡ file
 - GET    /api/workspaces/{id}/sessions → lịch sử phiên (assessments + code_analyses)
+- GET    /api/workspaces/{id}/deliverables-check → kiểm tra file nộp (Lớp 1 + Lớp 2 AI)
 """
 from __future__ import annotations
+
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -39,8 +42,11 @@ from app.schemas.workspace import (
     DeliverableCheckResponse,
     DeliverableCheckItem,
 )
-from app.services.deliverable_check import check_deliverables, DeliverableCheckResult
+from app.services.deliverable_check import check_deliverables
+from app.services.deliverable_classify import classify_files, FileClassification
 from app.services.rubric_service import get_active_rubric
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/workspaces", tags=["Workspaces"])
 
@@ -295,8 +301,10 @@ async def check_workspace_deliverables(
 ):
     """Đối chiếu file trong workspace với deliverables chuẩn (rubric defense).
 
-    Trả về từng deliverable (R1..R7/SP/SL) present hay không + % hoàn thành.
-    0 LLM, 0 I/O — chỉ so khớp filename/file_type thuần logic.
+    Pipeline 2 lớp:
+    - Lớp 1 (Presence): chỉ check đuôi file hợp lệ, bỏ so khớp tên.
+    - Lớp 2 (Content): AI đọc nội dung file từ MinIO → classify deliverable + content_ok.
+      Nếu AI lỗi/timeout → fallback về Lớp 1 (UI vàng, không báo đỏ oan).
     """
     workspace = await _get_owned_workspace(workspace_id, user, db)
 
@@ -305,29 +313,96 @@ async def check_workspace_deliverables(
     if not deliverables:
         raise HTTPException(status_code=404, detail="Chưa có rubric deliverables (defense)")
 
-    files = [
+    # --- Layer 1: presence check (type-only, 0 LLM) ---
+    layer1_files = [
         {"filename": wf.document.filename, "file_type": wf.document.file_type}
         for wf in workspace.files
         if wf.document is not None
     ]
-    result = check_deliverables(files, deliverables)
+    result = check_deliverables(layer1_files, deliverables)
 
+    # --- Layer 2: AI classify (best effort) ---
+    layer2_files = [
+        {
+            "document_id": wf.document_id,
+            "filename": wf.document.filename,
+            "file_type": wf.document.file_type,
+            "storage_key": wf.document.storage_key,
+            "content_hash": wf.document.content_hash,
+        }
+        for wf in workspace.files
+        if wf.document is not None
+    ]
+
+    classifications: dict[int, FileClassification] = {}
+    try:
+        classifications = await classify_files(layer2_files, deliverables)
+    except Exception as exc:
+        logger.warning(
+            "Layer 2 classify failed for workspace %s: %s — fallback to Layer 1 only",
+            workspace_id,
+            exc,
+        )
+
+    # Build map: deliverable_code -> first FileClassification assigned
+    code_to_cls: dict[str, FileClassification] = {}
+    for doc_id, cls in classifications.items():
+        if cls.deliverable_code and cls.deliverable_code != "unknown":
+            code_to_cls.setdefault(cls.deliverable_code, cls)
+
+    # Determine whether Layer 2 actually ran and produced at least one
+    # valid classification.  Only if Layer 2 is dead (no classifications or
+    # every file errored / returned "unknown") do we fall back to Layer 1.
+    layer2_ok = any(
+        cls.deliverable_code and cls.deliverable_code != "unknown"
+        for cls in classifications.values()
+    )
+
+    # Build response items
+    items = []
+    for item in result.items:
+        cls = code_to_cls.get(item.code)
+        if cls:
+            items.append(
+                DeliverableCheckItem(
+                    code=item.code,
+                    name=item.name,
+                    file_types=item.file_types,
+                    desc=item.desc,
+                    present=True,  # AI đã gán file → tính present
+                    matched_file=cls.filename,
+                    content_ok=cls.content_ok,
+                    content_reason=cls.reason,
+                    ai_classified=True,
+                )
+            )
+        else:
+            # If Layer 2 ran and produced real results, a deliverable with
+            # no AI-assigned file is genuinely missing — NOT a Layer 1 type
+            # false-positive.  Only fall back to Layer 1 when Layer 2 is dead.
+            fall_back = not layer2_ok
+            items.append(
+                DeliverableCheckItem(
+                    code=item.code,
+                    name=item.name,
+                    file_types=item.file_types,
+                    desc=item.desc,
+                    present=item.present if fall_back else False,
+                    matched_file=item.matched_file if fall_back else None,
+                    content_ok=None,
+                    content_reason=None,
+                    ai_classified=False,
+                )
+            )
+
+    present_count = sum(1 for it in items if it.present)
+    percent = round(100 * present_count / result.total) if result.total else 0
     return DeliverableCheckResponse(
         workspace_id=workspace.id,
         workspace_name=workspace.name,
         total=result.total,
-        present_count=result.present_count,
-        percent=result.percent,
-        missing=result.missing,
-        items=[
-            DeliverableCheckItem(
-                code=it.code,
-                name=it.name,
-                file_types=it.file_types,
-                desc=it.desc,
-                present=it.present,
-                matched_file=it.matched_file,
-            )
-            for it in result.items
-        ],
+        present_count=present_count,
+        percent=percent,
+        missing=[it.code for it in items if not it.present],
+        items=items,
     )

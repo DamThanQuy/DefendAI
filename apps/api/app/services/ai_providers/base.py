@@ -59,6 +59,9 @@ class OpenAICompatibleProvider(ABC):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.provider_name = provider_name
+        # Shared client for connection pooling — avoids new connection per request
+        # timeout: connect=10s, read=600s (model thinking), write=10s, pool=5s
+        self._client: httpx.AsyncClient | None = None
 
     @abstractmethod
     def get_default_model(self) -> str:
@@ -78,12 +81,27 @@ class OpenAICompatibleProvider(ABC):
             "Content-Type": "application/json",
         }
 
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Get or create shared httpx client with connection pooling."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                timeout=httpx.Timeout(connect=10.0, read=600.0, write=10.0, pool=5.0),
+                limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+            )
+        return self._client
+
+    async def close(self) -> None:
+        """Close the shared httpx client."""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
+
     async def _post_json(self, url: str, headers: dict, payload: dict) -> dict:
         """Gọi 1 lần POST /chat/completions, trả về response.json()."""
-        async with httpx.AsyncClient(timeout=httpx.Timeout(600.0)) as client:
-            response = await client.post(url, headers=headers, json=payload)
-            response.raise_for_status()
-            return response.json()
+        client = await self._get_client()
+        response = await client.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        return response.json()
 
     async def generate(
         self,
@@ -95,6 +113,7 @@ class OpenAICompatibleProvider(ABC):
         max_tokens: int | None = None,
         reasoning_effort: str | None = None,
         response_format_json: bool = False,
+        images: list[str] | None = None,  # base64 data URIs or image URLs
         **kwargs: Any,
     ) -> dict[str, Any]:
         """
@@ -108,6 +127,7 @@ class OpenAICompatibleProvider(ABC):
             max_tokens: Giới hạn output tokens
             reasoning_effort: low | medium | high (chỉ NVIDIA Step 3.7 hỗ trợ)
             response_format_json: Nếu True, ép model trả về JSON object
+            images: Danh sách base64 data URIs (data:image/png;base64,...) hoặc image URLs
             **kwargs: Extra params gửi kèm (top_p, frequency_penalty, ...)
 
         Returns:
@@ -127,11 +147,24 @@ class OpenAICompatibleProvider(ABC):
         url = f"{self.base_url}/chat/completions"
         headers = self._build_headers()
 
-        # Build messages
-        messages: list[dict[str, str]] = []
+        # Build messages with multimodal support
+        messages: list[dict[str, Any]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        
+        # Build user message - support multimodal if images provided
+        if images:
+            content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+            for img in images:
+                # Support both data URIs and URLs
+                if img.startswith("data:") or img.startswith("http://") or img.startswith("https://"):
+                    content.append({"type": "image_url", "image_url": {"url": img}})
+                else:
+                    # Assume base64 without prefix - add PNG data URI prefix
+                    content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}})
+            messages.append({"role": "user", "content": content})
+        else:
+            messages.append({"role": "user", "content": prompt})
 
         # Build payload
         payload: dict[str, Any] = {
@@ -156,10 +189,14 @@ class OpenAICompatibleProvider(ABC):
         # Retry trên lỗi upstream tạm thời (backend chập theo từng cửa sổ, ví dụ
         # opencode ACC:Public trả 502 fetch connect timeout). Các lỗi này tự
         # recover sau vài chục giây — retry bắt được cửa sổ sống thay vì fail job.
-        # ponytail: ceiling = 2 lần retry, backoff 45s; nâng khi có metrics ổn định.
+        # Exponential backoff: 5s → 15s → 45s (cộng dồn ~65s total wait ceiling).
+        # 429 đặc biệt: tôn trọng Retry-After header nếu upstream trả về.
+        MAX_RETRIES = 3  # 1 lần gốc + 3 retry
+        BACKOFF_BASE = 5.0  # seconds
         start = time.perf_counter()
         last_err: Exception | None = None
-        for attempt in range(3):  # 1 lần gốc + 2 retry
+        for attempt in range(MAX_RETRIES):
+            sleep_s = BACKOFF_BASE * (3 ** attempt)  # default backoff for this attempt
             try:
                 data = await self._post_json(url, headers, payload)
                 latency_ms = (time.perf_counter() - start) * 1000
@@ -170,18 +207,47 @@ class OpenAICompatibleProvider(ABC):
                     logger.error("[%s] HTTP %s: %s", self.provider_name,
                                  e.response.status_code, e.response.text[:500])
                     raise
-                logger.warning("[%s] HTTP %s (attempt %s/3) — retry sau 45s: %s",
-                               self.provider_name, e.response.status_code, attempt + 1,
-                               e.response.text[:200])
+                # 429: respect Retry-After header if present (seconds)
+                retry_after = e.response.headers.get("retry-after")
+                if retry_after and e.response.status_code == 429:
+                    try:
+                        sleep_s = float(retry_after)
+                        logger.warning(
+                            "[%s] 429 rate limit (attempt %s/%s) — retry sau %ss (Retry-After): %s",
+                            self.provider_name, attempt + 1, MAX_RETRIES, sleep_s,
+                            e.response.text[:200],
+                        )
+                    except ValueError:
+                        logger.warning(
+                            "[%s] 429 rate limit (attempt %s/%s) — retry sau %ss: %s",
+                            self.provider_name, attempt + 1, MAX_RETRIES, sleep_s,
+                            e.response.text[:200],
+                        )
+                else:
+                    logger.warning(
+                        "[%s] HTTP %s (attempt %s/%s) — retry sau %ss: %s",
+                        self.provider_name, e.response.status_code, attempt + 1,
+                        MAX_RETRIES, sleep_s, e.response.text[:200],
+                    )
             except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout) as e:
                 last_err = e
-                logger.warning("[%s] connect/timeout (attempt %s/3) — retry sau 45s: %s",
-                               self.provider_name, attempt + 1, repr(e))
-            if attempt < 2:
-                await asyncio.sleep(45.0)
+                logger.warning(
+                    "[%s] connect/timeout (attempt %s/%s) — retry sau %ss: %s",
+                    self.provider_name, attempt + 1, MAX_RETRIES, sleep_s, repr(e),
+                )
+            except httpx.WriteTimeout as e:
+                # Body quá lớn (multimodal nặng), upstream không kịp đọc request
+                last_err = e
+                logger.warning(
+                    "[%s] write timeout (attempt %s/%s) — retry sau %ss: %s",
+                    self.provider_name, attempt + 1, MAX_RETRIES, sleep_s, repr(e),
+                )
+
+            if attempt < MAX_RETRIES - 1:
+                await asyncio.sleep(sleep_s)
         else:
-            logger.error("[%s] Request failed after retries: %s",
-                         self.provider_name, repr(last_err))
+            logger.error("[%s] Request failed after %s retries: %s",
+                         self.provider_name, MAX_RETRIES, repr(last_err))
             raise last_err  # type: ignore[misc]
 
         # Parse response
@@ -246,22 +312,22 @@ class OpenAICompatibleProvider(ABC):
             if value is not None:
                 payload[key] = value
 
-        async with httpx.AsyncClient(timeout=httpx.Timeout(600.0)) as client:
-            async with client.stream("POST", url, headers=headers, json=payload) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if not line.startswith("data:"):
-                        continue
-                    data = line[5:].strip()
-                    if not data or data == "[DONE]":
-                        return
-                    try:
-                        chunk = json.loads(data)
-                    except json.JSONDecodeError:
-                        continue
-                    choice = (chunk.get("choices") or [{}])[0]
-                    delta = choice.get("delta") or {}
-                    yield {
-                        "content": delta.get("content"),
-                        "finish_reason": choice.get("finish_reason"),
-                    }
+        client = await self._get_client()
+        async with client.stream("POST", url, headers=headers, json=payload) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if not data or data == "[DONE]":
+                    return
+                try:
+                    chunk = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+                choice = (chunk.get("choices") or [{}])[0]
+                delta = choice.get("delta") or {}
+                yield {
+                    "content": delta.get("content"),
+                    "finish_reason": choice.get("finish_reason"),
+                }

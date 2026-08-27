@@ -101,6 +101,16 @@ RUBRICS: list[dict] = [
                 {"key": "br_chac", "label": "BR chắc", "levels": ["Đạt", "Khá", "Chưa đạt"]},
                 {"key": "giai_quyet_van_de_hien_tai", "label": "Giải quyết 1 vấn đề hiện tại", "levels": ["Đạt", "Khá", "Chưa đạt"]},
             ],
+            "deliverables": [
+                {"code": "R1", "name": "Project Introduction", "file_types": [".docx", ".pdf"]},
+                {"code": "R2", "name": "Project Management Plan (PMP)", "file_types": [".docx", ".pdf"]},
+                {"code": "R3", "name": "Software Requirements Specifications (SRS)", "file_types": [".docx", ".pdf"]},
+                {"code": "R4", "name": "Software Design Description (SDD)", "file_types": [".docx", ".pdf"]},
+                {"code": "R5", "name": "Software Test Documentation (STD)", "file_types": [".docx", ".pdf"]},
+                {"code": "R6", "name": "Software User Guides (SUG)", "file_types": [".docx", ".pdf"]},
+                {"code": "R7", "name": "Final Project Report", "file_types": [".docx", ".pdf"]},
+                {"code": "SP", "name": "Software Product (source code)", "file_types": [".zip", ".rar", ".tar.gz"]},
+            ],
             "pass_rules": {
                 "fail_always": ["oga<5", "cheating"],
                 "defer_round2": ["oga<5", "completed_uc<75%", "cannot_prove_self_made", "logic_errors>3", "show_stopper>1"],

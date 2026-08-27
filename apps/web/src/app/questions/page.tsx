@@ -20,6 +20,15 @@ interface AssessmentResponse {
   provider: string;
   model: string;
   missing_submissions?: Array<{ key: string; label: string; week: number }>;
+  fallback_used?: boolean;
+}
+
+interface JobResponse {
+  job_id: string;
+  status: string;
+  progress?: string;
+  message?: string;
+  error?: string;
 }
 
 function getToken(): string | null {
@@ -31,7 +40,11 @@ export default function QuestionsPage() {
   const [data, setData] = useState<AssessmentResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenProgress, setRegenProgress] = useState<number>(0);
+  const [regenMessage, setRegenMessage] = useState("");
 
+  // Load existing assessment on mount
   useEffect(() => {
     const fetchAssessment = async () => {
       const token = getToken();
@@ -54,6 +67,85 @@ export default function QuestionsPage() {
     };
     fetchAssessment();
   }, []);
+
+  // Regenerate questions with job polling
+  const handleRegenerate = async (documentId: number) => {
+    const token = getToken();
+    if (!token) return;
+
+    setRegenerating(true);
+    setRegenProgress(0);
+    setRegenMessage("Đang tạo job sinh câu hỏi...");
+
+    try {
+      // Step 1: Create job
+      const createRes = await fetch("/api/questions/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ document_id: documentId }),
+      });
+
+      if (!createRes.ok) throw new Error("Không thể tạo job sinh câu hỏi");
+      const jobData: JobResponse = await createRes.json();
+      const jobId = jobData.job_id;
+
+      setRegenMessage("Đang phân tích tài liệu...");
+
+      // Step 2: Poll job progress
+      const pollInterval = setInterval(async () => {
+        try {
+          const pollRes = await fetch(`/api/jobs/${jobId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!pollRes.ok) return;
+          const job: JobResponse = await pollRes.json();
+
+          if (job.progress) {
+            setRegenProgress(parseInt(job.progress) || 0);
+          }
+
+          if (job.status === "completed") {
+            clearInterval(pollInterval);
+            setRegenMessage("Hoàn thành! Đang tải kết quả...");
+
+            // Load the new assessment
+            const assessRes = await fetch("/api/questions/assessments/latest", {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (assessRes.ok) {
+              const json: AssessmentResponse = await assessRes.json();
+              setData(json);
+            }
+            setRegenerating(false);
+            setRegenProgress(0);
+            setRegenMessage("");
+          } else if (job.status === "failed") {
+            clearInterval(pollInterval);
+            setRegenMessage(job.error || "Đã xảy ra lỗi khi sinh câu hỏi");
+            setRegenerating(false);
+          }
+        } catch {
+          // poll error, continue
+        }
+      }, 1500);
+
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (regenerating) {
+          setRegenMessage(" Timeout — vui lòng thử lại.");
+          setRegenerating(false);
+        }
+      }, 300000);
+
+    } catch (e: any) {
+      setRegenMessage(e.message || "Đã xảy ra lỗi");
+      setRegenerating(false);
+    }
+  };
 
   const missing = data?.missing_submissions ?? [];
   const questions = data?.questions ?? [];
@@ -113,6 +205,47 @@ export default function QuestionsPage() {
           </div>
         )}
 
+        {/* Regenerate button + progress */}
+        <div className="flex items-center gap-4 mb-8">
+          <button
+            onClick={() => data && handleRegenerate(data.document_id)}
+            disabled={regenerating || !data}
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-semibold text-[14px] rounded-lg hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {regenerating ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Đang sinh lại...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Sinh lại câu hỏi
+              </>
+            )}
+          </button>
+
+          {regenerating && (
+            <div className="flex-1 max-w-md">
+              <div className="w-full bg-zinc-700 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-primary h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${regenProgress}%` }}
+                />
+              </div>
+              <p className="text-zinc-400 text-[12px] mt-1">{regenMessage}</p>
+            </div>
+          )}
+
+          {data?.fallback_used && (
+            <span className="text-[12px] text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full">
+              ⚠️ Dùng fallback (AI tạm không khả dụng)
+            </span>
+          )}
+        </div>
+
         {/* Filters Row */}
         <div className="flex flex-col sm:flex-row gap-3 mb-8">
           <div className="relative flex-1 max-w-sm">
@@ -121,9 +254,9 @@ export default function QuestionsPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
-            <input 
-              type="text" 
-              placeholder="Tìm kiếm câu hỏi..." 
+            <input
+              type="text"
+              placeholder="Tìm kiếm câu hỏi..."
               className="block w-full pl-10 pr-3 py-2 border border-border bg-card rounded-full text-[14px] text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary shadow-sm transition-shadow"
             />
           </div>
@@ -142,6 +275,22 @@ export default function QuestionsPage() {
             </button>
           </div>
         </div>
+
+        {/* Loading state */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-10 h-10 border-[3px] border-zinc-800 border-t-primary rounded-full animate-spin mb-4" />
+            <p className="text-zinc-400 text-[14px]">Đang tải kết quả phân tích...</p>
+          </div>
+        )}
+
+        {/* Error state */}
+        {error && !loading && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 text-center mb-8">
+            <p className="text-red-400 font-semibold mb-1">Đã xảy ra lỗi</p>
+            <p className="text-[13px] text-red-400">{error}</p>
+          </div>
+        )}
 
         {/* Questions Grid */}
         {!loading && !error && questions.length > 0 && (
@@ -162,7 +311,7 @@ export default function QuestionsPage() {
                     <h3 className="text-[18px] font-serif font-bold text-primary mb-3 leading-snug">
                       {q.question}
                     </h3>
-                    
+
                     <div className="bg-primary/5 border border-primary/10 rounded-xl p-4 mb-6">
                       <div className="flex items-center gap-2 mb-2 text-primary font-semibold text-[13px]">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
@@ -187,25 +336,44 @@ export default function QuestionsPage() {
           </div>
         )}
 
-        {/* Bottom Banner */}
-        <div className="bg-gradient-to-r from-primary to-secondary rounded-2xl p-10 flex flex-col items-start justify-center shadow-md overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-[0.03] rounded-full -mr-10 -mt-10 pointer-events-none"></div>
-          <div className="absolute bottom-0 right-40 w-40 h-40 bg-white opacity-[0.03] rounded-full -mb-10 pointer-events-none"></div>
-          
-          <h2 className="text-[26px] font-serif font-bold text-white mb-3 relative z-10">Bạn muốn thử luyện tập trực tiếp?</h2>
-          <p className="text-blue-100/90 text-[15px] max-w-xl mb-8 relative z-10 leading-relaxed font-medium">
-            Vào Mock Room để thực hành trả lời các câu hỏi này với hội đồng AI ảo. Hệ thống sẽ nhận xét, đưa ra lời khuyên và chỉnh sửa giọng điệu, phong thái của bạn.
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4 relative z-10">
-            <button className="px-8 py-3 bg-white text-primary font-bold text-[14px] rounded-lg shadow-sm hover:bg-zinc-100 transition-colors">
-              Bắt đầu luyện tập ngay
-            </button>
-            <button className="px-8 py-3 bg-transparent border border-white/30 text-white font-semibold text-[14px] rounded-lg hover:bg-white/10 transition-colors">
-              Tải danh sách PDF
-            </button>
+        {/* No questions state */}
+        {!loading && !error && questions.length === 0 && (
+          <div className="bg-card rounded-2xl border border-dashed border-zinc-700 p-12 text-center mb-8">
+            <div className="text-4xl mb-3">📝</div>
+            <h3 className="text-[16px] font-bold text-zinc-200 mb-2">Chưa có câu hỏi nào</h3>
+            <p className="text-zinc-500 text-[13px] mb-4">
+              Chưa có assessment nào được tạo. Hãy upload tài liệu đồ án và bấm "Sinh lại câu hỏi" để tạo bộ câu hỏi mới.
+            </p>
+            <Link
+              href="/documents"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-semibold text-[14px] rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              📄 Tải lên tài liệu
+            </Link>
           </div>
-        </div>
+        )}
+
+        {/* Bottom Banner */}
+        {!loading && questions.length > 0 && (
+          <div className="bg-gradient-to-r from-primary to-secondary rounded-2xl p-10 flex flex-col items-start justify-center shadow-md overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-[0.03] rounded-full -mr-10 -mt-10 pointer-events-none"></div>
+            <div className="absolute bottom-0 right-40 w-40 h-40 bg-white opacity-[0.03] rounded-full -mb-10 pointer-events-none"></div>
+
+            <h2 className="text-[26px] font-serif font-bold text-white mb-3 relative z-10">Bạn muốn thử luyện tập trực tiếp?</h2>
+            <p className="text-blue-100/90 text-[15px] max-w-xl mb-8 relative z-10 leading-relaxed font-medium">
+              Vào Mock Room để thực hành trả lời các câu hỏi này với hội đồng AI ảo. Hệ thống sẽ nhận xét, đưa ra lời khuyên và chỉnh sửa giọng điệu, phong thái của bạn.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 relative z-10">
+              <button className="px-8 py-3 bg-white text-primary font-bold text-[14px] rounded-lg shadow-sm hover:bg-zinc-100 transition-colors">
+                Bắt đầu luyện tập ngay
+              </button>
+              <button className="px-8 py-3 bg-transparent border border-white/30 text-white font-semibold text-[14px] rounded-lg hover:bg-white/10 transition-colors">
+                Tải danh sách PDF
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
