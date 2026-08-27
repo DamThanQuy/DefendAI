@@ -60,22 +60,6 @@ class CLOCoverage:
         self._recalc()
 
 
-# Need imports
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set
-from enum import Enum
-from datetime import datetime
-import json
-
-
-class AnswerQualityLevel(str, Enum):
-    """Quality level of answer per CLO."""
-    HIGH = "high"      # Correct, deep
-    MEDIUM = "medium"  # Partial, medium depth
-    LOW = "low"        # Incorrect, shallow
-
-
-@dataclass
 class CLOTracker:
     """
     Track CLO coverage across a Mock Room session.

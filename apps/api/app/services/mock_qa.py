@@ -16,7 +16,7 @@ from app.services.rag_service import RAGService, RAGContext
 from app.services.mock_feedback import FeedbackGenerator, FeedbackResult, generate_feedback
 from app.services.clo_tracker import CLOTracker
 from app.services.quality_signals import QualitySignalsExtractor, QualitySignals
-from app.services.mock_adaptive import MockAdaptiveService, DifficultyAdjustment, CoverageAction, HintLevel
+from app.services.mock_adaptive import MockAdaptiveService, DifficultyAdjustment as AdaptiveDifficultyAdjustment, CoverageAction, HintLevel
 from app.services.mock_summary import MockSummaryService
 from app.services.session_store import get_session_store, close_session_store
 
@@ -56,9 +56,6 @@ class DifficultyAdjustment:
     action: str  # deeper | same | hint | switch_clo
     target_clo: Optional[str] = None
     reason: str = ""
-
-
-class MockQAEngine:
     """
     Core engine for Mock Room AI Q&A.
     

@@ -9,8 +9,6 @@ from typing import List, Dict, Any, Optional, Set
 from dataclasses import dataclass, field
 from enum import Enum
 
-from app.services.reranker import BaseReranker
-
 logger = logging.getLogger(__name__)
 
 
@@ -43,56 +41,6 @@ class FeedbackResult:
     is_correct: bool = False
     confidence: float = 0.0                # 0.0-1.0
     feedback: str = ""                     # Detailed feedback text
-    missing_keywords: List[str] = field(default_factory=list)
-    suggestions: List[str] = field(default_factory=list)
-    quality_signals: QualitySignals = field(default_factory=QualitySignals)
-    covered_keywords: List[str] = field(default_factory=list)
-
-
-# Need to import List for type hints
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from app.services.reranker import BaseReranker
-
-
-# Re-define with proper imports
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Set
-from enum import Enum
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from app.services.reranker import BaseReranker
-
-
-class AnswerAccuracy(str, Enum):
-    CORRECT = "correct"
-    PARTIAL = "partial"
-    INCORRECT = "incorrect"
-
-
-class AnswerDepth(str, Enum):
-    SHALLOW = "shallow"
-    MEDIUM = "medium"
-    DEEP = "deep"
-
-
-@dataclass
-class QualitySignals:
-    keyword_coverage: float = 0.0
-    depth: AnswerDepth = AnswerDepth.SHALLOW
-    accuracy: AnswerAccuracy = AnswerAccuracy.INCORRECT
-    confidence: float = 0.0
-
-
-@dataclass
-class FeedbackResult:
-    is_correct: bool = False
-    confidence: float = 0.0
-    feedback: str = ""
     missing_keywords: List[str] = field(default_factory=list)
     suggestions: List[str] = field(default_factory=list)
     quality_signals: QualitySignals = field(default_factory=QualitySignals)

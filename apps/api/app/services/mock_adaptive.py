@@ -278,12 +278,3 @@ def create_adaptive_service(
         target_questions_per_clo=target_questions_per_clo,
         question_time_limit=question_time_limit,
     )
-
-
-# Need imports
-from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Set
-from enum import Enum
-from datetime import datetime
-import random
-from collections import defaultdict

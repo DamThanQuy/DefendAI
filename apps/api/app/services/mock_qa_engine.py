@@ -32,6 +32,10 @@ from app.prompts.mock_qa import (
     DIFFICULTY_ADJUSTMENT_PROMPT,
     HINT_GENERATION_PROMPT,
     SUMMARY_REPORT_PROMPT,
+    get_clo_weight_oga,
+    get_clo_weight_tda,
+    format_coverage,
+    CLO_NAMES,
 )
 from app.services.rag_service import RAGService
 
@@ -91,9 +95,6 @@ class MockQAEngine:
         self.config.update(config or {})
         
         # Initialize services
-        from app.services.rag_service import RAGService
-        from app.services.mock_qa_rag import MockQARAGService
-        
         self.rag = rag_service
         self.rag_qa = MockQARAGService(rag_service)
         
@@ -115,8 +116,6 @@ class MockQAEngine:
         
         session = MockQASession(
             meeting_id=meeting_id,
-            workspace_id=session_id or uuid.uuid4().hex[:8],  # fallback
-        )
         
         # Generate first question
         first_question = await self.generate_question(session)
