@@ -48,22 +48,21 @@ class AIGateway:
 
     def _configure(self) -> None:
         """
-        Khởi tạo các provider từ biến môi trường.
+        Khởi tạo các provider từ settings object.
         """
-        # Định nghĩa cấu hình cho các provider
-        # Nếu muốn thêm model mới, chỉ cần thêm 1 dòng vào đây
+        # Định nghĩa cấu hình cho các provider từ settings
         providers_meta = {
             "nvidia": {
                 "class": NVIDIAProvider,
-                "api_key": os.getenv("NVIDIA_API_KEY"),
-                "base_url": os.getenv("NVIDIA_BASE_URL"),
-                "model": os.getenv("NVIDIA_MODEL")
+                "api_key": settings.nvidia.api_key,
+                "base_url": settings.nvidia.base_url,
+                "model": settings.nvidia.model
             },
             "localhost": {
                 "class": LocalProvider,
-                "api_key": os.getenv("LOCAL_API_KEY"),
-                "base_url": os.getenv("LOCAL_BASE_URL"),
-                "model": os.getenv("LOCAL_MODEL")
+                "api_key": settings.local.api_key,
+                "base_url": settings.local.base_url,
+                "model": settings.local.model
             }
         }
 
@@ -98,6 +97,16 @@ class AIGateway:
         if value is None or not value.strip():
             return default
         return value.strip()
+
+    async def close(self) -> None:
+        """Close all provider HTTP clients."""
+        for name, provider in self.providers.items():
+            if hasattr(provider, "close"):
+                try:
+                    await provider.close()
+                    logger.info(f"Closed {name} provider HTTP client")
+                except Exception as e:
+                    logger.warning(f"Error closing {name} provider: {e}")
 
     # ========== Public API ==========
 
@@ -173,6 +182,7 @@ class AIGateway:
             prompt=prompt,
             model=model,
             system_prompt=system_prompt,
+            images=kwargs.pop("images", None),
             **kwargs,
         )
 

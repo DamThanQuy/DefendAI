@@ -17,6 +17,7 @@ from app.models.workspace import Workspace, WorkspaceFile
 from app.schemas.assessment import AssessmentQuestion
 from app.services.ai_client import ai_gateway
 from app.services.chunk_indexer import index_chunks
+from app.services.circuit_breaker import CircuitOpenError, question_gen_breaker
 from app.services.deliverable_check import check_deliverables
 from app.services.document_parser import DocumentParserError, parse_and_chunk
 from app.services.job_queue import register_handler, update_job
@@ -386,6 +387,7 @@ async def handle_generate_questions(params: dict) -> dict:
             }
 
         system_prompt = _build_system_prompt(rubric=rubric, missing_block=missing_block)
+        used_fallback = False
 
         try:
             if job_id:
@@ -394,12 +396,16 @@ async def handle_generate_questions(params: dict) -> dict:
             tasks = []
             chunk_groups = [chunks[i:i+3] for i in range(0, len(chunks), 3)]
             for group in chunk_groups:
-                tasks.append(ai_gateway.generate(
-                    prompt=_build_user_prompt(document.filename, document.doc_type.value, group),
-                    system_prompt=system_prompt,
-                    temperature=0.2,
-                    max_tokens=3000,
-                ))
+                user_prompt = _build_user_prompt(document.filename, document.doc_type.value, group)
+                tasks.append(
+                    question_gen_breaker.call(
+                        ai_gateway.generate,
+                        prompt=user_prompt,
+                        system_prompt=system_prompt,
+                        temperature=0.2,
+                        max_tokens=3000,
+                    )
+                )
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -428,7 +434,14 @@ async def handle_generate_questions(params: dict) -> dict:
             provider_name = "default (multi-chunk)"
             model_name = "default"
 
+        except CircuitOpenError:
+            used_fallback = True
+            logger.warning("Circuit breaker OPEN for question generation — using heuristic fallback")
+            questions = _heuristic_questions(document.filename, chunks)
+            provider_name = "circuit-breaker-fallback"
+            model_name = "rules-v1"
         except Exception as exc:
+            used_fallback = True
             logger.warning("AI generate failed, using heuristic: %s", exc)
             questions = _heuristic_questions(document.filename, chunks)
             provider_name = "heuristic"
@@ -455,4 +468,5 @@ async def handle_generate_questions(params: dict) -> dict:
             "provider": provider_name,
             "model": model_name,
             "missing_submissions": missing,
+            "fallback_used": used_fallback,
         }

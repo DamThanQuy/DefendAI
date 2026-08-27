@@ -44,6 +44,8 @@ from app.services.code_scanner import (
     extract_code_files,
     list_archive_members,
 )
+from app.services.circuit_breaker import CircuitOpenError, code_review_breaker
+from app.services.code_review_fallback import fallback_reviewer
 from app.services.rubric_service import get_active_rubric
 from app.services.job_queue import create_job, register_handler
 
@@ -148,7 +150,21 @@ async def handle_code_scan_module(params: dict) -> dict:
 
     async with async_session_maker() as db:
         try:
-            issues = await analyze_module_files(files, provider=provider, model=model, rubric=rubric)
+            # Try AI review through circuit breaker
+            try:
+                issues = await code_review_breaker.call(
+                    analyze_module_files, files, provider=provider, model=model, rubric=rubric
+                )
+            except CircuitOpenError:
+                logger.warning(
+                    "Circuit breaker OPEN for code_review — using fallback reviewer for module %s",
+                    module,
+                )
+                issues = fallback_reviewer.review_code(files, focus_areas=["security", "performance", "style"])
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("AI review failed for module %s (%s), using fallback: %s", module, type(exc).__name__, exc)
+                issues = fallback_reviewer.review_code(files, focus_areas=["security", "performance", "style"])
+
             await _module_issues_to_rows(db, analysis_id, module, issues)
 
             # Atomic increment + read back the new value

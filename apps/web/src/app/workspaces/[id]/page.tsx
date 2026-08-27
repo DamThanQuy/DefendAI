@@ -90,6 +90,10 @@ interface DeliverableItem {
   desc: string;
   present: boolean;
   matched_file: string | null;
+  // Layer 2 fields — AI classification
+  content_ok: boolean | null;
+  content_reason: string | null;
+  ai_classified: boolean;
 }
 
 interface DeliverableCheck {
@@ -202,6 +206,44 @@ function renderWithRefs(text: string) {
     }
     return <span key={i}>{p}</span>;
   });
+}
+
+// 3-state status helper for deliverable items
+function getDeliverableStatus(it: DeliverableItem): "ready" | "pending" | "missing" {
+  if (!it.present) return "missing";
+  if (it.ai_classified) {
+    return it.content_ok === true ? "ready" : "pending"; // ready = xanh, pending = vàng (content_ok=false or null)
+  }
+  // present but not AI classified yet
+  return "pending";
+}
+
+function getStatusColors(status: "ready" | "pending" | "missing") {
+  switch (status) {
+    case "ready":
+      return {
+        bg: "bg-teal-950/30 border-teal-900/50",
+        dot: "bg-teal-400",
+        text: "text-teal-300",
+        tooltip: "✓ Đủ file & nội dung đạt",
+      };
+    case "pending":
+      return {
+        bg: "bg-yellow-950/30 border-yellow-900/50",
+        dot: "bg-yellow-400",
+        text: "text-yellow-300",
+        tooltip: (it: DeliverableItem) => it.ai_classified && it.content_ok === false
+          ? "⚠ Có file nhưng nội dung không đạt"
+          : "⏳ Có file — chờ AI xác thực / lỗi",
+      };
+    case "missing":
+      return {
+        bg: "bg-red-950/20 border-red-900/40",
+        dot: "bg-red-400",
+        text: "text-red-300",
+        tooltip: "✗ Thiếu file",
+      };
+  }
 }
 
 export default function WorkspaceDetailPage() {
@@ -711,26 +753,28 @@ export default function WorkspaceDetailPage() {
 
                 {dlvCheck && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                    {dlvCheck.items.map((it) => (
-                      <div
-                        key={it.code}
-                        className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 transition-colors ${
-                          it.present
-                            ? "bg-teal-950/30 border-teal-900/50"
-                            : "bg-red-950/20 border-red-900/40"
-                        }`}
-                      >
-                        <span
-                          className={`w-2 h-2 rounded-full shrink-0 ${
-                            it.present ? "bg-teal-400" : "bg-red-400"
-                          }`}
-                        />
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-bold text-zinc-200 truncate">{it.code}</p>
-                          <p className="text-[11px] text-zinc-500 truncate">{it.name}</p>
+                    {dlvCheck.items.map((it) => {
+                      const status = getDeliverableStatus(it);
+                      const colors = getStatusColors(status);
+                      return (
+                        <div
+                          key={it.code}
+                          className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 transition-colors ${colors.bg}`}
+                          title={typeof colors.tooltip === "function" ? colors.tooltip(it) : colors.tooltip}
+                        >
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${colors.dot}`} />
+                          <div className="min-w-0">
+                            <p className={`text-[13px] font-bold truncate ${colors.text}`}>{it.code}</p>
+                            <p className="text-[11px] text-zinc-500 truncate">{it.name}</p>
+                          </div>
+                          {it.ai_classified && it.content_reason && (
+                            <span className="ml-auto text-[10px] text-zinc-600 font-medium whitespace-nowrap">
+                              {it.content_ok === false ? "⚠" : it.content_ok === true ? "✓" : "?"}
+                            </span>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

@@ -144,7 +144,9 @@ async def _call_gemini_vision(
       context; Gemini describes each image (diagrams). text is supplied by the caller.
     """
     api_key = settings.google_embed.api_key
-    url = f"{settings.google_embed.base_url}/gemini-3.1-flash-lite:generateContent"
+    base_url = settings.google_embed.base_url or "https://generativelanguage.googleapis.com/v1beta/models"
+    model_name = settings.google_embed.model or "gemini-3.1-flash-lite"
+    url = f"{base_url}/{model_name}:generateContent"
 
     parts: list[dict] = []
     if images:

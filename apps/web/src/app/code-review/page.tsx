@@ -20,7 +20,7 @@ interface UploadedDoc {
 
 interface ScanResult {
   stats: { critical: number; warnings: number; optimizations: number };
-  backendData: { summary: string; provider?: string; model?: string };
+  backendData: { summary: string; provider?: string; model?: string; total_modules?: number; done_modules?: number; module_progress?: { done: number; total: number } };
   details: CodeIssue[];
   documentId?: number;
 }
@@ -48,6 +48,7 @@ export default function CodeReviewPage() {
   const [expandedIssues, setExpandedIssues] = useState<Set<number>>(new Set());
   const [fileIssueFilter, setFileIssueFilter] = useState<string | null>(null);
   const [expandedPanel, setExpandedPanel] = useState<null | "issues">(null);
+  const [moduleProgress, setModuleProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
 
   const token = useMemo(
     () => (typeof window !== "undefined" ? localStorage.getItem("access_token") : null),
@@ -152,6 +153,7 @@ export default function CodeReviewPage() {
     setStatus("done");
     setResult({ ...data, documentId: data.documentId });
     setActiveIssue(null);
+    setModuleProgress(data.backendData?.module_progress ?? { done: 0, total: 0 });
     const docId = data.documentId;
     if (docId && token) {
       setLoadingTree(true);
@@ -540,8 +542,21 @@ export default function CodeReviewPage() {
           <div className="bg-card rounded-2xl p-12 text-center">
             <div className="w-10 h-10 border-[3px] border-zinc-800 border-t-primary rounded-full animate-spin mx-auto mb-4" />
             <p className="text-zinc-400 font-medium">
-              {status === "uploading" ? "Đang tải file lên..." : "Đang phân tích mã nguồn... (có thể mất 1-2 phút)"}
+              {status === "uploading" ? "Đang tải file lên..." : "Đang phân tích mã nguồn..."}
             </p>
+            {status === "scanning" && moduleProgress.total > 0 && (
+              <div className="mt-4 max-w-md mx-auto">
+                <div className="w-full bg-zinc-700 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-primary h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${(moduleProgress.done / moduleProgress.total) * 100}%` }}
+                  />
+                </div>
+                <p className="text-zinc-500 text-[12px] mt-1.5">
+                  Module {moduleProgress.done}/{moduleProgress.total}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -578,6 +593,20 @@ export default function CodeReviewPage() {
                 </div>
               </div>
             </div>
+
+            {/* Module progress (show if modules were processed) */}
+            {moduleProgress.total > 0 && (
+              <div className="bg-card rounded-xl border border-zinc-800/60 p-3 mb-4 flex items-center gap-3">
+                <span className="text-[12px] text-zinc-400">Đã xử lý</span>
+                <div className="flex-1 bg-zinc-700 rounded-full h-1.5">
+                  <div
+                    className="bg-green-500 h-1.5 rounded-full"
+                    style={{ width: `${(moduleProgress.done / moduleProgress.total) * 100}%` }}
+                  />
+                </div>
+                <span className="text-[12px] text-zinc-400">{moduleProgress.done}/{moduleProgress.total} modules</span>
+              </div>
+            )}
 
             {/* 3-panel: tree | code | summary+issues */}
             <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr_340px] gap-5">
