@@ -103,20 +103,6 @@ class MockQASession:
     target_questions_per_clo: int = 2
 
 
-@dataclass
-class QuestionLog:
-    question_id: str
-    clo: str
-    question: str
-    answer: str
-    oga_score: float
-    tda_score: float
-    answer_quality: float
-    question_type: str
-    difficulty: str
-    timestamp: str
-
-
 class ScoreAggregator:
     """Tính toán điểm OGA/TDA real-time."""
     

@@ -28,6 +28,7 @@ interface JobResponse {
   status: string;
   progress?: string;
   message?: string;
+  error?: string;
 }
 
 function getToken(): string | null {

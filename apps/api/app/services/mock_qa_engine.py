@@ -18,11 +18,9 @@ from app.services.mock_qa_state import (
     DifficultyAdjustment,
     CoverageAction,
     DifficultyAction,
-    CoverageAction,
     adjust_difficulty,
     enforce_coverage,
     get_next_clo,
-    MockQASession,
     ScoreAggregator,
 )
 from app.services.mock_qa_rag import MockQARAGService
@@ -299,37 +297,3 @@ def format_coverage(coverage: Dict[str, int]) -> str:
     for clo, count in coverage.items():
         parts.append(f"{clo}: {count} câu")
     return ", ".join(parts)
-
-
-# Import needed
-import logging
-import uuid
-from datetime import datetime
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass, field
-
-logger = logging.getLogger(__name__)
-from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional
-import asyncio
-from app.core.config import settings
-from app.services.ai_client import ai_gateway
-from app.services.mock_qa_state import MockQASession, SessionState
-from app.services.mock_qa_rag import MockQARAGService
-from app.prompts.mock_qa import (
-    QUESTION_GEN_SYSTEM_PROMPT,
-    QUESTION_GEN_USER_PROMPT,
-    EVALUATION_SYSTEM_PROMPT,
-    EVALUATION_USER_PROMPT,
-    DIFFICULTY_ADJUSTMENT_PROMPT,
-    HINT_GENERATION_PROMPT,
-    SUMMARY_REPORT_PROMPT,
-    get_clo_weight_oga,
-    get_clo_weight_tda,
-    format_coverage,
-    get_clo_weight_oga,
-    get_clo_weight_tda,
-    CLO_NAMES,
-    format_coverage,
-)
-import json

@@ -282,21 +282,3 @@ def format_coverage(coverage: Dict[str, int]) -> Dict[str, Any]:
         "total_clo": 7,
         "details": details,
     }
-
-
-# Import needed
-import logging
-logger = logging.getLogger(__name__)
-from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
-import asyncio
-from app.core.config import settings
-from app.services.rag_service import RAGService
-from app.prompts.mock_qa import (
-    CLO_NAMES,
-    get_clo_weight_oga,
-    get_clo_weight_tda,
-    CLO_PRIORITY,
-    CLO_QUERY_TEMPLATES,
-    CLO_KEYWORDS,
-)

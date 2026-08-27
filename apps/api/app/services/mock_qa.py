@@ -524,7 +524,6 @@ Trả về DUY NHẤT 1 JSON:
             "max_questions": self.max_questions,
             "consecutive_wrong": self.consecutive_wrong,
             "last_answer_quality": self.last_answer_quality,
-            "current_clo": self.current_clo,
             "question_type_counts": dict(self.question_type_counts),
             "clo_tracker": self.clo_tracker.to_dict(),
             "started_at": self.started_at.isoformat(),

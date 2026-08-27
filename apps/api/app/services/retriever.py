@@ -33,6 +33,41 @@ from app.services.embedder import embed
 logger = logging.getLogger(__name__)
 
 # ============================================================================
+# PostgreSQL pgvector KNN SQL queries
+# ============================================================================
+
+_KNN_SQL = text("""
+    SELECT c.content,
+           c.meta->>'filename' AS filename,
+           c.chunk_index,
+           1 - (c.embedding <=> CAST(:q AS vector)) AS score
+    FROM document_chunks c
+    JOIN workspace_files wf ON wf.document_id = c.document_id
+    WHERE wf.workspace_id = :ws
+      AND c.embedding IS NOT NULL
+      AND 1 - (c.embedding <=> CAST(:q AS vector)) >= :min_score
+    ORDER BY c.embedding <=> CAST(:q AS vector)
+    LIMIT :top_k
+""")
+
+_REF_KNN_SQL = text("""
+    SELECT c.content,
+           c.title,
+           c.meta->>'chunk_index' AS chunk_index,
+           1 - (c.embedding <=> CAST(:q AS vector)) AS score
+    FROM reference_chunks c
+    WHERE c.embedding IS NOT NULL
+      AND 1 - (c.embedding <=> CAST(:q AS vector)) >= :min_score
+    ORDER BY c.embedding <=> CAST(:q AS vector)
+    LIMIT :top_k
+""")
+
+
+def _vector_literal(vec) -> str:
+    """Nối vector float thành literal pgvector '[0.1,-0.02,...]' cho bind :q::vector."""
+    return "[" + ",".join(repr(float(x)) for x in vec) + "]"
+
+# ============================================================================
 # BM25 Implementation
 # ============================================================================
 
