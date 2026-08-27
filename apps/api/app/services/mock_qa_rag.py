@@ -25,29 +25,6 @@ from app.prompts.mock_qa import (
 logger = logging.getLogger(__name__)
 
 
-# CLO-specific query templates for retrieval
-CLO_QUERY_TEMPLATES = {
-    "CLO1": "SRS problem statement actors use cases functional requirements business rules",
-    "CLO2": "SDD architecture design patterns API specification database ERD sequence diagram",
-    "CLO3": "implementation code structure modules testing CI/CD deployment",
-    "CLO4": "PMP project management plan WBS risk management schedule resource",
-    "CLO5": "user guide installation manual admin guide troubleshooting FAQ",
-    "CLO6": "presentation demo communication skills Q&A defense",
-    "CLO7": "attitude professional ethics teamwork learning",
-}
-
-# CLO-specific keywords for boosting
-CLO_KEYWORDS = {
-    "CLO1": ["SRS", "requirement", "use case", "actor", "functional", "business rule", "actor"],
-    "CLO2": ["architecture", "design", "ERD", "sequence", "API", "database", "schema", "component"],
-    "CLO3": ["implementation", "code", "module", "test", "CI/CD", "deployment", "algorithm"],
-    "CLO4": ["PMP", "WBS", "risk", "schedule", "resource", "milestone", "Gantt"],
-    "CLO5": ["user guide", "manual", "installation", "tutorial", "FAQ", "troubleshoot"],
-    "CLO6": ["presentation", "demo", "communication", "Q&A", "defense", "soft skill"],
-    "CLO7": ["attitude", "professional", "ethics", "teamwork", "learning"],
-}
-
-
 @dataclass
 class MockQARAGConfig:
     """Config cho RAG trong Mock Q&A."""

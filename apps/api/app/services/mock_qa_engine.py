@@ -112,10 +112,10 @@ class MockQAEngine:
         Returns:
             Dict với session info và câu hỏi đầu tiên.
         """
-        from app.services.mock_qa_state import MockQASession, SessionState
-        
         session = MockQASession(
             meeting_id=meeting_id,
+            workspace_id=workspace_id,
+        )
         
         # Generate first question
         first_question = await self.generate_question(session)
@@ -206,8 +206,6 @@ async def call_ai_gateway(
     response_format: str = "json",
 ) -> Dict[str, Any]:
     """Call AI Gateway để generate response."""
-    from app.services.ai_client import ai_gateway
-    
     result = await ai_gateway.generate(
         prompt=prompt,
         system_prompt=system_prompt,
@@ -287,12 +285,29 @@ def format_history(history: List[Dict]) -> str:
     return "\n".join(parts)
 
 
-def format_coverage(coverage: Dict[str, int]) -> str:
-    """Format coverage info cho prompt."""
-    if not coverage:
-        return "Chưa có câu hỏi nào."
-    
+def build_context_prompt(context_data: Dict[str, Any]) -> str:
+    """Format context data thành string cho LLM prompt."""
     parts = []
-    for clo, count in coverage.items():
-        parts.append(f"{clo}: {count} câu")
-    return ", ".join(parts)
+    
+    # User document chunks
+    if context_data.get("user_chunks"):
+        parts.append("=== USER DOCUMENTS ===")
+        for i, chunk in enumerate(context_data["user_chunks"]):
+            citation = f"[USER:{chunk['filename']}:chunk{chunk['chunk_index']}]"
+            parts.append(f"{citation} {chunk['content']}")
+    
+    # Reference chunks
+    if context_data.get("ref_chunks"):
+        parts.append("\n=== REFERENCE DOCUMENTS ===")
+        for i, chunk in enumerate(context_data["ref_chunks"]):
+            citation = f"[REF:{chunk['title']}:chunk{chunk['chunk_index']}]"
+            parts.append(f"{citation} {chunk['content']}")
+    
+    # Code chunks
+    if context_data.get("code_chunks"):
+        parts.append("\n=== SOURCE CODE ===")
+        for i, chunk in enumerate(context_data["code_chunks"]):
+            citation = f"[CODE:{chunk.get('file_path', 'unknown')}:chunk{chunk.get('chunk_index', 0)}]"
+            parts.append(f"{citation} {chunk['content']}")
+    
+    return "\n\n".join(parts)

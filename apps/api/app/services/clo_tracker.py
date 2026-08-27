@@ -244,11 +244,3 @@ class CLOTracker:
                 })
                 cov.last_asked_at = cov_data.get("last_asked_at")
         return tracker
-
-
-# Need imports
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set
-from enum import Enum
-from datetime import datetime
-import json

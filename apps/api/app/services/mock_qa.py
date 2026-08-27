@@ -56,6 +56,9 @@ class DifficultyAdjustment:
     action: str  # deeper | same | hint | switch_clo
     target_clo: Optional[str] = None
     reason: str = ""
+
+
+class MockQAEngine:
     """
     Core engine for Mock Room AI Q&A.
     
@@ -399,6 +402,33 @@ class DifficultyAdjustment:
         
         # Get coverage info
         coverage = self.clo_tracker.get_coverage()
+        
+        # Use adaptive service for difficulty adjustment
+        adjustment = await self.adaptive_service.adjust_difficulty(
+            current_clo=self.current_clo,
+            answer_quality=self.last_answer_quality,
+            consecutive_wrong=self.consecutive_wrong,
+            time_remaining=self.session_timeout - int((datetime.utcnow() - self.started_at).total_seconds()),
+            coverage=self.clo_tracker.get_coverage(),
+        )
+        
+        # Also check coverage enforcement
+        coverage_action = self.adaptive_service.enforce_coverage(
+            covered_clos=set(k for k, v in self.clo_tracker.get_coverage().items() if v.get("is_covered")),
+            time_remaining=self.session_timeout - int((datetime.utcnow() - self.started_at).total_seconds()),
+            questions_remaining=self.max_questions - self.questions_asked,
+            coverage=self.clo_tracker.get_coverage(),
+        )
+        
+        # If coverage enforcement forces switch, override adjustment
+        if coverage_action.force_switch and coverage_action.priority_clos:
+            return DifficultyAdjustment(
+                action="switch_clo",
+                target_clo=coverage_action.priority_clos[0],
+                reason=coverage_action.reason
+            )
+        
+        return adjustment
         
         # Use adaptive service for difficulty adjustment
         adjustment = await self.adaptive_service.adjust_difficulty(

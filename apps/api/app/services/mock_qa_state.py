@@ -383,30 +383,6 @@ def enforce_coverage(
     return CoverageAction(force_switch=False, reason="Coverage OK")
 
 
-def get_next_clo(
-    coverage: Dict[str, int],
-    consecutive_wrong: int = 0,
-    current_clo: str = "CLO1"
-) -> str:
-    """Chọn CLO tiếp theo dựa trên coverage gap + rubric weight."""
-    
-    target_clos = set(CLO_NAMES.keys())
-    covered = {clo for clo, count in coverage.items() if count > 0}
-    missing = target_clos - set([current_clo])  # không chọn lại CLO hiện tại
-    
-    if not missing:
-        return current_clo
-    
-    # Ưu tiên CLO thiếu + trọng số cao
-    priority_missing = sorted(
-        missing, 
-        key=lambda c: CLO_PRIORITY.get(c, 0), 
-        reverse=True
-    )
-    
-    return priority_missing[0]
-
-
 # ============================================================================
 # Coverage Enforcement
 # ============================================================================

@@ -29,17 +29,15 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import get_db, async_session_maker
 from app.core.deps import get_current_user
 from app.models.user import User
 from app.services.mock_qa_engine import MockQAEngine
 from app.services.mock_qa_state import MockQASessionManager, SessionState
 from app.services.mock_qa_rag import MockQARAGService
 from app.services.rag_service import RAGService
-from app.core.database import async_session_maker
 from app.models.booking import MockBooking, BookingStatus
 from app.models.meeting import Meeting
-from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +54,6 @@ def get_qa_engine() -> MockQAEngine:
     if _qa_engine is None:
         from app.services.rag_service import RAGService
         from app.services.mock_qa_rag import MockQARAGService
-        from app.services.rag_service import RAGService
         
         rag = RAGService()
         rag_qa = MockQARAGService(rag)
@@ -66,9 +63,8 @@ def get_qa_engine() -> MockQAEngine:
 
 async def get_session_manager():
     global _session_manager
-    from app.services.mock_qa_state import MockQASessionManager
-    global _session_manager
     if _session_manager is None:
+        from app.services.mock_qa_state import MockQASessionManager
         _session_manager = MockQASessionManager()
     return _session_manager
 
@@ -111,7 +107,6 @@ async def mock_qa_websocket(
     
     # 2. Verify meeting access
     async with async_session_maker() as db:
-        from app.models.meeting import MockBooking, BookingStatus
         from sqlalchemy import select
         
         booking = await db.execute(
@@ -161,14 +156,13 @@ async def mock_qa_websocket(
             "question_id": str(uuid.uuid4())[:8],
             "question": first_question,
             "clo": "CLO1",
-            "type": "Deep-dive",
+            "q_type": "Deep-dive",
             "difficulty": "Medium",
         })
         
         # Update session state
         from app.services.mock_qa_state import SessionState
         session.state = "questioning"
-        session.current_question = first_question
         session.current_clo = "CLO1"
         session.question_start_time = datetime.utcnow()
     
@@ -209,28 +203,20 @@ async def mock_qa_websocket(
     
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected for session {session.session_id}")
-        # Save session state for potential reconnect
-        await save_session_state(session)
     except Exception as e:
         logger.exception(f"WebSocket error: {e}")
         try:
             await websocket.send_json({"type": "error", "message": str(e)})
-        except:
+        except Exception:
             pass
-        finally:
-            await save_session_state(session)
 
 
 async def handle_answer(websocket: WebSocket, session: object, answer: str):
     """Process student answer."""
-    from app.services.mock_qa_engine import MockQAEngine
-    
     qa_engine = get_qa_engine()
     
     # Get workspace_id from session
     workspace_id = session.workspace_id
-    
-    # Process answer through QA engine
     try:
         result = await qa_engine.process_answer(session, answer, workspace_id)
         
@@ -264,7 +250,7 @@ async def handle_answer(websocket: WebSocket, session: object, answer: str):
             "question_id": str(uuid.uuid4())[:8],
             "question": next_question["question"],
             "clo": next_question.get("clo", "CLO1"),
-            "type": next_question.get("type", "Deep-dive"),
+            "q_type": next_question.get("type", "Deep-dive"),
             "difficulty": next_question.get("difficulty", "Medium"),
         })
         
@@ -324,13 +310,3 @@ async def generate_next_question(session) -> dict:
         "type": "Deep-dive",
         "difficulty": "Hard",
     }
-
-
-# Import needed
-import json
-import uuid
-from datetime import datetime
-from typing import Optional, Dict, Any
-import logging
-
-logger = logging.getLogger(__name__)
