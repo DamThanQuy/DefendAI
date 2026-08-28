@@ -25,6 +25,7 @@ from app.models.assessment import (  # noqa: F401
 )
 from app.models.app_setting import AppSetting  # noqa: F401
 from app.models.session import Session  # noqa: F401
+from app.models.message import Message  # noqa: F401
 from app.models.workspace import Workspace  # noqa: F401
 from app.models.workspace_question import WorkspaceQuestion  # noqa: F401
 from app.models.workspace_chat import WorkspaceChat  # noqa: F401
@@ -56,6 +57,7 @@ __all__ = [
     "AppSetting",
     "Session",
     "Workspace",
+    "Message",
     "WorkspaceQuestion",
     "WorkspaceChat",
 ]

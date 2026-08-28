@@ -22,6 +22,7 @@ from app.routers import jobs as jobs_router
 from app.routers import workspaces as workspaces_router
 from app.routers import workspace_chats as workspace_chats_router
 from app.routers import workspace_questions as workspace_questions_router
+from app.routers import workspace_messages as workspace_messages_router
 from app.routers import rubrics as rubrics_router
 from app.routers import mock_qa as mock_qa_router
 from app.routers import signaling as signaling_router
@@ -72,6 +73,8 @@ app.include_router(workspaces_router.router)
 app.include_router(workspace_questions_router.router)
 # Workspace RAG chat ("Chat đề tài" — R7)
 app.include_router(workspace_chats_router.router)
+# Workspace Messages (ChatGPT-style — R7 enhanced)
+app.include_router(workspace_messages_router.router)
 # Rubrics (tiêu chí chuẩn — thước đo AI)
 app.include_router(rubrics_router.router)
 # Mock Room AI Q&A WebSocket

@@ -19,7 +19,12 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-EMBEDDING_MODEL = settings.google_embed.model
+EMBEDDING_MODEL = settings.google_embed.model or "gemini-embedding-001"
+# Model embedding phải là model embedding (gemini-embedding-001 / text-embedding-004),
+# KHÔNG phải model generate (gemini-3.1-flash-lite) — model generate không hỗ trợ
+# batchEmbedContents (404). Nếu config trỏ model generate, fallback về embedding-001.
+if "flash" in EMBEDDING_MODEL or "pro" in EMBEDDING_MODEL or "lite" in EMBEDDING_MODEL:
+    EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIM = settings.google_embed.dim
 BATCH_SIZE = int(os.getenv("EMBED_BATCH_SIZE", "32"))
 _TIMEOUT = httpx.Timeout(60.0)

@@ -64,6 +64,39 @@ export default function WorkspaceChat({
   const [menuConvId, setMenuConvId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  // Hiển thị cả tin failed (mặc định ẩn để history sạch)
+  const [showFailed, setShowFailed] = useState(false);
+  const [cleaningHistory, setCleaningHistory] = useState(false);
+
+  // Xoá các tin failed/processing cũ (stale > 5 phút) khỏi DB
+  const cleanFailedChats = async () => {
+    const token = getToken();
+    if (!token || cleaningHistory) return;
+    setCleaningHistory(true);
+    try {
+      const r = await fetch(`/api/workspaces/${workspaceId}/chat/failed`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (r.ok) {
+        await loadChatHistory(activeConvId || undefined);
+        if (!showFailed) {
+          // Re-query để đếm tin failed còn lại
+          const r2 = await fetch(`/api/workspaces/${workspaceId}/chat?conversation_id=${encodeURIComponent(activeConvId || "")}&show_failed=true`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (r2.ok) {
+            const data = await r2.json();
+            const failedCount = data.filter((i: any) => i.status === "failed").length;
+            if (failedCount === 0) setShowFailed(false);
+          }
+        }
+      }
+    } catch { /* ignore */ }
+    finally {
+      setCleaningHistory(false);
+    }
+  };
 
   // Ước lượng context token của đoạn đang mở (char/4 ≈ token) so với trần ~12k.
   const CONTEXT_MAX = 12000;
@@ -222,8 +255,9 @@ export default function WorkspaceChat({
     setChatLoading(true);
     setChatError("");
     try {
-      const q = convId !== undefined ? `?conversation_id=${encodeURIComponent(convId)}` : "";
-      const r = await fetch(`/api/workspaces/${workspaceId}/chat${q}`, {
+      const convParam = convId !== undefined ? `conversation_id=${encodeURIComponent(convId)}&` : "";
+      const q = `${convParam}show_failed=${showFailed}`;
+      const r = await fetch(`/api/workspaces/${workspaceId}/chat?${q}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!r.ok) throw new Error("Không thể tải lịch sử chat");
@@ -302,8 +336,13 @@ export default function WorkspaceChat({
       let errored = "";
       let ended = false;
       let lastFrame = Date.now();
+      // Watchdog chống kẹt: hủy nếu lâu không nhận frame nào. Giai đoạn index
+      // (file vừa upload chưa có chunk) có thể mất 1-2 phút → cho thời gian chờ
+      // dài hơn hẳn (90s) khi server báo đang indexing (heartbeat "status: indexing").
+      let stage: string = "";
       const idleTimer = setInterval(() => {
-        if (Date.now() - lastFrame > 30000) controller.abort();
+        const limit = stage === "indexing" ? 90000 : 30000;
+        if (Date.now() - lastFrame > limit) controller.abort();
       }, 5000);
       try {
         while (true) {
@@ -335,6 +374,9 @@ export default function WorkspaceChat({
               setChatItems((prev) =>
                 prev.map((t) => (t.id === tempId ? { ...t, id: evt.chat_id } : t))
               );
+            } else if (evt.type === "status") {
+              // Cập nhật trạng thái (indexing/thinking) — reset watchdog theo stage
+              stage = evt.stage || "";
             } else if (evt.type === "delta") {
               const id = streamingIdRef.current;
               setChatItems((prev) =>
@@ -426,6 +468,21 @@ export default function WorkspaceChat({
               <option key={p.key} value={p.key}>{p.label}</option>
             ))}
           </select>
+          <button
+            onClick={() => setShowFailed((v) => { setShowFailed(!v); loadChatHistory(activeConvId || undefined); })}
+            title={showFailed ? "Ẩn tin nhắn lỗi" : "Hiển thị cả tin nhắn lỗi"}
+            className={`px-2.5 py-1.5 rounded-lg text-[12px] border transition-colors ${showFailed ? "bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600"}`}
+          >
+            {showFailed ? "🚫 Ẩn lỗi" : "👁️ Xem lỗi"}
+          </button>
+          <button
+            onClick={cleanFailedChats}
+            disabled={cleaningHistory}
+            title="Xoá các tin nhắn lỗi và đang xử lý cũ"
+            className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors disabled:opacity-50"
+          >
+            {cleaningHistory ? "Đang dọn..." : "🧹 Dọn lỗi"}
+          </button>
           <button
             onClick={toggleSidebar}
             title={sidebarOpen ? "Thu gọn danh sách đoạn" : "Mở danh sách đoạn"}

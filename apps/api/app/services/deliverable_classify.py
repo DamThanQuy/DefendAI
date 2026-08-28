@@ -294,11 +294,24 @@ async def _call_ai_classify(
         prompt=prompt,
         system_prompt="Bạn là trợ lý phân loại tài liệu học thuật. Trả về JSON chính xác.",
         temperature=0.1,
-        max_tokens=200,
+        max_tokens=800,
         images=images,
     )
 
+    # Một số provider (agnes, tencent/hy3...) tiêu token vào reasoning_content
+    # (thinking) và trả content rất ngắn / bị cắt. Nếu content rỗng hoặc không
+    # parse được JSON, thử lấy từ reasoning_content.
     raw_text = (resp.get("content") or "").strip()
+    if not raw_text or "{" not in raw_text:
+        reasoning = (
+            (resp.get("raw") or {})
+            .get("choices", [{}])[0]
+            .get("message", {})
+            .get("reasoning_content", "")
+            or ""
+        )
+        if reasoning.strip():
+            raw_text = reasoning.strip()
     parsed = _parse_classify_json(raw_text)
 
     if skip_content_check:
@@ -427,16 +440,15 @@ _CLASSIFY_JSON_FIELDS = ("deliverable_code", "content_ok", "reason", "confidence
 
 def _parse_classify_json(raw: str) -> dict[str, Any]:
     """Parse JSON response from AI classify. Handle markdown fence / extra text."""
-    # Strip markdown fence if present
     text = raw.strip()
+
+    # Strip markdown code fence (```json ... ``` or ``` ... ```)
     if text.startswith("```"):
+        # Drop the opening fence line (``` or ```json)
         lines = text.splitlines()
-        for i, line in enumerate(lines):
-            if line.strip().startswith("```"):
-                if i > 0:
-                    text = "\n".join(lines[i:])
-                    break
-        text = "\n".join(line for line in text.splitlines() if not line.strip().startswith("```"))
+        # Remove all fence lines, keep content between them
+        content_lines = [ln for ln in lines if not ln.strip().startswith("```")]
+        text = "\n".join(content_lines).strip()
 
     # Find first { and last }
     start = text.find("{")
