@@ -38,6 +38,7 @@ from app.core.config import settings
 from app.services.ai_client import ai_gateway
 from app.services.storage import get_doc
 from app.services.document_parser import _extract_office_images
+from app.services.figure_inventory import build_figure_inventory, load_media_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -230,8 +231,10 @@ async def classify_files(
         text_preview, image_data_uris = _extract_text_preview(
             raw, filename, max_chars=100000
         )
-        # Cap multimodal payload
-        images = image_data_uris[:_MAX_MULTIMODAL_IMAGES] if image_data_uris else None
+        # Fix E: ưu tiên ảnh là FIGURE thật (có caption) từ inventory, theo đúng
+        # thứ tự tài liệu — thay vì 4 ảnh đầu tiên trong word/media (thường là
+        # logo/ảnh bìa). Fallback về thứ tự cũ nếu inventory rỗng.
+        images = _select_classify_images(raw, filename, image_data_uris)
 
         # --- Call AI ---
         try:
@@ -325,6 +328,39 @@ async def _call_ai_classify(
 # ---------------------------------------------------------------------------
 
 
+def _select_classify_images(
+    file_bytes: bytes,
+    filename: str,
+    fallback_uris: list[str],
+) -> list[str] | None:
+    """Chọn ảnh đại diện cho classify (Fix E).
+
+    DOCX: dựng inventory, lấy ảnh của các figure CÓ caption (bỏ logo/ảnh trang
+    trí không caption), theo thứ tự tài liệu, tối đa _MAX_MULTIMODAL_IMAGES.
+    Loại file khác hoặc inventory lỗi → dùng fallback uris đã cắt.
+    """
+    if not filename.lower().endswith(".docx"):
+        return fallback_uris[:_MAX_MULTIMODAL_IMAGES] if fallback_uris else None
+    try:
+        inv = build_figure_inventory(file_bytes, "docx")
+        selected: list[str] = []
+        for fg in inv.figures:
+            if fg.number is None or not fg.media_path or fg.is_vector:
+                continue
+            raw_img = load_media_bytes(file_bytes, fg.media_path)
+            if not raw_img:
+                continue
+            mime = fg.mime or "image/png"
+            selected.append(f"data:{mime};base64,{base64.b64encode(raw_img).decode()}")
+            if len(selected) >= _MAX_MULTIMODAL_IMAGES:
+                break
+        if selected:
+            return selected
+    except Exception as exc:
+        logger.debug("Classify image selection failed for %s: %s", filename, exc)
+    return fallback_uris[:_MAX_MULTIMODAL_IMAGES] if fallback_uris else None
+
+
 def _extract_text_preview(file_bytes: bytes, filename: str, max_chars: int = 100000) -> tuple[str, list[str]]:
     """Trích xuất text thô + hình ảnh (data URIs) từ file bytes.
 
@@ -372,6 +408,20 @@ def _extract_text_preview(file_bytes: bytes, filename: str, max_chars: int = 100
                     row_text = "\t".join(cell.text for cell in row.cells)
                     if row_text.strip():
                         parts.append(row_text)
+
+            # --- Fix A/E: figure inventory (chính xác, không tốn token) ---
+            # Đếm figure từ OOXML XML thay vì đoán qua ảnh: AI classify nhìn
+            # thấy "86 figures: 7 diagrams + 79 screens" là đủ nhận dạng SRS
+            # mà không cần gửi cả trăm ảnh.
+            try:
+                inv = build_figure_inventory(file_bytes, "docx")
+                if inv.total_figures:
+                    parts.append("=== FIGURE INVENTORY ===")
+                    parts.append(inv.summary_text())
+                    for fg in inv.numbered[:120]:
+                        parts.append(f"Figure {fg.number}: {fg.caption} [{fg.kind_hint}]")
+            except Exception as exc:
+                logger.debug("Figure inventory failed for %s: %s", filename, exc)
 
             # --- Extract embedded images as base64 data URIs ---
             image_data_uris: list[str] = []
