@@ -223,13 +223,20 @@ def _inventory_docx(archive: zipfile.ZipFile) -> FigureInventory:
             inv.figures.append(_make_entry(len(inv.figures) + 1, number, cap_text, img, rels))
             continue
         # ảnh trong paragraph này → thử lấy caption ở paragraph sau ngay
-        for img in para["images"]:
-            cap = _next_caption()
-            if cap:
-                j, number, cap_text = cap
-                consumed.add(j)
-                inv.figures.append(_make_entry(len(inv.figures) + 1, number, cap_text, img, rels))
-            else:
+        imgs = para["images"]
+        cap = _next_caption() if imgs else None
+        if cap:
+            j, number, cap_text = cap
+            consumed.add(j)
+            # MỌI ảnh trong cùng paragraph thuộc CÙNG 1 figure — Word gộp 2
+            # screenshot cạnh nhau thành 1 paragraph, caption chung. Trước đây
+            # chỉ ảnh đầu được gắn caption, ảnh sau thành "uncaptioned" → đếm
+            # sai 95 thay vì 86 (bug đã xác minh trên report-cua-long.docx).
+            for k, img in enumerate(imgs):
+                cap_text_k = cap_text if k == 0 else f"{cap_text} (part {k + 1})"
+                inv.figures.append(_make_entry(len(inv.figures) + 1, number, cap_text_k, img, rels))
+        else:
+            for img in imgs:
                 pending.append((idx, img))
 
     # 3. Ảnh còn chờ mà không có caption → figure không số (vẫn gửi vision, vẫn đếm)

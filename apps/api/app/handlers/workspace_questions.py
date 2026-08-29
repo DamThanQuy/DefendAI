@@ -79,7 +79,7 @@ async def _ensure_indexed(workspace_id: int, force: bool = False) -> None:
                         .limit(1)
                     )
                     meta = r3.scalar_one_or_none()
-                    if not (meta and meta.get("schema_ver")):
+                    if not (meta and meta.get("schema_ver") and int(meta["schema_ver"]) >= 3):
                         missing.append(d)
             missing = list(dict.fromkeys(missing))  # dedup giữ thứ tự
 
