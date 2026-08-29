@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PERSONAS } from "@/lib/constants";
+import { MarkdownMessage } from "./MarkdownMessage";
 
 export interface WorkspaceChatItem {
   id: number;
@@ -596,7 +597,8 @@ export default function WorkspaceChat({
               </div>
               {turn.status === "completed" && turn.answer ? (
                 <div className="self-start max-w-[85%] bg-zinc-800/70 border border-zinc-700/50 rounded-2xl rounded-bl-md px-4 py-2.5">
-                  <div className="text-[13px] text-zinc-300 leading-relaxed whitespace-pre-wrap">{turn.answer}</div>
+                  {/* Markdown render (ChatGPT-style): heading, bold, list, bảng... */}
+                  <MarkdownMessage content={turn.answer} />
                   {turn.citations && turn.citations.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {turn.citations.map((c, i) => (
@@ -613,7 +615,8 @@ export default function WorkspaceChat({
               ) : (
                 <div className="self-start max-w-[85%] bg-zinc-800/40 border border-zinc-700/40 rounded-2xl rounded-bl-md px-4 py-2.5">
                   {turn.answer ? (
-                    <div className="text-[13px] text-zinc-300 leading-relaxed whitespace-pre-wrap">{turn.answer}</div>
+                    // Streaming: markdown render live theo từng delta
+                    <MarkdownMessage content={turn.answer} />
                   ) : (
                     <div className="flex items-center gap-2.5 text-zinc-500 text-[13px]">
                       <span className="flex gap-1">
