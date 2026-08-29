@@ -89,6 +89,8 @@ export default function AdminPage() {
     name: string;
     base_url: string;
     enabled: boolean;
+    source?: string; // 'db' | 'env' — nguồn cấu hình đang chạy
+    runtime_model?: string | null;
     models: { id: number; model_id: string }[];
   }
   const [aiProviders, setAiProviders] = useState<AIProviderRow[]>([]);
@@ -600,6 +602,23 @@ export default function AdminPage() {
                             <span className={`ml-2 px-2 py-0.5 text-[11px] font-bold rounded-full ${p.enabled ? "bg-teal-500/10 text-teal-400" : "bg-zinc-700/40 text-zinc-400"}`}>
                               {p.enabled ? "enabled" : "disabled"}
                             </span>
+                            <span
+                              className={`ml-1 px-2 py-0.5 text-[11px] font-bold rounded-full ${
+                                p.source === "db"
+                                  ? "bg-blue-500/10 text-blue-400"
+                                  : p.source === "env"
+                                    ? "bg-amber-500/10 text-amber-400"
+                                    : "bg-zinc-700/40 text-zinc-400"
+                              }`}
+                              title={p.source === "db" ? "Cấu hình từ DB (admin quản lý)" : p.source === "env" ? "Cấu hình từ file .env" : "Nguồn không xác định"}
+                            >
+                              {p.source === "db" ? "● DB" : p.source === "env" ? "● ENV" : "● ?"}
+                            </span>
+                            {p.runtime_model && (
+                              <span className="ml-1 px-2 py-0.5 text-[11px] font-bold rounded-full bg-violet-500/10 text-violet-400">
+                                {p.runtime_model}
+                              </span>
+                            )}
                             <p className="text-[12px] text-zinc-500">{p.base_url}</p>
                           </div>
                           <div className="flex gap-2">

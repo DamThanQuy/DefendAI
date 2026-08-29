@@ -49,6 +49,7 @@ async def list_ai_providers(
     _: object = Depends(require_role("admin")),
 ) -> dict:
     from app.models.ai_config import AIProvider, AIModel
+    from app.services.ai_client import ai_gateway
 
     providers = (await db.execute(select(AIProvider).order_by(AIProvider.name))).scalars().all()
     models = (await db.execute(select(AIModel).order_by(AIModel.model_id))).scalars().all()
@@ -65,6 +66,11 @@ async def list_ai_providers(
                 "api_key_masked": _mask_key(p.api_key),
                 "has_key": bool(p.api_key),
                 "enabled": bool(p.enabled),
+                "source": ai_gateway.provider_source.get(p.name, "unknown"),
+                "runtime_model": (
+                    ai_gateway.providers[p.name].get_default_model()
+                    if p.name in ai_gateway.providers else None
+                ),
                 "models": models_by_provider.get(p.name, []),
             }
             for p in providers

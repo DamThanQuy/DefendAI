@@ -142,6 +142,7 @@ async def health_check():
         "status": "healthy",
         "ai_providers": list(ai_gateway.providers.keys()),
         "ai_ready": len(ai_gateway.providers) > 0,
+        "ai_sources": {k: ai_gateway.provider_source.get(k, "unknown") for k in ai_gateway.providers},
         "debug_env_detected": {
             "google": google_sys_ready,
             "nvidia": nvidia_sys_ready

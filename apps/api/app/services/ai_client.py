@@ -46,6 +46,8 @@ class AIGateway:
         self.providers: dict[str, Any] = {}
         # Cache model IDs theo provider (nạp từ DB ai_models) — dùng cho dropdown/resolve
         self.db_models: dict[str, list[str]] = {}
+        # Nguồn gốc của từng provider: 'db' | 'env' — để admin biết config nào đang thực sự chạy
+        self.provider_source: dict[str, str] = {}
         self._configure()
 
     def _configure(self) -> None:
@@ -78,7 +80,8 @@ class AIGateway:
                         base_url=meta["base_url"],
                         model=meta["model"]
                     )
-                    logger.info(f"✓ {name.upper()} provider ready | model={meta['model']}")
+                    self.provider_source[name] = "env"
+                    logger.info(f"✓ {name.upper()} provider ready (env) | model={meta['model']}")
                 except Exception as e:
                     logger.warning(f"✗ {name.upper()} init failed: {e}")
             else:
@@ -154,6 +157,7 @@ class AIGateway:
                     base_url=base_url,
                     model=(db_models.get(name) or [None])[0],
                 )
+                self.provider_source[name] = "db"
                 logger.info("✓ DB provider '%s' ready | models=%s", name, db_models.get(name, []))
             except Exception as e:
                 logger.warning("✗ DB provider '%s' init failed: %s", name, e)
@@ -188,10 +192,10 @@ class AIGateway:
 
     def list_providers(self) -> dict[str, dict]:
         """
-        Trả về thông tin các provider đang enabled.
+        Trả về thông tin các provider đang enabled (kèm nguồn gốc db/env).
 
         Returns:
-            Dict mapping provider_name → {default_model, ready, base_url}
+            Dict mapping provider_name → {default_model, ready, base_url, source}
         """
         result = {}
         for name, provider in self.providers.items():
@@ -199,7 +203,8 @@ class AIGateway:
             result[name] = {
                 "default_model": provider.get_default_model(),
                 "ready": True,
-                "base_url": cfg.base_url if cfg else None,
+                "base_url": provider.base_url,
+                "source": self.provider_source.get(name, "unknown"),
             }
         return result
 
