@@ -51,22 +51,25 @@ Return ONLY JSON (no markdown, no extra text):
 # ANSWER EVALUATION PROMPT
 # ============================================================================
 
-EVALUATION_SYSTEM_PROMPT = """Bạn là hội đồng chấm điểm bảo vệ đồ án SEP490 (SMC-Ride System).
+EVALUATION_SYSTEM_PROMPT = """Bạn là hội đồng bảo vệ đồ án SEP490 (SMC-Ride System).
 
-NHIỆM VỤ: Đánh giá câu trả lời của sinh viên dựa trên RUBRIC SEP490.
+NHIỆM VỤ: ĐƯA RA NHẬN XÉT định tính cho câu trả lời của sinh viên dựa trên RUBRIC SEP490.
 
-RUBRIC WEIGHTS (tổng 100%):
-- OGA (Overall Grading Assessment) 50%: introduction(4%), pmp(8%), srs(16%), sdd(18%), testing(18%), user_guides(4%), implementation(32%)
-- TDA (Team/Defense Assessment) 50%: introduction(5%), pmp(5%), srs(15%), sdd(10%), testing(10%), user_guides(5%), implementation(35%), presentation(5%), qa(10%)
+QUAN TRỌNG: Hệ thống KHÔNG chấm điểm số. Chỉ đánh giá và nhận xét theo TIÊU CHÍ
+(qualitative assessment). Đừng đưa ra bất kỳ con số điểm nào (oga_score, tda_score, ...).
+
+RUBRIC TIÊU CHÍ (theo trường ĐH):
+- OGA (Overall Grading Assessment): introduction, pmp, srs, sdd, testing, user_guides, implementation
+- TDA (Team/Defense Assessment): introduction, pmp, srs, sdd, testing, user_guides, implementation, presentation, qa
 
 CLO MAP:
-- CLO1 -> srs (OGA:16%, TDA:15%)
-- CLO2 -> sdd (OGA:18%, TDA:10%)
-- CLO3 -> implementation+testing (OGA:50%, TDA:45%)
-- CLO4 -> pmp (OGA:8%, TDA:5%)
-- CLO5 -> user_guides+report (OGA:8%, TDA:10%)
-- CLO6 -> presentation+qa (OGA:0%, TDA:15%)
-- CLO7 -> attitude (OGA:0%, TDA:0%)
+- CLO1 -> srs
+- CLO2 -> sdd
+- CLO3 -> implementation+testing
+- CLO4 -> pmp
+- CLO5 -> user_guides+report
+- CLO6 -> presentation+qa
+- CLO7 -> attitude
 
 QUALITY CRITERIA (Đánh giá chất lượng câu trả lời):
 - tinh_thuc_te: Tính thực tế, khả thi
@@ -74,7 +77,7 @@ QUALITY CRITERIA (Đánh giá chất lượng câu trả lời):
 - br_chac: Business Rules chắc chắn
 - giai_quyet_van_de_hien_tai: Giải quyết vấn đề hiện tại
 
-NHIỆM VỤ: Chấm điểm câu trả lời theo rubric. Trả về JSON CHÍNH XÁC.
+NHIỆM VỤ: Nhận xét câu trả lời theo rubric. Trả về JSON CHÍNH XÁC. KHÔNG trả điểm số.
 """
 
 EVALUATION_USER_PROMPT = """CONTEXT:
@@ -88,23 +91,22 @@ EVALUATION_USER_PROMPT = """CONTEXT:
 DOCUMENT CONTEXT:
 {context}
 
-TASK: Chấm điểm câu trả lời theo rubric SEP490.
+TASK: Đưa ra NHẬN XÉT định tính cho câu trả lời theo rubric SEP490. KHÔNG chấm điểm số.
 
 Return ONLY JSON (no markdown, no extra text):
 {{
-  "oga_score": 0.0-10.0,
-  "tda_score": 0.0-10.0,
-  "feedback": "string - cụ thể, actionable: điểm mạnh, điểm yếu, cần bổ sung gì",
+  "feedback": "string - cụ thể, actionable: điểm mạnh, điểm yếu, cần bổ sung gì theo tiêu chí",
   "quality_criteria_met": ["tinh_thuc_te", "br_chac", ...],
+  "criteria_not_met": ["tinh_giai_quyet_van_de", ...],
   "confidence": 0.0-1.0
 }}
 
 RULES:
-- Score dựa trên trọng số OGA/TDA của CLO tương ứng
-- Feedback PHẢI cụ thể, actionable: nêu điểm mạnh, điểm yếu, cần bổ sung gì
-- Nếu câu trả lời đúng trọng tâm → score cao
-- Nếu thiếu keyword quan trọng → trừ điểm, nêu rõ thiếu gì
-- Confidence: độ tin cậy của đánh giá (0.0-1.0)
+- KHÔNG dùng bất kỳ con số điểm nào (oga_score, tda_score, ...).
+- Feedback PHẢI cụ thể, actionable: nêu điểm mạnh, điểm yếu, thiếu tiêu chí nào, cần bổ sung gì.
+- Nếu câu trả lời đúng trọng tâm → khen ngợi cụ thể theo tiêu chí đã đạt.
+- Nếu thiếu keyword/tiêu chí quan trọng → nêu rõ thiếu gì, gợi ý hướng cải thiện.
+- Confidence: độ tin cậy của nhận xét (0.0-1.0)
 """
 
 # ============================================================================
@@ -170,16 +172,16 @@ SUMMARY_REPORT_PROMPT = """Bạn là hội đồng bảo vệ đồ án SEP490.
 
 TASK: Tạo báo cáo tổng kết phiên Mock Room cho sinh viên.
 
+QUAN TRỌNG: KHÔNG chấm điểm số. Chỉ tổng hợp NHẬN XÉT định tính theo rubric.
+
 SESSION DATA:
 - Duration: {duration_minutes} minutes
 - Total Questions: {total_questions}
 - CLO Coverage: {clo_coverage}
-- OGA Final Score: {oga_final}
-- TDA Final Score: {tda_final}
 - Per-CLO Breakdown: {per_clo_breakdown}
 - Question Log: {question_log}
 
-TASK: Tạo báo cáo tổng kết JSON.
+TASK: Tạo báo cáo tổng kết JSON (KHÔNG có điểm số).
 
 Return ONLY JSON:
 {{
@@ -187,26 +189,24 @@ Return ONLY JSON:
   "duration_minutes": int,
   "total_questions": int,
   "clo_coverage": {{"CLO1": 2, "CLO2": 2, ...}},
-  "oga_final": float,
-  "tda_final": float,
   "per_clo_breakdown": {{
-    "CLO1": {{"oga_avg": 7.5, "tda_avg": 8.0, "count": 2}},
+    "CLO1": {{"count": 2, "met": ["tinh_thuc_te"], "not_met": ["br_chac"]}},
     ...
   }},
   "strengths": ["strength1", "strength2", ...],
   "weaknesses": ["weakness1", "weakness2", ...],
   "action_items": ["action1", "action2", ...],
   "question_log": [
-    {{"clo": "CLO1", "question": "...", "answer_quality": 0.8, "oga_score": 8.5, "tda_score": 8.0}},
+    {{"clo": "CLO1", "question": "...", "feedback": "..."}},
     ...
   ]
 }}
 
 RULES:
-- Strengths: Các CLO có avg score >= 8.0
-- Weaknesses: Các CLO có avg score < 6.0
-- Action items: Gợi ý cụ thể để cải thiện từng weakness
-- Tone: Khuyến khích, xây dựng, chuyên nghiệp
+- Strengths: Các CLO sinh viên thể hiện tốt theo tiêu chí.
+- Weaknesses: Các CLO còn thiếu tiêu chí / cần cải thiện.
+- Action items: Gợi ý cụ thể để cải thiện từng weakness (theo rubric trường ĐH).
+- Tone: Khuyến khích, xây dựng, chuyên nghiệp. KHÔNG dùng con số điểm.
 """
 
 # ============================================================================

@@ -158,8 +158,10 @@ export default function BookingsPage() {
         router.push(`/room?meeting=${b.meeting_id}`);
       } else {
         alert(
-          res.data.reason === "too_early"
-            ? "Phòng sẽ mở trước 5 phút so với giờ đã chốt. Vui lòng quay lại sau."
+          res.data.reason === "booking_completed"
+            ? "Buổi mock đã kết thúc, phòng đã bị khoá."
+            : res.data.reason === "booking_pending" || res.data.reason === "booking_rejected" || res.data.reason === "booking_cancelled"
+            ? "Lịch chưa được xác nhận, phòng chưa mở."
             : "Phòng chưa được mở.",
         );
       }
@@ -180,7 +182,7 @@ export default function BookingsPage() {
     <div className="max-w-4xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-zinc-100 mb-1">Đặt lịch Mock Room</h1>
       <p className="text-sm text-zinc-400 mb-6">
-        Sinh viên đặt lịch với mentor. Phòng họp sẽ tự động mở <b>5 phút trước</b> giờ đã chốt.
+        Sinh viên đặt lịch với mentor. Sau khi mentor xác nhận, phòng họp mở cho cả hai vào ngay lập tức và chỉ bị khoá khi mentor kết thúc buổi mock.
       </p>
 
       {error && (
@@ -335,12 +337,11 @@ export default function BookingsPage() {
                   {b.status === "confirmed" && b.meeting_id && (
                     <Button
                       size="sm"
-                      variant={b.room_open ? "default" : "outline"}
-                      disabled={!b.room_open}
+                      variant="default"
                       onClick={() => handleEnterRoom(b)}
                       className="rounded-full"
                     >
-                      {b.room_open ? "Vào phòng" : "Chưa mở"}
+                      Vào phòng
                     </Button>
                   )}
                   {isStudent && b.status === "pending" && (

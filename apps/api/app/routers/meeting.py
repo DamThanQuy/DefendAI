@@ -40,8 +40,9 @@ async def check_meeting_access(
 ):
     """Kiểm tra xem user hiện tại có được vào phòng họp ngay bây giờ không.
 
-    Quy tắc: chỉ mở khi có booking confirmed liên kết với meeting này
-    và thời gian hiện tại nằm trong [confirmed_time - 5p, confirmed_time + duration].
+    Quy tắc: sau khi student & mentor chốt xong lịch (booking = confirmed), phòng
+    mở hoàn toàn cho cả student lẫn mentor vào. Phòng chỉ bị khoá lại khi mentor
+    xác nhận kết thúc buổi mock (booking chuyển sang completed).
     """
     meeting = (
         await db.execute(select(Meeting).where(Meeting.id == meeting_id))
@@ -67,33 +68,15 @@ async def check_meeting_access(
             confirmed_time=booking.confirmed_time,
         )
 
-    now = datetime.utcnow()
-    delta_open = booking.confirmed_time - now
-    # Mở từ 5 phút trước đến hết thời lượng buổi họp (timer_seconds)
-    open_window_end = booking.confirmed_time + timedelta(seconds=meeting.timer_seconds or 1800)
-
-    if timedelta(0) <= delta_open <= timedelta(minutes=ROOM_OPEN_BEFORE_MINUTES):
-        return MeetingAccessResponse(
-            meeting_id=meeting_id,
-            open=True,
-            reason="within_open_window",
-            confirmed_time=booking.confirmed_time,
-            seconds_until_open=0,
-        )
-    if now < booking.confirmed_time - timedelta(minutes=ROOM_OPEN_BEFORE_MINUTES):
-        return MeetingAccessResponse(
-            meeting_id=meeting_id,
-            open=False,
-            reason="too_early",
-            confirmed_time=booking.confirmed_time,
-            seconds_until_open=int(delta_open.total_seconds() - ROOM_OPEN_BEFORE_MINUTES * 60),
-        )
-    # Đã qua thời gian họp
+    # Phòng mở hoàn toàn ngay sau khi student & mentor chốt xong lịch (confirmed),
+    # cho cả 2 role (student + mentor) vào. Chỉ khoá lại khi mentor xác nhận kết
+    # thúc buổi mock (booking chuyển sang completed).
     return MeetingAccessResponse(
         meeting_id=meeting_id,
-        open=False,
-        reason="session_ended",
+        open=True,
+        reason="confirmed_open",
         confirmed_time=booking.confirmed_time,
+        seconds_until_open=0,
     )
 
 @router.get("/{meeting_id}/messages", response_model=List[MeetingMessageResponse])

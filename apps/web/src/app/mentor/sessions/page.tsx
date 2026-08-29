@@ -121,7 +121,11 @@ export default function SessionsPage() {
       if (res.data.open) {
         router.push(`/room?meeting=${b.meeting_id}`);
       } else {
-        alert("Phòng chưa mở (mở trước 5 phút so với giờ chốt).");
+        alert(
+          res.data.reason === "booking_completed"
+            ? "Buổi mock đã kết thúc, phòng đã bị khoá."
+            : "Lịch chưa được xác nhận, phòng chưa mở.",
+        );
       }
     } catch {
       alert("Không thể kiểm tra trạng thái phòng.");
