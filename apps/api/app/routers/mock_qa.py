@@ -6,9 +6,11 @@ Endpoint: /api/mock-qa/{meeting_id}/ws
 Message Flow:
 Client -> Server:
   {"type": "answer", "content": "..."}   # student: gửi cho AI đánh giá
-  {"type": "chat", "content": "..."}     # mentor/student: chat thường (không gửi AI)
   {"type": "hint_request", "level": 1}
   {"type": "get_status"}
+
+Lưu ý: chat / speech-to-text giữa student & mentor được xử lý ở signaling WS
+(/api/meetings/{meeting_id}/signal), không phải ở đây.
 
 Server -> Client:
   {"type": "question", "question_id": "...", "question": "...", "clo": "CLO1", "type": "Deep-dive", "difficulty": "Medium"}
@@ -194,16 +196,6 @@ async def mock_qa_websocket(
             
             if msg_type == "answer":
                 await handle_answer(websocket, session, message.get("content", ""))
-            
-            elif msg_type == "chat":
-                # Tin nhắn chat thường (mentor hoặc student) — không gửi cho AI.
-                # Hiện tại chỉ echo lại cho chính client (để đồng bộ UI). Có thể
-                # mở rộng broadcast cho peer qua signaling WS nếu cần.
-                await websocket.send_json({
-                    "type": "chat_echo",
-                    "content": message.get("content", ""),
-                    "sender_role": "mentor" if getattr(user, "roles", []) and "mentor" in user.roles else "student",
-                })
             
             elif msg_type == "hint_request":
                 level = message.get("level", 1)

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getMe } from "@/lib/api";
 
 export interface AuthUser {
+  id?: number;
   email: string;
   full_name?: string | null;
   roles: string[];
@@ -34,6 +35,7 @@ export function useAuth() {
       try {
         const u = JSON.parse(raw) as Partial<AuthUser>;
         setUser({
+          id: u.id,
           email: u.email ?? "",
           full_name: u.full_name ?? null,
           roles: u.roles ?? [],
@@ -49,6 +51,7 @@ export function useAuth() {
         if (cancelled) return;
         const me = res.data;
         const synced: AuthUser = {
+          id: me.id,
           email: me.email,
           full_name: me.full_name,
           roles: me.roles ?? [],

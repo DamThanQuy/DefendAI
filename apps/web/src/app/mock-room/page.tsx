@@ -7,6 +7,7 @@ import {
   Booking,
   getMyBookings,
   checkMeetingAccess,
+  inviteStudent,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +19,8 @@ import {
   Hourglass,
   Video,
   ArrowRight,
+  UserPlus,
+  Users,
 } from "lucide-react";
 
 const STATUS_META: Record<
@@ -40,13 +43,19 @@ function fmt(dt: string | null) {
 }
 
 export default function MockRoomLandingPage() {
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // meeting_id -> { open, reason } đã kiểm tra
   const [accessMap, setAccessMap] = useState<Record<number, { open: boolean; reason: string }>>({});
+  // booking_id -> chuỗi nhập username/email để mời
+  const [inviteInput, setInviteInput] = useState<Record<number, string>>({});
+  // booking_id -> đang gửi lời mời
+  const [inviting, setInviting] = useState<Record<number, boolean>>({});
+  // booking_id -> thông báo lỗi mời
+  const [inviteError, setInviteError] = useState<Record<number, string>>({});
 
   const isStudent = hasRole("student") || (!hasRole("mentor") && !hasRole("admin"));
 
@@ -114,6 +123,29 @@ export default function MockRoomLandingPage() {
     }
   }
 
+  // Sinh viên chủ trì mời thêm sinh viên khác vào phòng Mock Room.
+  async function handleInvite(b: Booking) {
+    const ident = (inviteInput[b.id] || "").trim();
+    if (!ident) return;
+    setInviting((m) => ({ ...m, [b.id]: true }));
+    setInviteError((m) => ({ ...m, [b.id]: "" }));
+    try {
+      const res = await inviteStudent(b.id, ident);
+      // Cập nhật booking trong danh sách (có invited_students mới)
+      setBookings((prev) =>
+        prev.map((x) => (x.id === b.id ? { ...x, invited_students: res.data.invited_students } : x)),
+      );
+      setInviteInput((m) => ({ ...m, [b.id]: "" }));
+    } catch (e: any) {
+      setInviteError((m) => ({
+        ...m,
+        [b.id]: e?.response?.data?.detail || "Không thể mời sinh viên này.",
+      }));
+    } finally {
+      setInviting((m) => ({ ...m, [b.id]: false }));
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -174,45 +206,103 @@ export default function MockRoomLandingPage() {
                     b.status === "confirmed" &&
                     b.meeting_id != null &&
                     accessMap[b.meeting_id]?.open;
+                  // Sinh viên chủ trì (người tạo booking) mới được mời thêm người
+                  const isOwner = isStudent && user?.id != null && b.student_id === user.id;
+                  const invited = b.invited_students || [];
                   return (
                     <div
                       key={b.id}
-                      className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-4 flex items-center justify-between"
+                      className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-4"
                     >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${meta.color}`}
-                          >
-                            <Icon className="w-3.5 h-3.5" /> {meta.label}
-                          </span>
-                          <span className="text-sm font-medium text-zinc-100">{b.title}</span>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${meta.color}`}
+                            >
+                              <Icon className="w-3.5 h-3.5" /> {meta.label}
+                            </span>
+                            <span className="text-sm font-medium text-zinc-100">{b.title}</span>
+                          </div>
+                          <div className="mt-1.5 flex items-center gap-4 text-xs text-zinc-400">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" />
+                              Chốt: {fmt(b.confirmed_time) || fmt(b.proposed_time)}
+                            </span>
+                            {b.meeting_id != null && (
+                              <span className="text-zinc-500">Phòng #{b.meeting_id}</span>
+                            )}
+                          </div>
                         </div>
-                        <div className="mt-1.5 flex items-center gap-4 text-xs text-zinc-400">
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" />
-                            Chốt: {fmt(b.confirmed_time) || fmt(b.proposed_time)}
-                          </span>
-                          {b.meeting_id != null && (
-                            <span className="text-zinc-500">Phòng #{b.meeting_id}</span>
+                        <div>
+                          {canEnter ? (
+                            <Button
+                              size="sm"
+                              onClick={() => handleEnterRoom(b)}
+                              className="rounded-full"
+                            >
+                              Vào phòng <ArrowRight className="w-4 h-4 ml-1" />
+                            </Button>
+                          ) : b.status === "confirmed" ? (
+                            <span className="text-xs text-zinc-500 px-3 py-1.5">
+                              Phòng chưa mở
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {/* Sinh viên chủ trì: mời thêm sinh viên khác vào phòng */}
+                      {isOwner && (
+                        <div className="mt-3 pt-3 border-t border-zinc-800/70">
+                          <div className="flex items-center gap-2 text-xs text-zinc-400 mb-2">
+                            <UserPlus className="w-3.5 h-3.5" />
+                            Mời thêm sinh viên (username hoặc email)
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={inviteInput[b.id] || ""}
+                              onChange={(e) =>
+                                setInviteInput((m) => ({ ...m, [b.id]: e.target.value }))
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleInvite(b);
+                              }}
+                              placeholder="vd: sv002 hoặc sv002@grad.ai"
+                              className="flex-1 bg-zinc-900 border border-zinc-700/60 rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-teal-500/50"
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleInvite(b)}
+                              disabled={inviting[b.id]}
+                              className="rounded-lg"
+                            >
+                              {inviting[b.id] ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                "Mời"
+                              )}
+                            </Button>
+                          </div>
+                          {inviteError[b.id] && (
+                            <p className="mt-1.5 text-xs text-red-400">{inviteError[b.id]}</p>
+                          )}
+                          {invited.length > 0 && (
+                            <div className="mt-2 flex items-center gap-2 flex-wrap">
+                              <Users className="w-3.5 h-3.5 text-zinc-500" />
+                              {invited.map((s) => (
+                                <span
+                                  key={s.user_id}
+                                  className="inline-flex items-center gap-1 bg-teal-900/30 border border-teal-800/50 rounded-full px-2 py-0.5 text-xs text-teal-300"
+                                >
+                                  {s.name || `SV #${s.user_id}`}
+                                </span>
+                              ))}
+                            </div>
                           )}
                         </div>
-                      </div>
-                      <div>
-                        {canEnter ? (
-                          <Button
-                            size="sm"
-                            onClick={() => handleEnterRoom(b)}
-                            className="rounded-full"
-                          >
-                            Vào phòng <ArrowRight className="w-4 h-4 ml-1" />
-                          </Button>
-                        ) : b.status === "confirmed" ? (
-                          <span className="text-xs text-zinc-500 px-3 py-1.5">
-                            Phòng chưa mở
-                          </span>
-                        ) : null}
-                      </div>
+                      )}
                     </div>
                   );
                 })}

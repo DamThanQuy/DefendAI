@@ -49,3 +49,16 @@ class BookingRepository(BaseRepository[MockBooking]):
             .where(MockBooking.id == booking_id)
         )
         return result.scalar_one_or_none()
+
+    async def list_invited_for_student(self, student_id: int) -> List[MockBooking]:
+        """Booking mà sinh viên này được mời thêm (qua invited_students)."""
+        result = await self.db.execute(
+            select(MockBooking)
+            .where(MockBooking.invited_students.isnot(None))
+            .order_by(MockBooking.created_at.desc())
+        )
+        all_bookings = list(result.scalars().all())
+        return [
+            b for b in all_bookings
+            if any(u.get("user_id") == student_id for u in (b.invited_students or []))
+        ]

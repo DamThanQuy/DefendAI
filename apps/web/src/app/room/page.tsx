@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { API_BASE_URL } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
+import { getMeetingMessages, postMeetingMessage, type MeetingMessageItem } from "@/lib/api";
 import {
   Mic,
   Hand,
@@ -64,7 +65,7 @@ export default function MockRoomPage() {
   const router = useRouter();
   const rawMeeting = searchParams.get("meeting");
   const meetingId = rawMeeting ? Number(rawMeeting) : 0;
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
 
   // Không có ?meeting= → quay về trang chọn mentor/phòng thay vì vào thẳng phòng 1
   useEffect(() => {
@@ -81,6 +82,19 @@ export default function MockRoomPage() {
   const [coverage, setCoverage] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+
+  // --- Sidebar tabs: trò chuyện / mọi người / hỏi & đáp ---
+  type TabKey = "chat" | "people" | "qa";
+  const [activeTab, setActiveTab] = useState<TabKey>("chat");
+
+  // --- Danh sách người có mặt trong phòng (presence) ---
+  type Participant = { user_id: number; name: string; role: string };
+  const [participants, setParticipants] = useState<Participant[]>([]);
+
+  // --- Hỏi & Đáp: mentor đặt câu hỏi trong giai đoạn chất vấn ---
+  type QAItem = { id: number; question: string; asked_by: string; created_at: string };
+  const [qaList, setQaList] = useState<QAItem[]>([]);
+  const [qaInput, setQaInput] = useState("");
 
   // --- Timer: thời gian đã tham gia phòng ---
   const [elapsed, setElapsed] = useState(0); // giây
@@ -115,6 +129,10 @@ export default function MockRoomPage() {
   // Ref luôn giữ vai trò mới nhất (để STT capture tại mount vẫn đúng role)
   const myRoleRef = useRef<"student" | "mentor" | "other">(myRole);
   myRoleRef.current = myRole;
+
+  // Ref giữ user mới nhất (dùng cho fallback persist khi WS chưa sẵn sàng)
+  const userRef = useRef(user);
+  userRef.current = user;
 
   const recognitionRef = useRef<any>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -282,6 +300,9 @@ export default function MockRoomPage() {
           isInitiatorRef.current = data.you_are === "initiator";
           signalingWsReadyRef.current = true;
           setSignalStatus("ready");
+          // Cập nhật danh sách người có mặt (presence) ngay khi join —
+          // KHÔNG cần chờ bên kia bật mic mới hiện 2/2.
+          if (data.presence) setParticipants(data.presence);
           // Nếu đã có sẵn media (mic/share bật trước khi peer vào) → tự offer
           if (localStreamRef.current && pc.signalingState === "stable") {
             await makeOffer();
@@ -292,6 +313,10 @@ export default function MockRoomPage() {
           if (localStreamRef.current && pc.signalingState === "stable") {
             await makeOffer();
           }
+          break;
+        case "presence":
+          // Server broadcast danh sách người có mặt (khi có người join/leave)
+          if (data.participants) setParticipants(data.participants);
           break;
         case "offer": {
           const offerCollision =
@@ -336,6 +361,38 @@ export default function MockRoomPage() {
             pcRef.current = null;
           }
           break;
+        case "chat": {
+          // Tin nhắn / speech-to-text từ peer (hoặc echo từ chính mình).
+          // Đã được server lưu DB → chỉ cần hiển thị. Tránh trùng với optimistic
+          // update (cùng content + cùng sender_role + chưa có id).
+          setMessages(prev => {
+            const exists = prev.some(
+              (m) => m.content === data.content && m.sender_role === data.sender_role && (m.id !== undefined || m.sender_name === data.sender_name)
+            );
+            if (exists) return prev;
+            return [...prev, {
+              id: undefined,
+              sender_name: data.sender_name || (data.sender_role === "student" ? "Sinh viên" : "Mentor"),
+              sender_role: data.sender_role,
+              content: data.content,
+              created_at: data.created_at || new Date().toISOString(),
+            } as Message];
+          });
+          break;
+        }
+        case "qa_question": {
+          // Câu hỏi từ Mentor (relay từ peer hoặc echo từ chính mình)
+          setQaList(prev => {
+            if (prev.some((q) => q.question === data.question && q.asked_by === data.asked_by)) return prev;
+            return [...prev, {
+              id: Date.now(),
+              question: data.question,
+              asked_by: data.asked_by || "Mentor",
+              created_at: data.created_at || new Date().toISOString(),
+            }];
+          });
+          break;
+        }
         case "room-full":
           setSignalStatus("peer-left");
           break;
@@ -478,6 +535,27 @@ export default function MockRoomPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meetingId]);
 
+  // Tải lịch sử tin nhắn / speech-to-text đã lưu (để xem lại sau reload)
+  useEffect(() => {
+    if (!meetingId) return;
+    let cancelled = false;
+    getMeetingMessages(meetingId)
+      .then((res) => {
+        if (cancelled) return;
+        const history: Message[] = (res.data || []).map((m: MeetingMessageItem) => ({
+          id: m.id,
+          sender_name: m.sender_name,
+          sender_role: m.sender_role,
+          content: m.content,
+          created_at: m.created_at,
+        }));
+        if (history.length > 0) setMessages(history);
+      })
+      .catch((e) => console.error("Failed to load meeting messages", e));
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meetingId]);
+
   // Initialize WebSocket connection
   useEffect(() => {
     if (!meetingId) return; // chưa chọn phòng → không kết nối
@@ -573,22 +651,6 @@ export default function MockRoomPage() {
       case "error":
         console.error("WS Error:", data.message);
         break;
-      case "chat_echo":
-        // Echo từ server cho tin nhắn chat thường (mentor/student).
-        // Chỉ thêm nếu chưa có trong danh sách (tránh trùng với optimistic update).
-        setMessages(prev => {
-          const exists = prev.some(
-            (m) => m.sender_name === "Bạn" && m.content === data.content && m.sender_role === data.sender_role
-          );
-          if (exists) return prev;
-          return [...prev, {
-            sender_name: "Bạn",
-            sender_role: data.sender_role,
-            content: data.content,
-            created_at: new Date().toISOString(),
-          } as Message];
-        });
-        break;
       case "pong":
         // Keep alive
         break;
@@ -596,7 +658,11 @@ export default function MockRoomPage() {
   };
 
   // Gửi tin nhắn / câu trả lời. Student → AI đánh giá (type "answer");
-  // Mentor → chat thường (type "chat"), không gửi cho AI.
+  // Gửi tin nhắn / speech-to-text.
+  // - Student: vẫn gửi "answer" cho AI đánh giá (qua mock-qa WS).
+  // - Cả student & mentor: gửi "chat" qua signaling WS để LƯU vào DB
+  //   (MeetingMessage) và RELAY cho peer đối diện → cả 2 đều thấy đoạn STT
+  //   của nhau, và có thể xem lại sau khi reload.
   const sendAnswer = async (content: string) => {
     if (!content.trim()) return;
 
@@ -610,11 +676,24 @@ export default function MockRoomPage() {
     // Optimistic update (hiện ngay trong chat của mình)
     setMessages(prev => [...prev, { ...answerMsg, created_at: new Date().toISOString() } as Message]);
 
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        type: isStudentSender ? "answer" : "chat",
-        content: content,
-      }));
+    // 1) Student → AI evaluation (mock-qa WS)
+    if (isStudentSender && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "answer", content: content }));
+    }
+
+    // 2) Chat / STT → signaling WS (lưu DB + relay cho peer)
+    if (signalWsRef.current && signalWsRef.current.readyState === WebSocket.OPEN) {
+      signalWsRef.current.send(JSON.stringify({ type: "chat", content: content }));
+    } else {
+      // Fallback: WS chưa sẵn sàng → lưu trực tiếp qua REST (vẫn lưu được lịch sử)
+      try {
+        const me = userRef.current;
+        const sender_name = me?.full_name || me?.email || "Bạn";
+        const sender_role = isStudentSender ? "student" : "mentor";
+        await postMeetingMessage(meetingId, { sender_name, sender_role, content });
+      } catch (e) {
+        console.error("Failed to persist message", e);
+      }
     }
   };
 
@@ -622,6 +701,26 @@ export default function MockRoomPage() {
     if (!inputValue.trim()) return;
     await sendAnswer(inputValue);
     setInputValue("");
+  };
+
+  // Mentor đặt câu hỏi trong tab Hỏi & Đáp (giai đoạn chất vấn).
+  // Gửi qua signaling WS dưới dạng "qa_question" → server relay + lưu lại
+  // (đơn giản: lưu local + relay peer; có thể mở rộng lưu DB sau).
+  const handleAskQuestion = () => {
+    const q = qaInput.trim();
+    if (!q) return;
+    const asked_by = userRef.current?.full_name || userRef.current?.email || "Mentor";
+    const item: QAItem = {
+      id: Date.now(),
+      question: q,
+      asked_by,
+      created_at: new Date().toISOString(),
+    };
+    setQaList(prev => [...prev, item]);
+    if (signalWsRef.current && signalWsRef.current.readyState === WebSocket.OPEN) {
+      signalWsRef.current.send(JSON.stringify({ type: "qa_question", question: q, asked_by }));
+    }
+    setQaInput("");
   };
 
   const handleHintRequest = (level: number = 1) => {
@@ -761,7 +860,7 @@ export default function MockRoomPage() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-[#1A1A1A] px-3 py-1.5 rounded-full border border-gray-800">
             <Users className="w-4 h-4 text-teal-400" />
-            <span className="text-xs font-medium text-gray-300">{peerConnected ? "2" : "1"} / 2</span>
+            <span className="text-xs font-medium text-gray-300">{Math.max(participants.length, 1)} người trong phòng</span>
           </div>
 
           {/* Role badge */}
@@ -971,21 +1070,43 @@ export default function MockRoomPage() {
           
           {/* Tabs */}
           <div className="flex border-b border-gray-800/60">
-            <button className="flex-1 py-4 text-xs font-bold text-teal-400 border-b-2 border-teal-500 flex items-center justify-center gap-2">
+            <button
+              onClick={() => setActiveTab("chat")}
+              className={`flex-1 py-4 text-xs font-bold flex items-center justify-center gap-2 transition-colors ${
+                activeTab === "chat"
+                  ? "text-teal-400 border-b-2 border-teal-500"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
               <MessageSquare className="w-4 h-4" />
               TRÒ CHUYỆN
             </button>
-            <button className="flex-1 py-4 text-xs font-bold text-gray-500 hover:text-gray-300 transition-colors flex items-center justify-center gap-2">
+            <button
+              onClick={() => setActiveTab("people")}
+              className={`flex-1 py-4 text-xs font-bold flex items-center justify-center gap-2 transition-colors ${
+                activeTab === "people"
+                  ? "text-teal-400 border-b-2 border-teal-500"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
               <Users className="w-4 h-4" />
-              MỌI NGƯỜI (3)
+              MỌI NGƯỜI ({Math.max(participants.length, 1)})
             </button>
-            <button className="flex-1 py-4 text-xs font-bold text-gray-500 hover:text-gray-300 transition-colors flex items-center justify-center gap-2">
+            <button
+              onClick={() => setActiveTab("qa")}
+              className={`flex-1 py-4 text-xs font-bold flex items-center justify-center gap-2 transition-colors ${
+                activeTab === "qa"
+                  ? "text-teal-400 border-b-2 border-teal-500"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
               <span className="w-4 h-4">❓</span>
               HỎI & ĐÁP
             </button>
           </div>
 
-          {/* Chat + Q&A Messages */}
+          {/* Tab content */}
+          {activeTab === "chat" && (
           <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
             
             <div className="flex items-center gap-4">
@@ -1030,19 +1151,21 @@ export default function MockRoomPage() {
             {/* Messages */}
             <div className="space-y-4">
               {messages.map((msg, index) => {
+                // Tin nhắn của chính mình → nằm bên phải; của người khác → bên trái
+                const isMine = msg.sender_name === "Bạn" || (userRef.current && msg.sender_name === (userRef.current.full_name || userRef.current.email));
                 const isStudent = msg.sender_role === "student";
                 const avatarColor = isStudent 
                   ? "bg-teal-900/60 text-teal-300 border-teal-800/50" 
                   : "bg-blue-600 text-white border-blue-600";
-                const initials = msg.sender_name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                const initials = (msg.sender_name === "Bạn" ? (userRef.current?.full_name || "Bạn") : msg.sender_name).split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
                 
                 return (
-                  <div key={msg.id || index} className="flex gap-3">
+                  <div key={msg.id || index} className={`flex gap-3 ${isMine ? "flex-row-reverse" : ""}`}>
                     <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-sm mt-1 border ${avatarColor}`}>
                       {initials}
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-baseline gap-2 mb-1">
+                    <div className={`flex-1 ${isMine ? "text-right" : ""}`}>
+                      <div className={`flex items-baseline gap-2 mb-1 ${isMine ? "flex-row-reverse" : ""}`}>
                         <span className="text-sm font-semibold text-gray-200">{msg.sender_name}</span>
                         {msg.created_at && (
                           <span className="text-xs text-gray-500">
@@ -1050,13 +1173,17 @@ export default function MockRoomPage() {
                           </span>
                         )}
                       </div>
-                      <p className={`text-sm leading-relaxed ${isStudent ? 'text-gray-400 italic' : 'text-gray-300'}`}>
+                      <p className={`text-sm leading-relaxed inline-block rounded-2xl px-3 py-2 ${
+                        isMine
+                          ? "bg-teal-600/20 text-teal-100 border border-teal-700/40"
+                          : isStudent ? "bg-gray-800/60 text-gray-300" : "bg-blue-600/20 text-blue-100 border border-blue-700/40"
+                      }`}>
                         {msg.content}
                       </p>
                     </div>
                   </div>
-                )}
-              )}
+                );
+              })}
             </div>
 
             {/* Chat Input */}
@@ -1085,6 +1212,87 @@ export default function MockRoomPage() {
               </div>
             </div>
           </div>
+          )}
+
+          {/* MỌI NGƯỜI tab */}
+          {activeTab === "people" && (
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                Người có mặt trong phòng ({Math.max(participants.length, 1)})
+              </div>
+              {participants.length === 0 && (
+                <div className="text-sm text-gray-500 text-center py-8">
+                  Đang chờ mọi người tham gia...
+                </div>
+              )}
+              {participants.map((p) => (
+                <div key={p.user_id} className="flex items-center gap-3 bg-gray-900/50 border border-gray-800/50 rounded-xl p-3">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold border ${
+                    p.role === "mentor" ? "bg-purple-900/40 text-purple-300 border-purple-700/50" : "bg-teal-900/40 text-teal-300 border-teal-700/50"
+                  }`}>
+                    {p.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-gray-200">{p.name}</div>
+                    <div className={`text-xs ${p.role === "mentor" ? "text-purple-400" : "text-teal-400"}`}>
+                      {p.role === "mentor" ? "Mentor" : "Sinh viên"}
+                    </div>
+                  </div>
+                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* HỎI & ĐÁP tab */}
+          {activeTab === "qa" && (
+            <div className="flex-1 flex flex-col">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                  Câu hỏi từ Mentor (giai đoạn chất vấn)
+                </div>
+                {qaList.length === 0 && (
+                  <div className="text-sm text-gray-500 text-center py-8">
+                    {myRole === "mentor"
+                      ? "Chuyển sang giai đoạn 'Chất vấn' để đặt câu hỏi cho sinh viên."
+                      : "Chưa có câu hỏi nào từ Mentor."}
+                  </div>
+                )}
+                {qaList.map((q) => (
+                  <div key={q.id} className="bg-purple-900/20 border border-purple-800/50 rounded-xl p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-purple-400">❓ {q.asked_by}</span>
+                      <span className="text-xs text-gray-500">
+                        {new Date(q.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-200 leading-relaxed">{q.question}</p>
+                  </div>
+                ))}
+              </div>
+              {/* Mentor đặt câu hỏi (chỉ hiện khi là mentor) */}
+              {myRole === "mentor" && (
+                <div className="p-4 border-t border-gray-800/60">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Đặt câu hỏi cho sinh viên..."
+                      className="w-full bg-[#1A1A1A] border border-gray-700/50 rounded-full py-3 pl-4 pr-12 text-sm text-gray-200 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:text-gray-600"
+                      value={qaInput}
+                      onChange={(e) => setQaInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAskQuestion(); } }}
+                    />
+                    <button
+                      onClick={handleAskQuestion}
+                      className="absolute right-1.5 top-1.5 w-9 h-9 rounded-full bg-purple-600 hover:bg-purple-500 flex items-center justify-center text-white transition-colors"
+                    >
+                      <Send className="w-4 h-4 ml-0.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
       </div>

@@ -145,7 +145,14 @@ async def my_bookings(
     if any(r.name == "mentor" for r in user.roles):
         bookings = await repo.list_by_mentor(user.id)
     else:
+        # Sinh viên: lấy cả booking tự đặt VÀ booking được mời (invited_students)
         bookings = await repo.list_by_student(user.id)
+        invited = await repo.list_invited_for_student(user.id)
+        # Gộp, ưu tiên booking gốc (tránh trùng id)
+        seen = {b.id for b in bookings}
+        for b in invited:
+            if b.id not in seen:
+                bookings.append(b)
     result = []
     for b in bookings:
         b = await repo.get_with_participants(b.id)
@@ -184,6 +191,55 @@ async def cancel_booking(
         raise HTTPException(status_code=400, detail="Chỉ huỷ được booking chưa xác nhận")
     booking.status = BookingStatus.cancelled
     booking = await repo.update(booking)
+    return _serialize(booking)
+
+@router.post("/{booking_id}/invite", response_model=BookingOut)
+async def invite_student(
+    booking_id: int,
+    payload: BookingInvite,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("student")),
+):
+    """Sinh viên chủ trì mời thêm sinh viên khác vào phòng Mock Room.
+
+    Chỉ sinh viên tạo booking (chủ trì) mới được mời. Sinh viên được mời sẽ
+    thấy phòng này trong trang Mock Room của họ (dù không phải người đặt lịch).
+    """
+    repo = BookingRepository(db)
+    booking = await repo.get_with_participants(booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking không tồn tại")
+    if booking.student_id != user.id:
+        raise HTTPException(status_code=403, detail="Chỉ sinh viên chủ trì mới được mời người khác")
+    if booking.status not in (BookingStatus.pending, BookingStatus.confirmed):
+        raise HTTPException(status_code=400, detail="Chỉ booking chờ/xác nhận mới mời được")
+
+    ident = payload.identifier.strip().lower()
+    invited_user = (
+        await db.execute(
+            select(User).where(
+                (User.username == ident) | (User.email == ident)
+            )
+        )
+    ).scalar_one_or_none()
+    if not invited_user:
+        raise HTTPException(status_code=404, detail="Không tìm thấy sinh viên với username/email này")
+    if not any(r.name == "student" for r in invited_user.roles):
+        raise HTTPException(status_code=400, detail="Người được mời phải có vai trò sinh viên")
+    if invited_user.id == user.id:
+        raise HTTPException(status_code=400, detail="Không thể mời chính mình")
+
+    current = booking.invited_students or []
+    if any(u.get("user_id") == invited_user.id for u in current):
+        raise HTTPException(status_code=400, detail="Sinh viên này đã được mời rồi")
+
+    current.append({
+        "user_id": invited_user.id,
+        "name": invited_user.full_name or invited_user.email,
+    })
+    booking.invited_students = current
+    booking = await repo.update(booking)
+    booking = await repo.get_with_participants(booking.id)
     return _serialize(booking)
 
 
