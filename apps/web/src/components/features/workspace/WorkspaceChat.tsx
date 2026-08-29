@@ -57,6 +57,10 @@ export default function WorkspaceChat({
   const [chatRunning, setChatRunning] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const streamingIdRef = useRef<number | null>(null);
+  // AbortController cho loadChatHistory: hủy fetch cũ khi switch conversation,
+  // tránh race khi response resolve sau khi state đã reset → trộn tin nhắn
+  // giữa 2 conversation khác nhau.
+  const loadAbortRef = useRef<AbortController | null>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [activeConvId, setActiveConvId] = useState<string>(""); // "" = đoạn mặc định
@@ -148,6 +152,13 @@ export default function WorkspaceChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId]);
 
+  // Cleanup: hủy fetch cũ khi component unmount
+  useEffect(() => {
+    return () => {
+      loadAbortRef.current?.abort();
+    };
+  }, []);
+
   const loadConversations = async () => {
     const token = getToken();
     if (!token) return;
@@ -216,10 +227,16 @@ export default function WorkspaceChat({
   };
 
   const switchConversation = (convId: string) => {
+    // Hủy fetch cũ đang pending (nếu có) trước khi load conversation mới —
+    // tránh race khi response cũ resolve sau khi state đã reset, dẫn đến
+    // setChatItems(prev) trộn tin nhắn của 2 conversation khác nhau.
+    loadAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    loadAbortRef.current = ctrl;
     setActiveConvId(convId);
     setChatItems([]);
     setChatError("");
-    loadChatHistory(convId);
+    loadChatHistory(convId, ctrl.signal);
   };
 
   const startRename = (c: ConversationItem) => {
@@ -250,37 +267,35 @@ export default function WorkspaceChat({
     }
   };
 
-  const loadChatHistory = async (convId?: string) => {
+  const loadChatHistory = async (convId?: string, signal?: AbortSignal, showFailedParam?: boolean) => {
     const token = getToken();
     if (!token) return;
     setChatLoading(true);
     setChatError("");
     try {
       const convParam = convId !== undefined ? `conversation_id=${encodeURIComponent(convId)}&` : "";
-      const q = `${convParam}show_failed=${showFailed}`;
+      const q = `${convParam}show_failed=${showFailedParam ?? showFailed}`;
       const r = await fetch(`/api/workspaces/${workspaceId}/chat?${q}`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal,
       });
       if (!r.ok) throw new Error("Không thể tải lịch sử chat");
       const data = await r.json();
-      setChatItems((prev) => {
-        // Server trả mới → cũ (created_at.desc()), đảo lại để state là cũ → mới
-        // → render map() tự nhiên, tin nhắn mới nhất nằm dưới cùng (chuẩn chat).
-        const list: WorkspaceChatItem[] = (data ?? []).reverse();
-        // Merge thay vì overwrite: giữ các turn local (optimistic/streaming) chưa
-        // có trong server list. Trước đây nếu fetch resolve sau khi stream xong
-        // (streamingIdRef = null) thì list cũ (fetch lúc row chưa tạo) overwrite
-        // mất turn vừa gửi → UI không hiển thị prompt/answer cho tới khi F5.
-        const byId = new Map(list.map((b) => [b.id, b]));
-        prev.forEach((t) => {
-          if (!byId.has(t.id)) byId.set(t.id, t);
-        });
-        return Array.from(byId.values());
-      });
+      // Server trả mới → cũ (created_at.desc()), đảo lại để state là cũ → mới
+      // → render map() tự nhiên, tin nhắn mới nhất nằm dưới cùng (chuẩn chat).
+      // Replace thuần (không merge) — vì switchConversation đã abort fetch cũ
+      // và abort controller ngăn response cũ ghi đè state mới. Bỏ merge giúp
+      // tránh trộn turn giữa 2 conversation khác nhau.
+      const list: WorkspaceChatItem[] = (data ?? []).reverse();
+      // Nếu fetch bị abort sau khi parse xong nhưng trước khi setState, bỏ qua.
+      if (signal?.aborted) return;
+      setChatItems(list);
     } catch (e: any) {
+      // AbortError không phải lỗi thật — user vừa switch conversation khác
+      if (e?.name === "AbortError") return;
       setChatError(e.message);
     } finally {
-      setChatLoading(false);
+      if (!signal?.aborted) setChatLoading(false);
     }
   };
 
@@ -441,7 +456,7 @@ export default function WorkspaceChat({
   };
 
   return (
-    <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden flex flex-col h-[calc(100vh-340px)] min-h-[450px]">
+    <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden flex flex-col h-[calc(100vh-260px)] min-h-[480px]">
       <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center justify-between gap-2 sticky top-0 z-20">
         <span className="text-[13px] font-bold text-zinc-200">💬 Chat đề tài (toàn workspace)</span>
         <div className="flex items-center gap-3">
@@ -470,7 +485,15 @@ export default function WorkspaceChat({
             ))}
           </select>
           <button
-            onClick={() => setShowFailed((v) => { setShowFailed(!v); loadChatHistory(activeConvId || undefined); })}
+            onClick={() => {
+              const next = !showFailed;
+              setShowFailed(next);
+              // Hủy fetch cũ, gọi với giá trị mới của showFailed (tránh stale)
+              loadAbortRef.current?.abort();
+              const ctrl = new AbortController();
+              loadAbortRef.current = ctrl;
+              loadChatHistory(activeConvId || undefined, ctrl.signal, next);
+            }}
             title={showFailed ? "Ẩn tin nhắn lỗi" : "Hiển thị cả tin nhắn lỗi"}
             className={`px-2.5 py-1.5 rounded-lg text-[12px] border transition-colors ${showFailed ? "bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600"}`}
           >
@@ -591,7 +614,7 @@ export default function WorkspaceChat({
           </div>
         ) : (
           chatItems.map((turn) => (
-            <div key={turn.id} className="flex flex-col gap-2">
+            <div key={turn.id} className="flex flex-col gap-1.5">
               <div className="self-end max-w-[85%] bg-primary text-primary-foreground rounded-2xl rounded-br-md px-4 py-2.5 text-[14px] leading-relaxed whitespace-pre-wrap">
                 {turn.question}
               </div>
@@ -608,8 +631,8 @@ export default function WorkspaceChat({
                   )}
                 </div>
               ) : turn.status === "failed" ? (
-                <div className="self-start max-w-[85%] bg-red-500/10 border border-red-500/20 rounded-2xl rounded-bl-md px-4 py-2.5 text-red-400 text-[13px]">
-                  {turn.answer && <div className="text-[13px] text-zinc-400 leading-relaxed whitespace-pre-wrap mb-2">{turn.answer}</div>}
+                <div className="self-start max-w-[85%] bg-red-500/10 border border-red-500/20 rounded-2xl rounded-bl-md px-4 py-2.5 text-red-400 text-[12px]">
+                  {turn.answer && <div className="text-[12px] text-zinc-400 leading-relaxed whitespace-pre-wrap mb-1.5">{turn.answer}</div>}
                   {turn.error || "Trả lời thất bại."}
                 </div>
               ) : (
@@ -653,18 +676,18 @@ export default function WorkspaceChat({
         <div className="px-4 py-2 bg-red-500/10 border-t border-red-500/20 text-red-400 text-[12px]">{chatError}</div>
       )}
 
-      <div className="px-4 py-3 border-t border-zinc-800/60 flex gap-3">
+      <div className="px-5 py-4 border-t border-zinc-800/60 flex gap-3">
         <input
           value={chatQuestion}
           onChange={(e) => setChatQuestion(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sendChatQuestion()}
           placeholder="Hỏi về workspace..."
-          className="flex-1 px-4 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-[14px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-primary"
+          className="flex-1 px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-xl text-[15px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-primary"
         />
         <button
           onClick={sendChatQuestion}
           disabled={!chatQuestion.trim() || chatRunning}
-          className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-[14px] font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          className="px-6 py-3 bg-primary text-primary-foreground rounded-xl text-[15px] font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
         >
           {chatRunning ? "..." : "Gửi"}
         </button>
