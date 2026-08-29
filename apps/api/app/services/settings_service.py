@@ -45,7 +45,7 @@ async def update_settings(db: AsyncSession, updates: dict[str, Any]) -> dict[str
     return await get_all_settings(db)
 
 
-def apply_settings_to_gateway(settings_map: dict[str, str]) -> None:
+async def apply_settings_to_gateway(settings_map: dict[str, str], db: AsyncSession | None = None) -> None:
     """Áp dụng settings DB lên ai_gateway (reconfigure providers + routing)."""
     from app.services.ai_client import ai_gateway
     from app.core.config import settings as env_settings
@@ -54,19 +54,9 @@ def apply_settings_to_gateway(settings_map: dict[str, str]) -> None:
     if settings_map.get("default_provider"):
         env_settings.routing.default_provider = settings_map["default_provider"]
 
-    # Provider config (base_url / model / api_key) — cập nhật instance hiện có
-    for name, base_key, model_key, api_key in (
-        ("localhost", "localhost_base_url", "localhost_model", "localhost_api_key"),
-    ):
-        provider = ai_gateway.providers.get(name)
-        if not provider:
-            continue
-        if settings_map.get(base_key):
-            provider.base_url = settings_map[base_key].rstrip("/")
-        if settings_map.get(model_key):
-            provider._model = settings_map[model_key]
-        if settings_map.get(api_key):
-            provider.api_key = settings_map[api_key]
+    # Reconfigure providers từ DB (ai_providers/ai_models) — tạo được provider mới,
+    # không còn giới hạn "chỉ update provider có sẵn".
+    await ai_gateway.reconfigure_from_db(db)
 
     logger.info("Applied DB settings to AI gateway: default=%s",
                 env_settings.routing.default_provider)

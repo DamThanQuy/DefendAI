@@ -93,6 +93,27 @@ async def _ensure_storage() -> None:
         logging.getLogger(__name__).warning("MinIO bucket init skipped: %s", exc)
 
 
+@app.on_event("startup")
+async def _load_ai_config_from_db() -> None:
+    """Nạp AI provider/model từ DB (ai_providers / ai_models) sau khi khởi động.
+
+    Env (LOCAL_*, NVIDIA_*) chỉ là fallback khi DB chưa có provider enabled.
+    """
+    import logging
+    from app.services.ai_client import ai_gateway
+    from app.core.database import async_session_maker
+    try:
+        async with async_session_maker() as db:
+            await ai_gateway.reconfigure_from_db(db)
+            logging.getLogger(__name__).info(
+                "startup: AI gateway providers=%s models=%s",
+                sorted(ai_gateway.providers.keys()),
+                {k: v for k, v in ai_gateway.db_models.items()},
+            )
+    except Exception as exc:
+        logging.getLogger(__name__).warning("startup: load AI config from DB skipped: %s", exc)
+
+
 @app.get("/")
 async def root():
     # Dev convenience: root → Swagger UI. ponytail: trên prod nên tắt (docs_url=None) hoặc trả info JSON thay vì redirect lộ API.

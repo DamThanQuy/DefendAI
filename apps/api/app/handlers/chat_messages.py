@@ -105,11 +105,15 @@ async def summarize_old_messages(
     # Call AI to generate summary
     try:
         from app.services.ai_client import ai_gateway
+        from app.services.feature_ai import resolve_feature_ai
+        provider, model = await resolve_feature_ai(db, "workspace_chat")
         result = await ai_gateway.generate(
             prompt=f"Tóm tắt ngắn gọn cuộc trò chuyện sau (tối đa 200 chữ):\n{summary_text}",
             system_prompt="Bạn là trợ lý tóm tắt hội thoại. Trả về tóm tắt ngắn gọn, súc tích.",
             temperature=0.3,
             max_tokens=300,
+            provider=provider,
+            model=model,
         )
         return result.get("content", "").strip()
     except Exception as e:

@@ -133,13 +133,19 @@ QUY TẮC:
         )
         
         try:
-            # Call AI Gateway
+            # Call AI Gateway (provider/model theo cấu hình chức năng feedback)
             from app.services.ai_client import ai_gateway
+            from app.core.database import async_session_maker
+            from app.services.feature_ai import resolve_feature_ai
+            async with async_session_maker() as db:
+                f_provider, f_model = await resolve_feature_ai(db, "feedback")
             result = await ai_gateway.generate(
                 prompt=prompt,
                 system_prompt=self.SYSTEM_PROMPT,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
+                provider=f_provider,
+                model=f_model,
             )
             
             raw_text = result.get("content", "").strip()

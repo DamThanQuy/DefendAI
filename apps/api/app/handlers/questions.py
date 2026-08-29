@@ -389,6 +389,10 @@ async def handle_generate_questions(params: dict) -> dict:
         system_prompt = _build_system_prompt(rubric=rubric, missing_block=missing_block)
         used_fallback = False
 
+        # Provider/model theo cấu hình chức năng question_gen
+        from app.services.feature_ai import resolve_feature_ai
+        f_provider, f_model = await resolve_feature_ai(db, "question_gen")
+
         try:
             if job_id:
                 await update_job(job_id, progress="50")
@@ -404,6 +408,8 @@ async def handle_generate_questions(params: dict) -> dict:
                         system_prompt=system_prompt,
                         temperature=0.2,
                         max_tokens=3000,
+                        provider=f_provider,
+                        model=f_model,
                     )
                 )
 

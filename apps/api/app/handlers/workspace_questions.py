@@ -30,6 +30,7 @@ from app.models.entities import (
     WorkspaceQuestion,
 )
 from app.services.ai_client import ai_gateway
+from app.services.feature_ai import resolve_feature_ai
 from app.services.chunk_indexer import index_chunks
 from app.services.document_parser import parse_and_chunk_full
 from app.services.job_queue import register_handler, update_job
@@ -205,6 +206,8 @@ async def handle_workspace_questions(params: dict) -> dict:
         # Reference rỗng thì bỏ qua (chỉ dùng user chunks) — không chặn job
         contexts = [_format_context(r) for r in user_results + ref_results]
         prompt = _build_rag_prompt(topic, contexts)
+        async with async_session_maker() as db:
+            provider, model = await resolve_feature_ai(db, "question_gen")
         ai_result = await ai_gateway.generate(
             prompt=prompt,
             system_prompt=_build_system_prompt(),
@@ -213,6 +216,8 @@ async def handle_workspace_questions(params: dict) -> dict:
             # max_tokens on `reasoning`; 4000 left no budget for the JSON answer (empty
             # content → heuristic fallback writing `hint`). 12000 leaves room for both.
             max_tokens=12000,
+            provider=provider,
+            model=model,
         )
         payload = _extract_json_payload(ai_result["content"])
         questions = _normalize_rag_questions(payload.get("questions", []))

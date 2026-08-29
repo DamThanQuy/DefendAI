@@ -293,12 +293,19 @@ async def _call_ai_classify(
     if skip_content_check:
         prompt += "\n\nLưu ý: skip_content_check=True -> đặt content_ok=null (không đánh giá nội dung)."
 
+    from app.core.database import async_session_maker
+    from app.services.feature_ai import resolve_feature_ai
+    async with async_session_maker() as db:
+        provider, model = await resolve_feature_ai(db, "classify")
+
     resp = await ai_gateway.generate(
         prompt=prompt,
         system_prompt="Bạn là trợ lý phân loại tài liệu học thuật. Trả về JSON chính xác.",
         temperature=0.1,
         max_tokens=800,
         images=images,
+        provider=provider,
+        model=model,
     )
 
     # Một số provider (agnes, tencent/hy3...) tiêu token vào reasoning_content

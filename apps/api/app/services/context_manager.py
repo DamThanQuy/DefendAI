@@ -121,13 +121,17 @@ class ContextManager:
             for i, m in enumerate(old_msgs)
         ])
         
-        # Gọi AI summarize
+        # Gọi AI summarize (provider/model theo cấu hình chức năng workspace_chat)
         try:
+            from app.services.feature_ai import resolve_feature_ai
+            provider, model = await resolve_feature_ai(db, "workspace_chat")
             result = await ai_gateway.generate(
                 prompt=f"Tóm tắt cuộc trò chuyện sau (tối đa 300 chữ):\n{summary_input}",
                 system_prompt="Bạn là trợ lý tóm tắt hội thoại. Trả về tóm tắt ngắn gọn, súc tích.",
                 temperature=0.3,
                 max_tokens=300,
+                provider=provider,
+                model=model,
             )
             return result.get("content", "").strip()
         except Exception as e:

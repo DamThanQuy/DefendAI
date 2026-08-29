@@ -187,6 +187,8 @@ async def _chat_stream(
         # Load history
         async with async_session_maker() as db:
             history = await load_history_for_rag(db, workspace_id, conversation_id)
+            from app.services.feature_ai import resolve_feature_ai
+            provider, model = await resolve_feature_ai(db, "workspace_chat")
         
         contexts = [_format_context(r) for r in user_results + ref_results]
         
@@ -212,6 +214,8 @@ async def _chat_stream(
             system_prompt=_build_chat_system_prompt(),
             temperature=0.3,
             max_tokens=4000,
+            provider=provider,
+            model=model,
         ):
             if chunk.get("content"):
                 answer_parts.append(chunk["content"])
