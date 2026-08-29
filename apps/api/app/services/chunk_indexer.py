@@ -101,6 +101,7 @@ async def index_chunks(document, chunks: List[str], diagrams: List[str] | None =
                 "doc_type": doc_type,
                 "filename": document.filename,
                 "chunk_index": i,
+                "schema_ver": 2,  # v2: figure inventory + diagram chunks (Fix A/D)
                 # Tag chunk text cuối nếu tài liệu có diagram (để AI cite đúng sơ đồ)
                 "has_diagram": has_diagrams and i == n_text - 1,
                 **(diagram_meta[i - n_text] if i >= n_text else {"type": "text"}),

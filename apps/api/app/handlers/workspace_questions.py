@@ -31,7 +31,7 @@ from app.models.entities import (
 )
 from app.services.ai_client import ai_gateway
 from app.services.chunk_indexer import index_chunks
-from app.services.document_parser import parse_and_chunk
+from app.services.document_parser import parse_and_chunk_full
 from app.services.job_queue import register_handler, update_job
 from app.services.retriever import retrieve_mixed
 
@@ -40,8 +40,17 @@ logger = logging.getLogger(__name__)
 _VALID_DIFFICULTIES = ("easy", "medium", "hard")
 
 
-async def _ensure_indexed(workspace_id: int) -> None:
-    """Index-on-demand: parse + embed các file trong workspace chưa có document_chunks."""
+async def _ensure_indexed(workspace_id: int, force: bool = False) -> None:
+    """Index-on-demand: parse + embed các file trong workspace chưa có document_chunks.
+
+    Tự re-index file đã index bằng pipeline cũ (trước figure-inventory): bản cũ
+    không có chunk meta.type='diagram' và text thiếu FIGURE INVENTORY → AI chat
+    vẫn trả lời "10 diagram" thay vì 86. Phát hiện bằng cách check meta của
+    chunk đầu: thiếu 'schema_ver' → re-index.
+
+    Args:
+        force: nếu True, re-index tất cả file dù đã có chunks.
+    """
     async with async_session_maker() as db:
         result = await db.execute(
             select(WorkspaceFile.document_id).where(WorkspaceFile.workspace_id == workspace_id)
@@ -55,24 +64,42 @@ async def _ensure_indexed(workspace_id: int) -> None:
             .distinct()
         )
         indexed = {r[0] for r in r2.fetchall()}
-        missing = [d for d in doc_ids if d not in indexed]
+        missing = doc_ids if force else [d for d in doc_ids if d not in indexed]
+
+        # Phát hiện chunks cũ (pre figure-inventory): doc đã index nhưng chunk
+        # đầu không có meta.schema_ver → cần re-index để có figure inventory +
+        # diagram chunks. Chỉ check 1 row mỗi doc (rẻ).
+        if not force:
+            for d in doc_ids:
+                if d in indexed:
+                    r3 = await db.execute(
+                        select(DocumentChunk.meta)
+                        .where(DocumentChunk.document_id == d)
+                        .order_by(DocumentChunk.chunk_index)
+                        .limit(1)
+                    )
+                    meta = r3.scalar_one_or_none()
+                    if not (meta and meta.get("schema_ver")):
+                        missing.append(d)
+            missing = list(dict.fromkeys(missing))  # dedup giữ thứ tự
+
         docs: List[Document] = []
         if missing:
             # R9 harden: bỏ qua tài liệu chuẩn (staff_reference) — chúng chỉ đi
             # vào reference_chunks, không bao giờ được index vào document_chunks
-            r3 = await db.execute(
+            r4 = await db.execute(
                 select(Document).where(
                     Document.id.in_(missing),
                     Document.purpose != DocumentPurpose.staff_reference,
                 )
             )
-            docs = r3.scalars().all()
+            docs = r4.scalars().all()
 
     for doc in docs:
         try:
-            chunks, diagrams = await parse_and_chunk(doc)
+            chunks, diagrams, diagram_infos = await parse_and_chunk_full(doc)
             if chunks:
-                await index_chunks(doc, chunks, diagrams)
+                await index_chunks(doc, chunks, diagrams, diagram_infos=diagram_infos)
                 logger.info("Index on-demand doc %s (%s chunks)", doc.id, len(chunks))
         except Exception as exc:  # best-effort từng doc, không chặn cả job
             logger.warning("Index-on-demand failed for doc %s: %s", doc.id, exc)
