@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from typing import List
 
 from app.core.database import get_db
@@ -22,7 +23,7 @@ from app.models.booking import BookingStatus, MockBooking
 from app.models.meeting import Meeting, MeetingStatus
 from app.models.availability import MentorAvailability
 from app.repositories.booking import BookingRepository
-from app.schemas.booking import BookingCreate, BookingConfirm, BookingReschedule, BookingReject, BookingOut
+from app.schemas.booking import BookingCreate, BookingConfirm, BookingReschedule, BookingReject, BookingInvite, BookingOut
 
 
 def _naive_utc(dt: datetime) -> datetime:
@@ -217,7 +218,9 @@ async def invite_student(
     ident = payload.identifier.strip().lower()
     invited_user = (
         await db.execute(
-            select(User).where(
+            select(User)
+            .options(selectinload(User.roles))
+            .where(
                 (User.username == ident) | (User.email == ident)
             )
         )

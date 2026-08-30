@@ -24,6 +24,8 @@ import {
   Pause,
   RotateCcw,
   Clock,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 
 type Message = {
@@ -91,6 +93,12 @@ export default function MockRoomPage() {
   type Participant = { user_id: number; name: string; role: string };
   const [participants, setParticipants] = useState<Participant[]>([]);
 
+  // --- Tile đang được phóng to (click vào màn hình share để xem full) ---
+  const [expandedTile, setExpandedTile] = useState<number | null>(null);
+
+  // --- Modal xác nhận rời phòng ---
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+
   // --- Hỏi & Đáp: mentor đặt câu hỏi trong giai đoạn chất vấn ---
   type QAItem = { id: number; question: string; asked_by: string; created_at: string };
   const [qaList, setQaList] = useState<QAItem[]>([]);
@@ -105,6 +113,22 @@ export default function MockRoomPage() {
   const [sharing, setSharing] = useState(false);
   const [peerConnected, setPeerConnected] = useState(false);
   const [signalStatus, setSignalStatus] = useState<"idle" | "connecting" | "ready" | "peer-left">("idle");
+
+  // Đồng bộ srcObject vào video overlay mỗi khi phóng to hoặc stream thay đổi.
+  // (Tránh lỗi màn hình đen do tile gốc bị ẩn → ref chuyển sang overlay nhưng thiếu stream)
+  useEffect(() => {
+    if (expandedTile === null) return;
+    const localStream = localStreamRef.current || screenStreamRef.current;
+    if (expandedLocalVideoRef.current && localStream) {
+      expandedLocalVideoRef.current.srcObject = localStream;
+      expandedLocalVideoRef.current.play().catch(() => {});
+    }
+    // Remote stream được gán trong ontrack; ở đây chỉ gán lại nếu đã có
+    if (expandedRemoteVideoRef.current && remoteVideoRef.current?.srcObject) {
+      expandedRemoteVideoRef.current.srcObject = remoteVideoRef.current.srcObject;
+      expandedRemoteVideoRef.current.play().catch(() => {});
+    }
+  }, [expandedTile, peerConnected, micOn, sharing]);
 
   // --- 3 giai đoạn bảo vệ (countdown) ---
   // Thuyết trình 15p → Chất vấn 10p → Nhận xét 5p
@@ -147,6 +171,9 @@ export default function MockRoomPage() {
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  // Ref riêng cho video trong overlay phóng to (tránh conflict với tile gốc)
+  const expandedLocalVideoRef = useRef<HTMLVideoElement | null>(null);
+  const expandedRemoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const isInitiatorRef = useRef(false);
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
 
@@ -262,6 +289,11 @@ export default function MockRoomPage() {
       if (hasVideo && remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStream;
         remoteVideoRef.current.play().catch(() => {});
+      }
+      // Nếu đang phóng to → gán stream vào video overlay luôn (tránh màn hình đen)
+      if (hasVideo && expandedRemoteVideoRef.current) {
+        expandedRemoteVideoRef.current.srcObject = remoteStream;
+        expandedRemoteVideoRef.current.play().catch(() => {});
       }
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = remoteStream;
@@ -949,56 +981,196 @@ export default function MockRoomPage() {
             })}
           </div>
 
-          {/* Video Grid */}
+          {/* Video Grid — render động theo danh sách người tham gia (presence) */}
           <div className="flex-1 grid grid-cols-2 gap-4 pb-24 relative">
-            {/* Card 1: Local (bạn) — mic / screen share */}
-            <div className="bg-[#121212] rounded-2xl border border-teal-900/40 relative overflow-hidden flex flex-col items-center justify-center group">
-              <video
-                ref={localVideoRef}
-                autoPlay
-                muted
-                playsInline
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-              {!micOn && !sharing && (
-                <div className="w-32 h-32 rounded-full bg-gradient-to-br from-teal-400 to-blue-600 flex items-center justify-center relative shadow-[0_0_50px_rgba(45,212,191,0.2)]">
-                  <span className="text-5xl text-white opacity-90 drop-shadow-lg">🎓</span>
+            {participants.length === 0 ? (
+              // Chưa có presence → fallback hiển thị 2 ô mặc định
+              <>
+                {/* Card 1: Local (bạn) — mic / screen share */}
+                <div className="bg-[#121212] rounded-2xl border border-teal-900/40 relative overflow-hidden flex flex-col items-center justify-center group">
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                  {!micOn && !sharing && (
+                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-teal-400 to-blue-600 flex items-center justify-center relative shadow-[0_0_50px_rgba(45,212,191,0.2)]">
+                      <span className="text-5xl text-white opacity-90 drop-shadow-lg">🎓</span>
+                    </div>
+                  )}
+                  <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50">
+                    {sharing ? "SHARE" : "YOU"}
+                  </div>
+                  <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/5">
+                    <Mic className={`w-3.5 h-3.5 ${micOn ? "text-teal-400" : "text-gray-500"}`} />
+                    <span className="text-xs text-gray-300 font-medium">
+                      {sharing ? "Đang chia sẻ màn hình" : micOn ? "Bạn (Đang nói)" : "Bạn"}
+                    </span>
+                  </div>
                 </div>
-              )}
-              <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50">
-                {sharing ? "SHARE" : "YOU"}
-              </div>
-              <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/5">
-                <Mic className={`w-3.5 h-3.5 ${micOn ? "text-teal-400" : "text-gray-500"}`} />
-                <span className="text-xs text-gray-300 font-medium">
-                  {sharing ? "Đang chia sẻ màn hình" : micOn ? "Bạn (Đang nói)" : "Bạn"}
-                </span>
-              </div>
-            </div>
+                {/* Card 2: Remote peer (đối phương) */}
+                <div className="bg-[#121212] rounded-2xl border border-purple-900/30 relative overflow-hidden flex flex-col items-center justify-center group">
+                  <video
+                    ref={remoteVideoRef}
+                    autoPlay
+                    playsInline
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                  {!peerConnected && (
+                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center relative shadow-[0_0_50px_rgba(168,85,247,0.15)]">
+                      <span className="text-5xl text-white opacity-90 drop-shadow-lg">👤</span>
+                    </div>
+                  )}
+                  <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50">
+                    PEER
+                  </div>
+                  <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/5">
+                    <Mic className={`w-3.5 h-3.5 ${peerConnected ? "text-purple-400" : "text-gray-500"}`} />
+                    <span className="text-xs text-gray-300 font-medium">
+                      {peerConnected ? "Đối phương" : "Chờ đối phương..."}
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              // Đã có presence → render 1 ô cho mỗi người (bạn + đối phương + người được mời)
+              <>
+              {participants.map((p) => {
+                const isMe = userRef.current && p.user_id === userRef.current.id;
+                const displayName = isMe
+                  ? (userRef.current?.full_name || userRef.current?.email || "Bạn")
+                  : p.name;
+                const roleLabel = p.role === "mentor" ? "Mentor" : "Sinh viên";
+                const initials = displayName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
+                const isMentor = p.role === "mentor";
+                // Ô của mình → gắn video local; ô người khác → gắn video remote (chỉ 1 peer kết nối)
+                const showLocalVideo = isMe;
+                const showRemoteVideo = !isMe && peerConnected;
+                const hasVideo = showLocalVideo || showRemoteVideo;
+                const isExpanded = expandedTile === p.user_id;
+                return (
+                  <div
+                    key={p.user_id}
+                    onClick={() => hasVideo && setExpandedTile(isExpanded ? null : p.user_id)}
+                    className={`bg-[#121212] rounded-2xl border relative overflow-hidden flex flex-col items-center justify-center group ${
+                      isMentor ? "border-purple-900/30" : "border-teal-900/40"
+                    } ${hasVideo ? "cursor-pointer hover:ring-2 hover:ring-teal-500/50 transition-all" : ""} ${
+                      isExpanded ? "hidden" : ""
+                    }`}
+                  >
+                    {showLocalVideo && (
+                      <video
+                        ref={localVideoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    )}
+                    {showRemoteVideo && (
+                      <video
+                        ref={remoteVideoRef}
+                        autoPlay
+                        playsInline
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    )}
+                    {/* Avatar placeholder khi chưa có stream (người được mời chưa bật mic) */}
+                    {!showLocalVideo && !showRemoteVideo && (
+                      <div className={`w-32 h-32 rounded-full flex items-center justify-center relative shadow-lg ${
+                        isMentor
+                          ? "bg-gradient-to-br from-purple-500 to-blue-500 shadow-[0_0_50px_rgba(168,85,247,0.15)]"
+                          : "bg-gradient-to-br from-teal-400 to-blue-600 shadow-[0_0_50px_rgba(45,212,191,0.2)]"
+                      }`}>
+                        <span className="text-5xl text-white opacity-90 drop-shadow-lg">{initials}</span>
+                      </div>
+                    )}
+                    <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50">
+                      {isMe ? (sharing ? "SHARE" : "YOU") : (isMentor ? "MENTOR" : "STUDENT")}
+                    </div>
+                    <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/5">
+                      <Mic className={`w-3.5 h-3.5 ${
+                        isMe ? (micOn ? "text-teal-400" : "text-gray-500") : (peerConnected ? (isMentor ? "text-purple-400" : "text-teal-400") : "text-gray-500")
+                      }`} />
+                      <span className="text-xs text-gray-300 font-medium">
+                        {isMe
+                          ? (sharing ? "Đang chia sẻ màn hình" : micOn ? `${displayName} (Đang nói)` : `${displayName} (${roleLabel})`)
+                          : (peerConnected ? `${displayName} (${roleLabel})` : `${displayName} (${roleLabel}) — chưa kết nối`)}
+                      </span>
+                    </div>
+                    {/* Nút phóng to khi có video */}
+                    {hasVideo && !isExpanded && (
+                      <div className="absolute top-4 left-4 bg-black/50 hover:bg-black/70 text-white/80 hover:text-white p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Maximize2 className="w-4 h-4" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
-            {/* Card 2: Remote peer (đối phương) */}
-            <div className="bg-[#121212] rounded-2xl border border-purple-900/30 relative overflow-hidden flex flex-col items-center justify-center group">
-              <video
-                ref={remoteVideoRef}
-                autoPlay
-                playsInline
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-              {!peerConnected && (
-                <div className="w-32 h-32 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center relative shadow-[0_0_50px_rgba(168,85,247,0.15)]">
-                  <span className="text-5xl text-white opacity-90 drop-shadow-lg">👤</span>
-                </div>
-              )}
-              <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50">
-                PEER
-              </div>
-              <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/5">
-                <Mic className={`w-3.5 h-3.5 ${peerConnected ? "text-purple-400" : "text-gray-500"}`} />
-                <span className="text-xs text-gray-300 font-medium">
-                  {peerConnected ? "Đối phương" : "Chờ đối phương..."}
-                </span>
-              </div>
-            </div>
+              {/* Overlay phóng to (click vào màn hình share để xem full) */}
+              {expandedTile !== null &&
+                participants
+                  .filter((x) => x.user_id === expandedTile)
+                  .map((p) => {
+                    const isMe = userRef.current && p.user_id === userRef.current.id;
+                    const displayName = isMe
+                      ? (userRef.current?.full_name || userRef.current?.email || "Bạn")
+                      : p.name;
+                    const roleLabel = p.role === "mentor" ? "Mentor" : "Sinh viên";
+                    const isMentor = p.role === "mentor";
+                    const showLocalVideo = isMe;
+                    const showRemoteVideo = !isMe && peerConnected;
+                    const hasVideo = showLocalVideo || showRemoteVideo;
+                    return (
+                      <div
+                        key={p.user_id}
+                        className="col-span-2 row-span-2 bg-[#0A0A0A] rounded-2xl border border-teal-500/30 relative overflow-hidden flex flex-col items-center justify-center"
+                        onClick={() => setExpandedTile(null)}
+                      >
+                        {showLocalVideo && (
+                          <video
+                            ref={expandedLocalVideoRef}
+                            autoPlay
+                            muted
+                            playsInline
+                            className="absolute inset-0 w-full h-full object-contain"
+                          />
+                        )}
+                        {showRemoteVideo && (
+                          <video
+                            ref={expandedRemoteVideoRef}
+                            autoPlay
+                            playsInline
+                            className="absolute inset-0 w-full h-full object-contain"
+                          />
+                        )}
+                        {!hasVideo && (
+                          <div className="text-gray-500 text-sm">Không có video để phóng to</div>
+                        )}
+                        <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50">
+                          {isMe ? (sharing ? "SHARE" : "YOU") : (isMentor ? "MENTOR" : "STUDENT")}
+                        </div>
+                        <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/5">
+                          <Mic className={`w-3.5 h-3.5 ${isMe ? (micOn ? "text-teal-400" : "text-gray-500") : (peerConnected ? (isMentor ? "text-purple-400" : "text-teal-400") : "text-gray-500")}`} />
+                          <span className="text-xs text-gray-300 font-medium">
+                            {isMe ? (sharing ? "Đang chia sẻ màn hình" : `${displayName} (${roleLabel})`) : `${displayName} (${roleLabel})`}
+                          </span>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setExpandedTile(null); }}
+                          className="absolute top-4 left-4 bg-black/60 hover:bg-black/80 text-white p-2 rounded-lg transition-colors"
+                          title="Thu nhỏ"
+                        >
+                          <Minimize2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+              </>
+            )}
 
             {/* Live Captions */}
             <div className="absolute bottom-4 left-0 right-0 px-4">
@@ -1057,7 +1229,10 @@ export default function MockRoomPage() {
             </div>
 
             <div className="flex items-center justify-end w-32">
-              <Button className="bg-[#EF4444] hover:bg-[#DC2626] text-white rounded-full px-6 h-10 font-semibold shadow-lg shadow-red-900/20">
+              <Button
+                onClick={() => setShowLeaveConfirm(true)}
+                className="bg-[#EF4444] hover:bg-[#DC2626] text-white rounded-full px-6 h-10 font-semibold shadow-lg shadow-red-900/20"
+              >
                 <PhoneOff className="w-4 h-4 mr-2" />
                 Rời phòng
               </Button>
@@ -1296,6 +1471,38 @@ export default function MockRoomPage() {
         </div>
 
       </div>
+
+      {/* Modal xác nhận rời phòng */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-[#1A1A1A] border border-gray-700/60 rounded-2xl p-6 w-[400px] max-w-[90vw] shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                <PhoneOff className="w-5 h-5 text-red-400" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-100">Rời phòng Mock Room?</h3>
+            </div>
+            <p className="text-sm text-gray-400 mb-6">
+              Bạn có chắc chắn muốn rời khỏi phòng? Cuộc họp sẽ kết thúc và bạn sẽ quay lại trang danh sách phòng.
+            </p>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setShowLeaveConfirm(false)}
+                className="flex-1 bg-[#202020] hover:bg-[#2A2A2A] text-gray-300 rounded-xl h-11 font-semibold transition-colors"
+              >
+                Ở lại
+              </Button>
+              <Button
+                onClick={() => router.push("/mock-room")}
+                className="flex-1 bg-[#EF4444] hover:bg-[#DC2626] text-white rounded-xl h-11 font-semibold shadow-lg shadow-red-900/20 transition-colors"
+              >
+                Xác nhận rời
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
