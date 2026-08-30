@@ -164,7 +164,11 @@ export default function MentorBookingsPage() {
       if (res.data.open) {
         router.push(`/room?meeting=${b.meeting_id}`);
       } else {
-        alert("Phòng chưa mở (mở trước 5 phút so với giờ chốt).");
+        alert(
+          res.data.reason === "booking_completed"
+            ? "Buổi mock đã kết thúc, phòng đã bị khoá."
+            : "Lịch chưa được xác nhận, phòng chưa mở.",
+        );
       }
     } catch {
       alert("Không thể kiểm tra trạng thái phòng.");
@@ -183,7 +187,7 @@ export default function MentorBookingsPage() {
     <div className="max-w-4xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-zinc-100 mb-1">Quản lý lịch Mock Room</h1>
       <p className="text-sm text-zinc-400 mb-6">
-        Xác nhận và chốt thời gian với sinh viên. Phòng sẽ mở <b>5 phút trước</b> giờ chốt.
+        Xác nhận và chốt thời gian với sinh viên. Sau khi chốt, phòng mở cho cả hai vào ngay và chỉ bị khoá khi bạn bấm <b>Kết thúc</b>.
       </p>
 
       {error && (
@@ -364,12 +368,11 @@ export default function MentorBookingsPage() {
                 {b.status === "confirmed" && b.meeting_id && (
                   <Button
                     size="sm"
-                    variant={b.room_open ? "default" : "outline"}
-                    disabled={!b.room_open}
+                    variant="default"
                     onClick={() => handleEnterRoom(b)}
                     className="rounded-full"
                   >
-                    {b.room_open ? "Vào phòng" : "Chưa mở"}
+                    Vào phòng
                   </Button>
                 )}
                 {b.status === "confirmed" && (

@@ -16,6 +16,7 @@ from app.models.assessment import CodeAnalysis, CodeAnalysisStatus
 from app.models.entities import Document, User
 from app.models.role import Role
 from app.models.association import user_roles
+from app.models.booking import BookingStatus, MockBooking
 from app.services.settings_service import (
     ALLOWED_KEYS,
     apply_settings_to_gateway,
@@ -178,5 +179,106 @@ async def list_all_code_reviews(
             "created_at": a.created_at.isoformat() if a.created_at else None,
         }
         for a, doc_name, user_email in result.all()
+    ]
+    return {"items": items}
+
+
+# ---------------------------------------------------------------------------
+# Tổng quan Dashboard (Overview) — chỉ số vận hành cho Super Admin / Manager
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/overview",
+    summary="Chỉ số tổng quan hệ thống (admin)",
+    description="Tổng doanh thu (placeholder), user mới, session thành công, số booking theo trạng thái. Chỉ admin.",
+)
+async def overview(
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_role("admin")),
+) -> dict:
+    from sqlalchemy import func
+
+    total_users = (
+        await db.execute(select(func.count(User.id))
+        .where(User.is_active == 1))
+    ).scalar_one()
+    new_users = (
+        await db.execute(select(func.count(User.id))
+        .where(User.is_active == 1))
+    ).scalar_one()  # placeholder: chưa có khoảng thời gian — trả toàn bộ active
+
+    total_mentors = (
+        await db.execute(
+            select(func.count(User.id))
+            .join(user_roles, User.id == user_roles.c.user_id)
+            .join(Role, Role.id == user_roles.c.role_id)
+            .where(Role.name == "mentor", User.is_active == 1)
+        )
+    ).scalar_one()
+
+    total_bookings = (await db.execute(select(func.count(MockBooking.id)))).scalar_one()
+    completed_bookings = (
+        await db.execute(select(func.count(MockBooking.id))
+        .where(MockBooking.status == BookingStatus.completed))
+    ).scalar_one()
+    pending_bookings = (
+        await db.execute(select(func.count(MockBooking.id))
+        .where(MockBooking.status == BookingStatus.pending))
+    ).scalar_one()
+
+    total_reviews = (await db.execute(select(func.count(CodeAnalysis.id)))).scalar_one()
+    completed_reviews = (
+        await db.execute(select(func.count(CodeAnalysis.id))
+        .where(CodeAnalysis.status == CodeAnalysisStatus.completed))
+    ).scalar_one()
+
+    return {
+        "total_users": total_users,
+        "new_users": new_users,
+        "total_mentors": total_mentors,
+        "total_bookings": total_bookings,
+        "completed_bookings": completed_bookings,
+        "pending_bookings": pending_bookings,
+        "total_reviews": total_reviews,
+        "completed_reviews": completed_reviews,
+        # Doanh thu: chưa có module thanh toán — placeholder 0
+        "total_revenue": 0,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Dispute Center — danh sách booking để admin phân xử khiếu nại
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/bookings",
+    summary="Danh sách booking (admin oversight)",
+    description="Xem mọi lịch hẹn để xử lý khiếu nại/tranh chấp. Chỉ admin.",
+)
+async def list_all_bookings(
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_role("admin")),
+) -> dict:
+    result = await db.execute(
+        select(MockBooking)
+        .options(selectinload(MockBooking.student), selectinload(MockBooking.mentor))
+        .order_by(MockBooking.created_at.desc())
+    )
+    items = [
+        {
+            "id": b.id,
+            "title": b.title,
+            "note": b.note,
+            "status": b.status.value,
+            "proposed_time": b.proposed_time.isoformat() if b.proposed_time else None,
+            "confirmed_time": b.confirmed_time.isoformat() if b.confirmed_time else None,
+            "reject_reason": b.reject_reason,
+            "student_name": b.student.full_name if b.student else None,
+            "student_email": b.student.email if b.student else None,
+            "mentor_name": b.mentor.full_name if b.mentor else None,
+            "mentor_email": b.mentor.email if b.mentor else None,
+            "created_at": b.created_at.isoformat() if b.created_at else None,
+        }
+        for b in result.scalars().all()
     ]
     return {"items": items}

@@ -44,11 +44,7 @@ class SessionSummary:
     clo_coverage: Dict[str, int]  # CLO -> question count
     clo_breakdown: Dict[str, Dict]  # Per-CLO breakdown
 
-    # Scores
-    oga_final: float
-    tda_final: float
-
-    # Qualitative
+    # Qualitative (KHÔNG chấm điểm số)
     strengths: List[str]
     weaknesses: List[str]
     action_items: List[str]
@@ -62,17 +58,7 @@ class MockSummaryService:
     Generate session summary report after Mock Room session.
     """
 
-    # CLO weights from rubric
-    CLO_WEIGHTS = {
-        "CLO1": 0.155,  # SRS
-        "CLO2": 0.14,   # SDD
-        "CLO3": 0.335,  # Impl + Testing
-        "CLO4": 0.065,  # PMP
-        "CLO5": 0.045,  # User Guides
-        "CLO6": 0.075,  # Presentation + QA
-        "CLO7": 0.185,  # Attitude
-    }
-
+    # CLO names (theo rubric trường ĐH) — dùng cho nhận xét, KHÔNG dùng tính điểm
     CLO_NAMES = {
         "CLO1": "Xác định vấn đề & lập SRS",
         "CLO2": "Thiết kế giải pháp (SDD)",
@@ -81,29 +67,6 @@ class MockSummaryService:
         "CLO5": "Viết báo cáo",
         "CLO6": "Thuyết trình & Giao tiếp",
         "CLO7": "Thái độ chuyên nghiệp",
-    }
-
-    # OGA/TDA weights per CLO
-    CLO_OGA_WEIGHTS = {
-        "CLO1": 0.04,  # intro
-        "CLO2": 0.16,  # pmp
-        "CLO3": 0.16,  # srs
-        "CLO4": 0.18,  # sdd
-        "CLO5": 0.18,  # testing
-        "CLO6": 0.04,  # user_guides
-        "CLO7": 0.32,  # implementation
-    }
-
-    CLO_TDA_WEIGHTS = {
-        "CLO1": 0.05,  # intro
-        "CLO2": 0.05,  # pmp
-        "CLO3": 0.15,  # srs
-        "CLO4": 0.10,  # sdd
-        "CLO5": 0.10,  # testing
-        "CLO5_guides": 0.05,  # user_guides
-        "CLO6": 0.35,  # implementation
-        "CLO6_presentation": 0.05,
-        "CLO6_qa": 0.10,
     }
 
     def __init__(self):
@@ -154,10 +117,7 @@ class MockSummaryService:
             }
             clo_breakdown[clo] = clo_data
 
-        # 2. Calculate OGA/TDA scores
-        oga_final, tda_final = self._calculate_scores(coverage)
-
-        # 3. Identify strengths/weaknesses
+        # 2. Identify strengths/weaknesses (KHÔNG tính điểm số)
         strengths, weaknesses, action_items = self._analyze_strengths_weaknesses(coverage)
 
         # 4. Format question log
@@ -186,8 +146,6 @@ class MockSummaryService:
             "total_questions": len(question_log_formatted),
             "clo_coverage": clo_coverage,
             "clo_breakdown": clo_breakdown,
-            "oga_final": oga_final,
-            "tda_final": tda_final,
             "strengths": strengths,
             "weaknesses": weaknesses,
             "action_items": action_items,
@@ -196,23 +154,6 @@ class MockSummaryService:
         }
 
         return summary
-
-    def _calculate_scores(self, coverage: Dict) -> tuple[float, float]:
-        """Calculate OGA and TDA final scores."""
-        oga_total = 0.0
-        tda_total = 0.0
-
-        for clo in coverage:
-            cov = coverage.get(clo, {})
-            accuracy = cov.get("accuracy_rate", 0)
-
-            oga_weight = self.CLO_OGA_WEIGHTS.get(clo, 0)
-            tda_weight = self.CLO_TDA_WEIGHTS.get(clo, 0)
-
-            oga_total += accuracy * oga_weight * 10
-            tda_total += accuracy * tda_weight * 10
-
-        return round(oga_total, 1), round(tda_total, 1)
 
     def _analyze_strengths_weaknesses(self, coverage: Dict) -> tuple[list, list, list]:
         """Analyze CLO performance to generate strengths/weaknesses/action_items."""

@@ -21,7 +21,6 @@ from app.services.mock_qa_state import (
     adjust_difficulty,
     enforce_coverage,
     get_next_clo,
-    ScoreAggregator,
 )
 from app.services.mock_qa_rag import MockQARAGService
 from app.prompts.mock_qa import (
@@ -57,11 +56,10 @@ class Question:
 
 @dataclass
 class EvaluationResult:
-    """Kết quả đánh giá câu trả lời."""
-    oga_score: float
-    tda_score: float
+    """Kết quả đánh giá câu trả lời (KHÔNG chấm điểm số)."""
     feedback: str
     quality_criteria_met: List[str]
+    criteria_not_met: List[str]
     confidence: float
     answer_quality: float
 
@@ -174,7 +172,7 @@ class MockQAEngine:
         Đánh giá câu trả lời của sinh viên.
         
         Returns:
-            Dict với oga_score, tda_score, feedback, quality_criteria_met, confidence
+            Dict với feedback, quality_criteria_met, criteria_not_met, confidence (KHÔNG chấm điểm)
         """
         pass
     

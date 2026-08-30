@@ -14,6 +14,7 @@ const PROTECTED_PATHS = [
   "/analyze",
   "/documents",
   "/bookings",
+  "/mock-room",
   "/mentor/bookings",
 ];
 
@@ -21,6 +22,14 @@ const PROTECTED_PATHS = [
 // ponytail: client guard chỉ là UX; BE (deps.require_roles) mới là bảo mật thực sự.
 const ROLE_ROUTES: Record<string, string[]> = {
   "/admin": ["admin"],
+  "/admin/overview": ["admin"],
+  "/admin/mentor-verification": ["admin"],
+  "/admin/dispute": ["admin"],
+  "/admin/payout": ["admin"],
+  "/admin/users": ["admin"],
+  "/admin/settings": ["admin"],
+  "/admin/moderation": ["admin"],
+  "/admin/ai-monitor": ["admin"],
 };
 
 export function AuthGate({ children }: { children: React.ReactNode }) {

@@ -5,17 +5,19 @@ Endpoint: /api/mock-qa/{meeting_id}/ws
 
 Message Flow:
 Client -> Server:
-  {"type": "answer", "content": "..."}
+  {"type": "answer", "content": "..."}   # student: gửi cho AI đánh giá
   {"type": "hint_request", "level": 1}
   {"type": "get_status"}
 
+Lưu ý: chat / speech-to-text giữa student & mentor được xử lý ở signaling WS
+(/api/meetings/{meeting_id}/signal), không phải ở đây.
+
 Server -> Client:
   {"type": "question", "question_id": "...", "question": "...", "clo": "CLO1", "type": "Deep-dive", "difficulty": "Medium"}
-  {"type": "feedback", "oga_score": 7.5, "tda_score": 8.0, "feedback": "...", "quality_criteria_met": [...], "confidence": 0.9}
-  {"type": "score_update", "oga": 7.2, "tda": 7.8, "coverage": {"CLO1": 2, "CLO2": 1}}
+  {"type": "feedback", "feedback": "...", "quality_criteria_met": [...], "criteria_not_met": [...], "confidence": 0.9}
+  {"type": "coverage_update", "coverage": {"CLO1": 2, "CLO2": 1}}
   {"type": "hint", "hint": "...", "level": 1}
-  {"type": "score_update", "oga": 7.2, "tda": 7.8, "coverage": {"CLO1": 2}}
-  {"type": "done", "summary": {...}}
+  {"type": "done", "summary": {...}}  # KHÔNG có oga_final/tda_final (không chấm điểm)
   {"type": "error", "message": "..."}
 """
 
@@ -86,11 +88,10 @@ async def mock_qa_websocket(
     
     Server -> Client messages:
     - {"type": "question", "question_id": "...", "question": "...", "clo": "CLO1", "type": "Deep-dive", "difficulty": "Medium"}
-    - {"type": "feedback", "oga_score": 7.5, "tda_score": 8.0, "feedback": "...", "quality_criteria_met": [...], "confidence": 0.9}
-    - {"type": "score_update", "oga": 7.2, "tda": 7.8, "coverage": {"CLO1": 2, "CLO2": 1}}
+    - {"type": "feedback", "feedback": "...", "quality_criteria_met": [...], "criteria_not_met": [...], "confidence": 0.9}
+    - {"type": "coverage_update", "coverage": {"CLO1": 2, "CLO2": 1}}
     - {"type": "hint", "hint": "...", "level": 1}
-    - {"type": "score_update", "oga": 7.2, "tda": 7.8, "coverage": {"CLO1": 2}}
-    - {"type": "done", "summary": {...}}
+    - {"type": "done", "summary": {...}}  # KHÔNG có oga_final/tda_final (không chấm điểm)
     - {"type": "error", "message": "..."}
     """
     # 1. Authenticate user via token
@@ -108,23 +109,31 @@ async def mock_qa_websocket(
     # 2. Verify meeting access
     async with async_session_maker() as db:
         from sqlalchemy import select
-        
+
+        # Tìm booking liên kết với meeting này (cả student lẫn mentor đều được vào)
         booking = await db.execute(
-            select(MockBooking).where(
-                MockBooking.id == meeting_id,
-                MockBooking.student_id == user.id,
-            )
+            select(MockBooking).where(MockBooking.meeting_id == meeting_id)
         )
         booking = booking.scalar_one_or_none()
-        
+
         if not booking:
             await websocket.close(code=4003, reason="Meeting not found or access denied")
             return
-        
+
+        # Chỉ mở khi booking đã confirmed (student & mentor đã chốt xong lịch).
+        # Khoá lại khi mentor xác nhận kết thúc (completed).
         if booking.status != BookingStatus.confirmed:
             await websocket.close(code=4003, reason=f"Booking not confirmed: {booking.status.value}")
             return
-        
+
+        # Chỉ student hoặc mentor của booking này mới được vào phòng
+        is_participant = (
+            booking.student_id == user.id or booking.mentor_id == user.id
+        )
+        if not is_participant:
+            await websocket.close(code=4003, reason="Not a participant of this meeting")
+            return
+
         meeting_id = booking.meeting_id
     
     # 3. Accept WebSocket connection
@@ -212,7 +221,13 @@ async def mock_qa_websocket(
 
 
 async def handle_answer(websocket: WebSocket, session: object, answer: str):
-    """Process student answer."""
+    """Process student answer.
+
+    Lưu ý: hệ thống KHÔNG chấm điểm số. Hội đồng AI và mentor chỉ đưa ra
+    NHẬN XÉT định tính dựa trên rubric (tiêu chí theo trường ĐH). Do đó WS
+    chỉ gửi `feedback` (nhận xét) + `coverage` (CLO đã hỏi), không gửi
+    oga_score / tda_score / score_update.
+    """
     qa_engine = get_qa_engine()
     
     # Get workspace_id from session
@@ -220,21 +235,18 @@ async def handle_answer(websocket: WebSocket, session: object, answer: str):
     try:
         result = await qa_engine.process_answer(session, answer, workspace_id)
         
-        # Send feedback
+        # Send qualitative feedback (KHÔNG có điểm số)
         await websocket.send_json({
             "type": "feedback",
-            "oga_score": result.get("oga_score", 0),
-            "tda_score": result.get("tda_score", 0),
             "feedback": result.get("feedback", ""),
             "quality_criteria_met": result.get("quality_criteria_met", []),
+            "criteria_not_met": result.get("criteria_not_met", []),
             "confidence": result.get("confidence", 0.0),
         })
         
-        # Send score update
+        # Send CLO coverage update (KHÔNG có điểm số)
         await websocket.send_json({
-            "type": "score_update",
-            "oga": result.get("oga_total", 0),
-            "tda": result.get("tda_total", 0),
+            "type": "coverage_update",
             "coverage": result.get("coverage", {}),
         })
         
@@ -278,13 +290,14 @@ async def send_status(websocket: WebSocket, session: object):
 
 
 async def send_completion(websocket: WebSocket, session: object):
-    """Send session completion summary."""
+    """Send session completion summary.
+
+    KHÔNG chứa điểm số (oga_final/tda_final) — chỉ nhận xét định tính theo rubric.
+    """
     summary = {
         "session_id": "session_id",
         "duration_minutes": 30,
         "total_questions": 10,
-        "oga_final": 7.5,
-        "tda_final": 8.0,
         "clo_coverage": {"CLO1": 2, "CLO2": 2},
         "strengths": ["SRS understanding", "Architecture knowledge"],
         "weaknesses": ["Test design", "Deployment knowledge"],

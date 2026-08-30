@@ -40,3 +40,26 @@ def require_role(*allowed: str):
         return user
 
     return _check
+
+
+async def get_current_user_ws(token: str, db_session_maker) -> User | None:
+    """Variant cho WebSocket: decode token thủ công (không dùng OAuth2 scheme).
+
+    Trả về User hoặc None nếu token không hợp lệ. Dùng trong signaling / mock-qa WS.
+    """
+    from app.core.security import decode_access_token
+
+    try:
+        payload = decode_access_token(token)
+    except Exception:
+        return None
+    async with db_session_maker() as db:
+        result = await db.execute(
+            select(User)
+            .options(selectinload(User.roles))
+            .where(User.id == int(payload["sub"]))
+        )
+        user = result.scalar_one_or_none()
+        if not user or not user.is_active:
+            return None
+        return user

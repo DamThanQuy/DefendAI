@@ -61,8 +61,6 @@ class QuestionLog:
     clo: str
     question: str
     answer: str
-    oga_score: float
-    tda_score: float
     answer_quality: float
     question_type: str
     difficulty: str
@@ -90,8 +88,7 @@ class MockQASession:
     session_timeout: int = 1800  # 30 minutes
     question_timeout: int = 300  # 5 minutes per question
     max_questions: int = 10
-    score_aggregator: "ScoreAggregator" = field(default_factory=lambda: ScoreAggregator())
-    
+
     # Current question tracking
     current_question_id: Optional[str] = None
     current_question_text: Optional[str] = None
@@ -104,81 +101,12 @@ class MockQASession:
 
 
 class ScoreAggregator:
-    """Tính toán điểm OGA/TDA real-time."""
-    
-    def __init__(self):
-        self.oga_total = 0.0
-        self.tda_total = 0.0
-        self.question_count = 0
-        self.clo_scores: Dict[str, Dict[str, List[float]]] = defaultdict(
-            lambda: {"oga": [], "tda": []}
-        )
-        self.logic_errors = 0
-        self.show_stoppers = 0
-    
-    def add_score(self, clo: str, oga: float, tda: float, question_type: str = ""):
-        """Thêm điểm cho một câu hỏi."""
-        self.oga_total += oga
-        self.tda_total += tda
-        
-        self.clo_scores[clo]["oga"].append(oga)
-        self.clo_scores[clo]["tda"].append(tda)
-        
-        # Track logic errors / show stoppers for pass rules
-        # Logic errors: logic_error type with high/medium severity
-        # Show stoppers: critical severity issues
-    
-    def add_logic_error(self, severity: str):
-        if severity in ["critical", "high"]:
-            self.logic_errors += 1
-    
-    def add_show_stopper(self):
-        self.show_stoppers += 1
-    
-    def get_average(self) -> Dict[str, Any]:
-        if self.question_count == 0:
-            return {"oga_avg": 0, "tda_avg": 0, "per_clo": {}}
-        
-        per_clo = {}
-        for clo, scores in self.clo_scores.items():
-            if scores["oga"]:
-                oga_avg = sum(scores["oga"]) / len(scores["oga"])
-                tda_avg = sum(scores["tda"]) / len(scores["tda"])
-                per_clo[clo] = {
-                    "oga_avg": round(oga_avg, 1),
-                    "tda_avg": round(tda_avg, 1),
-                    "count": len(scores["oga"]),
-                }
-        
-        return {
-            "oga_avg": round(self.oga_total / self.question_count, 1) if self.question_count > 0 else 0,
-            "tda_avg": round(self.tda_total / self.question_count, 1) if self.question_count > 0 else 0,
-            "per_clo": per_clo,
-            "total_questions": self.question_count,
-            "logic_errors": 0,  # TODO: implement
-            "show_stoppers": 0,
-        }
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "oga_total": self.oga_total,
-            "tda_total": self.tda_total,
-            "question_count": self.question_count,
-            "clo_scores": {
-                clo: {"oga": scores["oga"], "tda": scores["tda"]}
-                for clo, scores in self.clo_scores.items()
-            },
-        }
-    
+    """Tính toán điểm OGA/TDA real-time (ĐÃ LOẠI BỎ - giữ lại để tương thích cũ)."""
+    pass
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ScoreAggregator":
         agg = cls()
-        agg.oga_total = data.get("oga_total", 0)
-        agg.tda_total = data.get("tda_total", 0)
-        agg.question_count = data.get("question_count", 0)
-        for clo, scores in data.get("clo_scores", {}).items():
-            agg.clo_scores[clo]["oga"] = scores.get("oga", [])
-            agg.clo_scores[clo]["tda"] = scores.get("tda", [])
         return agg
 
 

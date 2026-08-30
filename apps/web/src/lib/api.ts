@@ -143,6 +143,7 @@ export interface Booking {
   student_name?: string | null;
   mentor_name?: string | null;
   room_open?: boolean | null;
+  invited_students?: { user_id: number; name: string | null }[] | null;
 }
 
 export interface MeetingAccess {
@@ -173,6 +174,14 @@ export function cancelBooking(bookingId: number) {
   return api.post<Booking>(`/api/bookings/${bookingId}/cancel`);
 }
 
+// Student chủ trì: mời thêm sinh viên khác vào phòng Mock Room
+export function inviteStudent(
+  bookingId: number,
+  identifier: string,
+) {
+  return api.post<Booking>(`/api/bookings/${bookingId}/invite`, { identifier });
+}
+
 // Mentor: danh sách chờ xác nhận
 export function getPendingBookings() {
   return api.get<Booking[]>("/api/bookings/pending");
@@ -199,6 +208,28 @@ export function completeBooking(bookingId: number) {
 // Kiểm tra phòng có mở không (trước 5 phút)
 export function checkMeetingAccess(meetingId: number) {
   return api.get<MeetingAccess>(`/api/meetings/${meetingId}/access`);
+}
+
+// Lịch sử tin nhắn / speech-to-text của phòng (để xem lại sau reload)
+export interface MeetingMessageItem {
+  id: number;
+  meeting_id: number;
+  sender_name: string;
+  sender_role: string;
+  content: string;
+  created_at: string;
+}
+
+export function getMeetingMessages(meetingId: number) {
+  return api.get<MeetingMessageItem[]>(`/api/meetings/${meetingId}/messages`);
+}
+
+// Lưu tin nhắn / speech-to-text (dùng khi WS signaling chưa sẵn sàng)
+export function postMeetingMessage(
+  meetingId: number,
+  payload: { sender_name: string; sender_role: string; content: string },
+) {
+  return api.post<MeetingMessageItem>(`/api/meetings/${meetingId}/messages`, payload);
 }
 
 // Danh sách mentor (cho student chọn khi đặt lịch)
