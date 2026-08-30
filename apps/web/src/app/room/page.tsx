@@ -43,7 +43,6 @@ type QAMessage = {
   clo?: string;
   qa_type?: string;
   q_type?: string;
-  type?: string;
   difficulty?: string;
   feedback?: string;
   quality_criteria_met?: string[];
