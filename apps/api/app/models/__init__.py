@@ -20,16 +20,24 @@ from app.models.assessment import (  # noqa: F401
     Assessment,
     AssessmentStatus,
     CodeAnalysis,
+    CodeAnalysisIssue,
+    CodeAnalysisStatus,
     Evaluation,
     Report,
 )
 from app.models.defense_score import DefenseScore, DefenseScoreAudit  # noqa: F401
 from app.models.committee_decision import CommitteeDecision  # noqa: F401
+from app.models.use_case_commitment import (  # noqa: F401
+    UseCaseCommitment,
+    UseCaseCommitmentAudit,
+    UCStatus,
+    UCSource,
+)
 from app.models.app_setting import AppSetting  # noqa: F401
 from app.models.ai_config import AIProvider, AIModel, FeatureAIConfig  # noqa: F401
 from app.models.session import Session  # noqa: F401
 from app.models.message import Message  # noqa: F401
-from app.models.workspace import Workspace  # noqa: F401
+from app.models.workspace import Workspace, WorkspaceFile  # noqa: F401
 from app.models.workspace_question import WorkspaceQuestion  # noqa: F401
 from app.models.workspace_chat import WorkspaceChat  # noqa: F401
 
@@ -60,12 +68,17 @@ __all__ = [
     "DefenseScore",
     "DefenseScoreAudit",
     "CommitteeDecision",
+    "UseCaseCommitment",
+    "UseCaseCommitmentAudit",
+    "UCStatus",
+    "UCSource",
     "AppSetting",
     "AIProvider",
     "AIModel",
     "FeatureAIConfig",
     "Session",
     "Workspace",
+    "WorkspaceFile",
     "Message",
     "WorkspaceQuestion",
     "WorkspaceChat",

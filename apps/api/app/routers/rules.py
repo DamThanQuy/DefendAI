@@ -21,6 +21,8 @@ from app.models.user import User
 from app.services.rules import evaluate_all_rules, to_dict
 from app.services.rubric_service import get_rubric_by_key
 from app.services.scoring_service import final_score
+from app.services.meeting_workspace import find_workspace_for_meeting
+from app.services.use_case_mapper import get_uc_count_for_rules
 
 router = APIRouter(prefix="/api/rules", tags=["Rules"])
 
@@ -68,7 +70,18 @@ async def check_rules(meeting_id: int, db: AsyncSession = Depends(get_db)) -> di
         )
         oga_score = oga_result.get("oga", {}).get("score")
 
-    rules = await evaluate_all_rules(db, oga_score)
+    # BR-B2: feed UC stats từ workspace tương ứng (nếu tìm được)
+    completion_ratio = None
+    total_uc = None
+    workspace = await find_workspace_for_meeting(db, meeting)
+    if workspace:
+        total_uc, completion_ratio = await get_uc_count_for_rules(db, workspace.id)
+
+    rules = await evaluate_all_rules(
+        db, oga_score,
+        completion_ratio=completion_ratio,
+        total_uc=total_uc,
+    )
 
     # Đọc decisions đã tick
     decisions = {
@@ -86,6 +99,9 @@ async def check_rules(meeting_id: int, db: AsyncSession = Depends(get_db)) -> di
         "meeting_id": meeting_id,
         "oga_score": oga_score,
         "pass_mark": pass_mark,
+        "workspace_id": workspace.id if workspace else None,
+        "completion_ratio": completion_ratio,
+        "total_uc": total_uc,
         "rules": [
             {
                 **to_dict(r),
