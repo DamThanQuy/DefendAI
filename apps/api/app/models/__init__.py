@@ -33,6 +33,11 @@ from app.models.use_case_commitment import (  # noqa: F401
     UCStatus,
     UCSource,
 )
+from app.models.defect_severity import (  # noqa: F401
+    AuditCodeAnalysisIssue,
+    DefectSeverity,
+    map_legacy_severity,
+)
 from app.models.app_setting import AppSetting  # noqa: F401
 from app.models.ai_config import AIProvider, AIModel, FeatureAIConfig  # noqa: F401
 from app.models.session import Session  # noqa: F401
@@ -72,6 +77,8 @@ __all__ = [
     "UseCaseCommitmentAudit",
     "UCStatus",
     "UCSource",
+    "DefectSeverity",
+    "AuditCodeAnalysisIssue",
     "AppSetting",
     "AIProvider",
     "AIModel",

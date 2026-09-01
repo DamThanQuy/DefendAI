@@ -23,6 +23,11 @@ from app.models.assessment import (
     Evaluation,
     Report,
 )
+from app.models.defect_severity import (
+    AuditCodeAnalysisIssue,
+    DefectSeverity,
+    map_legacy_severity,
+)
 
 from app.models.refresh_token import RefreshToken
 from app.models.workspace import Workspace, WorkspaceFile
@@ -47,6 +52,9 @@ __all__ = [
     "CodeAnalysisStatus",
     "Evaluation",
     "Report",
+    "DefectSeverity",
+    "AuditCodeAnalysisIssue",
+    "map_legacy_severity",
     "DocumentChunk", "RefreshToken",
     "ReferenceChunk",
     "Workspace", "WorkspaceFile",

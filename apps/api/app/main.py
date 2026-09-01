@@ -27,6 +27,7 @@ from app.routers import rubrics as rubrics_router
 from app.routers import scoring as scoring_router
 from app.routers import rules as rules_router
 from app.routers import use_cases as use_cases_router
+from app.routers import defects as defects_router
 from app.routers import mock_qa as mock_qa_router
 from app.routers import signaling as signaling_router
 # Khởi tạo AI gateway ngay khi import (sẽ log providers nào đã ready)
@@ -86,6 +87,8 @@ app.include_router(scoring_router.router)
 app.include_router(rules_router.router)
 # Use Cases (BR-B2): AI trích UC từ SRS + cam kết + completed/omitted
 app.include_router(use_cases_router.router)
+# Defects (BR-B3): thống kê n_logic/n_showstopper + override severity
+app.include_router(defects_router.router)
 # Mock Room AI Q&A WebSocket
 app.include_router(mock_qa_router.router)
 # WebRTC signaling (voice chat + screen share) cho Mock Room
