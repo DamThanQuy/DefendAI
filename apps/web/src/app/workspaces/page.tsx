@@ -340,13 +340,13 @@ export default function WorkspacesPage() {
                     onClick={() => setRenameWs(ws)}
                     className="px-3 py-1.5 text-[12px] font-semibold text-zinc-400 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
                   >
-                    ✏️ Đổi tên
+                    Đổi tên
                   </button>
                   <button
                     onClick={() => handleDelete(ws)}
                     className="px-3 py-1.5 text-[12px] font-semibold text-red-400 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors"
                   >
-                    🗑️ Xoá
+                    Xoá
                   </button>
                   <button
                     onClick={() => openAddModal(ws)}
@@ -374,20 +374,6 @@ export default function WorkspacesPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {f.doc_type === "zip" && (
-                          <Link
-                            href={`/code-review?doc=${f.document_id}`}
-                            className="px-3 py-1.5 text-[12px] font-semibold text-zinc-300 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
-                          >
-                            🔍 Code Review
-                          </Link>
-                        )}
-                        <Link
-                          href={`/documents/${f.document_id}`}
-                          className="px-3 py-1.5 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors"
-                        >
-                          Tạo câu hỏi
-                        </Link>
                         <button
                           onClick={() => handleRemoveFile(ws, f.document_id)}
                           className="w-7 h-7 flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"

@@ -44,3 +44,4 @@ class Document(Base):
     assessments = relationship("Assessment", back_populates="document", cascade="all, delete-orphan")
     code_analyses = relationship("CodeAnalysis", back_populates="document", cascade="all, delete-orphan")
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
+    code_module_hashes = relationship("CodeModuleHash", back_populates="document", cascade="all, delete-orphan")

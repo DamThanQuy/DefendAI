@@ -1,0 +1,122 @@
+﻿{
+    "id":  82,
+    "workspace_id":  30,
+    "topic":  "Fenchise Management",
+    "status":  "completed",
+    "questions":  [
+                      {
+                          "id":  1,
+                          "question":  "Dá»± Ã¡n xÃ¡c Äá»nh pháº¡m vi giá»i háº¡n (LI-2) lÃ  COS \u0027chá» ÄÆ°á»£c sá»­ dá»¥ng cho quÃ¡n Än táº¡i khuÃ´n viÃªn Process Impact á» Clackamas, Oregon\u0027. Tuy nhiÃªn, Feature FE-02 láº¡i bao gá»m \u0027Äáº·t vÃ  thanh toÃ¡n mÃ³n tá»« cÃ¡c nhÃ  hÃ ng Äá»a phÆ°Æ¡ng\u0027. Náº¿u cÃ¡c nhÃ  hÃ ng Äá»a phÆ°Æ¡ng nÃ y náº±m ngoÃ i khuÃ´n viÃªn Process Impact, váº­y ranh giá»i Äá»a lÃ½ cá»§a \u0027local restaurants\u0027 trong FE-02 cÃ³ khá»p vá»i giá»i háº¡n LI-2 hay khÃ´ng? HÃ£y giáº£i thÃ­ch sá»± mÃ¢u thuáº«n (náº¿u cÃ³) vÃ  Äá» xuáº¥t cÃ¡ch hiá»u chá»nh pháº¡m vi.",
+                          "suggested_answer":  "Cáº§n Äá»i chiáº¿u giá»¯a pháº§n 6.2 Limitations (LI-2: COS used only for the cafeteria at Process Impact campus) vÃ  pháº§n 6.1 Major Features (FE-02: order/pay meals from local restaurants to be delivered). Náº¿u \u0027local restaurants\u0027 ÄÆ°á»£c hiá»u lÃ  nhÃ  hÃ ng xung quanh campus, thÃ¬ cÃ³ thá» mÃ¢u thuáº«n. Gá»£i Ã½ tráº£ lá»i: PhÃ¢n tÃ­ch ngá»¯ cáº£nh \u0027local\u0027 trong tÃ i liá»u, Äá» xuáº¥t xÃ¡c Äá»nh rÃµ \u0027local restaurants\u0027 lÃ  nhá»¯ng nhÃ  hÃ ng trong vÃ¹ng phá»¥c vá»¥ giao hÃ ng cá»§a COS, hoáº·c Äiá»u chá»nh LI-2 Äá» má» rá»ng pháº¡m vi náº¿u ÄÃ¢y lÃ  tÃ­nh nÄng chiáº¿n lÆ°á»£c.",
+                          "difficulty":  "medium",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  2,
+                          "question":  "Trong mind map (Figure 2), nhÃ¡nh \u0027Meal Subscriptions\u0027 chá» liá»t kÃª ba chá»©c nÄng: Create Subscription, Modify Subscription, Cancel Subscription. Trong khi ÄÃ³, pháº§n 6.1 Major Features (FE-03) mÃ´ táº£: \u0027Create, view, modify, and cancel meal subscriptions\u0027. Viá»c thiáº¿u \u0027view subscription\u0027 trong mind map cÃ³ pháº£i lÃ  má»t lá» há»ng thiáº¿t káº¿ khÃ´ng? Náº¿u cÃ³, hÃ£y Äá» xuáº¥t cÃ¡ch bá» sung vÃ o mind map vÃ  giáº£i thÃ­ch tÃ¡c Äá»ng cá»§a nÃ³ Äáº¿n use case \u0027View Subscription\u0027.",
+                          "suggested_answer":  "So sÃ¡nh giá»¯a mind map (chá» cÃ³ Create, Modify, Cancel) vÃ  mÃ´ táº£ tÃ­nh nÄng FE-03 (cÃ³ cáº£ View). ÄÃ¢y cÃ³ thá» lÃ  sá»± khÃ´ng nháº¥t quÃ¡n trong tÃ i liá»u. Gá»£i Ã½: XÃ¡c nháº­n ÄÃ¢y lÃ  lá» há»ng, Äá» xuáº¥t thÃªm nhÃ¡nh \u0027View Subscription\u0027 vÃ o mind map, vÃ  giáº£i thÃ­ch use case tÆ°Æ¡ng á»©ng cáº§n ÄÆ°á»£c thÃªm vÃ o bÃ¡o cÃ¡o SRS.",
+                          "difficulty":  "easy",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  3,
+                          "question":  "Theo rubric há»i Äá»ng (SEP490), pháº§n 2.3 Training Plan yÃªu cáº§u xÃ¡c Äá»nh \u0027Training Area\u0027, \u0027Participants\u0027, \u0027When, Duration\u0027, \u0027Waiver Criteria\u0027. Trong tÃ i liá»u hiá»n táº¡i, báº£ng Training Plan cÃ²n trá»ng. Vá»i há» thá»ng COS sá»­ dá»¥ng cÃ´ng nghá» Angular 7, Android, Java/SpringBoot, MySQL, FireBase, hÃ£y Äá» xuáº¥t Ã­t nháº¥t ba khu vá»±c ÄÃ o táº¡o cáº§n thiáº¿t, Äá»i tÆ°á»£ng tham gia, thá»i lÆ°á»£ng vÃ  tiÃªu chÃ­ miá»\u0085n ÄÃ o táº¡o (waiver criteria) cho má»i khu vá»±c.",
+                          "suggested_answer":  "Dá»±a vÃ o cÃ´ng nghá» vÃ  vai trÃ² trong dá»± Ã¡n (Administrator, Menu Manager, Patron, developer). Gá»£i Ã½ cÃ¡c area: 1) Sá»­ dá»¥ng há» thá»ng (cho nhÃ¢n viÃªn quÃ¡n Än, quáº£n lÃ½ menu), 2) PhÃ¡t triá»n vÃ  báº£o trÃ¬ mÃ£ nguá»n (Angular, SpringBoot, Android), 3) Quáº£n trá» cÆ¡ sá» dá»¯ liá»u vÃ  deploy (MySQL, FireBase, AWS). XÃ¡c Äá»nh participants, duration, waiver criteria (vÃ­ dá»¥: ÄÃ£ cÃ³ chá»©ng chá» liÃªn quan, ÄÃ£ lÃ m dá»± Ã¡n tÆ°Æ¡ng tá»±).",
+                          "difficulty":  "medium",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  4,
+                          "question":  "Pháº§n 3.1.3 Screen Authorization yÃªu cáº§u ma tráº­n phÃ¢n quyá»n theo Role Ã Screen/Activity. Trong mind map, cÃ³ hai nhÃ³m quyá»n: \u0027Patron Menu Operations\u0027 (View Menu, View Ingredient List) vÃ  \u0027Cafeteria Menu Operations\u0027 (Create Menu, Modify Menu, Archieve Menu, Delete Menu). HÃ£y xÃ¡c Äá»nh cÃ¡c role cÃ³ thá» cÃ³ (vÃ­ dá»¥: Patron, Menu Manager, Administrator) vÃ  váº½ ma tráº­n phÃ¢n quyá»n sÆ¡ bá» cho cÃ¡c mÃ n hÃ¬nh chÃ­nh cá»§a COS.",
+                          "suggested_answer":  "Dá»±a vÃ o mind map vÃ  máº«u rubric, suy luáº­n cÃ¡c role: Patron (khÃ¡ch hÃ ng), Menu Manager (quáº£n lÃ½ menu), Administrator (quáº£n trá» há» thá»ng). Ma tráº­n cáº§n thá» hiá»n quyá»n truy cáº­p tá»«ng mÃ n hÃ¬nh: View Menu, View Ingredient List, Create Menu, Modify Menu, Archive Menu, Delete Menu. Gá»£i Ã½: Patron cÃ³ View Menu vÃ  View Ingredient List; Menu Manager cÃ³ CRUD menu; Administrator cÃ³ toÃ n quyá»n.",
+                          "difficulty":  "hard",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  5,
+                          "question":  "Business Rules trong rubric máº«u (BR-01 Äáº¿n BR-88) bao gá»m cÃ¡c quy táº¯c vá» khung giá» giao hÃ ng, thuáº¿, phÃ­ giao hÃ ng, giá»i háº¡n trá»« lÆ°Æ¡ng. Trong tÃ i liá»u hiá»n táº¡i, pháº§n 5.1 Business Rules cÃ²n trá»ng. HÃ£y Äá» xuáº¥t Ã­t nháº¥t nÄm business rule Äáº·c thÃ¹ cho há» thá»ng COS, dá»±a trÃªn thÃ´ng tin trong Product Background vÃ  Major Features, bao gá»m quy táº¯c vá»: (a) thá»i gian Äáº·t trÆ°á»c, (b) phÃ­ giao hÃ ng theo khu vá»±c, (c) giá»i háº¡n ÄÆ¡n hÃ ng, (d) chÃ­nh sÃ¡ch há»§y ÄÆ¡n, (e) thanh toÃ¡n.",
+                          "suggested_answer":  "Suy luáº­n tá»« bá»i cáº£nh: nhÃ¢n viÃªn tá»n 65 phÃºt/ngÃ y, Æ°u tiÃªn tiáº¿t kiá»m thá»i gian; menu giao hÃ ng lÃ  táº­p con; cÃ³ ÄÄng kÃ½ bá»¯a Än; thanh toÃ¡n qua payroll deduction. Gá»£i Ã½ BR: BR-10: ÄÆ¡n hÃ ng pháº£i Äáº·t trÆ°á»c Ã­t nháº¥t 2 giá» so vá»i khung giá» giao hÃ ng. BR-11: PhÃ­ giao hÃ ng Ã¡p dá»¥ng cho ÄÆ¡n hÃ ng giao Äáº¿n Äá»a Äiá»m ngoÃ i khu vá»±c miá»\u0085n phÃ­ (cÃ¡ch quÃ¡n Än \u003e 1km). BR-12: Sá» lÆ°á»£ng mÃ³n tá»i Äa trong má»t ÄÆ¡n lÃ  10. BR-13: Há»§y ÄÆ¡n trÆ°á»c 1 giá» so vá»i khung giá» giao hÃ ng sáº½ ÄÆ°á»£c hoÃ n tiá»n 100%. BR-14: Thanh toÃ¡n cÃ³ thá» thá»±c hiá»n qua tháº» tÃ­n dá»¥ng hoáº·c trá»« vÃ o lÆ°Æ¡ng (payroll deduction) vá»i Äiá»u kiá»n nhÃ¢n viÃªn ÄÃ£ ÄÄng kÃ½.",
+                          "difficulty":  "medium",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  6,
+                          "question":  "Project Scope \u0026 Limitations (pháº§n 6) lÃ  cÆ¡ sá» Äá» ÄÃ¡nh giÃ¡ cÃ¡c thay Äá»i yÃªu cáº§u sau nÃ y. Giáº£ sá»­ trong quÃ¡ trÃ¬nh phÃ¡t triá»n, stakeholder yÃªu cáº§u thÃªm tÃ­nh nÄng \u0027Äáº·t mÃ³n cho nhÃ¢n viÃªn cÃ´ng ty khÃ¡c (khÃ´ng pháº£i Process Impact)\u0027. Dá»±a trÃªn nguyÃªn táº¯c trong pháº§n Project Scope \u0026 Limitations, hÃ£y phÃ¢n tÃ­ch: (1) YÃªu cáº§u nÃ y cÃ³ náº±m trong pháº¡m vi hiá»n táº¡i khÃ´ng? (2) Náº¿u muá»n cháº¥p nháº­n, cáº§n thay Äá»i nhá»¯ng yáº¿u tá» nÃ o (ngÃ¢n sÃ¡ch, lá»ch trÃ¬nh, nguá»n lá»±c)? (3) Äá» xuáº¥t cÃ¡ch pháº£n há»i stakeholder.",
+                          "suggested_answer":  "Dá»±a vÃ o mÃ´ táº£ trong tÃ i liá»u: \u0027Proposed requirements that are out of scope ... must be rejected, unless they are so beneficial that the scope should be enlarged ... with accompanying changes in budget, schedule, and/or resources\u0027. YÃªu cáº§u trÃªn khÃ´ng phÃ¹ há»£p vá»i LI-2 (chá» dÃ¹ng cho campus Process Impact). VÃ¬ váº­y, ÄÃ¢y lÃ  yÃªu cáº§u ngoÃ i pháº¡m vi. Äá» cháº¥p nháº­n, cáº§n ÄÃ¡nh giÃ¡ lá»£i Ã­ch, sau ÄÃ³ ÄÃ m phÃ¡n thay Äá»i ngÃ¢n sÃ¡ch, lá»ch trÃ¬nh, nguá»n lá»±c. Pháº£n há»i stakeholder: giáº£i thÃ­ch lÃ½ do ngoÃ i pháº¡m vi, Äá» xuáº¥t lá» trÃ¬nh má» rá»ng náº¿u cÃ³ lá»£i Ã­ch chiáº¿n lÆ°á»£c.",
+                          "difficulty":  "hard",
+                          "citations":  [
+
+                                        ]
+                      }
+                  ],
+    "sources":  [
+                    {
+                        "num":  1,
+                        "source":  "user",
+                        "title":  "Report1_Project Introduction.docx",
+                        "chunk_index":  1,
+                        "content":  "iscount agreements with the restaurants.\u003e\u003e 5. Software Product Vision [Write a concise vision statement that summarizes the purpose and intent of the new product and describes what the world will be like when it includes the product. The vision statement should reflect a balanced view that will satisfy the needs of diverse customers as well as those of the developing organization. It may be somewhat idealistic, but it should be grounded in the realities of existing or anticipated customer market"
+                    },
+                    {
+                        "num":  2,
+                        "source":  "user",
+                        "title":  "Report1_Project Introduction.docx",
+                        "chunk_index":  2,
+                        "content":  "Figure 1 (photo): Image 1 (uncaptioned). The logo of FPT University. It features the stylized letters \u0027FPT\u0027 in blue, orange, and green, followed by the text \u0027Fpt University\u0027 in blue, and the Vietnamese text \u0027TRÆ¯á»NG Äáº I Há»C FPT\u0027 in orange below."
+                    },
+                    {
+                        "num":  3,
+                        "source":  "user",
+                        "title":  "Report1_Project Introduction.docx",
+                        "chunk_index":  0,
+                        "content":  "Capstone Project Report Report 1 â Project Introduction â Hanoi, August 2019 â I. Record of Changes *A - Added M - Modified D - Deleted II. Project Introduction 1. Overview 1.1 Project Information Project name: \u003c\u003c Cafeteria Ordering System\u003e\u003e Project code: \u003c\u003cCOS\u003e\u003e Group name: \u003c\u003cSWP493-G4\u003e\u003e Software type: \u003c\u003cSoftware Type: Web, Mobile App,..\u003e\u003e 1.2 Project Team 2. Product Background [This section summarizes the rationale for the new product. Provide a general description of the history or situation "
+                    },
+                    {
+                        "num":  4,
+                        "source":  "user",
+                        "title":  "Report1_Project Introduction.docx",
+                        "chunk_index":  3,
+                        "content":  "Figure 2 (technical diagram): Image 2 (uncaptioned). A mind map diagram representing the \u0027Cafeteria Ordering System (COS)\u0027. The central node is \u0027Cafeteria Ordering System (COS)\u0027. It branches into four main categories: \u0027Access the COS\u0027, \u0027Meal Subscriptions\u0027, \u0027Order Meals\u0027, and \u0027Menu Operations\u0027. \u0027Access the COS\u0027 branches into \u0027Internet\u0027, \u0027Intranet\u0027, and \u0027Mobile Devices\u0027 (which further branches into \u0027Smart Phone\u0027 and \u0027Tablet\u0027). \u0027Meal Subscriptions\u0027 branches into \u0027Create Subscription\u0027, \u0027Modify Subs"
+                    },
+                    {
+                        "num":  5,
+                        "source":  "ref",
+                        "title":  "SEP490_TongHop",
+                        "chunk_index":  "2",
+                        "content":  "| % of Defect | Notes (Reviewing, Unit Test, Integration Test, System Test, Acceptance Test) - Milestone Timeliness (%) - Allocated Effort (man-days) #### 1.3 Project Risks | # | Risk Description | Impact | Possibility | Response Plans | |---|---|---|---|---| ### 2. Management Approach #### 2.1 Project Process â draw \u0026 describe SDLC model #### 2.2 Quality Management â Defect Prevention, Reviewing, Unit/Integration/System Testing #### 2.3 Training Plan | Training Area | Participants | When, Durat"
+                    },
+                    {
+                        "num":  6,
+                        "source":  "ref",
+                        "title":  "SEP490_TongHop",
+                        "chunk_index":  "1",
+                        "content":  "\u0026A 10% **Final = OGA Ã 50% + TDA Ã 50%** â scale 0-10, 1 decimal (e.g. 6.7). ## III. Project Document Templates - 1.1 Report 1 Project Introduction - 1.2 Report 2 Project Management Plan (+ sample Report2_Sample Project Schedule, RUP recommended) - 1.3 Report 3 SRS (+ Report3_Project Tracking: Product/Iteration Backlogs) - 1.4 Report 4 SDD - 1.5 Report 5 STD (Unit Test / Test Report / Test Documentation) - 1.6 Report 6 SUG - 1.7 Report 7 Final Project Report ### 2. Tracking - 2.1 Schedule \u0026 Task"
+                    },
+                    {
+                        "num":  7,
+                        "source":  "ref",
+                        "title":  "SEP490_TongHop",
+                        "chunk_index":  "0",
+                        "content":  "# Tá»NG Há»¢P TÃI LIá»U Äá» ÃN Tá»T NGHIá»P KTPM (SEP490) \u003e Gá»p tá»« 4 file markdown chuyá»n Äá»i tá»« bá» tÃ i liá»u chuáº©n FPT University Capstone: \u003e - `Report1_Project Introduction.md` \u003e - `Report2_Project Management Plan.md` \u003e - `Report3_Software Requirement Specification.md` \u003e - `SEP490 StudentGuide_Fall 2023.md` \u003e \u003e DÃ¹ng lÃ m tÃ i nguyÃªn tham kháº£o chuáº©n cho rubric `defense_sep490` (DefendAI). --- # PHáº¦N A â STUDENT GUIDE (Quy Äá»nh chung SEP490) ## I. General Introduction ### 1. Capstone Project\u0027s description"
+                    },
+                    {
+                        "num":  8,
+                        "source":  "ref",
+                        "title":  "SEP490_TongHop",
+                        "chunk_index":  "3",
+                        "content":  "| Deliveries 10:00 A.M.â2:00 P.M. local | | BR-03 | All meals in one order â same location | | BR-04 | One order â one payment method | | BR-11 | Delivery orders â payroll deduction | | BR-12 | Price = Î£(item price Ã qty) + tax + delivery charge (if outside free zone) | | BR-24 | Only designated Menu Managers can CRUD menus | | BR-33 | Financial/PII network transmissions require 256-bit encryption | | BR-86 | Only regular employees can register payroll deduction | | BR-88 | Payroll deduction OK "
+                    }
+                ],
+    "error":  null,
+    "created_at":  "2026-09-01T20:27:37.386077"
+}

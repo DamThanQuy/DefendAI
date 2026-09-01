@@ -1,0 +1,158 @@
+﻿{
+    "id":  83,
+    "workspace_id":  30,
+    "topic":  "Fenchise Management - toan bo do an R1-R7 va slides: PMP SRS SDD STD SUG implementation defense",
+    "status":  "completed",
+    "questions":  [
+                      {
+                          "id":  1,
+                          "question":  "BÃ¡o cÃ¡o ÄÃ£ liá»t kÃª cÃ¡c tÃ­nh nÄng FE-01 Äáº¿n FE-05 vÃ  giá»i háº¡n LI-1, LI-2. Tuy nhiÃªn, khÃ´ng cÃ³ pháº§n nÃ o mÃ´ táº£ mÃ´ hÃ¬nh kinh doanh hoáº·c lá»£i Ã­ch cá»¥ thá» cho nhÃ  cung cáº¥p dá»ch vá»¥ cafeteria (khÃ´ng chá» cho nhÃ¢n viÃªn). Há» thá»ng COS sáº½ táº¡o ra giÃ¡ trá» tÃ i chÃ­nh hoáº·c váº­n hÃ nh nÃ o cho Äá»i tÃ¡c nhÃ  hÃ ng/cafeteria, vÃ  cafeteria cÃ³ sáºµn sÃ ng chuyá»n sang quy trÃ¬nh Äáº·t mÃ³n online hay khÃ´ng?",
+                          "suggested_answer":  "Cáº§n nÃªu rÃµ lá»£i Ã­ch cho cáº£ hai phÃ­a: ngÆ°á»i dÃ¹ng (nhÃ¢n viÃªn) vÃ  ÄÆ¡n vá» cung cáº¥p (cafeteria). CÃ³ thá» Äá» cáº­p Äáº¿n viá»c giáº£m lÃ£ng phÃ­ thá»±c pháº©m, tá»i Æ°u tá»n kho, hoáº·c tÄng doanh thu thÃ´ng qua ÄÆ¡n Äáº·t trÆ°á»c.",
+                          "difficulty":  "medium",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  2,
+                          "question":  "Report 1 ghi giá»i háº¡n LI-2: \u0027COS shall be used only for the cafeteria at the Process Impact campus\u0027. VÃ¬ ÄÃ¢y lÃ  Äá» Ã¡n tá»t nghiá»p táº¡i FPT University Viá»t Nam, viá»c dÃ¹ng bá»i cáº£nh \u0027Process Impact campus in Clackamas, Oregon\u0027 lÃ  khÃ´ng phÃ¹ há»£p thá»±c táº¿. NhÃ³m ÄÃ£ Äiá»u chá»nh bá»i cáº£nh thÃ nh Viá»t Nam chÆ°a, vÃ  náº¿u cÃ³, thÃ´ng tin nÃ y ÄÆ°á»£c thá» hiá»n á» tÃ i liá»u nÃ o?",
+                          "suggested_answer":  "Náº¿u ÄÃ£ Äiá»u chá»nh bá»i cáº£nh cho phÃ¹ há»£p vá»i FPTU HÃ  Ná»i, cáº§n chá» rÃµ nÆ¡i tÃ i liá»u pháº£n Ã¡nh Äiá»u nÃ y. Náº¿u chÆ°a, ÄÃ¢y lÃ  lá»i nghiÃªm trá»ng vá» tÃ­nh thá»±c táº¿ cá»§a Äá» tÃ i.",
+                          "difficulty":  "hard",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  3,
+                          "question":  "Danh sÃ¡ch cÃ´ng nghá» cÃ³ ghi \u0027Angular 7\u0027 â phiÃªn báº£n ÄÃ£ end-of-life tá»« nÄm 2020. NhÃ³m ÄÃ£ cÃ³ káº¿ hoáº¡ch nÃ¢ng cáº¥p lÃªn Angular LTS version nÃ o, vÃ  lÃ½ do cá»¥ thá» nÃ o khiáº¿n nhÃ³m chá»n Angular 7 trong ngá»¯ cáº£nh Äá» Ã¡n 2024-2026?",
+                          "suggested_answer":  "NÃªn giáº£i thÃ­ch ÄÆ°á»£c viá»c lá»±a chá»n framework/front-end hiá»n Äáº¡i, phÃ¹ há»£p vá»i yÃªu cáº§u thá»±c táº¿ vÃ  thá» trÆ°á»ng lao Äá»ng.",
+                          "difficulty":  "medium",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  4,
+                          "question":  "Report sá»­ dá»¥ng MySQL vÃ  FireBase cÃ¹ng lÃºc. Má»¥c ÄÃ­ch cá»¥ thá» cá»§a FireBase trong há» thá»ng COS lÃ  gÃ¬? Náº¿u lÃ  cho real-time notification, táº¡i sao khÃ´ng dÃ¹ng WebSocket hay polling thay vÃ¬ tÃ­ch há»£p má»t service bÃªn ngoÃ i riÃªng biá»t?",
+                          "suggested_answer":  "FireBase thÆ°á»ng dÃ¹ng cho push notification hoáº·c real-time database. Cáº§n lÃ m rÃµ use case cá»¥ thá» vÃ  lÃ½ do ká»¹ thuáº­t cho lá»±a chá»n nÃ y.",
+                          "difficulty":  "medium",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  5,
+                          "question":  "SRS máº«u ÄÆ°á»£c cung cáº¥p cÃ³ yÃªu cáº§u pháº§n \u0027Non-Functional Requirements\u0027 vá»i cÃ¡c chá» sá» cá»¥ thá»: Availability %, MTBF, MTTR, response time, throughput. Tuy nhiÃªn trong cÃ¡c Äoáº¡n trÃ­ch ÄÃ£ cung cáº¥p, pháº§n NFR chÆ°a cÃ³ dá»¯ liá»u thá»±c táº¿ nÃ o ÄÆ°á»£c Äiá»n. NhÃ³m ÄÃ£ xÃ¡c Äá»nh cÃ¡c chá» sá» NFR cho COS lÃ  bao nhiÃªu?",
+                          "suggested_answer":  "Cáº§n ÄÆ°a ra con sá» cá»¥ thá» cho tá»«ng chá» sá» NFR, vÃ­ dá»¥: response time \u003c 2s, availability â¥ 99.5%, v.v.",
+                          "difficulty":  "medium",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  6,
+                          "question":  "Há» thá»ng xá»­ lÃ½ thanh toÃ¡n vÃ  lÆ°u thÃ´ng tin cÃ¡ nhÃ¢n ngÆ°á»i dÃ¹ng, nhÆ°ng khÃ´ng tháº¥y báº¥t ká»³ yÃªu cáº§u báº£o máº­t nÃ o (phÃ¢n quyá»n chi tiáº¿t, mÃ£ hÃ³a dá»¯ liá»u, OAuth, HTTPS, GDPR/Data Protection). NhÃ³m ÄÃ£ xÃ¢y dá»±ng pháº§n Security/Authorization trong SRS vÃ  SDD chÆ°a, hay Äang Äá» ngá»?",
+                          "suggested_answer":  "ÄÃ¢y lÃ  há» thá»ng cÃ³ giao dá»ch tÃ i chÃ­nh, yÃªu cáº§u báº£o máº­t lÃ  báº¯t buá»c. Cáº§n nÃªu rÃµ cÆ¡ cháº¿ authentication, authorization, vÃ  báº£o vá» dá»¯ liá»u nháº¡y cáº£m.",
+                          "difficulty":  "hard",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  7,
+                          "question":  "SÆ¡ Äá» mind map (Figure 2) liá»t kÃª \u0027Change Order\u0027 vÃ  \u0027Cancel Order\u0027 cho cáº£ Restaurant vÃ  Cafeteria, nhÆ°ng \u0027Limitations \u0026 Exclusions\u0027 chá» nÃªu LI-1 vÃ  LI-2, khÃ´ng cÃ³ giá»i háº¡n nÃ o vá» thá»i gian/hÃ nh vi thay Äá»i hoáº·c há»§y ÄÆ¡n. NhÃ³m ÄÃ£ Äá»nh nghÄ©a policy há»§y/Äá»i ÄÆ¡n chÆ°a, vÃ  logic nÃ y ÄÆ°á»£c implement á» ÄÃ¢u trong code?",
+                          "suggested_answer":  "Cáº§n mÃ´ táº£ rule rÃµ rÃ ng: khÃ¡ch hÃ ng ÄÆ°á»£c há»§y trong bao lÃ¢u trÆ°á»c giá» nháº­n ÄÆ¡n, phÃ­ há»§y (náº¿u cÃ³), vÃ  cafeteria cÃ³ quyá»n tá»« chá»i há»§y khi nÃ o.",
+                          "difficulty":  "medium",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  8,
+                          "question":  "Pháº§n \u0027Project Risks\u0027 trong máº«u Report 2 cÃ³ cá»t Risk Description, Impact, Possibility, Response Plans nhÆ°ng chÆ°a cÃ³ báº¥t ká»³ risk nÃ o ÄÆ°á»£c liá»t kÃª. NhÃ³m ÄÃ£ nháº­n diá»n ÄÆ°á»£c nhá»¯ng rá»§i ro nÃ o cho COS, vÃ  má»©c Äá» impact/possibility cá»§a chÃºng?",
+                          "suggested_answer":  "CÃ¡c risk Äiá»n hÃ¬nh: trá»\u0085 tiáº¿n Äá», thiáº¿u tÃ i nguyÃªn, thay Äá»i yÃªu cáº§u,ææ¯é®é¢ (integration), risk vá» báº£o máº­t/thanh toÃ¡n.",
+                          "difficulty":  "easy",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  9,
+                          "question":  "SRS máº«u yÃªu cáº§u pháº§n \u00273.1.3 Screen Authorization (Role Ã Screen/Activity matrix)\u0027 vÃ  \u0027Entity Relationship Diagram\u0027. Trong cÃ¡c Äoáº¡n trÃ­ch ÄÃ£ cung cáº¥p, cáº£ hai pháº§n nÃ y chÆ°a xuáº¥t hiá»n. NhÃ³m ÄÃ£ hoÃ n thiá»n ERD vÃ  ma tráº­n phÃ¢n quyá»n chÆ°a, vÃ  cÃ³ bao nhiÃªu role chÃ­nh trong há» thá»ng COS?",
+                          "suggested_answer":  "Há» thá»ng COS Ã­t nháº¥t cáº§n 3 role: Patron (khÃ¡ch hÃ ng), Cafeteria Staff (quáº£n lÃ½ menu/ÄÆ¡n), Admin. ERD cáº§n cÃ³ cÃ¡c entity chÃ­nh: User, Order, MenuItem, Subscription, Restaurant (náº¿u cÃ³).",
+                          "difficulty":  "medium",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  10,
+                          "question":  "Report 5 (STD) theo rubric bao gá»m Unit Test, Integration Test, System Test, Acceptance Test vá»i chá» sá» \u0027% of Defect\u0027 qua tá»«ng giai Äoáº¡n. NhÃ³m ÄÃ£ tiáº¿n hÃ nh test nhá»¯ng gÃ¬, tá»· lá» defect phÃ¡t hiá»n á» má»i giai Äoáº¡n lÃ  bao nhiÃªu, vÃ æå¤å° defects ÄÃ£ ÄÆ°á»£c fix trÆ°á»c khi báº£o vá»?",
+                          "suggested_answer":  "Cáº§n cung cáº¥p báº£ng tá»ng há»£p defect theo giai Äoáº¡n test vÃ  tráº¡ng thÃ¡i fix/open hiá»n táº¡i. Náº¿u chÆ°a cÃ³ sá» liá»u, cáº§n giáº£i thÃ­ch lÃ½ do.",
+                          "difficulty":  "hard",
+                          "citations":  [
+
+                                        ]
+                      }
+                  ],
+    "sources":  [
+                    {
+                        "num":  1,
+                        "source":  "user",
+                        "title":  "Report1_Project Introduction.docx",
+                        "chunk_index":  0,
+                        "content":  "Capstone Project Report Report 1 â Project Introduction â Hanoi, August 2019 â I. Record of Changes *A - Added M - Modified D - Deleted II. Project Introduction 1. Overview 1.1 Project Information Project name: \u003c\u003c Cafeteria Ordering System\u003e\u003e Project code: \u003c\u003cCOS\u003e\u003e Group name: \u003c\u003cSWP493-G4\u003e\u003e Software type: \u003c\u003cSoftware Type: Web, Mobile App,..\u003e\u003e 1.2 Project Team 2. Product Background [This section summarizes the rationale for the new product. Provide a general description of the history or situation "
+                    },
+                    {
+                        "num":  2,
+                        "source":  "user",
+                        "title":  "Report1_Project Introduction.docx",
+                        "chunk_index":  1,
+                        "content":  "iscount agreements with the restaurants.\u003e\u003e 5. Software Product Vision [Write a concise vision statement that summarizes the purpose and intent of the new product and describes what the world will be like when it includes the product. The vision statement should reflect a balanced view that will satisfy the needs of diverse customers as well as those of the developing organization. It may be somewhat idealistic, but it should be grounded in the realities of existing or anticipated customer market"
+                    },
+                    {
+                        "num":  3,
+                        "source":  "user",
+                        "title":  "Report1_Project Introduction.docx",
+                        "chunk_index":  3,
+                        "content":  "Figure 2 (technical diagram): Image 2 (uncaptioned). A mind map diagram representing the \u0027Cafeteria Ordering System (COS)\u0027. The central node is \u0027Cafeteria Ordering System (COS)\u0027. It branches into four main categories: \u0027Access the COS\u0027, \u0027Meal Subscriptions\u0027, \u0027Order Meals\u0027, and \u0027Menu Operations\u0027. \u0027Access the COS\u0027 branches into \u0027Internet\u0027, \u0027Intranet\u0027, and \u0027Mobile Devices\u0027 (which further branches into \u0027Smart Phone\u0027 and \u0027Tablet\u0027). \u0027Meal Subscriptions\u0027 branches into \u0027Create Subscription\u0027, \u0027Modify Subs"
+                    },
+                    {
+                        "num":  4,
+                        "source":  "user",
+                        "title":  "Report1_Project Introduction.docx",
+                        "chunk_index":  2,
+                        "content":  "Figure 1 (photo): Image 1 (uncaptioned). The logo of FPT University. It features the stylized letters \u0027FPT\u0027 in blue, orange, and green, followed by the text \u0027Fpt University\u0027 in blue, and the Vietnamese text \u0027TRÆ¯á»NG Äáº I Há»C FPT\u0027 in orange below."
+                    },
+                    {
+                        "num":  5,
+                        "source":  "ref",
+                        "title":  "SEP490_TongHop",
+                        "chunk_index":  "0",
+                        "content":  "# Tá»NG Há»¢P TÃI LIá»U Äá» ÃN Tá»T NGHIá»P KTPM (SEP490) \u003e Gá»p tá»« 4 file markdown chuyá»n Äá»i tá»« bá» tÃ i liá»u chuáº©n FPT University Capstone: \u003e - `Report1_Project Introduction.md` \u003e - `Report2_Project Management Plan.md` \u003e - `Report3_Software Requirement Specification.md` \u003e - `SEP490 StudentGuide_Fall 2023.md` \u003e \u003e DÃ¹ng lÃ m tÃ i nguyÃªn tham kháº£o chuáº©n cho rubric `defense_sep490` (DefendAI). --- # PHáº¦N A â STUDENT GUIDE (Quy Äá»nh chung SEP490) ## I. General Introduction ### 1. Capstone Project\u0027s description"
+                    },
+                    {
+                        "num":  6,
+                        "source":  "ref",
+                        "title":  "SEP490_TongHop",
+                        "chunk_index":  "2",
+                        "content":  "| % of Defect | Notes (Reviewing, Unit Test, Integration Test, System Test, Acceptance Test) - Milestone Timeliness (%) - Allocated Effort (man-days) #### 1.3 Project Risks | # | Risk Description | Impact | Possibility | Response Plans | |---|---|---|---|---| ### 2. Management Approach #### 2.1 Project Process â draw \u0026 describe SDLC model #### 2.2 Quality Management â Defect Prevention, Reviewing, Unit/Integration/System Testing #### 2.3 Training Plan | Training Area | Participants | When, Durat"
+                    },
+                    {
+                        "num":  7,
+                        "source":  "ref",
+                        "title":  "SEP490_TongHop",
+                        "chunk_index":  "1",
+                        "content":  "\u0026A 10% **Final = OGA Ã 50% + TDA Ã 50%** â scale 0-10, 1 decimal (e.g. 6.7). ## III. Project Document Templates - 1.1 Report 1 Project Introduction - 1.2 Report 2 Project Management Plan (+ sample Report2_Sample Project Schedule, RUP recommended) - 1.3 Report 3 SRS (+ Report3_Project Tracking: Product/Iteration Backlogs) - 1.4 Report 4 SDD - 1.5 Report 5 STD (Unit Test / Test Report / Test Documentation) - 1.6 Report 6 SUG - 1.7 Report 7 Final Project Report ### 2. Tracking - 2.1 Schedule \u0026 Task"
+                    },
+                    {
+                        "num":  8,
+                        "source":  "ref",
+                        "title":  "SEP490_TongHop",
+                        "chunk_index":  "3",
+                        "content":  "| Deliveries 10:00 A.M.â2:00 P.M. local | | BR-03 | All meals in one order â same location | | BR-04 | One order â one payment method | | BR-11 | Delivery orders â payroll deduction | | BR-12 | Price = Î£(item price Ã qty) + tax + delivery charge (if outside free zone) | | BR-24 | Only designated Menu Managers can CRUD menus | | BR-33 | Financial/PII network transmissions require 256-bit encryption | | BR-86 | Only regular employees can register payroll deduction | | BR-88 | Payroll deduction OK "
+                    }
+                ],
+    "error":  null,
+    "created_at":  "2026-09-01T20:39:27.488405"
+}

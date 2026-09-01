@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { FileTree } from "@/components/features/assessment/FileTree";
 import { FilePreview } from "@/components/features/assessment/FilePreview";
 import WorkspaceChat from "@/components/features/workspace/WorkspaceChat";
@@ -225,7 +226,7 @@ function getStatusColors(status: "ready" | "pending" | "missing") {
         bg: "bg-teal-950/30 border-teal-900/50",
         dot: "bg-teal-400",
         text: "text-teal-300",
-        tooltip: "✓ Đủ file & nội dung đạt",
+        tooltip: "Đủ file & nội dung đạt",
       };
     case "pending":
       return {
@@ -233,15 +234,15 @@ function getStatusColors(status: "ready" | "pending" | "missing") {
         dot: "bg-yellow-400",
         text: "text-yellow-300",
         tooltip: (it: DeliverableItem) => it.ai_classified && it.content_ok === false
-          ? "⚠ Có file nhưng nội dung không đạt"
-          : "⏳ Có file — chờ AI xác thực / lỗi",
+          ? "Có file nhưng nội dung không đạt"
+          : "Có file — chờ AI xác thực / lỗi",
       };
     case "missing":
       return {
         bg: "bg-red-950/20 border-red-900/40",
         dot: "bg-red-400",
         text: "text-red-300",
-        tooltip: "✗ Thiếu file",
+        tooltip: "Thiếu file",
       };
   }
 }
@@ -287,6 +288,21 @@ export default function WorkspaceDetailPage() {
   const [dlvCheck, setDlvCheck] = useState<DeliverableCheck | null>(null);
   const [loadingDlv, setLoadingDlv] = useState(false);
   const [dlvError, setDlvError] = useState("");
+  // Thu gọn/mở rộng panel — ghi nhớ theo session user + workspace id (sessionStorage:
+  // sống sót reload và điều hướng giữa các workspace, mất khi user đăng xuất / đóng tab).
+  const [dlvCollapsed, setDlvCollapsed] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = sessionStorage.getItem(`ws_deliverable_collapsed_${wsId}`);
+    if (saved === "1") setDlvCollapsed(true);
+  }, [wsId]);
+  const toggleDlvCollapsed = () => {
+    setDlvCollapsed((prev) => {
+      const next = !prev;
+      try { sessionStorage.setItem(`ws_deliverable_collapsed_${wsId}`, next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!wsId) return;
@@ -524,7 +540,7 @@ export default function WorkspaceDetailPage() {
   const wqPageItems = wqFiltered.slice((wqPageClamped - 1) * WQ_LIMIT, wqPageClamped * WQ_LIMIT);
 
   const wqTitle = (q: WorkspaceQuestionItem) => {
-    if (q.status === "failed") return `❌ Thất bại: ${q.error || "Lỗi không xác định"}`;
+    if (q.status === "failed") return `Thất bại: ${q.error || "Lỗi không xác định"}`;
     const first = q.questions?.[0];
     return first ? `#${first.id} ${first.question}` : (q.topic || "Phiên luyện phản biện");
   };
@@ -538,17 +554,17 @@ export default function WorkspaceDetailPage() {
     return [
       ...sessions.assessments.map((s) => ({
         ...s,
-        kind: "💬 Hỏi đáp" as const,
+        kind: "Hỏi đáp" as const,
         detail: s.status,
       })),
       ...sessions.code_analyses.map((s) => ({
         ...s,
-        kind: "🔍 Code Review" as const,
+        kind: "Code Review" as const,
         detail: s.issue_count != null ? `${s.issue_count} vấn đề` : "",
       })),
       ...sessions.workspace_questions.map((s) => ({
         ...s,
-        kind: "🎓 Luyện phản biện" as const,
+        kind: "Luyện phản biện" as const,
         detail: s.status,
         question_count: s.question_count,
       })),
@@ -604,14 +620,13 @@ export default function WorkspaceDetailPage() {
               href="/workspaces"
               className="px-4 py-2 text-[13px] font-semibold text-zinc-400 bg-card border border-zinc-700 rounded-lg hover:bg-zinc-800 transition-colors"
             >
-              ← Danh sách
+              Danh sách
             </Link>
           </div>
         </div>
 
         {ws.files.length === 0 ? (
           <div className="bg-card rounded-2xl border-2 border-dashed border-zinc-700 p-16 text-center">
-            <div className="text-5xl mb-4">🗂️</div>
             <h2 className="text-lg font-bold text-zinc-200 mb-2">Workspace chưa có file</h2>
             <p className="text-zinc-500 text-[14px] mb-6">Thêm file từ trang Tài liệu để bắt đầu.</p>
             <Link href="/documents" className="inline-block px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90">
@@ -630,11 +645,10 @@ export default function WorkspaceDetailPage() {
                 <button
                   onClick={toggleFilesSidebar}
                   title="Ẩn danh sách file"
-                  className="px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors shrink-0"
+                  className="px-1.5 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors shrink-0"
                 >
-                  ◀
+                  <ChevronLeft className="w-4 h-4" strokeWidth={2.5} />
                 </button>
-                <span className="text-sm">📁</span>
                 <span className="text-[13px] font-bold text-zinc-200">Files</span>
                 <span className="ml-auto text-[11px] text-zinc-500">{ws.document_count} file</span>
               </div>
@@ -653,9 +667,12 @@ export default function WorkspaceDetailPage() {
                         }`}
                       >
                         {isZipF ? (
-                          <span className={`text-[10px] text-zinc-500 transition-transform ${expanded ? "rotate-90" : ""}`}>▶</span>
+                          <ChevronRight
+                            className={`w-3.5 h-3.5 text-zinc-500 shrink-0 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`}
+                            strokeWidth={2.5}
+                          />
                         ) : (
-                          <span className="text-[10px] text-zinc-600">•</span>
+                          <span className="w-3.5 h-3.5 shrink-0" />
                         )}
                         <span className="text-[12px] font-bold text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded shrink-0">
                           {f.file_type === ".rar" ? "RAR" : docTypeLabel[f.doc_type] ?? f.file_type}
@@ -694,7 +711,7 @@ export default function WorkspaceDetailPage() {
                   title={filesOpen ? "Ẩn danh sách file" : "Hiện danh sách file"}
                   className={`px-3 py-2 text-[13px] font-semibold rounded-xl transition-colors ${filesOpen ? "bg-zinc-800 text-teal-400" : "text-zinc-500 hover:bg-zinc-800/60"}`}
                 >
-                  📁 Files
+                  Files
                 </button>
                 <span className="w-px h-5 bg-zinc-800 mx-1" />
                 <button
@@ -703,7 +720,7 @@ export default function WorkspaceDetailPage() {
                     rightTab === "preview" ? "bg-primary text-primary-foreground" : "text-zinc-500 hover:bg-zinc-800/60"
                   }`}
                 >
-                  👁️ Preview
+                  Preview
                 </button>
                 <button
                   onClick={() => openTab("questions")}
@@ -711,7 +728,7 @@ export default function WorkspaceDetailPage() {
                     rightTab === "questions" ? "bg-primary text-primary-foreground" : "text-zinc-500 hover:bg-zinc-800/60"
                   }`}
                 >
-                  🎓 Luyện phản biện
+                  Luyện phản biện
                 </button>
                 <button
                   onClick={() => openTab("chat")}
@@ -719,7 +736,7 @@ export default function WorkspaceDetailPage() {
                     rightTab === "chat" ? "bg-primary text-primary-foreground" : "text-zinc-500 hover:bg-zinc-800/60"
                   }`}
                 >
-                  💬 Chat đề tài
+                  Chat đề tài
                 </button>
                 <button
                   onClick={() => openTab("history")}
@@ -727,63 +744,86 @@ export default function WorkspaceDetailPage() {
                     rightTab === "history" ? "bg-primary text-primary-foreground" : "text-zinc-500 hover:bg-zinc-800/60"
                   }`}
                 >
-                  🕘 Lịch sử ({allSessions.length})
+                  Lịch sử ({allSessions.length})
                 </button>
               </div>
 
               {/* Stage 4 — Kiểm tra file nộp */}
               <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h3 className="text-[15px] font-bold text-zinc-200">📦 Kiểm tra file nộp</h3>
-                    <p className="text-[12px] text-zinc-500">
-                      Đối chiếu theo chuẩn SEP490 · {dlvCheck ? `${dlvCheck.percent}% hoàn thành` : "Đang tải..."}
-                    </p>
-                  </div>
                   <button
-                    onClick={loadDeliverableCheck}
-                    disabled={loadingDlv}
-                    className="px-3 py-1.5 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors disabled:opacity-50"
+                    type="button"
+                    onClick={toggleDlvCollapsed}
+                    aria-expanded={!dlvCollapsed}
+                    className="flex items-center gap-2 text-left group"
+                    title={dlvCollapsed ? "Mở rộng" : "Thu gọn"}
                   >
-                    {loadingDlv ? "Đang kiểm tra..." : "Làm mới"}
+                    <ChevronDown
+                      className={`w-5 h-5 text-zinc-500 group-hover:text-zinc-200 transition-transform duration-300 ${
+                        dlvCollapsed ? "" : "rotate-180"
+                      }`}
+                      strokeWidth={2.5}
+                    />
+                    <div>
+                      <h3 className="text-[15px] font-bold text-zinc-200">Kiểm tra file nộp</h3>
+                      <p className="text-[13px] font-semibold text-zinc-400">
+                        Đối chiếu theo chuẩn SEP490 · {dlvCheck ? `${dlvCheck.present_count}/${dlvCheck.total} hoàn thành` : "Đang tải..."}
+                      </p>
+                    </div>
                   </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); loadDeliverableCheck(); }}
+                      disabled={loadingDlv}
+                      className="px-3 py-1.5 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors disabled:opacity-50"
+                    >
+                      {loadingDlv ? "Đang kiểm tra..." : "Làm mới"}
+                    </button>
+                  </div>
                 </div>
 
-                {dlvError && <p className="text-red-400 text-[13px] mb-3">{dlvError}</p>}
+                <div
+                  className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
+                    dlvCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
+                  }`}
+                >
+                  <div className="overflow-hidden">
+                    {dlvError && <p className="text-red-400 text-[13px] mb-3">{dlvError}</p>}
 
-                {dlvCheck && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                    {dlvCheck.items.map((it) => {
-                      const status = getDeliverableStatus(it);
-                      const colors = getStatusColors(status);
-                      return (
-                        <div
-                          key={it.code}
-                          className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 transition-colors ${colors.bg}`}
-                          title={typeof colors.tooltip === "function" ? colors.tooltip(it) : colors.tooltip}
-                        >
-                          <span className={`w-2 h-2 rounded-full shrink-0 ${colors.dot}`} />
-                          <div className="min-w-0">
-                            <p className={`text-[13px] font-bold truncate ${colors.text}`}>{it.code}</p>
-                            <p className="text-[11px] text-zinc-500 truncate">{it.name}</p>
-                          </div>
-                          {it.ai_classified && it.content_reason && (
-                            <span className="ml-auto text-[10px] text-zinc-600 font-medium whitespace-nowrap">
-                              {it.content_ok === false ? "⚠" : it.content_ok === true ? "✓" : "?"}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {dlvCheck && (
+                      <ul className="divide-y divide-zinc-800/60 border border-zinc-800/60 rounded-xl overflow-hidden">
+                        {dlvCheck.items.map((it) => {
+                          const status = getDeliverableStatus(it);
+                          const colors = getStatusColors(status);
+                          return (
+                            <li
+                              key={it.code}
+                              className={`flex items-center gap-3 px-4 py-3 ${colors.bg} transition-colors`}
+                              title={typeof colors.tooltip === "function" ? colors.tooltip(it) : colors.tooltip}
+                            >
+                              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${colors.dot}`} />
+                              <div className="min-w-0 flex-1">
+                                <p className={`text-[14px] font-bold ${colors.text}`}>{it.code}</p>
+                                <p className="text-[13px] text-zinc-300">{it.name}</p>
+                              </div>
+                              {it.ai_classified && it.content_reason && (
+                                <span className="text-[12px] text-zinc-400 font-medium whitespace-nowrap ml-auto">
+                                  {it.content_ok === false ? "!" : it.content_ok === true ? "OK" : "?"}
+                                </span>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
 
               {rightTab === "preview" && (
                 <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden h-[calc(100vh-340px)] min-h-[450px] flex flex-col">
                   {!selectedFile ? (
                     <div className="h-full flex flex-col items-center justify-center text-zinc-500">
-                      <span className="text-4xl mb-3">👈</span>
                       <p className="text-[14px]">Chọn một file bên trái để xem nội dung</p>
                     </div>
                   ) : isZip ? (
@@ -791,7 +831,6 @@ export default function WorkspaceDetailPage() {
                       <FilePreview docId={selectedFile.document_id} path={selMember} />
                     ) : (
                       <div className="h-full flex flex-col items-center justify-center text-zinc-500">
-                        <span className="text-4xl mb-3">🗜️</span>
                         <p className="text-[14px]">Mở rộng file nén và chọn 1 file bên trong để xem</p>
                       </div>
                     )
@@ -805,7 +844,7 @@ export default function WorkspaceDetailPage() {
                 <div className="flex flex-col gap-8">
                   {/* R6: "Luyện phản biện" — AI giả lập hội đồng, sinh 10 câu hỏi kèm gợi ý */}
                   <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-5">
-                    <h3 className="text-[15px] font-bold text-zinc-200 mb-1">🎓 Luyện phản biện</h3>
+                    <h3 className="text-[15px] font-bold text-zinc-200 mb-1">Luyện phản biện</h3>
                     <p className="text-[12px] text-zinc-500 mb-4">AI đóng vai hội đồng, tự động sinh <b>bộ câu hỏi</b> bắt bẻ chuyên sâu kèm gợi ý trả lời từ toàn bộ {ws.document_count} file — giúp bạn ôn tập trước khi bảo vệ thật. Bấm "Sinh câu hỏi" để bắt đầu.</p>
                     <div className="flex flex-col md:flex-row gap-3">
                       {wsRunning ? (
@@ -813,7 +852,7 @@ export default function WorkspaceDetailPage() {
                           onClick={stopWorkspaceTopic}
                           className="px-5 py-2.5 bg-red-500/90 text-white rounded-xl text-[14px] font-semibold hover:bg-red-500 whitespace-nowrap"
                         >
-                          ⏹ Dừng
+                          Dừng
                         </button>
                       ) : (
                         <button
@@ -840,13 +879,13 @@ export default function WorkspaceDetailPage() {
                     {wqAll.length > 0 && (
                       <div className="mt-6">
                         <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-[13px] font-bold text-zinc-400">📋 Lịch sử luyện phản biện ({wqAll.length} phiên)</h4>
+                          <h4 className="text-[13px] font-bold text-zinc-400">Lịch sử luyện phản biện ({wqAll.length} phiên)</h4>
                           <button
                             onClick={deleteAllWq}
                             disabled={wqDeleting}
                             className="px-3 py-1.5 text-[12px] font-semibold text-red-400 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50"
                           >
-                            🗑️ Xoá tất cả
+                            Xoá tất cả
                           </button>
                         </div>
 
@@ -859,8 +898,8 @@ export default function WorkspaceDetailPage() {
                               className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300"
                             >
                               <option value="all">Tất cả trạng thái</option>
-                              <option value="completed">✅ Thành công</option>
-                              <option value="failed">❌ Thất bại</option>
+                              <option value="completed">Thành công</option>
+                              <option value="failed">Thất bại</option>
                             </select>
                             <select
                               value={wqFDate}
@@ -898,7 +937,7 @@ export default function WorkspaceDetailPage() {
                                     disabled={wqDeleting}
                                     className="absolute top-2.5 right-2.5 px-2 py-1 text-[11px] text-red-400 bg-red-500/10 rounded-lg hover:bg-red-500/20 disabled:opacity-50"
                                   >
-                                    🗑️
+                                    Xoá
                                   </button>
                                   <div className="flex items-center gap-2 mb-2 pr-8">
                                     <span className="px-2 py-0.5 text-[11px] font-mono font-bold rounded-full bg-zinc-800 text-zinc-400 shrink-0">#{q.id}</span>
@@ -924,7 +963,7 @@ export default function WorkspaceDetailPage() {
                               disabled={wqPageClamped === 1}
                               className="px-3 py-1.5 text-[12px] font-semibold bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-300 disabled:opacity-40 hover:border-primary"
                             >
-                              ‹ Trước
+                              Trước
                             </button>
                             {Array.from({ length: wqTotalPages }, (_, i) => i + 1).map((p) => (
                               <button
@@ -942,7 +981,7 @@ export default function WorkspaceDetailPage() {
                               disabled={wqPageClamped === wqTotalPages}
                               className="px-3 py-1.5 text-[12px] font-semibold bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-300 disabled:opacity-40 hover:border-primary"
                             >
-                              Sau ›
+                              Sau
                             </button>
                           </div>
                         )}
@@ -959,7 +998,7 @@ export default function WorkspaceDetailPage() {
               {rightTab === "history" && (
                 <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden">
                   <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2">
-                    <span className="text-[13px] font-bold text-zinc-200">🕘 Lịch sử phiên</span>
+                    <span className="text-[13px] font-bold text-zinc-200">Lịch sử phiên</span>
                   </div>
                   {loadingSessions ? (
                     <p className="text-zinc-500 text-[13px] p-5">Đang tải lịch sử...</p>
@@ -968,7 +1007,7 @@ export default function WorkspaceDetailPage() {
                   ) : (
                     <div className="divide-y divide-zinc-800/60">
                       {allSessions.map((s) => {
-                        const isWq = s.kind === "🎓 Luyện phản biện";
+                        const isWq = s.kind === "Luyện phản biện";
                         return (
                           <div key={`${s.kind}-${s.id}`} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-zinc-800/40">
                             <div className="min-w-0">

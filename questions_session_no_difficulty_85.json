@@ -1,0 +1,122 @@
+﻿{
+    "id":  85,
+    "workspace_id":  30,
+    "topic":  "Fenchise Management - toan bo do an R1-R7 va slides",
+    "status":  "completed",
+    "questions":  [
+                      {
+                          "id":  1,
+                          "question":  "TÃ i liá»u nÃªu nhÃ¢n viÃªn tá»n khoáº£ng 65 phÃºt/ngÃ y cho viá»c Än trÆ°a, trong ÄÃ³ 20 phÃºt lÃ  Äi láº¡i vÃ  chá» Äá»£i. Con sá» nÃ y ÄÆ°á»£c thu tháº­p tá»« kháº£o sÃ¡t thá»±c táº¿ hay chá» lÃ  Æ°á»c lÆ°á»£ng? Náº¿u cÃ³ kháº£o sÃ¡t, hÃ£y trÃ¬nh bÃ y phÆ°Æ¡ng phÃ¡p, cá»¡ máº«u vÃ  káº¿t quáº£ cá»¥ thá». Náº¿u khÃ´ng, táº¡i sao láº¡i ÄÆ°a ra con sá» Äá»nh lÆ°á»£ng nÃ y mÃ  khÃ´ng cÃ³ cÆ¡ sá»?",
+                          "suggested_answer":  "Cáº§n minh báº¡ch vá» nguá»n dá»¯ liá»u: kháº£o sÃ¡t ná»i bá» cÃ´ng ty, dá»¯ liá»u tá»« quÃ¡n Än, hay chá» lÃ  phá»ng ÄoÃ¡n. Thiáº¿u cÆ¡ sá»å®è¯ sáº½ lÃ m yáº¿u pháº§n Business Opportunity.",
+                          "difficulty":  "medium",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  2,
+                          "question":  "Háº¡n cháº¿ LI-1 kháº³ng Äá»nh má»t sá» mÃ³n khÃ´ng phÃ¹ há»£p Äá» giao hÃ ng, nhÆ°ng tÃ i liá»u khÃ´ng nÃªu tiÃªu chÃ­ cá»¥ thá» Äá» xÃ¡c Äá»nh mÃ³n nÃ o (vÃ­ dá»¥: dá»\u0085 nguá»i, dá»\u0085 biáº¿n dáº¡ng, thá»i gian báº£o quáº£n). HÃ£y ÄÆ°a ra danh sÃ¡ch cÃ¡c tiÃªu chÃ­ ÄÃ¡nh giÃ¡ vÃ  vÃ­ dá»¥ Ã­t nháº¥t 3 mÃ³n bá» loáº¡i khá»i menu giao hÃ ng cÃ¹ng lÃ½ do.",
+                          "suggested_answer":  "TiÃªu chÃ­ cÃ³ thá»å\u0085æ¬: Äáº·c tÃ­nh váº­t lÃ½ (dá»\u0085 vá»¡, dá»\u0085 nÃ¡t), thá»i gian á»n Äá»nh cháº¥t lÆ°á»£ng sau khi náº¥u, yÃªu cáº§u ÄÃ³ng gÃ³i Äáº·c biá»t. Thiáº¿u tiÃªu chÃ­ rÃµ rÃ ng sáº½ gÃ¢y khÃ³ khÄn cho viá»c xÃ¢y dá»±ng menu giao hÃ ng thá»±c táº¿.",
+                          "difficulty":  "hard",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  3,
+                          "question":  "Business Opportunity há»©a háº¹n há» thá»ng sáº½ \u0027save employees time\u0027 vÃ  \u0027reduce wastage\u0027, nhÆ°ng khÃ´ng cÃ³ chá» sá» Äo lÆ°á»ng Äá»nh lÆ°á»£ng (vÃ­ dá»¥: giáº£m bao nhiÃªu phÃºt, giáº£m bao nhiÃªu pháº§n trÄm rÃ¡c tháº£i thá»±c pháº©m). HÃ£y Äá» xuáº¥t 2-3 KPI cá»¥ thá» Äá» ÄÃ¡nh giÃ¡ hiá»u quáº£ cá»§a COS sau khi triá»n khai.",
+                          "suggested_answer":  "KPI cÃ³ thá»å\u0085æ¬: thá»i gian trung bÃ¬nh tá»« khi Äáº·t mÃ³n Äáº¿n khi nháº­n mÃ³n, tá»· lá» mÃ³n Äáº·t ÄÆ°á»£c ÄÃ¡p á»©ng so vá»i tá»ng ÄÆ¡n, khá»i lÆ°á»£ng thá»±c pháº©m há»§y bá» hÃ ng ngÃ y. KPI cáº§n kháº£ nÄng Äo lÆ°á»ng ÄÆ°á»£c vÃ  gáº¯n vá»i má»¥c tiÃªu kinh doanh.",
+                          "difficulty":  "medium",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  4,
+                          "question":  "Má»¥c 3 Existing Systems trong Report 1 Äang trá»ng. HÃ£y mÃ´ táº£ Ã­t nháº¥t má»t há» thá»ng Äáº·t mÃ³n tÆ°Æ¡ng tá»± (web/app) Äang tá»n táº¡i táº¡i cÆ¡ sá» hoáº·c ngoÃ i thá» trÆ°á»ng, kÃ¨m theo phÃ¢n tÃ­ch Æ°u/nhÆ°á»£c Äiá»m cá»§a há» thá»ng ÄÃ³ so vá»i COS dá»± kiáº¿n.",
+                          "suggested_answer":  "CÃ³ thá» tham kháº£o cÃ¡c app Äáº·t Äá» Än phá» biáº¿n (GrabFood, GoFood, Uber Eats) hoáº·c há» thá»ng ná»i bá» cá»§a trÆ°á»ng. PhÃ¢n tÃ­ch cáº§n chá» ra Äiá»m khÃ¡c biá»t vá» pháº¡m vi (chá» campus), Äá»i tÆ°á»£ng khÃ¡ch hÃ ng, vÃ  tÃ­nh nÄng Äáº·c thÃ¹.",
+                          "difficulty":  "easy",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  5,
+                          "question":  "Software Product Vision kháº³ng Äá»nh COS sáº½ hoáº¡t Äá»ng trÃªn \u0027Internet, Intranet, Mobile Devices\u0027, nhÆ°ng hÃ¬nh áº£nh mind map (Figure 2) chá» liá»t kÃª cÃ¡c nhÃ¡nh chá»©c nÄng mÃ  khÃ´ng nÃªu rÃµ cÃ´ng nghá» front-end/back-end. HÃ£y mÃ´ táº£ kiáº¿n trÃºc cÃ´ng nghá» dá»± kiáº¿n (vÃ­ dá»¥: Angular/React, Spring Boot, MySQL/FireBase) vÃ  lÃ½ do lá»±a chá»n.",
+                          "suggested_answer":  "Cáº§n giáº£i thÃ­ch sá»± phÃ¹ há»£p cá»§a cÃ´ng nghá» vá»i yÃªu cáº§u há» thá»ng: xá»­ lÃ½ ÄÆ¡n hÃ ng real-time, Äa ná»n táº£ng, báº£o máº­t thÃ´ng tin thanh toÃ¡n. TrÃ¡nh liá»t kÃª cÃ´ng nghá» mÃ  khÃ´ng gáº¯n vá»i ngá»¯ cáº£nh dá»± Ã¡n.",
+                          "difficulty":  "medium",
+                          "citations":  [
+
+                                        ]
+                      },
+                      {
+                          "id":  6,
+                          "question":  "Project Scope \u0026 Limitations ghi COS chá» phá»¥c vá»¥ quÃ¡n Än táº¡i campus Clackamas, Oregon, nhÆ°ng khÃ´ng giáº£i thÃ­ch táº¡i sao láº¡i giá»i háº¡n Äá»a lÃ½ nÃ y. Liá»u cÃ³ káº¿ hoáº¡ch má» rá»ng sau nÃ y? Náº¿u cÃ³, giá»i háº¡n hiá»n táº¡i xuáº¥t phÃ¡t tá»« yáº¿u tá» nÃ o (chi phÃ­, há»£p Äá»ng, cÃ´ng nghá»)?",
+                          "suggested_answer":  "Giá»i háº¡n Äá»a lÃ½ cÃ³ thá» do há»£p tÃ¡c vá»i má»t quÃ¡n Än cá»¥ thá», chi phÃ­ logistics, hoáº·c pháº¡m vi nghiÃªn cá»©u há»c thuáº­t. Cáº§n lÃ m rÃµ Äá» trÃ¡nh hiá»u nháº§m ráº±ng há» thá»ng khÃ´ng thá» má» rá»ng.",
+                          "difficulty":  "easy",
+                          "citations":  [
+
+                                        ]
+                      }
+                  ],
+    "sources":  [
+                    {
+                        "num":  1,
+                        "source":  "user",
+                        "title":  "Report1_Project Introduction.docx",
+                        "chunk_index":  0,
+                        "content":  "Capstone Project Report Report 1 â Project Introduction â Hanoi, August 2019 â I. Record of Changes *A - Added M - Modified D - Deleted II. Project Introduction 1. Overview 1.1 Project Information Project name: \u003c\u003c Cafeteria Ordering System\u003e\u003e Project code: \u003c\u003cCOS\u003e\u003e Group name: \u003c\u003cSWP493-G4\u003e\u003e Software type: \u003c\u003cSoftware Type: Web, Mobile App,..\u003e\u003e 1.2 Project Team 2. Product Background [This section summarizes the rationale for the new product. Provide a general description of the history or situation "
+                    },
+                    {
+                        "num":  2,
+                        "source":  "user",
+                        "title":  "Report1_Project Introduction.docx",
+                        "chunk_index":  1,
+                        "content":  "iscount agreements with the restaurants.\u003e\u003e 5. Software Product Vision [Write a concise vision statement that summarizes the purpose and intent of the new product and describes what the world will be like when it includes the product. The vision statement should reflect a balanced view that will satisfy the needs of diverse customers as well as those of the developing organization. It may be somewhat idealistic, but it should be grounded in the realities of existing or anticipated customer market"
+                    },
+                    {
+                        "num":  3,
+                        "source":  "user",
+                        "title":  "Report1_Project Introduction.docx",
+                        "chunk_index":  2,
+                        "content":  "Figure 1 (photo): Image 1 (uncaptioned). The logo of FPT University. It features the stylized letters \u0027FPT\u0027 in blue, orange, and green, followed by the text \u0027Fpt University\u0027 in blue, and the Vietnamese text \u0027TRÆ¯á»NG Äáº I Há»C FPT\u0027 in orange below."
+                    },
+                    {
+                        "num":  4,
+                        "source":  "user",
+                        "title":  "Report1_Project Introduction.docx",
+                        "chunk_index":  3,
+                        "content":  "Figure 2 (technical diagram): Image 2 (uncaptioned). A mind map diagram representing the \u0027Cafeteria Ordering System (COS)\u0027. The central node is \u0027Cafeteria Ordering System (COS)\u0027. It branches into four main categories: \u0027Access the COS\u0027, \u0027Meal Subscriptions\u0027, \u0027Order Meals\u0027, and \u0027Menu Operations\u0027. \u0027Access the COS\u0027 branches into \u0027Internet\u0027, \u0027Intranet\u0027, and \u0027Mobile Devices\u0027 (which further branches into \u0027Smart Phone\u0027 and \u0027Tablet\u0027). \u0027Meal Subscriptions\u0027 branches into \u0027Create Subscription\u0027, \u0027Modify Subs"
+                    },
+                    {
+                        "num":  5,
+                        "source":  "ref",
+                        "title":  "SEP490_TongHop",
+                        "chunk_index":  "1",
+                        "content":  "\u0026A 10% **Final = OGA Ã 50% + TDA Ã 50%** â scale 0-10, 1 decimal (e.g. 6.7). ## III. Project Document Templates - 1.1 Report 1 Project Introduction - 1.2 Report 2 Project Management Plan (+ sample Report2_Sample Project Schedule, RUP recommended) - 1.3 Report 3 SRS (+ Report3_Project Tracking: Product/Iteration Backlogs) - 1.4 Report 4 SDD - 1.5 Report 5 STD (Unit Test / Test Report / Test Documentation) - 1.6 Report 6 SUG - 1.7 Report 7 Final Project Report ### 2. Tracking - 2.1 Schedule \u0026 Task"
+                    },
+                    {
+                        "num":  6,
+                        "source":  "ref",
+                        "title":  "SEP490_TongHop",
+                        "chunk_index":  "2",
+                        "content":  "| % of Defect | Notes (Reviewing, Unit Test, Integration Test, System Test, Acceptance Test) - Milestone Timeliness (%) - Allocated Effort (man-days) #### 1.3 Project Risks | # | Risk Description | Impact | Possibility | Response Plans | |---|---|---|---|---| ### 2. Management Approach #### 2.1 Project Process â draw \u0026 describe SDLC model #### 2.2 Quality Management â Defect Prevention, Reviewing, Unit/Integration/System Testing #### 2.3 Training Plan | Training Area | Participants | When, Durat"
+                    },
+                    {
+                        "num":  7,
+                        "source":  "ref",
+                        "title":  "SEP490_TongHop",
+                        "chunk_index":  "0",
+                        "content":  "# Tá»NG Há»¢P TÃI LIá»U Äá» ÃN Tá»T NGHIá»P KTPM (SEP490) \u003e Gá»p tá»« 4 file markdown chuyá»n Äá»i tá»« bá» tÃ i liá»u chuáº©n FPT University Capstone: \u003e - `Report1_Project Introduction.md` \u003e - `Report2_Project Management Plan.md` \u003e - `Report3_Software Requirement Specification.md` \u003e - `SEP490 StudentGuide_Fall 2023.md` \u003e \u003e DÃ¹ng lÃ m tÃ i nguyÃªn tham kháº£o chuáº©n cho rubric `defense_sep490` (DefendAI). --- # PHáº¦N A â STUDENT GUIDE (Quy Äá»nh chung SEP490) ## I. General Introduction ### 1. Capstone Project\u0027s description"
+                    },
+                    {
+                        "num":  8,
+                        "source":  "ref",
+                        "title":  "SEP490_TongHop",
+                        "chunk_index":  "3",
+                        "content":  "| Deliveries 10:00 A.M.â2:00 P.M. local | | BR-03 | All meals in one order â same location | | BR-04 | One order â one payment method | | BR-11 | Delivery orders â payroll deduction | | BR-12 | Price = Î£(item price Ã qty) + tax + delivery charge (if outside free zone) | | BR-24 | Only designated Menu Managers can CRUD menus | | BR-33 | Financial/PII network transmissions require 256-bit encryption | | BR-86 | Only regular employees can register payroll deduction | | BR-88 | Payroll deduction OK "
+                    }
+                ],
+    "error":  null,
+    "created_at":  "2026-09-01T20:56:21.870259"
+}

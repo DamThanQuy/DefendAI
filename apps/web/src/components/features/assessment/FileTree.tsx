@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { ChevronRight } from "lucide-react";
 
 interface Member {
   path: string;
@@ -114,7 +115,10 @@ export function FileTree({
                 onClick={() => toggleDir(full)}
                 className="w-full flex items-center gap-2 px-2 py-1.5 text-[13px] text-zinc-400 hover:bg-zinc-800/60 rounded-md text-left"
               >
-                <span className={`text-[10px] text-zinc-500 transition-transform ${isOpen ? "rotate-90" : ""}`}>▶</span>
+                <ChevronRight
+                  className={`w-3.5 h-3.5 text-zinc-500 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
+                  strokeWidth={2.5}
+                />
                 <span>📁</span>
                 <span className="font-medium truncate">{name}</span>
                 {ds && ds.count > 0 && (

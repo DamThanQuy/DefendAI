@@ -1,0 +1,61 @@
+﻿BEFORE: 10 questions
+AFTER:  7 questions
+
+======================================================================
+BEFORE (session #83, no fix):
+======================================================================
+--- Q1 [medium] ---
+B├â┬ío c├â┬ío ├ä┬æ├â┬ú li├í┬╗┬çt k├â┬¬ c├â┬íc t├â┬¡nh n├ä┬âng FE-01 ├ä┬æ├í┬║┬┐n FE-05 v├â┬á gi├í┬╗┬¢i h├í┬║┬ín LI-1, LI-2. Tuy nhi├â┬¬n, kh├â┬┤ng c├â┬│ ph├í┬║┬ºn n├â┬áo m├â┬┤ t├í┬║┬ú m├â┬┤ h├â┬¼nh kinh doanh ho├í┬║┬╖c l├í┬╗┬úi ├â┬¡ch c├í┬╗┬Ñ th├í┬╗┬â cho nh├â┬á cung c├í┬║┬Ñp d├í┬╗┬ïch v├í┬╗┬Ñ cafeteria (kh├â┬┤ng ch├í┬╗┬ë cho nh├â┬ón vi├â┬¬n). H├í┬╗┬ç th├í┬╗┬æng COS s├í┬║┬╜ t├í┬║┬ío ra gi├â┬í tr├í┬╗┬ï t├â┬ái ch├â┬¡nh ho├í┬║┬╖c v├í┬║┬¡n h├â┬ánh n├â┬áo cho ├ä┬æ├í┬╗┬æi t├â┬íc nh├â┬á h├â┬áng/cafeteria, v├â┬á cafeteria c├â┬│ s├í┬║┬╡n s├â┬áng chuy├í┬╗┬ân sang quy tr├â┬¼nh ├ä┬æ├í┬║┬╖t m├â┬│n online hay kh├â┬┤ng?
+
+--- Q2 [hard] ---
+Report 1 ghi gi├í┬╗┬¢i h├í┬║┬ín LI-2: 'COS shall be used only for the cafeteria at the Process Impact campus'. V├â┬¼ ├ä┬æ├â┬óy l├â┬á ├ä┬æ├í┬╗┬ô ├â┬ín t├í┬╗┬æt nghi├í┬╗┬çp t├í┬║┬íi FPT University Vi├í┬╗┬çt Nam, vi├í┬╗┬çc d├â┬╣ng b├í┬╗┬æi c├í┬║┬únh 'Process Impact campus in Clackamas, Oregon' l├â┬á kh├â┬┤ng ph├â┬╣ h├í┬╗┬úp th├í┬╗┬▒c t├í┬║┬┐. Nh├â┬│m ├ä┬æ├â┬ú ├ä┬æi├í┬╗┬üu ch├í┬╗┬ënh b├í┬╗┬æi c├í┬║┬únh th├â┬ánh Vi├í┬╗┬çt Nam ch├å┬░a, v├â┬á n├í┬║┬┐u c├â┬│, th├â┬┤ng tin n├â┬áy ├ä┬æ├å┬░├í┬╗┬úc th├í┬╗┬â hi├í┬╗┬çn ├í┬╗┬ƒ t├â┬ái li├í┬╗┬çu n├â┬áo?
+
+--- Q3 [medium] ---
+Danh s├â┬ích c├â┬┤ng ngh├í┬╗┬ç c├â┬│ ghi 'Angular 7' ├ó┬Ç┬ö phi├â┬¬n b├í┬║┬ún ├ä┬æ├â┬ú end-of-life t├í┬╗┬½ n├ä┬âm 2020. Nh├â┬│m ├ä┬æ├â┬ú c├â┬│ k├í┬║┬┐ ho├í┬║┬ích n├â┬óng c├í┬║┬Ñp l├â┬¬n Angular LTS version n├â┬áo, v├â┬á l├â┬╜ do c├í┬╗┬Ñ th├í┬╗┬â n├â┬áo khi├í┬║┬┐n nh├â┬│m ch├í┬╗┬ìn Angular 7 trong ng├í┬╗┬» c├í┬║┬únh ├ä┬æ├í┬╗┬ô ├â┬ín 2024-2026?
+
+--- Q4 [medium] ---
+Report s├í┬╗┬¡ d├í┬╗┬Ñng MySQL v├â┬á FireBase c├â┬╣ng l├â┬║c. M├í┬╗┬Ñc ├ä┬æ├â┬¡ch c├í┬╗┬Ñ th├í┬╗┬â c├í┬╗┬ºa FireBase trong h├í┬╗┬ç th├í┬╗┬æng COS l├â┬á g├â┬¼? N├í┬║┬┐u l├â┬á cho real-time notification, t├í┬║┬íi sao kh├â┬┤ng d├â┬╣ng WebSocket hay polling thay v├â┬¼ t├â┬¡ch h├í┬╗┬úp m├í┬╗┬Öt service b├â┬¬n ngo├â┬ái ri├â┬¬ng bi├í┬╗┬çt?
+
+--- Q5 [medium] ---
+SRS m├í┬║┬½u ├ä┬æ├å┬░├í┬╗┬úc cung c├í┬║┬Ñp c├â┬│ y├â┬¬u c├í┬║┬ºu ph├í┬║┬ºn 'Non-Functional Requirements' v├í┬╗┬¢i c├â┬íc ch├í┬╗┬ë s├í┬╗┬æ c├í┬╗┬Ñ th├í┬╗┬â: Availability %, MTBF, MTTR, response time, throughput. Tuy nhi├â┬¬n trong c├â┬íc ├ä┬æo├í┬║┬ín tr├â┬¡ch ├ä┬æ├â┬ú cung c├í┬║┬Ñp, ph├í┬║┬ºn NFR ch├å┬░a c├â┬│ d├í┬╗┬» li├í┬╗┬çu th├í┬╗┬▒c t├í┬║┬┐ n├â┬áo ├ä┬æ├å┬░├í┬╗┬úc ├ä┬æi├í┬╗┬ün. Nh├â┬│m ├ä┬æ├â┬ú x├â┬íc ├ä┬æ├í┬╗┬ïnh c├â┬íc ch├í┬╗┬ë s├í┬╗┬æ NFR cho COS l├â┬á bao nhi├â┬¬u?
+
+--- Q6 [hard] ---
+H├í┬╗┬ç th├í┬╗┬æng x├í┬╗┬¡ l├â┬╜ thanh to├â┬ín v├â┬á l├å┬░u th├â┬┤ng tin c├â┬í nh├â┬ón ng├å┬░├í┬╗┬¥i d├â┬╣ng, nh├å┬░ng kh├â┬┤ng th├í┬║┬Ñy b├í┬║┬Ñt k├í┬╗┬│ y├â┬¬u c├í┬║┬ºu b├í┬║┬úo m├í┬║┬¡t n├â┬áo (ph├â┬ón quy├í┬╗┬ün chi ti├í┬║┬┐t, m├â┬ú h├â┬│a d├í┬╗┬» li├í┬╗┬çu, OAuth, HTTPS, GDPR/Data Protection). Nh├â┬│m ├ä┬æ├â┬ú x├â┬óy d├í┬╗┬▒ng ph├í┬║┬ºn Security/Authorization trong SRS v├â┬á SDD ch├å┬░a, hay ├ä┬æang ├ä┬æ├í┬╗┬â ng├í┬╗┬Å?
+
+--- Q7 [medium] ---
+S├å┬í ├ä┬æ├í┬╗┬ô mind map (Figure 2) li├í┬╗┬çt k├â┬¬ 'Change Order' v├â┬á 'Cancel Order' cho c├í┬║┬ú Restaurant v├â┬á Cafeteria, nh├å┬░ng 'Limitations & Exclusions' ch├í┬╗┬ë n├â┬¬u LI-1 v├â┬á LI-2, kh├â┬┤ng c├â┬│ gi├í┬╗┬¢i h├í┬║┬ín n├â┬áo v├í┬╗┬ü th├í┬╗┬¥i gian/h├â┬ánh vi thay ├ä┬æ├í┬╗┬òi ho├í┬║┬╖c h├í┬╗┬ºy ├ä┬æ├å┬ín. Nh├â┬│m ├ä┬æ├â┬ú ├ä┬æ├í┬╗┬ïnh ngh├ä┬⌐a policy h├í┬╗┬ºy/├ä┬æ├í┬╗┬òi ├ä┬æ├å┬ín ch├å┬░a, v├â┬á logic n├â┬áy ├ä┬æ├å┬░├í┬╗┬úc implement ├í┬╗┬ƒ ├ä┬æ├â┬óu trong code?
+
+--- Q8 [easy] ---
+Ph├í┬║┬ºn 'Project Risks' trong m├í┬║┬½u Report 2 c├â┬│ c├í┬╗┬Öt Risk Description, Impact, Possibility, Response Plans nh├å┬░ng ch├å┬░a c├â┬│ b├í┬║┬Ñt k├í┬╗┬│ risk n├â┬áo ├ä┬æ├å┬░├í┬╗┬úc li├í┬╗┬çt k├â┬¬. Nh├â┬│m ├ä┬æ├â┬ú nh├í┬║┬¡n di├í┬╗┬çn ├ä┬æ├å┬░├í┬╗┬úc nh├í┬╗┬»ng r├í┬╗┬ºi ro n├â┬áo cho COS, v├â┬á m├í┬╗┬⌐c ├ä┬æ├í┬╗┬Ö impact/possibility c├í┬╗┬ºa ch├â┬║ng?
+
+--- Q9 [medium] ---
+SRS m├í┬║┬½u y├â┬¬u c├í┬║┬ºu ph├í┬║┬ºn '3.1.3 Screen Authorization (Role ├â┬ù Screen/Activity matrix)' v├â┬á 'Entity Relationship Diagram'. Trong c├â┬íc ├ä┬æo├í┬║┬ín tr├â┬¡ch ├ä┬æ├â┬ú cung c├í┬║┬Ñp, c├í┬║┬ú hai ph├í┬║┬ºn n├â┬áy ch├å┬░a xu├í┬║┬Ñt hi├í┬╗┬çn. Nh├â┬│m ├ä┬æ├â┬ú ho├â┬án thi├í┬╗┬çn ERD v├â┬á ma tr├í┬║┬¡n ph├â┬ón quy├í┬╗┬ün ch├å┬░a, v├â┬á c├â┬│ bao nhi├â┬¬u role ch├â┬¡nh trong h├í┬╗┬ç th├í┬╗┬æng COS?
+
+--- Q10 [hard] ---
+Report 5 (STD) theo rubric bao g├í┬╗┬ôm Unit Test, Integration Test, System Test, Acceptance Test v├í┬╗┬¢i ch├í┬╗┬ë s├í┬╗┬æ '% of Defect' qua t├í┬╗┬½ng giai ├ä┬æo├í┬║┬ín. Nh├â┬│m ├ä┬æ├â┬ú ti├í┬║┬┐n h├â┬ánh test nh├í┬╗┬»ng g├â┬¼, t├í┬╗┬╖ l├í┬╗┬ç defect ph├â┬ít hi├í┬╗┬çn ├í┬╗┬ƒ m├í┬╗┬ùi giai ├ä┬æo├í┬║┬ín l├â┬á bao nhi├â┬¬u, v├â┬á├ª┬£┬ë├Ñ┬ñ┬Ü├Ñ┬░┬æ defects ├ä┬æ├â┬ú ├ä┬æ├å┬░├í┬╗┬úc fix tr├å┬░├í┬╗┬¢c khi b├í┬║┬úo v├í┬╗┬ç?
+
+
+======================================================================
+AFTER (session #84, with Mß╗⌐c 1+2 fix):
+======================================================================
+--- Q1 [medium] ---
+Trong ph├í┬║┬ºn Limitations (LI-1), nh├â┬│m ghi nh├í┬║┬¡n r├í┬║┬▒ng 'some food items... will not be suitable for delivery' n├â┬¬n menu giao h├â┬áng ch├í┬╗┬ë l├â┬á 'subset of the full cafeteria menus'. Tuy nhi├â┬¬n, ├í┬╗┬ƒ m├í┬╗┬Ñc 6.1 Major Features kh├â┬┤ng c├â┬│ feature n├â┬áo m├â┬┤ t├í┬║┬ú c├å┬í ch├í┬║┬┐ t├í┬╗┬▒ ├ä┬æ├í┬╗┬Öng x├â┬íc ├ä┬æ├í┬╗┬ïnh m├â┬│n n├â┬áo ├ä┬æ├å┬░├í┬╗┬úc ph├â┬⌐p giao vs kh├â┬┤ng ├ä┬æ├å┬░├í┬╗┬úc ph├â┬⌐p giao. Nh├â┬│m ├ä┬æ├â┬ú ├ä┬æ├í┬╗┬ïnh ngh├ä┬⌐a ti├â┬¬u ch├â┬¡ 'kh├â┬┤ng ph├â┬╣ h├í┬╗┬úp giao h├â┬áng' l├â┬á g├â┬¼ v├â┬á h├í┬╗┬ç th├í┬╗┬æng s├í┬║┬╜ x├í┬╗┬¡ l├â┬╜ ra sao n├í┬║┬┐u nh├â┬ón vi├â┬¬n nh├â┬á ├ä┬ân mu├í┬╗┬æn t├í┬║┬ím th├í┬╗┬¥i ├í┬║┬⌐n m├í┬╗┬Öt m├â┬│n kh├í┬╗┬Åi menu giao h├â┬áng?
+
+--- Q2 [hard] ---
+LI-2 quy ├ä┬æ├í┬╗┬ïnh COS ch├í┬╗┬ë d├â┬╣ng cho 'Process Impact campus in Clackamas, Oregon'. Trong khi ├ä┬æ├â┬│, mind map (Figure 2) c├â┬│ nh├â┬ính 'Order Meals ├ó┬å┬Æ Restaurants' v├í┬╗┬¢i c├â┬íc ch├í┬╗┬⌐c n├ä┬âng Place Order, Change Order, Cancel Order, View Order History. C├â┬óu h├í┬╗┬Åi l├â┬á: 'local restaurants' ├ä┬æ├å┬░├í┬╗┬úc ├ä┬æ├í┬╗┬ü c├í┬║┬¡p ├í┬╗┬ƒ FE-02 c├â┬│ n├í┬║┬▒m trong ph├í┬║┬ím vi campus n├â┬áy kh├â┬┤ng? N├í┬║┬┐u c├â┬│, nh├â┬│m ├ä┬æ├â┬ú x├â┬íc ├ä┬æ├í┬╗┬ïnh nh├í┬╗┬»ng nh├â┬á h├â┬áng c├í┬╗┬Ñ th├í┬╗┬â n├â┬áo v├â┬á c├å┬í ch├í┬║┬┐ t├â┬¡ch h├í┬╗┬úp d├í┬╗┬» li├í┬╗┬çu menu t├í┬╗┬½ c├â┬íc nh├â┬á h├â┬áng b├â┬¬n ngo├â┬ái v├â┬áo COS ra sao?
+
+--- Q3 [medium] ---
+T├â┬¡nh n├ä┬âng FE-03 cho ph├â┬⌐p 'Create, view, modify, and cancel meal subscriptions'. Tuy nhi├â┬¬n, t├â┬ái li├í┬╗┬çu kh├â┬┤ng m├â┬┤ t├í┬║┬ú subscription s├í┬║┬╜ ho├í┬║┬ít ├ä┬æ├í┬╗┬Öng theo chu k├í┬╗┬│ n├â┬áo (ng├â┬áy, tu├í┬║┬ºn, th├â┬íng) v├â┬á h├í┬╗┬ç th├í┬╗┬æng s├í┬║┬╜ x├í┬╗┬¡ l├â┬╜ ra sao n├í┬║┬┐u user mu├í┬╗┬æn thay ├ä┬æ├í┬╗┬òi menu c├í┬╗┬ºa subscription ├ä┬æang di├í┬╗┬àn ra gi├í┬╗┬»a chu k├í┬╗┬│. H├å┬ín n├í┬╗┬»a, mind map ch├í┬╗┬ë li├í┬╗┬çt k├â┬¬ 'Create/Modify/Cancel Subscription' m├â┬á kh├â┬┤ng c├â┬│ node 'View Subscription History' hay 'Payment Schedule'. Nh├â┬│m ├ä┬æ├â┬ú thi├í┬║┬┐t k├í┬║┬┐ flow x├í┬╗┬¡ l├â┬╜ subscription nh├å┬░ th├í┬║┬┐ n├â┬áo?
+
+--- Q4 [easy] ---
+├í┬╗┬₧ ph├í┬║┬ºn Business Opportunity, nh├â┬│m n├â┬¬u l├í┬╗┬úi ├â┬¡ch 'reduce wastage' nh├í┬╗┬¥ bi├í┬║┬┐t tr├å┬░├í┬╗┬¢c nhu c├í┬║┬ºu. Tuy nhi├â┬¬n, kh├â┬┤ng c├â┬│ KPI ├ä┬æ├í┬╗┬ïnh l├å┬░├í┬╗┬úng n├â┬áo ├ä┬æ├å┬░├í┬╗┬úc ├ä┬æ├å┬░a ra cho v├í┬║┬Ñn ├ä┬æ├í┬╗┬ü n├â┬áy. Nh├â┬│m ├ä┬æ├â┬ú ├ä┬æ├í┬╗┬ïnh l├å┬░├í┬╗┬úng t├â┬¼nh tr├í┬║┬íng l├â┬úng ph├â┬¡ th├í┬╗┬⌐c ├ä┬ân hi├í┬╗┬çn t├í┬║┬íi l├â┬á bao nhi├â┬¬u v├â┬á COS s├í┬║┬╜ gi├í┬║┬úm thi├í┬╗┬âu ├ä┬æ├å┬░├í┬╗┬úc bao nhi├â┬¬u ph├í┬║┬ºn tr├ä┬âm? N├í┬║┬┐u kh├â┬┤ng c├â┬│ s├í┬╗┬æ li├í┬╗┬çu, l├â┬ám sao ├ä┬æ├â┬ính gi├â┬í ├ä┬æ├å┬░├í┬╗┬úc t├â┬¡nh kh├í┬║┬ú thi v├í┬╗┬ü m├í┬║┬╖t kinh doanh?
+
+--- Q5 [medium] ---
+Trong RACI table (Report 2 template), nh├â┬│m ph├â┬ón c├â┬┤ng 'Prepare SRS (Overview)' v├í┬╗┬¢i VanNTTHE04680 l├â┬á D (Doer), nh├å┬░ng trong Project Team (Report 1) th├â┬¼ Van l├â┬á Leader. Khi m├í┬╗┬Öt ng├å┬░├í┬╗┬¥i v├í┬╗┬½a l├â┬á Leader v├í┬╗┬½a l├â┬á ng├å┬░├í┬╗┬¥i tr├í┬╗┬▒c ti├í┬║┬┐p th├í┬╗┬▒c hi├í┬╗┬çn task quan tr├í┬╗┬ìng nh├å┬░ SRS Overview, r├í┬╗┬ºi ro g├â┬¼ s├í┬║┬╜ x├í┬║┬úy ra n├í┬║┬┐u h├í┬╗┬ì kh├â┬┤ng c├â┬│ th├í┬╗┬¥i gian review chi ti├í┬║┬┐t? C├å┬í ch├í┬║┬┐ ki├í┬╗┬âm so├â┬ít quality n├â┬áo ├ä┬æ├å┬░├í┬╗┬úc ├â┬íp d├í┬╗┬Ñng?
+
+--- Q6 [hard] ---
+Tools & Infrastructure li├í┬╗┬çt k├â┬¬ 'FireBase' cho database, trong khi 'MySQL' c├à┬⌐ng ├ä┬æ├å┬░├í┬╗┬úc nh├í┬║┬»c ├ä┬æ├í┬║┬┐n. Kh├â┬┤ng c├â┬│ gi├í┬║┬úi th├â┬¡ch r├â┬╡ Firebase d├â┬╣ng cho m├í┬╗┬Ñc ├ä┬æ├â┬¡ch g├â┬¼ (realtime sync? push notification? authentication?) v├â┬á MySQL d├â┬╣ng cho m├í┬╗┬Ñc ├ä┬æ├â┬¡ch g├â┬¼. H├í┬╗┬ç th├í┬╗┬æng c├â┬│ ├ä┬æang ki├í┬║┬┐n tr├â┬║c hybrid database kh├â┬┤ng? N├í┬║┬┐u c├â┬│, c├å┬í ch├í┬║┬┐ ├ä┬æ├í┬╗┬ông b├í┬╗┬Ö d├í┬╗┬» li├í┬╗┬çu gi├í┬╗┬»a hai database n├â┬áy ├ä┬æ├å┬░├í┬╗┬úc thi├í┬║┬┐t k├í┬║┬┐ ra sao ├ä┬æ├í┬╗┬â ├ä┬æ├í┬║┬úm b├í┬║┬úo consistency?
+
+--- Q7 [easy] ---
+Report 1 ch├í┬╗┬ë ├ä┬æ├í┬╗┬ü c├í┬║┬¡p ├ä┬æ├í┬║┬┐n R1 (Project Introduction), nh├å┬░ng ├ä┬æ├í┬╗┬ü b├â┬ái y├â┬¬u c├í┬║┬ºu h├í┬╗┬Åi v├í┬╗┬ü 'toan bo do an R1-R7'. Tuy nhi├â┬¬n, t├â┬ái li├í┬╗┬çu cung c├í┬║┬Ñp kh├â┬┤ng c├â┬│ n├í┬╗┬Öi dung c├í┬╗┬ºa Report 4 (SDD), Report 5 (STD), Report 6 (SUG), hay Report 7 (Final Report). N├í┬║┬┐u ├ä┬æ├â┬óy l├â┬á ├ä┬æ├í┬╗┬ô ├â┬ín ├ä┬æang trong ti├í┬║┬┐n tr├â┬¼nh, nh├â┬│m ├ä┬æ├â┬ú ho├â┬án th├â┬ánh nh├í┬╗┬»ng b├â┬ío c├â┬ío n├â┬áo v├â┬á c├â┬▓n thi├í┬║┬┐u nh├í┬╗┬»ng ph├í┬║┬ºn n├â┬áo quan tr├í┬╗┬ìng?
+

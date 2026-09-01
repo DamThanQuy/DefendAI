@@ -29,6 +29,7 @@ from app.models.entities import (
     CodeAnalysis,
     CodeAnalysisIssue,
     CodeAnalysisStatus,
+    CodeModuleHash,
     DocType,
     Document,
     DocumentStatus,
@@ -36,6 +37,7 @@ from app.models.entities import (
 from app.services.code_scanner import (
     CodeScanError,
     ScannedFile,
+    _module_content_hash,
     _split_into_module_jobs,
     agent_fast_check,
     analyze_module_files,
@@ -140,9 +142,10 @@ async def handle_code_scan(params: dict) -> dict:
 
 @register_handler("code_scan_module")
 async def handle_code_scan_module(params: dict) -> dict:
-    """L3 module worker: 1 LLM call → write issues → atomic done_modules increment → reduce."""
+    """L3 module worker: hash cache → 1 LLM call → write issues → atomic increment → reduce."""
     rubric = params.get("rubric")
     analysis_id = params.get("analysis_id")
+    document_id = params.get("document_id")
     module = params.get("module")
     provider = params.get("provider")
     model = params.get("model")
@@ -150,7 +153,40 @@ async def handle_code_scan_module(params: dict) -> dict:
 
     async with async_session_maker() as db:
         try:
-            # Try AI review through circuit breaker
+            # Đề xuất 1: Module-level hash cache — skip LLM nếu đã từng scan cùng nội dung
+            content_hash = _module_content_hash(files)
+            cached = (await db.execute(
+                select(CodeModuleHash).where(
+                    CodeModuleHash.document_id == document_id,
+                    CodeModuleHash.module == module,
+                    CodeModuleHash.content_hash == content_hash,
+                )
+            )).scalar_one_or_none()
+
+            if cached and cached.issue_ids_json:
+                logger.info(
+                    "Hash cache HIT for doc=%s module=%s hash=%s — cloning %d old issues",
+                    document_id, module, content_hash[:8], len(cached.issue_ids_json),
+                )
+                old_issues = (await db.execute(
+                    select(CodeAnalysisIssue).where(CodeAnalysisIssue.id.in_(cached.issue_ids_json))
+                )).scalars().all()
+                for old in old_issues:
+                    db.add(CodeAnalysisIssue(
+                        analysis_id=analysis_id,
+                        module=module,
+                        file=old.file,
+                        line=old.line,
+                        type=old.type,
+                        severity=old.severity,
+                        description=old.description,
+                        suggestion=old.suggestion,
+                    ))
+                await db.commit()
+                issues = []  # đã clone, không gọi LLM
+                return await _finish_module(db, analysis_id, module, issues, document_id, content_hash, module_unchanged=True)
+
+            # Cache MISS → gọi LLM qua circuit breaker
             try:
                 issues = await code_review_breaker.call(
                     analyze_module_files, files, provider=provider, model=model, rubric=rubric
@@ -166,21 +202,7 @@ async def handle_code_scan_module(params: dict) -> dict:
                 issues = fallback_reviewer.review_code(files, focus_areas=["security", "performance", "style"])
 
             await _module_issues_to_rows(db, analysis_id, module, issues)
-
-            # Atomic increment + read back the new value
-            result = await db.execute(
-                update(CodeAnalysis)
-                .where(CodeAnalysis.id == analysis_id)
-                .values(done_modules=CodeAnalysis.done_modules + 1)
-                .returning(CodeAnalysis.done_modules, CodeAnalysis.total_modules)
-            )
-            row = result.first()
-            await db.commit()
-
-            if row and row.done_modules >= (row.total_modules or 0):
-                await _reduce_analysis(db, analysis_id)
-
-            return {"analysis_id": analysis_id, "module": module, "issues": len(issues)}
+            return await _finish_module(db, analysis_id, module, issues, document_id, content_hash)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Code scan module %s failed (analysis %s)", module, analysis_id)
             # Still increment done_modules so reduce fires even if some modules fail.
@@ -198,6 +220,60 @@ async def handle_code_scan_module(params: dict) -> dict:
             except Exception:
                 await db.rollback()
             return {"analysis_id": analysis_id, "module": module, "error": str(exc)}
+
+
+async def _finish_module(
+    db: AsyncSession,
+    analysis_id: int,
+    module: str,
+    issues: list,
+    document_id: int,
+    content_hash: str,
+    module_unchanged: bool = False,
+) -> dict:
+    """Atomic increment + write hash cache + maybe reduce."""
+    result = await db.execute(
+        update(CodeAnalysis)
+        .where(CodeAnalysis.id == analysis_id)
+        .values(done_modules=CodeAnalysis.done_modules + 1)
+        .returning(CodeAnalysis.done_modules, CodeAnalysis.total_modules)
+    )
+    row = result.first()
+    await db.commit()
+
+    # Lưu hash + issue ids nếu là LLM pass (không cache)
+    if not module_unchanged and issues:
+        new_issues = (await db.execute(
+            select(CodeAnalysisIssue).where(
+                CodeAnalysisIssue.analysis_id == analysis_id,
+                CodeAnalysisIssue.module == module,
+            ).order_by(CodeAnalysisIssue.id.desc()).limit(len(issues))
+        )).scalars().all()
+        issue_ids = [i.id for i in new_issues]
+
+        existing_hash = (await db.execute(
+            select(CodeModuleHash).where(
+                CodeModuleHash.document_id == document_id,
+                CodeModuleHash.module == module,
+            )
+        )).scalar_one_or_none()
+
+        if existing_hash:
+            existing_hash.content_hash = content_hash
+            existing_hash.issue_ids_json = issue_ids
+        else:
+            db.add(CodeModuleHash(
+                document_id=document_id,
+                module=module,
+                content_hash=content_hash,
+                issue_ids_json=issue_ids,
+            ))
+        await db.commit()
+
+    if row and row.done_modules >= (row.total_modules or 0):
+        await _reduce_analysis(db, analysis_id)
+
+    return {"analysis_id": analysis_id, "module": module, "issues": len(issues)}
 
 
 # ───────────────────────────────────────────────────────────── helpers ──
