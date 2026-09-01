@@ -23,6 +23,8 @@ from app.models.assessment import (  # noqa: F401
     Evaluation,
     Report,
 )
+from app.models.defense_score import DefenseScore, DefenseScoreAudit  # noqa: F401
+from app.models.committee_decision import CommitteeDecision  # noqa: F401
 from app.models.app_setting import AppSetting  # noqa: F401
 from app.models.ai_config import AIProvider, AIModel, FeatureAIConfig  # noqa: F401
 from app.models.session import Session  # noqa: F401
@@ -55,6 +57,9 @@ __all__ = [
     "CodeAnalysisStatus",
     "Evaluation",
     "Report",
+    "DefenseScore",
+    "DefenseScoreAudit",
+    "CommitteeDecision",
     "AppSetting",
     "AIProvider",
     "AIModel",
