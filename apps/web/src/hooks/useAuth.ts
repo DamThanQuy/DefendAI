@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { getMe } from "@/lib/api";
 
 export interface AuthUser {
+  id?: number | string;
   email: string;
   full_name?: string | null;
   roles: string[];
@@ -30,6 +31,7 @@ function readCachedUser(): AuthUser | null {
   try {
     const u = JSON.parse(raw) as Partial<AuthUser>;
     return {
+      id: u.id,
       email: u.email ?? "",
       full_name: u.full_name ?? null,
       roles: u.roles ?? [],
@@ -102,6 +104,7 @@ export function useAuth() {
         if (cancelled) return;
         const me = res.data;
         const synced: AuthUser = {
+          id: me.id,
           email: me.email,
           full_name: me.full_name,
           roles: me.roles ?? [],

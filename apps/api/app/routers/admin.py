@@ -293,6 +293,11 @@ class FeatureAIConfigUpdate(BaseModel):
     model_id: str = Field(..., max_length=200)
 
 
+class SettingsUpdate(BaseModel):
+    """Request body cho PUT /api/admin/settings — truyền dict các key trong ALLOWED_KEYS."""
+    settings: dict[str, str]
+
+
 @router.put(
     "/feature-ai-config",
     summary="Cập nhật model cho 1 chức năng (admin)",

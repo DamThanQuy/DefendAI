@@ -117,7 +117,7 @@ def upgrade():
     # 6. Add summary column for old messages (optional optimization)
     op.add_column('messages', sa.Column('summary', sa.Text(), nullable=True))
     
-    print(f"Migrated messages from workspace_chats")
+    print("Migrated messages from workspace_chats")
 
 
 def downgrade():
