@@ -34,6 +34,10 @@ services:
 
       # Redis connection
       REDIS_URL: redis://redis:6379/0
+      # Force correct local model (image has stale LOCAL_MODEL=google)
+      LOCAL_MODEL: ${LOCAL_MODEL:-agnes-2.5-flash}
+      LOCAL_BASE_URL: ${LOCAL_BASE_URL:-https://apihub.agnes-ai.com/v1}
+      LOCAL_API_KEY: ${LOCAL_API_KEY:-sk-x4yIzIz3M26SDmJLrPsjbXSwDUxL8HMrVehmAdrOVWSnqqsX}
     volumes:
       # Mount code để dev có hot-reload
       - ./apps/api:/app
@@ -146,6 +150,9 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/defense_db
       REDIS_URL: redis://redis:6379/0
       DEFAULT_PROVIDER: localhost
+      LOCAL_MODEL: ${LOCAL_MODEL:-agnes-2.5-flash}
+      LOCAL_BASE_URL: ${LOCAL_BASE_URL:-https://apihub.agnes-ai.com/v1}
+      LOCAL_API_KEY: ${LOCAL_API_KEY:-sk-x4yIzIz3M26SDmJLrPsjbXSwDUxL8HMrVehmAdrOVWSnqqsX}
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
@@ -177,6 +184,9 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/defense_db
       REDIS_URL: redis://redis:6379/0
       DEFAULT_PROVIDER: localhost
+      LOCAL_MODEL: ${LOCAL_MODEL:-agnes-2.5-flash}
+      LOCAL_BASE_URL: ${LOCAL_BASE_URL:-https://apihub.agnes-ai.com/v1}
+      LOCAL_API_KEY: ${LOCAL_API_KEY:-sk-x4yIzIz3M26SDmJLrPsjbXSwDUxL8HMrVehmAdrOVWSnqqsX}
       WORKER_PROCESSES: 4
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       ALGORITHM: HS256

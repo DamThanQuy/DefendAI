@@ -203,12 +203,18 @@ async def call_ai_gateway(
     max_tokens: int = 4000,
     response_format: str = "json",
 ) -> Dict[str, Any]:
-    """Call AI Gateway để generate response."""
+    """Call AI Gateway để generate response (provider/model theo cấu hình mock_qa)."""
+    from app.core.database import async_session_maker
+    from app.services.feature_ai import resolve_feature_ai
+    async with async_session_maker() as db:
+        provider, model = await resolve_feature_ai(db, "mock_qa")
     result = await ai_gateway.generate(
         prompt=prompt,
         system_prompt=system_prompt,
         temperature=temperature,
         max_tokens=max_tokens,
+        provider=provider,
+        model=model,
     )
     
     content = result.get("content", "")
