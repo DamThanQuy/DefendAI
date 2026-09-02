@@ -1,0 +1,445 @@
+﻿{
+    "clo":  [
+                {
+                    "code":  "CLO1",
+                    "desc":  "XÃ¡c Äá»nh váº¥n Äá» \u0026 láº­p SRS"
+                },
+                {
+                    "code":  "CLO2",
+                    "desc":  "Thiáº¿t káº¿ giáº£i phÃ¡p"
+                },
+                {
+                    "code":  "CLO3",
+                    "desc":  "Hiá»n thá»±c + kiá»m thá»­"
+                },
+                {
+                    "code":  "CLO4",
+                    "desc":  "Quáº£n lÃ½ dá»± Ã¡n"
+                },
+                {
+                    "code":  "CLO5",
+                    "desc":  "Viáº¿t bÃ¡o cÃ¡o"
+                },
+                {
+                    "code":  "CLO6",
+                    "desc":  "Thuyáº¿t trÃ¬nh \u0026 giao tiáº¿p"
+                },
+                {
+                    "code":  "CLO7",
+                    "desc":  "ThÃ¡i Äá» chuyÃªn nghiá»p"
+                }
+            ],
+    "clo_map":  {
+                    "CLO1":  "srs",
+                    "CLO2":  "sdd",
+                    "CLO3":  "implementation+testing",
+                    "CLO4":  "pmp",
+                    "CLO5":  "user_guides+report",
+                    "CLO6":  "presentation+qa",
+                    "CLO7":  "attitude"
+                },
+    "grading":  {
+                    "oga":  {
+                                "items":  {
+                                              "pmp":  8,
+                                              "sdd":  18,
+                                              "srs":  16,
+                                              "testing":  18,
+                                              "user_guides":  4,
+                                              "introduction":  4,
+                                              "implementation":  32
+                                          },
+                                "weight":  50
+                            },
+                    "tda":  {
+                                "items":  {
+                                              "qa":  10,
+                                              "pmp":  5,
+                                              "sdd":  10,
+                                              "srs":  15,
+                                              "testing":  10,
+                                              "user_guides":  5,
+                                              "introduction":  5,
+                                              "presentation":  5,
+                                              "implementation":  35
+                                          },
+                                "weight":  50
+                            }
+                },
+    "subject":  {
+                    "code":  "SEP490",
+                    "lang":  "en",
+                    "scale":  10,
+                    "credits":  10,
+                    "team_size":  "4-5",
+                    "min_avg_to_pass":  5,
+                    "min_oga_to_pass":  5
+                },
+    "features":  [
+                     {
+                         "code":  "FE-01",
+                         "desc":  "Äáº·t/thanh toÃ¡n mÃ³n tá»« thá»±c ÄÆ¡n cÄng tin",
+                         "type":  "pickup_delivery"
+                     },
+                     {
+                         "code":  "FE-02",
+                         "desc":  "Äáº·t/thanh toÃ¡n mÃ³n tá»« nhÃ  hÃ ng Äá»a phÆ°Æ¡ng",
+                         "type":  "delivery"
+                     },
+                     {
+                         "code":  "FE-03",
+                         "desc":  "Táº¡o/xem/sá»­a/há»§y suáº¥t Än Äá»nh ká»³",
+                         "type":  "subscription"
+                     },
+                     {
+                         "code":  "FE-04",
+                         "desc":  "CRUD thá»±c ÄÆ¡n cÄng tin",
+                         "type":  "menu_mgmt"
+                     },
+                     {
+                         "code":  "FE-05",
+                         "desc":  "Xem nguyÃªn liá»u \u0026 dinh dÆ°á»¡ng",
+                         "type":  "info"
+                     }
+                 ],
+    "artifacts":  [
+                      {
+                          "key":  "pmp",
+                          "label":  "Project Management Plan"
+                      },
+                      {
+                          "key":  "srs",
+                          "label":  "SRS"
+                      },
+                      {
+                          "key":  "sdd",
+                          "label":  "SDD"
+                      },
+                      {
+                          "key":  "std",
+                          "label":  "Test Plan \u0026 STD"
+                      },
+                      {
+                          "key":  "package",
+                          "label":  "Software package \u0026 User guides"
+                      }
+                  ],
+    "milestones":  [
+                       {
+                           "week":  1,
+                           "phase":  "Khá»i táº¡o",
+                           "report":  "R1",
+                           "deliverable":  "Giá»i thiá»u dá»± Ã¡n"
+                       },
+                       {
+                           "week":  2,
+                           "phase":  "Láº­p káº¿ hoáº¡ch",
+                           "report":  "R2",
+                           "deliverable":  "Káº¿ hoáº¡ch dá»± Ã¡n"
+                       },
+                       {
+                           "week":  3,
+                           "phase":  "YÃªu cáº§u",
+                           "report":  "R3",
+                           "deliverable":  "YÃªu cáº§u tá»ng thá»"
+                       },
+                       {
+                           "week":  5,
+                           "phase":  "Thiáº¿t káº¿",
+                           "report":  "R4+R5",
+                           "deliverable":  "Thiáº¿t káº¿ tá»ng thá»"
+                       },
+                       {
+                           "week":  7,
+                           "phase":  "Code Iter 1",
+                           "report":  "code cháº¡y",
+                           "deliverable":  "GÃ³i pháº§n má»m 1"
+                       },
+                       {
+                           "week":  9,
+                           "phase":  "Code Iter 2",
+                           "report":  "-",
+                           "deliverable":  "GÃ³i pháº§n má»m 2"
+                       },
+                       {
+                           "week":  11,
+                           "phase":  "Code Iter 3",
+                           "report":  "-",
+                           "deliverable":  "GÃ³i pháº§n má»m 3"
+                       },
+                       {
+                           "week":  13,
+                           "phase":  "Kiá»m thá»­ HT",
+                           "report":  "Full",
+                           "deliverable":  "GÃ³i hoÃ n chá»nh"
+                       },
+                       {
+                           "week":  14,
+                           "phase":  "Chuyá»n giao",
+                           "report":  "R6",
+                           "deliverable":  "HÆ°á»ng dáº«n sá»­ dá»¥ng"
+                       },
+                       {
+                           "week":  15,
+                           "phase":  "Chuyá»n giao",
+                           "report":  "R7+Slide",
+                           "deliverable":  "GÃ³i cuá»i cÃ¹ng"
+                       }
+                   ],
+    "pass_rules":  {
+                       "redo":  [
+                                    "fail_round2",
+                                    "oga\u003c2"
+                                ],
+                       "fail_always":  [
+                                           "oga\u003c5",
+                                           "cheating"
+                                       ],
+                       "defer_round2":  [
+                                            "oga\u003c5",
+                                            "completed_uc\u003c75%",
+                                            "cannot_prove_self_made",
+                                            "logic_errors\u003e3",
+                                            "show_stopper\u003e1"
+                                        ],
+                       "fail_individual":  [
+                                               "no_demo",
+                                               "cannot_prove_self_made",
+                                               "logic_errors\u003e3",
+                                               "show_stopper\u003e1"
+                                           ]
+                   },
+    "limitations":  [
+                        {
+                            "code":  "LI-01",
+                            "desc":  "Thá»±c ÄÆ¡n giao = táº­p con thá»±c ÄÆ¡n Äáº§y Äá»§"
+                        },
+                        {
+                            "code":  "LI-02",
+                            "desc":  "Chá» dÃ¹ng cÆ¡ sá» Process Impact, Clackamas, Oregon"
+                        }
+                    ],
+    "business_rules":  [
+                           {
+                               "code":  "BR-01",
+                               "desc":  "Khung giá» giao hÃ ng 15 phÃºt, báº¯t Äáº§u má»i giá» rÆ°á»¡i"
+                           },
+                           {
+                               "code":  "BR-02",
+                               "desc":  "Giao hÃ ng 10:00-14:00 (giá» Äá»a phÆ°Æ¡ng)"
+                           },
+                           {
+                               "code":  "BR-03",
+                               "desc":  "Táº¥t cáº£ mÃ³n 1 ÄÆ¡n â cÃ¹ng 1 Äá»a Äiá»m"
+                           },
+                           {
+                               "code":  "BR-04",
+                               "desc":  "1 ÄÆ¡n â 1 phÆ°Æ¡ng thá»©c thanh toÃ¡n"
+                           },
+                           {
+                               "code":  "BR-11",
+                               "desc":  "ÄÆ¡n giao hÃ ng â kháº¥u trá»« báº£ng lÆ°Æ¡ng"
+                           },
+                           {
+                               "code":  "BR-12",
+                               "desc":  "GiÃ¡ = Î£(giÃ¡Ãsá» lÆ°á»£ng) + thuáº¿ + phÃ­ giao (ngoÃ i vÃ¹ng miá»\u0085n phÃ­)"
+                           },
+                           {
+                               "code":  "BR-24",
+                               "desc":  "Chá» Menu Manager ÄÆ°á»£c chá» Äá»nh CRUD thá»±c ÄÆ¡n"
+                           },
+                           {
+                               "code":  "BR-33",
+                               "desc":  "Truyá»n dá»¯ liá»u tÃ i chÃ­nh/PII yÃªu cáº§u mÃ£ hÃ³a 256-bit"
+                           },
+                           {
+                               "code":  "BR-86",
+                               "desc":  "Chá» nhÃ¢n viÃªn chÃ­nh thá»©c ÄÄng kÃ½ kháº¥u trá»« báº£ng lÆ°Æ¡ng"
+                           },
+                           {
+                               "code":  "BR-88",
+                               "desc":  "Kháº¥u trá»« OK náº¿u â¤40% lÆ°Æ¡ng gá»p ÄÃ£ bá» kháº¥u trá»«"
+                           }
+                       ],
+    "quality_criteria":  [
+                             {
+                                 "key":  "tinh_thuc_te",
+                                 "label":  "TÃ­nh thá»±c táº¿",
+                                 "levels":  [
+                                                "Äáº¡t",
+                                                "KhÃ¡",
+                                                "ChÆ°a Äáº¡t"
+                                            ]
+                             },
+                             {
+                                 "key":  "tinh_giai_quyet_van_de",
+                                 "label":  "TÃ­nh giáº£i quyáº¿t váº¥n Äá»",
+                                 "levels":  [
+                                                "Äáº¡t",
+                                                "KhÃ¡",
+                                                "ChÆ°a Äáº¡t"
+                                            ]
+                             },
+                             {
+                                 "key":  "br_chac",
+                                 "label":  "BR cháº¯c",
+                                 "levels":  [
+                                                "Äáº¡t",
+                                                "KhÃ¡",
+                                                "ChÆ°a Äáº¡t"
+                                            ]
+                             },
+                             {
+                                 "key":  "giai_quyet_van_de_hien_tai",
+                                 "label":  "Giáº£i quyáº¿t 1 váº¥n Äá» hiá»n táº¡i",
+                                 "levels":  [
+                                                "Äáº¡t",
+                                                "KhÃ¡",
+                                                "ChÆ°a Äáº¡t"
+                                            ]
+                             }
+                         ],
+    "report_checklist":  {
+                             "R1":  [
+                                        "ThÃ´ng tin dá»± Ã¡n",
+                                        "Äá»i ngÅ©",
+                                        "Bá»i cáº£nh",
+                                        "CÆ¡ há»i",
+                                        "Táº§m nhÃ¬n",
+                                        "FE-01..05",
+                                        "LI-01..02"
+                                    ],
+                             "R2":  [
+                                        "WBS+Æ°á»c lÆ°á»£ng",
+                                        "Má»¥c tiÃªu cháº¥t lÆ°á»£ng",
+                                        "Rá»§i ro",
+                                        "SDLC",
+                                        "RACI",
+                                        "CÃ´ng cá»¥/Háº¡ táº§ng"
+                                    ],
+                             "R3":  [
+                                        "TÃ¡c nhÃ¢n",
+                                        "Use case",
+                                        "FR (mÃ n hÃ¬nh/ERD)",
+                                        "NFR",
+                                        "BR-01..88",
+                                        "MSG-01..09"
+                                    ]
+                         },
+    "required_submissions":  [
+                                 {
+                                     "key":  "report1",
+                                     "week":  1,
+                                     "label":  "Project Introduction"
+                                 },
+                                 {
+                                     "key":  "report2",
+                                     "week":  2,
+                                     "label":  "PMP"
+                                 },
+                                 {
+                                     "key":  "report3",
+                                     "week":  3,
+                                     "label":  "SRS"
+                                 },
+                                 {
+                                     "key":  "report4",
+                                     "week":  5,
+                                     "label":  "SDD"
+                                 },
+                                 {
+                                     "key":  "report5",
+                                     "week":  5,
+                                     "label":  "STD"
+                                 },
+                                 {
+                                     "key":  "report6",
+                                     "week":  14,
+                                     "label":  "SUG"
+                                 },
+                                 {
+                                     "key":  "report7",
+                                     "week":  15,
+                                     "label":  "Final Report"
+                                 },
+                                 {
+                                     "key":  "software",
+                                     "week":  15,
+                                     "label":  "Software Product"
+                                 }
+                             ],
+    "deliverables":  [
+                         {
+                             "code":  "R1",
+                             "name":  "Project Introduction",
+                             "file_types":  [
+                                                ".docx"
+                                            ],
+                             "desc":  "Report 1"
+                         },
+                         {
+                             "code":  "R2",
+                             "name":  "Project Management Plan (PMP)",
+                             "file_types":  [
+                                                ".docx"
+                                            ],
+                             "desc":  "Report 2"
+                         },
+                         {
+                             "code":  "R3",
+                             "name":  "Software Requirements Spec (SRS)",
+                             "file_types":  [
+                                                ".docx"
+                                            ],
+                             "desc":  "Report 3"
+                         },
+                         {
+                             "code":  "R4",
+                             "name":  "Software Design Description (SDD)",
+                             "file_types":  [
+                                                ".docx"
+                                            ],
+                             "desc":  "Report 4"
+                         },
+                         {
+                             "code":  "R5",
+                             "name":  "Software Test Documentation (STD)",
+                             "file_types":  [
+                                                ".docx"
+                                            ],
+                             "desc":  "Report 5"
+                         },
+                         {
+                             "code":  "R6",
+                             "name":  "Software User Guides (SUG)",
+                             "file_types":  [
+                                                ".docx"
+                                            ],
+                             "desc":  "Report 6"
+                         },
+                         {
+                             "code":  "R7",
+                             "name":  "Final Project Report",
+                             "file_types":  [
+                                                ".docx"
+                                            ],
+                             "desc":  "Report 7"
+                         },
+                         {
+                             "code":  "SP",
+                             "name":  "Software Product",
+                             "file_types":  [
+                                                ".zip"
+                                            ],
+                             "desc":  "source code + DB scripts + installable package"
+                         },
+                         {
+                             "code":  "SL",
+                             "name":  "Defense Slides",
+                             "file_types":  [
+                                                ".pptx"
+                                            ],
+                             "desc":  "presentation"
+                         }
+                     ]
+}

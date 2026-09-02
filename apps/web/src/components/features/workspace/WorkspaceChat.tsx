@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PERSONAS } from "@/lib/constants";
 import { MarkdownMessage } from "./MarkdownMessage";
 
@@ -458,7 +459,7 @@ export default function WorkspaceChat({
   return (
     <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden flex flex-col h-[calc(100vh-260px)] min-h-[480px]">
       <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center justify-between gap-2 sticky top-0 z-20">
-        <span className="text-[13px] font-bold text-zinc-200">💬 Chat đề tài (toàn workspace)</span>
+        <span className="text-[13px] font-bold text-zinc-200">Chat đề tài (toàn workspace)</span>
         <div className="flex items-center gap-3">
           {/* Circular progress: ước lượng context token của đoạn đang mở */}
           <div className="flex items-center gap-2" title={`Context: ~${contextTokens} / ${CONTEXT_MAX} tokens`}>
@@ -497,7 +498,7 @@ export default function WorkspaceChat({
             title={showFailed ? "Ẩn tin nhắn lỗi" : "Hiển thị cả tin nhắn lỗi"}
             className={`px-2.5 py-1.5 rounded-lg text-[12px] border transition-colors ${showFailed ? "bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600"}`}
           >
-            {showFailed ? "🚫 Ẩn lỗi" : "👁️ Xem lỗi"}
+            {showFailed ? "Ẩn lỗi" : "Xem lỗi"}
           </button>
           <button
             onClick={cleanFailedChats}
@@ -505,14 +506,14 @@ export default function WorkspaceChat({
             title="Xoá các tin nhắn lỗi và đang xử lý cũ"
             className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors disabled:opacity-50"
           >
-            {cleaningHistory ? "Đang dọn..." : "🧹 Dọn lỗi"}
+            {cleaningHistory ? "Đang dọn..." : "Dọn lỗi"}
           </button>
           <button
             onClick={toggleSidebar}
             title={sidebarOpen ? "Thu gọn danh sách đoạn" : "Mở danh sách đoạn"}
             className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
           >
-            {sidebarOpen ? "◀" : "▶"}
+            {sidebarOpen ? <ChevronLeft className="w-3.5 h-3.5" strokeWidth={2.5} /> : <ChevronRight className="w-3.5 h-3.5" strokeWidth={2.5} />}
           </button>
         </div>
         </div>
@@ -530,7 +531,7 @@ export default function WorkspaceChat({
               title="Tạo đoạn chat mới"
               className="px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-md text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors whitespace-nowrap"
             >
-              ➕ Đoạn mới
+              Đoạn mới
             </button>
           </div>
           {/* Danh sách đoạn chat — cuộn độc lập, không làm trôi top bar */}
@@ -543,7 +544,7 @@ export default function WorkspaceChat({
                 onClick={() => switchConversation("")}
                 className={`w-full text-left px-2 py-1.5 rounded-md text-[12px] transition-colors ${activeConvId === "" ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-zinc-400 hover:bg-zinc-800/60"}`}
               >
-                💬 Đoạn mặc định
+                Đoạn mặc định
               </button>
               {conversations.map((c) => (
                 <div key={c.conversation_id} className="group relative flex items-center gap-1">
@@ -582,7 +583,7 @@ export default function WorkspaceChat({
                         onClick={() => startRename(c)}
                         className="w-full text-left px-3 py-1.5 text-zinc-300 hover:bg-zinc-800 transition-colors"
                       >
-                        ✏️ Đổi tên
+                        Đổi tên
                       </button>
                       <button
                         onClick={() => {
@@ -591,7 +592,7 @@ export default function WorkspaceChat({
                         }}
                         className="w-full text-left px-3 py-1.5 text-red-400 hover:bg-red-500/10 transition-colors"
                       >
-                        🗑 Xoá đoạn
+                        Xoá đoạn
                       </button>
                     </div>
                   )}
@@ -609,7 +610,6 @@ export default function WorkspaceChat({
           <p className="text-zinc-500 text-[13px] text-center py-8">Đang tải hội thoại...</p>
         ) : chatItems.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-zinc-500">
-            <span className="text-4xl mb-3">💬</span>
             <p className="text-[13px] text-center max-w-[320px]">Hỏi bất kỳ điều gì về toàn bộ workspace — AI trả lời kèm nguồn file:đoạn, giữ ngữ cảnh 6 lượt trước.</p>
           </div>
         ) : (
@@ -625,7 +625,7 @@ export default function WorkspaceChat({
                   {turn.citations && turn.citations.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {turn.citations.map((c, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-primary/10 text-primary text-[11px] font-semibold rounded-md">📎 {c}</span>
+                        <span key={i} className="px-2 py-0.5 bg-primary/10 text-primary text-[11px] font-semibold rounded-md">{c}</span>
                       ))}
                     </div>
                   )}

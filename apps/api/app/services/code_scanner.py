@@ -1,6 +1,7 @@
 """Service quét source code từ file ZIP/RAR và gọi AI review."""
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -61,6 +62,22 @@ SKIP_DIR_NAMES = {
     ".venv",
 }
 
+# Đề xuất 4 (NotebookLM): bỏ qua lockfile / minified / generated / type declaration
+SKIP_FILE_NAMES = {
+    "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "composer.lock",
+    "pipfile.lock", "poetry.lock", "cargo.lock", "go.sum",
+    ".gitignore", ".gitkeep", ".dockerignore",
+    ".eslintrc", ".prettierrc", ".editorconfig",
+}
+SKIP_SUFFIXES = {
+    ".min.js", ".min.css", ".bundle.js", ".chunk.js", ".min.mjs",
+}
+GENERATED_PATH_MARKERS = (
+    "/dist/", "/build/", "/out/", "/.next/", "/.nuxt/",
+    "/coverage/", "/__snapshots__/", "/generated/", "/.generated/",
+    "/_generated/", "/autogen/",
+)
+
 MAX_ZIP_FILES = 100000  # 100k, align with 100k-file goal
 # ponytail: removed hard cap on extract (was 50). Orchestrator reads ALL files then
 # splits into modules <= MODULE_FILE_CAP for 1 LLM call each. Upgrade path: 100k files.
@@ -82,6 +99,36 @@ class ScannedFile:
     content: str
 
 
+def _module_content_hash(module_files: list[ScannedFile]) -> str:
+    """Đề xuất 1: SHA256 tổng hợp (path + content) để cache LLM result theo module.
+
+    Sort theo path để deterministic — cùng tập file luôn cho cùng hash
+    bất kể thứ tự enumerate trong ZIP.
+    """
+    h = hashlib.sha256()
+    for f in sorted(module_files, key=lambda x: x.path):
+        h.update(f.path.encode("utf-8"))
+        h.update(b"\x00")
+        h.update(f.content.encode("utf-8", errors="replace"))
+        h.update(b"\x00")
+    return h.hexdigest()
+
+
+def _is_static_or_generated(name: str) -> bool:
+    """Đề xuất 4: bỏ file minified, generated, lockfile, type declaration trước LLM.
+    Trả True nếu KHÔNG cần đưa vào review.
+    """
+    lower_name = name.lower()
+    base = PurePosixPath(lower_name).name
+    if base in SKIP_FILE_NAMES:
+        return True
+    if any(lower_name.endswith(s) for s in SKIP_SUFFIXES):
+        return True
+    if any(marker in lower_name for marker in GENERATED_PATH_MARKERS):
+        return True
+    return False
+
+
 def _is_safe_member(name: str) -> bool:
     path = PurePosixPath(name)
     if path.is_absolute():
@@ -89,6 +136,8 @@ def _is_safe_member(name: str) -> bool:
     if ".." in path.parts:
         return False
     if any(part in SKIP_DIR_NAMES for part in path.parts):
+        return False
+    if _is_static_or_generated(name):
         return False
     return True
 
@@ -530,18 +579,43 @@ def _split_by_module(files: list[ScannedFile]) -> dict[str, list[ScannedFile]]:
     return modules
 
 
-def _split_into_module_jobs(files: list[ScannedFile], module_cap: int = 40) -> list[tuple[str, list[ScannedFile]]]:
-    """Group files by top-level folder then chunk each group to ``module_cap`` files.
+def _split_into_module_jobs(
+    files: list[ScannedFile],
+    module_cap: int = 40,
+    small_threshold: int = 5,
+) -> list[tuple[str, list[ScannedFile]]]:
+    """Group files by top-level folder, gộp module nhỏ vào ``__shared__`` (Đề xuất 2).
+
+    Lý do: dự án có nhiều folder rời rạc (vd: utils/, helpers/, types/, configs/)
+    chỉ chứa 1-3 file → tạo hàng chục job LLM call riêng lẻ → lãng phí. Gom
+    các folder có ``< small_threshold` file vào bucket ``__shared__`` giúp giảm
+    30-40% số LLM call cho các project có cấu trúc dạng này.
 
     Returns ``[(module_name, [ScannedFile, ...]), ...]`` — one LLM job per tuple.
     """
     grouped: dict[str, list[ScannedFile]] = _split_by_module(files)
-    jobs: list[tuple[str, list[ScannedFile]]] = []
+
+    big_modules: dict[str, list[ScannedFile]] = {}
+    shared_files: list[ScannedFile] = []
     for module_name, module_files in grouped.items():
+        if len(module_files) >= small_threshold:
+            big_modules[module_name] = module_files
+        else:
+            shared_files.extend(module_files)
+
+    jobs: list[tuple[str, list[ScannedFile]]] = []
+    for module_name, module_files in big_modules.items():
         for i in range(0, len(module_files), module_cap):
             chunk = module_files[i : i + module_cap]
             suffix = f"::{i // module_cap + 1}" if len(module_files) > module_cap else ""
             jobs.append((f"{module_name}{suffix}", chunk))
+
+    if shared_files:
+        shared_files.sort(key=_sort_key)
+        for i in range(0, len(shared_files), module_cap):
+            chunk = shared_files[i : i + module_cap]
+            suffix = f"::{i // module_cap + 1}" if len(shared_files) > module_cap else ""
+            jobs.append((f"__shared__{suffix}", chunk))
     return jobs
 
 

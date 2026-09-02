@@ -1,0 +1,40 @@
+﻿--- Q1 [medium] ---
+B├â┬ío c├â┬ío ├ä┬æ├â┬ú li├í┬╗┬çt k├â┬¬ c├â┬íc t├â┬¡nh n├ä┬âng FE-01 ├ä┬æ├í┬║┬┐n FE-05 v├â┬á gi├í┬╗┬¢i h├í┬║┬ín LI-1, LI-2. Tuy nhi├â┬¬n, kh├â┬┤ng c├â┬│ ph├í┬║┬ºn n├â┬áo m├â┬┤ t├í┬║┬ú m├â┬┤ h├â┬¼nh kinh doanh ho├í┬║┬╖c l├í┬╗┬úi ├â┬¡ch c├í┬╗┬Ñ th├í┬╗┬â cho nh├â┬á cung c├í┬║┬Ñp d├í┬╗┬ïch v├í┬╗┬Ñ cafeteria (kh├â┬┤ng ch├í┬╗┬ë cho nh├â┬ón vi├â┬¬n). H├í┬╗┬ç th├í┬╗┬æng COS s├í┬║┬╜ t├í┬║┬ío ra gi├â┬í tr├í┬╗┬ï t├â┬ái ch├â┬¡nh ho├í┬║┬╖c v├í┬║┬¡n h├â┬ánh n├â┬áo cho ├ä┬æ├í┬╗┬æi t├â┬íc nh├â┬á h├â┬áng/cafeteria, v├â┬á cafeteria c├â┬│ s├í┬║┬╡n s├â┬áng chuy├í┬╗┬ân sang quy tr├â┬¼nh ├ä┬æ├í┬║┬╖t m├â┬│n online hay kh├â┬┤ng?
+  -> suggested_answer: C├í┬║┬ºn n├â┬¬u r├â┬╡ l├í┬╗┬úi ├â┬¡ch cho c├í┬║┬ú hai ph├â┬¡a: ng├å┬░├í┬╗┬¥i d├â┬╣ng (nh├â┬ón vi├â┬¬n) v├â┬á ├ä┬æ├å┬ín v├í┬╗┬ï cung c├í┬║┬Ñp (cafeteria). C├â┬│ th├í┬╗┬â ├ä┬æ├í┬╗┬ü c├í┬║┬¡p ├ä┬æ├í┬║┬┐n vi├í┬╗┬çc gi├í┬║┬úm l├â┬úng ph├â┬¡ th├í┬╗┬▒c ph├í┬║┬⌐m, t├í┬╗┬æi ├å┬░u t├í┬╗┬ôn kho, ho├í┬║┬╖c t├ä┬âng doanh thu th├â┬┤ng qua ├ä┬æ├å┬ín ├ä┬æ├í┬║┬╖t tr├å┬░├í┬╗┬¢c.
+
+--- Q2 [hard] ---
+Report 1 ghi gi├í┬╗┬¢i h├í┬║┬ín LI-2: 'COS shall be used only for the cafeteria at the Process Impact campus'. V├â┬¼ ├ä┬æ├â┬óy l├â┬á ├ä┬æ├í┬╗┬ô ├â┬ín t├í┬╗┬æt nghi├í┬╗┬çp t├í┬║┬íi FPT University Vi├í┬╗┬çt Nam, vi├í┬╗┬çc d├â┬╣ng b├í┬╗┬æi c├í┬║┬únh 'Process Impact campus in Clackamas, Oregon' l├â┬á kh├â┬┤ng ph├â┬╣ h├í┬╗┬úp th├í┬╗┬▒c t├í┬║┬┐. Nh├â┬│m ├ä┬æ├â┬ú ├ä┬æi├í┬╗┬üu ch├í┬╗┬ënh b├í┬╗┬æi c├í┬║┬únh th├â┬ánh Vi├í┬╗┬çt Nam ch├å┬░a, v├â┬á n├í┬║┬┐u c├â┬│, th├â┬┤ng tin n├â┬áy ├ä┬æ├å┬░├í┬╗┬úc th├í┬╗┬â hi├í┬╗┬çn ├í┬╗┬ƒ t├â┬ái li├í┬╗┬çu n├â┬áo?
+  -> suggested_answer: N├í┬║┬┐u ├ä┬æ├â┬ú ├ä┬æi├í┬╗┬üu ch├í┬╗┬ënh b├í┬╗┬æi c├í┬║┬únh cho ph├â┬╣ h├í┬╗┬úp v├í┬╗┬¢i FPTU H├â┬á N├í┬╗┬Öi, c├í┬║┬ºn ch├í┬╗┬ë r├â┬╡ n├å┬íi t├â┬ái li├í┬╗┬çu ph├í┬║┬ún ├â┬ính ├ä┬æi├í┬╗┬üu n├â┬áy. N├í┬║┬┐u ch├å┬░a, ├ä┬æ├â┬óy l├â┬á l├í┬╗┬ùi nghi├â┬¬m tr├í┬╗┬ìng v├í┬╗┬ü t├â┬¡nh th├í┬╗┬▒c t├í┬║┬┐ c├í┬╗┬ºa ├ä┬æ├í┬╗┬ü t├â┬ái.
+
+--- Q3 [medium] ---
+Danh s├â┬ích c├â┬┤ng ngh├í┬╗┬ç c├â┬│ ghi 'Angular 7' ├ó┬Ç┬ö phi├â┬¬n b├í┬║┬ún ├ä┬æ├â┬ú end-of-life t├í┬╗┬½ n├ä┬âm 2020. Nh├â┬│m ├ä┬æ├â┬ú c├â┬│ k├í┬║┬┐ ho├í┬║┬ích n├â┬óng c├í┬║┬Ñp l├â┬¬n Angular LTS version n├â┬áo, v├â┬á l├â┬╜ do c├í┬╗┬Ñ th├í┬╗┬â n├â┬áo khi├í┬║┬┐n nh├â┬│m ch├í┬╗┬ìn Angular 7 trong ng├í┬╗┬» c├í┬║┬únh ├ä┬æ├í┬╗┬ô ├â┬ín 2024-2026?
+  -> suggested_answer: N├â┬¬n gi├í┬║┬úi th├â┬¡ch ├ä┬æ├å┬░├í┬╗┬úc vi├í┬╗┬çc l├í┬╗┬▒a ch├í┬╗┬ìn framework/front-end hi├í┬╗┬çn ├ä┬æ├í┬║┬íi, ph├â┬╣ h├í┬╗┬úp v├í┬╗┬¢i y├â┬¬u c├í┬║┬ºu th├í┬╗┬▒c t├í┬║┬┐ v├â┬á th├í┬╗┬ï tr├å┬░├í┬╗┬¥ng lao ├ä┬æ├í┬╗┬Öng.
+
+--- Q4 [medium] ---
+Report s├í┬╗┬¡ d├í┬╗┬Ñng MySQL v├â┬á FireBase c├â┬╣ng l├â┬║c. M├í┬╗┬Ñc ├ä┬æ├â┬¡ch c├í┬╗┬Ñ th├í┬╗┬â c├í┬╗┬ºa FireBase trong h├í┬╗┬ç th├í┬╗┬æng COS l├â┬á g├â┬¼? N├í┬║┬┐u l├â┬á cho real-time notification, t├í┬║┬íi sao kh├â┬┤ng d├â┬╣ng WebSocket hay polling thay v├â┬¼ t├â┬¡ch h├í┬╗┬úp m├í┬╗┬Öt service b├â┬¬n ngo├â┬ái ri├â┬¬ng bi├í┬╗┬çt?
+  -> suggested_answer: FireBase th├å┬░├í┬╗┬¥ng d├â┬╣ng cho push notification ho├í┬║┬╖c real-time database. C├í┬║┬ºn l├â┬ám r├â┬╡ use case c├í┬╗┬Ñ th├í┬╗┬â v├â┬á l├â┬╜ do k├í┬╗┬╣ thu├í┬║┬¡t cho l├í┬╗┬▒a ch├í┬╗┬ìn n├â┬áy.
+
+--- Q5 [medium] ---
+SRS m├í┬║┬½u ├ä┬æ├å┬░├í┬╗┬úc cung c├í┬║┬Ñp c├â┬│ y├â┬¬u c├í┬║┬ºu ph├í┬║┬ºn 'Non-Functional Requirements' v├í┬╗┬¢i c├â┬íc ch├í┬╗┬ë s├í┬╗┬æ c├í┬╗┬Ñ th├í┬╗┬â: Availability %, MTBF, MTTR, response time, throughput. Tuy nhi├â┬¬n trong c├â┬íc ├ä┬æo├í┬║┬ín tr├â┬¡ch ├ä┬æ├â┬ú cung c├í┬║┬Ñp, ph├í┬║┬ºn NFR ch├å┬░a c├â┬│ d├í┬╗┬» li├í┬╗┬çu th├í┬╗┬▒c t├í┬║┬┐ n├â┬áo ├ä┬æ├å┬░├í┬╗┬úc ├ä┬æi├í┬╗┬ün. Nh├â┬│m ├ä┬æ├â┬ú x├â┬íc ├ä┬æ├í┬╗┬ïnh c├â┬íc ch├í┬╗┬ë s├í┬╗┬æ NFR cho COS l├â┬á bao nhi├â┬¬u?
+  -> suggested_answer: C├í┬║┬ºn ├ä┬æ├å┬░a ra con s├í┬╗┬æ c├í┬╗┬Ñ th├í┬╗┬â cho t├í┬╗┬½ng ch├í┬╗┬ë s├í┬╗┬æ NFR, v├â┬¡ d├í┬╗┬Ñ: response time < 2s, availability ├ó┬ë┬Ñ 99.5%, v.v.
+
+--- Q6 [hard] ---
+H├í┬╗┬ç th├í┬╗┬æng x├í┬╗┬¡ l├â┬╜ thanh to├â┬ín v├â┬á l├å┬░u th├â┬┤ng tin c├â┬í nh├â┬ón ng├å┬░├í┬╗┬¥i d├â┬╣ng, nh├å┬░ng kh├â┬┤ng th├í┬║┬Ñy b├í┬║┬Ñt k├í┬╗┬│ y├â┬¬u c├í┬║┬ºu b├í┬║┬úo m├í┬║┬¡t n├â┬áo (ph├â┬ón quy├í┬╗┬ün chi ti├í┬║┬┐t, m├â┬ú h├â┬│a d├í┬╗┬» li├í┬╗┬çu, OAuth, HTTPS, GDPR/Data Protection). Nh├â┬│m ├ä┬æ├â┬ú x├â┬óy d├í┬╗┬▒ng ph├í┬║┬ºn Security/Authorization trong SRS v├â┬á SDD ch├å┬░a, hay ├ä┬æang ├ä┬æ├í┬╗┬â ng├í┬╗┬Å?
+  -> suggested_answer: ├ä┬É├â┬óy l├â┬á h├í┬╗┬ç th├í┬╗┬æng c├â┬│ giao d├í┬╗┬ïch t├â┬ái ch├â┬¡nh, y├â┬¬u c├í┬║┬ºu b├í┬║┬úo m├í┬║┬¡t l├â┬á b├í┬║┬»t bu├í┬╗┬Öc. C├í┬║┬ºn n├â┬¬u r├â┬╡ c├å┬í ch├í┬║┬┐ authentication, authorization, v├â┬á b├í┬║┬úo v├í┬╗┬ç d├í┬╗┬» li├í┬╗┬çu nh├í┬║┬íy c├í┬║┬úm.
+
+--- Q7 [medium] ---
+S├å┬í ├ä┬æ├í┬╗┬ô mind map (Figure 2) li├í┬╗┬çt k├â┬¬ 'Change Order' v├â┬á 'Cancel Order' cho c├í┬║┬ú Restaurant v├â┬á Cafeteria, nh├å┬░ng 'Limitations & Exclusions' ch├í┬╗┬ë n├â┬¬u LI-1 v├â┬á LI-2, kh├â┬┤ng c├â┬│ gi├í┬╗┬¢i h├í┬║┬ín n├â┬áo v├í┬╗┬ü th├í┬╗┬¥i gian/h├â┬ánh vi thay ├ä┬æ├í┬╗┬òi ho├í┬║┬╖c h├í┬╗┬ºy ├ä┬æ├å┬ín. Nh├â┬│m ├ä┬æ├â┬ú ├ä┬æ├í┬╗┬ïnh ngh├ä┬⌐a policy h├í┬╗┬ºy/├ä┬æ├í┬╗┬òi ├ä┬æ├å┬ín ch├å┬░a, v├â┬á logic n├â┬áy ├ä┬æ├å┬░├í┬╗┬úc implement ├í┬╗┬ƒ ├ä┬æ├â┬óu trong code?
+  -> suggested_answer: C├í┬║┬ºn m├â┬┤ t├í┬║┬ú rule r├â┬╡ r├â┬áng: kh├â┬ích h├â┬áng ├ä┬æ├å┬░├í┬╗┬úc h├í┬╗┬ºy trong bao l├â┬óu tr├å┬░├í┬╗┬¢c gi├í┬╗┬¥ nh├í┬║┬¡n ├ä┬æ├å┬ín, ph├â┬¡ h├í┬╗┬ºy (n├í┬║┬┐u c├â┬│), v├â┬á cafeteria c├â┬│ quy├í┬╗┬ün t├í┬╗┬½ ch├í┬╗┬æi h├í┬╗┬ºy khi n├â┬áo.
+
+--- Q8 [easy] ---
+Ph├í┬║┬ºn 'Project Risks' trong m├í┬║┬½u Report 2 c├â┬│ c├í┬╗┬Öt Risk Description, Impact, Possibility, Response Plans nh├å┬░ng ch├å┬░a c├â┬│ b├í┬║┬Ñt k├í┬╗┬│ risk n├â┬áo ├ä┬æ├å┬░├í┬╗┬úc li├í┬╗┬çt k├â┬¬. Nh├â┬│m ├ä┬æ├â┬ú nh├í┬║┬¡n di├í┬╗┬çn ├ä┬æ├å┬░├í┬╗┬úc nh├í┬╗┬»ng r├í┬╗┬ºi ro n├â┬áo cho COS, v├â┬á m├í┬╗┬⌐c ├ä┬æ├í┬╗┬Ö impact/possibility c├í┬╗┬ºa ch├â┬║ng?
+  -> suggested_answer: C├â┬íc risk ├ä┬æi├í┬╗┬ân h├â┬¼nh: tr├í┬╗┬à ti├í┬║┬┐n ├ä┬æ├í┬╗┬Ö, thi├í┬║┬┐u t├â┬ái nguy├â┬¬n, thay ├ä┬æ├í┬╗┬òi y├â┬¬u c├í┬║┬ºu,├ª┬è┬Ç├ª┬£┬»├⌐┬ù┬«├⌐┬ó┬ÿ (integration), risk v├í┬╗┬ü b├í┬║┬úo m├í┬║┬¡t/thanh to├â┬ín.
+
+--- Q9 [medium] ---
+SRS m├í┬║┬½u y├â┬¬u c├í┬║┬ºu ph├í┬║┬ºn '3.1.3 Screen Authorization (Role ├â┬ù Screen/Activity matrix)' v├â┬á 'Entity Relationship Diagram'. Trong c├â┬íc ├ä┬æo├í┬║┬ín tr├â┬¡ch ├ä┬æ├â┬ú cung c├í┬║┬Ñp, c├í┬║┬ú hai ph├í┬║┬ºn n├â┬áy ch├å┬░a xu├í┬║┬Ñt hi├í┬╗┬çn. Nh├â┬│m ├ä┬æ├â┬ú ho├â┬án thi├í┬╗┬çn ERD v├â┬á ma tr├í┬║┬¡n ph├â┬ón quy├í┬╗┬ün ch├å┬░a, v├â┬á c├â┬│ bao nhi├â┬¬u role ch├â┬¡nh trong h├í┬╗┬ç th├í┬╗┬æng COS?
+  -> suggested_answer: H├í┬╗┬ç th├í┬╗┬æng COS ├â┬¡t nh├í┬║┬Ñt c├í┬║┬ºn 3 role: Patron (kh├â┬ích h├â┬áng), Cafeteria Staff (qu├í┬║┬ún l├â┬╜ menu/├ä┬æ├å┬ín), Admin. ERD c├í┬║┬ºn c├â┬│ c├â┬íc entity ch├â┬¡nh: User, Order, MenuItem, Subscription, Restaurant (n├í┬║┬┐u c├â┬│).
+
+--- Q10 [hard] ---
+Report 5 (STD) theo rubric bao g├í┬╗┬ôm Unit Test, Integration Test, System Test, Acceptance Test v├í┬╗┬¢i ch├í┬╗┬ë s├í┬╗┬æ '% of Defect' qua t├í┬╗┬½ng giai ├ä┬æo├í┬║┬ín. Nh├â┬│m ├ä┬æ├â┬ú ti├í┬║┬┐n h├â┬ánh test nh├í┬╗┬»ng g├â┬¼, t├í┬╗┬╖ l├í┬╗┬ç defect ph├â┬ít hi├í┬╗┬çn ├í┬╗┬ƒ m├í┬╗┬ùi giai ├ä┬æo├í┬║┬ín l├â┬á bao nhi├â┬¬u, v├â┬á├ª┬£┬ë├Ñ┬ñ┬Ü├Ñ┬░┬æ defects ├ä┬æ├â┬ú ├ä┬æ├å┬░├í┬╗┬úc fix tr├å┬░├í┬╗┬¢c khi b├í┬║┬úo v├í┬╗┬ç?
+  -> suggested_answer: C├í┬║┬ºn cung c├í┬║┬Ñp b├í┬║┬úng t├í┬╗┬òng h├í┬╗┬úp defect theo giai ├ä┬æo├í┬║┬ín test v├â┬á tr├í┬║┬íng th├â┬íi fix/open hi├í┬╗┬çn t├í┬║┬íi. N├í┬║┬┐u ch├å┬░a c├â┬│ s├í┬╗┬æ li├í┬╗┬çu, c├í┬║┬ºn gi├í┬║┬úi th├â┬¡ch l├â┬╜ do.
+

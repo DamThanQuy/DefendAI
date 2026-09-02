@@ -77,7 +77,8 @@ YÊU CẦU:
 2. Mỗi câu hỏi phải có gợi ý trả lời (hint) ngắn gọn
 3. Phân loại độ khó: easy (dễ), medium (trung bình), hard (khó)
 4. Câu hỏi phải liên quan trực tiếp đến nội dung tài liệu
-5. Trả về ĐÚNG định dạng JSON sau (không thêm markdown, không thêm text thừa):
+5. CHỈ trả lời bằng tiếng Việt. TUYỆT ĐỐI KHÔNG dùng ngôn ngữ khác (Trung, Nhật, Hàn, Anh).
+6. Trả về ĐÚNG định dạng JSON sau (không thêm markdown, không thêm text thừa):
 
 {
   "questions": [

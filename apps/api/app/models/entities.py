@@ -23,11 +23,17 @@ from app.models.assessment import (
     Evaluation,
     Report,
 )
+from app.models.defect_severity import (
+    AuditCodeAnalysisIssue,
+    DefectSeverity,
+    map_legacy_severity,
+)
 
 from app.models.refresh_token import RefreshToken
 from app.models.workspace import Workspace, WorkspaceFile
 from app.models.workspace_chat import WorkspaceChat
 from app.models.workspace_question import WorkspaceQuestion
+from app.models.code_module_hash import CodeModuleHash
 
 __all__ = [
     "User",
@@ -47,9 +53,13 @@ __all__ = [
     "CodeAnalysisStatus",
     "Evaluation",
     "Report",
+    "DefectSeverity",
+    "AuditCodeAnalysisIssue",
+    "map_legacy_severity",
     "DocumentChunk", "RefreshToken",
     "ReferenceChunk",
     "Workspace", "WorkspaceFile",
     "WorkspaceChat",
     "WorkspaceQuestion",
+    "CodeModuleHash",
 ]
