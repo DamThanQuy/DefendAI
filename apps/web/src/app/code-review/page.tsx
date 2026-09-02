@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CodePreview } from "@/components/features/code-review/CodePreview";
@@ -50,10 +50,25 @@ export default function CodeReviewPage() {
   const [expandedPanel, setExpandedPanel] = useState<null | "issues">(null);
   const [moduleProgress, setModuleProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
 
-  const token = useMemo(
-    () => (typeof window !== "undefined" ? localStorage.getItem("access_token") : null),
-    []
-  );
+  // Token luôn đọc trực tiếp từ localStorage khi effect chạy
+  const getToken = () =>
+    typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+
+  // Snapshot token thông qua useSyncExternalStore để tránh setState trong render.
+  // Trả về null khi SSR, và client sẽ lấy token từ localStorage khi mount.
+  const _serverSnapshot = () => null;
+  const _clientSnapshot = () => localStorage.getItem("access_token");
+  const _subscribe = (cb: () => void) => {
+    if (typeof window === "undefined") return () => {};
+    window.addEventListener("storage", cb);
+    window.addEventListener("auth-change", cb);
+    return () => {
+      window.removeEventListener("storage", cb);
+      window.removeEventListener("auth-change", cb);
+    };
+  };
+  // useSyncExternalStore trả null khi SSR, vì vậy thêm `getToken()` fallback bên dưới
+  // khi gọi trực tiếp trong useEffect.
 
   const issues = result?.details ?? [];
   const fileCount = useMemo(() => members.filter((m) => !m.is_dir).length, [members]);
@@ -77,10 +92,11 @@ export default function CodeReviewPage() {
     setActiveIssue(null);
     if (filterIssues && fileIssueStats.get(path)?.count) viewAllFileIssues(path);
     const docId = docIdOverride ?? result?.documentId;
-    if (!docId || !token) return;
+    const _token = getToken();
+    if (!docId || !_token) return;
     setLoadingFile(true);
     fetch(`/api/documents/${docId}/contents/${path}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${_token}` },
     })
       .then(async (r) => {
         if (!r.ok) throw new Error("Không thể đọc file");
@@ -114,11 +130,12 @@ export default function CodeReviewPage() {
     try {
       if (selectedDoc) {
         // Mode 2: scan lại tài liệu đã upload
+        const _token = getToken();
         res = await fetch("/api/code/scan", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(_token ? { Authorization: `Bearer ${_token}` } : {}),
           },
           body: JSON.stringify({ document_id: selectedDoc.id }),
         });
@@ -126,9 +143,10 @@ export default function CodeReviewPage() {
         // Mode 1: upload file mới
         const fd = new FormData();
         fd.append("file", file as File);
+        const _token = getToken();
         res = await fetch("/api/code/scan", {
           method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: _token ? { Authorization: `Bearer ${_token}` } : {},
           body: fd,
         });
       }
@@ -155,10 +173,11 @@ export default function CodeReviewPage() {
     setActiveIssue(null);
     setModuleProgress(data.backendData?.module_progress ?? { done: 0, total: 0 });
     const docId = data.documentId;
-    if (docId && token) {
+    const _token = getToken();
+    if (docId && _token) {
       setLoadingTree(true);
       fetch(`/api/documents/${docId}/contents`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${_token}` },
       })
         .then((r) => r.json())
         .then((c) => {
@@ -175,8 +194,9 @@ export default function CodeReviewPage() {
 
   // Tải danh sách ZIP/RAR đã upload để chọn lại (reuse tài liệu)
   useEffect(() => {
-    if (!token) return;
-    fetch("/api/documents/", { headers: { Authorization: `Bearer ${token}` } })
+    const _token = getToken();
+    if (!_token) return;
+    fetch("/api/documents/", { headers: { Authorization: `Bearer ${_token}` } })
       .then((r) => r.json())
       .then((d) => {
         const zips = (d.items ?? []).filter(
@@ -185,7 +205,8 @@ export default function CodeReviewPage() {
         setUploadedDocs(zips);
       })
       .catch(() => {});
-  }, [token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Query param ?file= để upload nhanh từ nơi khác
   useEffect(() => {
@@ -197,26 +218,53 @@ export default function CodeReviewPage() {
   // Query param ?analysis=id → mở lại kết quả code review đã lưu
   useEffect(() => {
     const analysisId = searchParams.get("analysis");
-    if (!analysisId || !token) return;
+    if (!analysisId) return;
+    const _token = getToken();
+    if (!_token) return;
     setStatus("scanning");
     fetch(`/api/code/analyses/${analysisId}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${_token}` },
     })
       .then(async (r) => {
-        const data = await r.json();
-        if (!r.ok || !data.success) {
+        const raw = await r.json();
+        if (!r.ok) {
           setStatus("error");
-          setErrorMsg(data.error || "Không thể tải kết quả đã lưu");
+          setErrorMsg(raw.error || raw.detail || "Không thể tải kết quả đã lưu");
           return;
         }
-        applyResult(data);
+        // Backend /api/code/analyses/{id} trả về trực tiếp, biến đổi sang format nội bộ
+        const s = raw.stats ?? {};
+        const transformed: ScanResult = {
+          documentId: raw.document_id,
+          backendData: {
+            summary: raw.summary ?? "",
+            provider: raw.provider,
+            model: raw.model,
+            total_modules: raw.total_modules,
+            done_modules: raw.done_modules,
+            module_progress: raw.done_modules != null ? {
+              done: Number(raw.done_modules),
+              total: Number(raw.total_modules ?? 0),
+            } : undefined,
+          },
+          stats: {
+            critical: Number(s.critical ?? 0),
+            warnings: Number(s.high ?? 0) + Number(s.medium ?? 0),
+            optimizations: Number(s.low ?? 0) + Number(s.info ?? 0),
+          },
+          details: (raw.issues ?? []).map((issue: any) => ({
+            ...issue,
+            id: issue.id ?? Math.random(),
+          })),
+        };
+        applyResult(transformed);
       })
       .catch((e: any) => {
         setStatus("error");
         setErrorMsg(e?.message || "Không thể kết nối máy chủ");
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, token]);
+  }, [searchParams]);
 
   // Đóng overlay full-screen bằng Esc
   useEffect(() => {

@@ -41,7 +41,7 @@ export default function BillingPage() {
             </p>
           </div>
           <Link
-            href="/pricing"
+            href="/checkout?plan=premium&cycle=monthly"
             className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary to-secondary text-primary-foreground rounded-full text-sm font-bold shadow-[0_0_20px_hsl(var(--primary)/0.45)] hover:brightness-110 transition-all shrink-0"
           >
             Nâng cấp ngay

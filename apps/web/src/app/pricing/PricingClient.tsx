@@ -197,7 +197,7 @@ export default function PricingClient() {
               Hơn 5.000+ sinh viên đã tin tưởng GraduAI. Đăng ký ngay hôm nay.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
-              <Link href="/register?plan=premium">
+              <Link href="/checkout?plan=premium">
                 <Button className="rounded-full h-14 px-8 text-lg shadow-[0_0_20px_hsl(var(--primary)/0.5)] hover:brightness-110 group">
                   Bắt đầu với Premium
                   <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
@@ -304,7 +304,7 @@ function PlanCard({
         </div>
 
         {/* CTA */}
-        <Link href={`/register?plan=${plan.id}&cycle=${cycle}`} className="w-full">
+        <Link href={`/checkout?plan=${plan.id}&cycle=${cycle}`} className="w-full">
           <Button
             className={`w-full rounded-full h-12 font-semibold ${
               plan.featured

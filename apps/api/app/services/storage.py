@@ -76,19 +76,25 @@ def _get_session() -> "aioboto3.Session":
     if _s3_session is None:
         import aioboto3
 
-        cfg = settings.minio
+        _s3_session = aioboto3.Session()
 
-        _s3_session = aioboto3.Session(
-            aws_access_key_id=cfg.access_key_id,
-            aws_secret_access_key=cfg.secret_access_key,
-            region_name=cfg.region,
-        )
-        logger.info(
-            "S3 session ready — endpoint=%s bucket=%s",
-            cfg.endpoint,
-            cfg.bucket,
-        )
+        logger.info("S3 session ready — bucket=%s", settings.minio.bucket)
     return _s3_session
+
+
+def _client_kwargs() -> dict:
+    """Build kwargs for `session.client("s3", ...)`.
+
+    aioboto3 ≥ 13 ưu tiên nhận credentials/region trong `client()` thay vì `Session()`.
+    Nếu truyền ở Session() mà client() tự khởi tạo lại credentials chain → NoCredentialsError.
+    """
+    cfg = settings.minio
+    return {
+        "endpoint_url": cfg.endpoint,
+        "aws_access_key_id": cfg.access_key_id,
+        "aws_secret_access_key": cfg.secret_access_key,
+        "region_name": cfg.region,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -118,9 +124,7 @@ async def save(
         ClientError: MinIO connection error hoặc bucket not exist
     """
     session = _get_session()
-    async with session.client(
-        "s3", endpoint_url=settings.minio.endpoint
-    ) as s3:
+    async with session.client("s3", **_client_kwargs()) as s3:
         await s3.put_object(
             Bucket=bucket,
             Key=key,
@@ -137,9 +141,7 @@ async def get(bucket: str, key: str) -> bytes:
         Raw file bytes. Dùng để parse trong document_parser.py
     """
     session = _get_session()
-    async with session.client(
-        "s3", endpoint_url=settings.minio.endpoint
-    ) as s3:
+    async with session.client("s3", **_client_kwargs()) as s3:
         resp = await s3.get_object(Bucket=bucket, Key=key)
         data = await resp["Body"].read()
     logger.debug("Downloaded %s/%s (%s bytes)", bucket, key, len(data))
@@ -149,9 +151,7 @@ async def get(bucket: str, key: str) -> bytes:
 async def delete(bucket: str, key: str) -> None:
     """DELETE object khỏi MinIO bucket."""
     session = _get_session()
-    async with session.client(
-        "s3", endpoint_url=settings.minio.endpoint
-    ) as s3:
+    async with session.client("s3", **_client_kwargs()) as s3:
         await s3.delete_object(Bucket=bucket, Key=key)
     logger.debug("Deleted %s/%s", bucket, key)
 
@@ -160,9 +160,7 @@ async def ensure_bucket(bucket: str | None = None) -> None:
     """Tạo bucket nếu chưa tồn tại. Idempotent. Gọi 1 lần lúc startup."""
     name = bucket or settings.minio.bucket
     session = _get_session()
-    async with session.client(
-        "s3", endpoint_url=settings.minio.endpoint
-    ) as s3:
+    async with session.client("s3", **_client_kwargs()) as s3:
         try:
             await s3.head_bucket(Bucket=name)
             return
