@@ -365,6 +365,13 @@ async def retrieve(
         for row in rows
     ]
 
+    # Fix D: câu hỏi nhắc thẳng tới figure/màn hình → locate đúng diagram chunk.
+    figure_hits = await _retrieve_by_figure(query, workspace_id, limit)
+    if figure_hits:
+        # Ưu tiên chunk khớp số figure, ghép trước kết quả vector (không trùng content)
+        seen = {h["content"] for h in figure_hits}
+        vector_results = figure_hits + [r for r in vector_results if r["content"] not in seen]
+
     if not use_hybrid:
         return vector_results[:limit]
 
@@ -409,6 +416,58 @@ async def retrieve(
     except Exception as exc:
         logger.warning(f"Hybrid search failed, falling back to vector only: {exc}")
         return vector_results[:limit]
+
+
+# Regex bắt "Figure 42", "Hình 42", "sơ đồ 3", "màn hình 8" trong câu hỏi.
+_FIGURE_REF_RE = re.compile(
+    r"(?:figure|fig\.?|hình|sơ\s*đồ|sodo|màn\s*hình|man\s*hinh)\s*(\d+)",
+    re.IGNORECASE,
+)
+
+_FIGURE_SQL = text("""
+    SELECT c.content,
+           c.meta->>'filename' AS filename,
+           c.chunk_index,
+           1.0 AS score
+    FROM document_chunks c
+    JOIN workspace_files wf ON wf.document_id = c.document_id
+    WHERE wf.workspace_id = :ws
+      AND c.meta->>'type' = 'diagram'
+      AND c.meta->>'figure' = ANY(:figures)
+    ORDER BY c.chunk_index
+    LIMIT :top_k
+""")
+
+
+async def _retrieve_by_figure(query: str, workspace_id: int, limit: int) -> List[dict]:
+    """Fix D: nếu câu hỏi nhắc số figure cụ thể, lấy thẳng diagram chunk tương ứng.
+
+    Trả về [] khi câu hỏi không nhắc figure nào — không tốn thêm query.
+    """
+    figures = list({m.group(1) for m in _FIGURE_REF_RE.finditer(query)})
+    if not figures:
+        return []
+    try:
+        async with async_session_maker() as db:
+            result = await db.execute(
+                _FIGURE_SQL,
+                {"ws": workspace_id, "figures": figures, "top_k": limit},
+            )
+            rows = result.mappings().all()
+    except Exception as exc:
+        logger.debug("Figure-locate query failed: %s", exc)
+        return []
+    return [
+        {
+            "content": row["content"],
+            "filename": row["filename"],
+            "chunk_index": row["chunk_index"],
+            "score": 1.0,
+            "source": "user",
+            "fusion": "figure",
+        }
+        for row in rows
+    ]
 
 
 async def retrieve_reference(

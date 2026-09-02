@@ -22,6 +22,7 @@ from app.routers import jobs as jobs_router
 from app.routers import workspaces as workspaces_router
 from app.routers import workspace_chats as workspace_chats_router
 from app.routers import workspace_questions as workspace_questions_router
+from app.routers import workspace_messages as workspace_messages_router
 from app.routers import rubrics as rubrics_router
 from app.routers import mock_qa as mock_qa_router
 from app.routers import signaling as signaling_router
@@ -72,6 +73,8 @@ app.include_router(workspaces_router.router)
 app.include_router(workspace_questions_router.router)
 # Workspace RAG chat ("Chat đề tài" — R7)
 app.include_router(workspace_chats_router.router)
+# Workspace Messages (ChatGPT-style — R7 enhanced)
+app.include_router(workspace_messages_router.router)
 # Rubrics (tiêu chí chuẩn — thước đo AI)
 app.include_router(rubrics_router.router)
 # Mock Room AI Q&A WebSocket
@@ -88,6 +91,27 @@ async def _ensure_storage() -> None:
     except Exception as exc:
         import logging
         logging.getLogger(__name__).warning("MinIO bucket init skipped: %s", exc)
+
+
+@app.on_event("startup")
+async def _load_ai_config_from_db() -> None:
+    """Nạp AI provider/model từ DB (ai_providers / ai_models) sau khi khởi động.
+
+    Env (LOCAL_*, NVIDIA_*) chỉ là fallback khi DB chưa có provider enabled.
+    """
+    import logging
+    from app.services.ai_client import ai_gateway
+    from app.core.database import async_session_maker
+    try:
+        async with async_session_maker() as db:
+            await ai_gateway.reconfigure_from_db(db)
+            logging.getLogger(__name__).info(
+                "startup: AI gateway providers=%s models=%s",
+                sorted(ai_gateway.providers.keys()),
+                {k: v for k, v in ai_gateway.db_models.items()},
+            )
+    except Exception as exc:
+        logging.getLogger(__name__).warning("startup: load AI config from DB skipped: %s", exc)
 
 
 @app.get("/")
@@ -118,6 +142,7 @@ async def health_check():
         "status": "healthy",
         "ai_providers": list(ai_gateway.providers.keys()),
         "ai_ready": len(ai_gateway.providers) > 0,
+        "ai_sources": {k: ai_gateway.provider_source.get(k, "unknown") for k in ai_gateway.providers},
         "debug_env_detected": {
             "google": google_sys_ready,
             "nvidia": nvidia_sys_ready

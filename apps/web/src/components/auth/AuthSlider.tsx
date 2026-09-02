@@ -8,23 +8,24 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
   GraduationCap,
+  Sparkles,
   Loader2,
   Lock,
   Mail,
   User,
-  ArrowRight,
   CheckCircle2,
-  IdCard,
-  UserCircle2,
+  FileSearch,
+  MessagesSquare,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AuthField, AuthPasswordField } from "@/components/auth/AuthField";
 
+/* ---------- Floating illustration for the promo panel ---------- */
 function PromoArt() {
   return (
     <div className="relative mb-10 flex items-center justify-center">
       <div className="relative flex h-40 w-40 items-center justify-center rounded-3xl bg-white/15 backdrop-blur-sm ring-1 ring-white/30 shadow-2xl">
-        <UserCircle2 className="h-24 w-24 text-white/90" strokeWidth={1.4} />
+        <GraduationCap className="h-24 w-24 text-white/90" strokeWidth={1.4} />
       </div>
       <motion.div
         animate={{ y: [0, -8, 0] }}
@@ -32,20 +33,21 @@ function PromoArt() {
         className="absolute -right-2 top-2 flex items-center gap-1 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-emerald-600 shadow-lg"
       >
         <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-        Verified
+        Sẵn sàng
       </motion.div>
       <motion.div
         animate={{ y: [0, 8, 0] }}
         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
-        className="absolute -left-2 bottom-2 flex items-center gap-1 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-cyan-600 shadow-lg"
+        className="absolute -left-2 bottom-2 flex items-center gap-1 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-violet-600 shadow-lg"
       >
-        <IdCard className="h-4 w-4 text-cyan-500" />
-        Hội đồng
+        <FileSearch className="h-4 w-4 text-violet-500" />
+        AI Review
       </motion.div>
     </div>
   );
 }
 
+/* ---------- Login form ---------- */
 function LoginForm(props: {
   email: string;
   setEmail: (v: string) => void;
@@ -63,23 +65,23 @@ function LoginForm(props: {
   return (
     <>
       <div className="mb-8 flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary text-white shadow-lg shadow-primary/30">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-600 text-white shadow-lg shadow-violet-600/30">
           <GraduationCap className="h-6 w-6" />
         </span>
-        <span className="text-2xl font-extrabold tracking-tight text-foreground">
-          <span className="text-gradient">Gradu</span>AI
+        <span className="text-2xl font-extrabold tracking-tight text-zinc-900">
+          GraduAI
         </span>
       </div>
 
       <div className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-          Chào mừng quay lại
-        </p>
-        <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-foreground">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">
           Đăng nhập
+        </p>
+        <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-zinc-900">
+          Chào mừng trở lại
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Tiếp tục hành trình chuẩn bị bảo vệ đồ án của bạn.
+        <p className="mt-2 text-sm text-zinc-500">
+          Đăng nhập để tiếp tục luyện tập bảo vệ đồ án của bạn.
         </p>
       </div>
 
@@ -91,12 +93,12 @@ function LoginForm(props: {
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="email" className="text-muted-foreground">Email</Label>
+          <Label htmlFor="email" className="text-zinc-700">Địa chỉ email</Label>
           <AuthField
             id="email"
             type="email"
             icon={Mail}
-            placeholder="ban@company.com"
+            placeholder="you@company.com"
             required
             value={props.email}
             onChange={(e) => props.setEmail(e.target.value)}
@@ -105,10 +107,10 @@ function LoginForm(props: {
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password" className="text-muted-foreground">Mật khẩu</Label>
+            <Label htmlFor="password" className="text-zinc-700">Mật khẩu</Label>
             <Link
               href="/forgot-password"
-              className="text-sm font-medium text-primary hover:underline"
+              className="text-sm font-medium text-violet-600 hover:underline"
             >
               Quên mật khẩu?
             </Link>
@@ -124,12 +126,12 @@ function LoginForm(props: {
         </div>
 
         <div className="flex items-center justify-between">
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-600">
             <input
               type="checkbox"
               checked={props.remember}
               onChange={(e) => props.setRemember(e.target.checked)}
-              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+              className="h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-violet-500"
             />
             Ghi nhớ đăng nhập
           </label>
@@ -138,7 +140,7 @@ function LoginForm(props: {
         <Button
           type="submit"
           disabled={props.loading}
-          className="h-12 w-full rounded-xl bg-primary text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-all hover:brightness-110 hover:shadow-xl disabled:opacity-50"
+          className="h-12 w-full rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-base font-semibold text-white shadow-lg shadow-violet-600/30 transition-all hover:from-violet-500 hover:to-purple-500 hover:shadow-xl disabled:opacity-50"
         >
           {props.loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
           Đăng nhập
@@ -146,10 +148,10 @@ function LoginForm(props: {
 
         <div className="relative py-2">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-border" />
+            <span className="w-full border-t border-zinc-200" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-3 text-muted-foreground">hoặc tiếp tục với</span>
+            <span className="bg-white px-3 text-zinc-400">hoặc tiếp tục với</span>
           </div>
         </div>
 
@@ -163,20 +165,22 @@ function LoginForm(props: {
         />
       </form>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground lg:hidden">
+      {/* Mobile-only switch (desktop uses the sliding panel) */}
+      <p className="mt-6 text-center text-sm text-zinc-500 lg:hidden">
         Chưa có tài khoản?{" "}
         <button
           type="button"
           onClick={props.onSwitch}
-          className="font-semibold text-primary hover:underline"
+          className="font-semibold text-violet-600 hover:underline"
         >
-          Đăng ký ngay
+          Tạo tài khoản
         </button>
       </p>
     </>
   );
 }
 
+/* ---------- Register form ---------- */
 function RegisterForm(props: {
   error: string;
   onSwitch: () => void;
@@ -186,23 +190,23 @@ function RegisterForm(props: {
   return (
     <>
       <div className="mb-8 flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary text-white shadow-lg shadow-primary/30">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-600 text-white shadow-lg shadow-violet-600/30">
           <GraduationCap className="h-6 w-6" />
         </span>
-        <span className="text-2xl font-extrabold tracking-tight text-foreground">
-          <span className="text-gradient">Gradu</span>AI
+        <span className="text-2xl font-extrabold tracking-tight text-zinc-900">
+          GraduAI
         </span>
       </div>
 
       <div className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-          Bắt đầu hành trình
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">
+          Bắt đầu ngay
         </p>
-        <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-foreground">
-          Tạo tài khoản
+        <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-zinc-900">
+          Tạo tài khoản của bạn
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Đăng ký để luyện tập bảo vệ đồ án thông minh cùng AI.
+        <p className="mt-2 text-sm text-zinc-500">
+          Đăng ký để trải nghiệm luyện tập bảo vệ với hội đồng AI.
         </p>
       </div>
 
@@ -214,33 +218,33 @@ function RegisterForm(props: {
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="name" className="text-muted-foreground">Họ và tên</Label>
+          <Label htmlFor="name" className="text-zinc-700">Họ và tên</Label>
           <AuthField id="name" type="text" icon={User} placeholder="Nguyễn Văn A" />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="email" className="text-muted-foreground">Email</Label>
-          <AuthField id="email" type="email" icon={Mail} placeholder="ban@company.com" />
+          <Label htmlFor="email" className="text-zinc-700">Địa chỉ email</Label>
+          <AuthField id="email" type="email" icon={Mail} placeholder="you@company.com" />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="password" className="text-muted-foreground">Mật khẩu</Label>
+          <Label htmlFor="password" className="text-zinc-700">Mật khẩu</Label>
           <AuthPasswordField id="password" icon={Lock} placeholder="Nhập mật khẩu" />
         </div>
 
         <Button
           type="button"
-          className="h-12 w-full rounded-xl bg-primary text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-all hover:brightness-110 hover:shadow-xl"
+          className="h-12 w-full rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-base font-semibold text-white shadow-lg shadow-violet-600/30 transition-all hover:from-violet-500 hover:to-purple-500 hover:shadow-xl"
         >
           Tạo tài khoản
         </Button>
 
         <div className="relative py-2">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-border" />
+            <span className="w-full border-t border-zinc-200" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-3 text-muted-foreground">hoặc tiếp tục với</span>
+            <span className="bg-white px-3 text-zinc-400">hoặc tiếp tục với</span>
           </div>
         </div>
 
@@ -254,12 +258,13 @@ function RegisterForm(props: {
         />
       </div>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground lg:hidden">
+      {/* Mobile-only switch (desktop uses the sliding panel) */}
+      <p className="mt-6 text-center text-sm text-zinc-500 lg:hidden">
         Đã có tài khoản?{" "}
         <button
           type="button"
           onClick={props.onSwitch}
-          className="font-semibold text-primary hover:underline"
+          className="font-semibold text-violet-600 hover:underline"
         >
           Đăng nhập
         </button>
@@ -268,6 +273,7 @@ function RegisterForm(props: {
   );
 }
 
+/* ---------- Main slider ---------- */
 export function AuthSlider({
   initialMode = "login",
 }: {
@@ -349,106 +355,111 @@ export function AuthSlider({
 
   return (
     <div className="flex min-h-[80vh] w-full items-center justify-center p-4">
-      <div className="relative grid w-full max-w-4xl overflow-hidden rounded-3xl shadow-2xl ring-1 ring-border bg-card lg:grid-cols-2">
-        <div
-          className={`flex flex-col justify-center bg-card px-6 py-10 sm:px-10 ${
-            isRegister ? "hidden lg:flex" : "flex"
-          }`}
-        >
-          <LoginForm
-            email={email}
-            setEmail={setEmail}
-            password={password}
-            setPassword={setPassword}
-            remember={remember}
-            setRemember={setRemember}
-            error={error}
-            loading={loading}
-            onSwitch={() => setMode("register")}
-            onSubmit={handleLogin}
-            onGoogle={handleGoogle}
-            setError={setError}
-          />
-        </div>
+      <div className="relative grid w-full max-w-4xl overflow-hidden rounded-3xl shadow-2xl ring-1 ring-black/5 lg:grid-cols-2">
+      {/* LEFT — login form (visible when NOT register) */}
+      <div
+        className={`flex flex-col justify-center bg-white px-6 py-10 sm:px-10 ${
+          isRegister ? "hidden lg:flex" : "flex"
+        }`}
+      >
+        <LoginForm
+          email={email}
+          setEmail={setEmail}
+          password={password}
+          setPassword={setPassword}
+          remember={remember}
+          setRemember={setRemember}
+          error={error}
+          loading={loading}
+          onSwitch={() => setMode("register")}
+          onSubmit={handleLogin}
+          onGoogle={handleGoogle}
+          setError={setError}
+        />
+      </div>
 
-        <div
-          className={`flex flex-col justify-center bg-card px-6 py-10 sm:px-10 ${
-            isRegister ? "flex" : "hidden lg:flex"
-          }`}
-        >
-          <RegisterForm
-            error={error}
-            onSwitch={() => setMode("login")}
-            onGoogle={handleGoogle}
-            setError={setError}
-          />
-        </div>
+      {/* RIGHT — register form (visible when register) */}
+      <div
+        className={`flex flex-col justify-center bg-white px-6 py-10 sm:px-10 ${
+          isRegister ? "flex" : "hidden lg:flex"
+        }`}
+      >
+        <RegisterForm
+          error={error}
+          onSwitch={() => setMode("login")}
+          onGoogle={handleGoogle}
+          setError={setError}
+        />
+      </div>
 
-        {/* Sliding teal/cyan/amber panel */}
-        <motion.div
-          initial={false}
-          animate={{ x: isRegister ? "0%" : "100%" }}
-          transition={{ type: "spring", stiffness: 55, damping: 20 }}
-          className="absolute inset-y-0 left-0 z-20 hidden w-1/2 flex-col justify-center overflow-hidden bg-gradient-to-br from-primary via-secondary to-accent px-10 py-10 lg:flex"
-        >
-          <div className="pointer-events-none absolute -left-10 -top-10 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-16 -right-10 h-72 w-72 rounded-full bg-accent/30 blur-3xl" />
+      {/* Sliding purple panel — contained inside the box, desktop only */}
+      <motion.div
+        initial={false}
+        animate={{ x: isRegister ? "0%" : "100%" }}
+        transition={{ type: "spring", stiffness: 55, damping: 20 }}
+        className="absolute inset-y-0 left-0 z-20 hidden w-1/2 flex-col justify-center overflow-hidden bg-gradient-to-br from-violet-600 via-purple-600 to-emerald-500 px-10 py-10 lg:flex"
+      >
+        <div className="pointer-events-none absolute -left-10 -top-10 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-16 -right-10 h-72 w-72 rounded-full bg-emerald-300/20 blur-3xl" />
 
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={isRegister ? "login-promo" : "register-promo"}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.3 }}
-              className="relative z-10 max-w-md text-white"
-            >
-              <PromoArt />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={isRegister ? "login-promo" : "register-promo"}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            transition={{ duration: 0.3 }}
+            className="relative z-10 max-w-md text-white"
+          >
+            <PromoArt />
 
-              {isRegister ? (
-                <>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
-                    Chào mừng quay lại
-                  </p>
-                  <h2 className="mt-3 text-4xl font-extrabold leading-tight">
-                    Đăng nhập ngay
-                  </h2>
-                  <p className="mt-4 text-base leading-relaxed text-white/90">
-                    Tiếp tục hành trình luyện tập phản biện và chuẩn bị cho buổi bảo vệ đồ án.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setMode("login")}
-                    className="group mt-8 inline-flex items-center gap-2 rounded-xl border border-white/70 px-6 py-3 text-base font-semibold text-white transition-all hover:bg-white hover:text-primary"
-                  >
-                    Đăng nhập
-                    <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
-                    Bắt đầu hành trình
-                  </p>
-                  <h2 className="mt-3 text-4xl font-extrabold leading-tight">
-                    Mới dùng lần đầu?
-                  </h2>
-                  <p className="mt-4 text-base leading-relaxed text-white/90">
-                    Tạo tài khoản để upload đồ án, luyện phản biện và nhận báo cáo từ AI trong vài phút.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setMode("register")}
-                    className="group mt-8 inline-flex items-center gap-2 rounded-xl border border-white/70 px-6 py-3 text-base font-semibold text-white transition-all hover:bg-white hover:text-primary"
-                  >
-                    Đăng ký ngay
-                    <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-                  </button>
-                </>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </motion.div>
+            {isRegister ? (
+              <>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
+                  Đã có tài khoản
+                </p>
+                <h2 className="mt-3 text-4xl font-extrabold leading-tight">
+                  Chào mừng trở lại
+                </h2>
+                <p className="mt-4 text-base leading-relaxed text-white/85">
+                  Đăng nhập để tiếp tục buổi luyện tập và theo dõi tiến độ của bạn.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setMode("login")}
+                  className="group mt-8 inline-flex items-center gap-2 rounded-xl border border-white/70 px-6 py-3 text-base font-semibold text-white transition-all hover:bg-white hover:text-purple-700"
+                >
+                  Đăng nhập
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
+                  Bạn mới?
+                </p>
+                <h2 className="mt-3 text-4xl font-extrabold leading-tight">
+                  Bắt đầu luyện tập ngay
+                </h2>
+                <p className="mt-4 text-base leading-relaxed text-white/85">
+                  Tải đồ án, nhận phân tích AI và đối mặt với câu hỏi phản biện như hội đồng thật.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setMode("register")}
+                  className="group mt-8 inline-flex items-center gap-2 rounded-xl border border-white/70 px-6 py-3 text-base font-semibold text-white transition-all hover:bg-white hover:text-purple-700"
+                >
+                  Tạo tài khoản
+                </button>
+              </>
+            )}
+
+            <p className="mt-3 flex items-center gap-1.5 text-sm text-white/70">
+              <Sparkles className="h-4 w-4" />
+              Miễn phí để bắt đầu
+            </p>
+          </motion.div>
+        </AnimatePresence>
+      </motion.div>
       </div>
     </div>
   );

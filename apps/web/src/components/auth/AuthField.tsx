@@ -9,7 +9,7 @@ type BaseProps = {
   className?: string;
 };
 
-/** Text input with a left icon (Code Candy style). */
+/** Text input with a left icon (GraduAI style). */
 export const AuthField = React.forwardRef<
   HTMLInputElement,
   BaseProps & React.InputHTMLAttributes<HTMLInputElement>

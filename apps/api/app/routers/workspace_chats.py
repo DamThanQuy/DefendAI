@@ -94,6 +94,40 @@ async def _sse_frame(payload: dict) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
+def _ensure_indexed_sync(workspace_id: int) -> None:
+    """DEPRECATED — kept for reference. Không dùng nữa (loop conflict).
+
+    `_ensure_indexed` là async dùng DB/httpx gắn với event loop của task stream,
+    không thể chạy trong thread riêng ("Future attached to a different loop").
+    Thay bằng `_wait_indexed_with_heartbeat` chạy cùng loop + yield heartbeat.
+    """
+    raise RuntimeError("_ensure_indexed_sync is deprecated — use _wait_indexed_with_heartbeat")
+
+
+async def _wait_indexed_with_heartbeat(workspace_id: int) -> AsyncIterator[dict]:
+    """Chạy `_ensure_indexed` cùng event loop, yield payload status định kỳ.
+
+    SSE chỉ gửi được frame khi GENERATOR CHÍNH yield (task phụ không thể gửi qua
+    StreamingResponse). Vì vậy: chạy index như task, dùng wait_for 8s — timeout thì
+    yield {"type":"status","stage":"indexing"} (heartbeat) rồi tiếp tục chờ. Khi task
+    xong → break. Caller wrap payload bằng `_sse_frame`.
+
+    Chú ý: _ensure_indexed có parse DOCX (python-docx/PIL) blocking nhưng nhanh;
+    phần vision/embed là async nên loop xoay vòng đều → heartbeat chạy được.
+    """
+    task = asyncio.create_task(_ensure_indexed(workspace_id))
+    yield {"type": "status", "stage": "indexing"}
+    while True:
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=8.0)
+            break  # index xong
+        except asyncio.TimeoutError:
+            yield {"type": "status", "stage": "indexing"}
+    exc = task.exception()
+    if exc:
+        raise exc
+
+
 async def _chat_sse(workspace_id: int, question: str, conversation_id: Optional[str] = None) -> AsyncIterator[str]:
     """Streaming RAG answer qua SSE. Tạo row processing → stream delta → lưu completed/failed."""
     # Tạo row ngay trong generator (client đã kết nối → không để row mồ côi processing)
@@ -113,7 +147,11 @@ async def _chat_sse(workspace_id: int, question: str, conversation_id: Optional[
     answer_parts: list[str] = []
     citations: list[str] = []
     try:
-        await _ensure_indexed(workspace_id)
+        # Index-on-demand (parse + embed các file chưa có chunk) có thể mất >30s —
+        # client watchdog abort nếu không nhận frame nào. `_wait_indexed_with_heartbeat`
+        # chạy index cùng loop và yield "status: indexing" mỗi 8s để giữ kết nối sống.
+        async for payload in _wait_indexed_with_heartbeat(workspace_id):
+            yield await _sse_frame(payload)
 
         # 2 query song song (user + reference chunks), fallback min_score 0 như handler chat_ask
         user_results, ref_results = await retrieve_mixed(question, workspace_id)
@@ -130,6 +168,8 @@ async def _chat_sse(workspace_id: int, question: str, conversation_id: Optional[
 
         async with async_session_maker() as db:
             history = await _load_history(db, workspace_id, conversation_id)
+            from app.services.feature_ai import resolve_feature_ai
+            provider, model = await resolve_feature_ai(db, "workspace_chat")
         contexts = [_format_context(r) for r in user_results + ref_results]
 
         # Citations deterministic từ kết quả retrieve (top N), không để AI tự bịa
@@ -146,6 +186,8 @@ async def _chat_sse(workspace_id: int, question: str, conversation_id: Optional[
             system_prompt=_build_chat_system_prompt(),
             temperature=0.3,
             max_tokens=4000,
+            provider=provider,
+            model=model,
         ):
             if chunk.get("content"):
                 answer_parts.append(chunk["content"])
@@ -320,10 +362,30 @@ async def delete_conversation(
     return None
 
 
+@router.delete("/{workspace_id}/chat/failed", status_code=200)
+async def delete_failed_chats(
+    workspace_id: int,
+    user: User = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Xoá toàn bộ lượt chat failed/processing cũ (lọc theo stale cutoff)."""
+    ws = await _get_owned_workspace(workspace_id, user, db)
+    stale_cutoff = datetime.utcnow() - timedelta(minutes=5)
+    # Dùng raw SQL string thay vì enum để tránh lỗi "operator does not exist" trên PostgreSQL
+    from sqlalchemy import text
+    result = await db.execute(text(
+        "DELETE FROM workspace_chats WHERE workspace_id = :ws_id "
+        "AND status IN ('failed', 'processing') "
+        "AND created_at < :cutoff"
+    ), {"ws_id": ws.id, "cutoff": stale_cutoff})
+    return {"deleted": result.rowcount}
+
+
 @router.get("/{workspace_id}/chat", response_model=list[WorkspaceChatResponse])
 async def list_workspace_chats(
     workspace_id: int,
     conversation_id: Optional[str] = None,
+    show_failed: bool = False,
     user: User = Depends(get_current_user),
     db=Depends(get_db),
 ):
@@ -334,6 +396,11 @@ async def list_workspace_chats(
     else:
         # Mặc định: chỉ đoạn mặc định (NULL) — không lẫn các đoạn khác
         stmt = stmt.where(WorkspaceChat.conversation_id.is_(None))
+    # Lọc bỏ tin failed/processing khỏi mặc định — UI chỉ hiện completed
+    # Dùng raw text để tránh SQLAlchemy cast string sang enum gây lỗi PostgreSQL
+    if not show_failed:
+        from sqlalchemy import text
+        stmt = stmt.where(text("status != 'failed'"))
     stmt = stmt.order_by(WorkspaceChat.created_at.desc())
     result = await db.execute(stmt)
     rows = result.scalars().all()

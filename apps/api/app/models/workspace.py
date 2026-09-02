@@ -24,6 +24,13 @@ class Workspace(Base):
         back_populates="workspace",
         cascade="all, delete-orphan",
     )
+    
+    # Messages (ChatGPT-style)
+    messages = relationship(
+        "Message",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+    )
 
 
 class WorkspaceFile(Base):

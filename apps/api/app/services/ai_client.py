@@ -44,6 +44,10 @@ class AIGateway:
 
     def __init__(self) -> None:
         self.providers: dict[str, Any] = {}
+        # Cache model IDs theo provider (nạp từ DB ai_models) — dùng cho dropdown/resolve
+        self.db_models: dict[str, list[str]] = {}
+        # Nguồn gốc của từng provider: 'db' | 'env' — để admin biết config nào đang thực sự chạy
+        self.provider_source: dict[str, str] = {}
         self._configure()
 
     def _configure(self) -> None:
@@ -76,7 +80,8 @@ class AIGateway:
                         base_url=meta["base_url"],
                         model=meta["model"]
                     )
-                    logger.info(f"✓ {name.upper()} provider ready | model={meta['model']}")
+                    self.provider_source[name] = "env"
+                    logger.info(f"✓ {name.upper()} provider ready (env) | model={meta['model']}")
                 except Exception as e:
                     logger.warning(f"✗ {name.upper()} init failed: {e}")
             else:
@@ -84,6 +89,81 @@ class AIGateway:
 
         if not self.providers:
             logger.warning("⚠ No AI provider configured!")
+
+    async def reconfigure_from_db(self, db: Any = None) -> None:
+        """
+        Nạp provider + model từ DB (ai_providers / ai_models) — nguồn chính.
+
+        - Tạo provider mới cho MỌI row enabled (không chỉ update provider có sẵn).
+        - Env (LOCAL_*, NVIDIA_*) chỉ là fallback khi DB chưa có provider nào.
+        - Gọi sau mỗi mutation của admin → hiệu lực ngay, không restart.
+
+        Args:
+            db: AsyncSession từ caller. Nếu None, tự tạo session mới.
+        """
+        from sqlalchemy import select
+        from app.core.database import async_session_maker
+        from app.models.ai_config import AIProvider, AIModel
+
+        async def _read() -> tuple[list[tuple[str, str, str]], dict[str, list[str]]]:
+            if db is not None:
+                async with db as session:
+                    prows = (await session.execute(
+                        select(AIProvider).where(AIProvider.enabled.is_(True))
+                    )).scalars().all()
+                    mrows = (await session.execute(
+                        select(AIModel).where(AIModel.enabled.is_(True))
+                    )).scalars().all()
+            else:
+                async with async_session_maker() as session:
+                    prows = (await session.execute(
+                        select(AIProvider).where(AIProvider.enabled.is_(True))
+                    )).scalars().all()
+                    mrows = (await session.execute(
+                        select(AIModel).where(AIModel.enabled.is_(True))
+                    )).scalars().all()
+            providers = [(r.name, r.base_url, r.api_key or "") for r in prows]
+            models: dict[str, list[str]] = {}
+            for m in mrows:
+                models.setdefault(m.provider_name, []).append(m.model_id)
+            return providers, models
+
+        try:
+            db_providers, db_models = await _read()
+        except Exception as e:
+            logger.warning("reconfigure_from_db: cannot read DB (%s) — giữ nguyên providers hiện tại", e)
+            return
+
+        if not db_providers:
+            logger.info("reconfigure_from_db: DB chưa có provider enabled — fallback env")
+            return
+
+        # Đóng HTTP client của provider bị thay thế/xoá
+        new_names = {name for name, _, _ in db_providers}
+        for old_name, old_provider in list(self.providers.items()):
+            if old_name not in new_names and hasattr(old_provider, "close"):
+                try:
+                    await old_provider.close()
+                except Exception:
+                    pass
+
+        for name, base_url, api_key in db_providers:
+            if not base_url or self._is_placeholder(api_key):
+                logger.warning("⊘ DB provider '%s' skipped (missing base_url/api_key)", name)
+                continue
+            try:
+                self.providers[name] = LocalProvider(
+                    api_key=api_key,
+                    base_url=base_url,
+                    model=(db_models.get(name) or [None])[0],
+                )
+                self.provider_source[name] = "db"
+                logger.info("✓ DB provider '%s' ready | models=%s", name, db_models.get(name, []))
+            except Exception as e:
+                logger.warning("✗ DB provider '%s' init failed: %s", name, e)
+
+        self.db_models = db_models
+        logger.info("reconfigure_from_db done: providers=%s", sorted(self.providers.keys()))
 
     @staticmethod
     def _is_placeholder(value: str) -> bool:
@@ -112,10 +192,10 @@ class AIGateway:
 
     def list_providers(self) -> dict[str, dict]:
         """
-        Trả về thông tin các provider đang enabled.
+        Trả về thông tin các provider đang enabled (kèm nguồn gốc db/env).
 
         Returns:
-            Dict mapping provider_name → {default_model, ready, base_url}
+            Dict mapping provider_name → {default_model, ready, base_url, source}
         """
         result = {}
         for name, provider in self.providers.items():
@@ -123,15 +203,21 @@ class AIGateway:
             result[name] = {
                 "default_model": provider.get_default_model(),
                 "ready": True,
-                "base_url": cfg.base_url if cfg else None,
+                "base_url": provider.base_url,
+                "source": self.provider_source.get(name, "unknown"),
             }
         return result
 
     def list_all_models(self) -> dict[str, list[str]]:
         """
-        Trả về danh sách model gợi ý cho mỗi provider.
-        (Không gọi API, chỉ list model khả dụng theo docs)
+        Trả về danh sách model cho mỗi provider.
+        Ưu tiên DB (ai_models do admin khai báo), fallback list hardcode.
         """
+        if self.db_models:
+            merged: dict[str, list[str]] = {}
+            for name in self.providers:
+                merged[name] = self.db_models.get(name, [])
+            return merged
         return {
             "nvidia": [
                 "stepfun-ai/Step-3.7-Flash",  # Default

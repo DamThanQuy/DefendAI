@@ -554,6 +554,14 @@ async def analyze_module_files(
     """1 LLM pass over a module's files (≤ MODULE_FILE_CAP). Returns normalized issues."""
     if not files:
         return []
+    # Provider/model: ưu tiên tham số truyền vào, fallback cấu hình chức năng code_review
+    if not provider or not model:
+        from app.core.database import async_session_maker
+        from app.services.feature_ai import resolve_feature_ai
+        async with async_session_maker() as db:
+            f_provider, f_model = await resolve_feature_ai(db, "code_review")
+        provider = provider or f_provider
+        model = model or f_model
     system_prompt, user_prompt, _ = build_prompt(files, rubric=rubric)
     try:
         result = await ai_gateway.generate(
@@ -607,6 +615,7 @@ async def agent_fast_check(document: Document, classification: dict) -> dict:
     """LLM đọc tree + snippet 2-3 file → trả JSON schema đầy đủ."""
     tree = _build_tree_preview(classification)
     snippets = await _read_top_snippets(document, n=3)
+    provider, model = await _classify_provider_model()
 
     prompt = (
         "Đây là cấu trúc file nén của một đồ án sinh viên. "
@@ -620,7 +629,7 @@ async def agent_fast_check(document: Document, classification: dict) -> dict:
         '  "primary_language": "TypeScript / Python / Java..."\n'
         "}"
     )
-    result = await ai_gateway.generate(prompt=prompt, temperature=0)
+    result = await ai_gateway.generate(prompt=prompt, temperature=0, provider=provider, model=model)
     payload = _extract_json_payload(result["content"])
     # Chuẩn hoá thiếu trường → không crash nơi gọi
     payload.setdefault("is_source_code", False)
@@ -628,3 +637,11 @@ async def agent_fast_check(document: Document, classification: dict) -> dict:
     payload.setdefault("reason", "")
     payload.setdefault("primary_language", "")
     return payload
+
+
+async def _classify_provider_model() -> tuple[str | None, str | None]:
+    """Resolve provider/model cho agent_fast_check (chức năng classify)."""
+    from app.core.database import async_session_maker
+    from app.services.feature_ai import resolve_feature_ai
+    async with async_session_maker() as db:
+        return await resolve_feature_ai(db, "classify")

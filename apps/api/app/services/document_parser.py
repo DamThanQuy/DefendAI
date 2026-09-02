@@ -33,6 +33,7 @@ from docx import Document as DocxDocument
 from pptx import Presentation
 
 from app.services.vision_read import ImagePart, ReadResult
+from app.services.figure_inventory import FigureInventory, build_figure_inventory, load_media_bytes
 
 from app.models.document import DocType, Document
 from app.services.storage import get_doc
@@ -48,9 +49,15 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ParseResult:
-    """Kết quả parse: text thường + mô tả diagram (từ vision reader)."""
+    """Kết quả parse: text thường + mô tả diagram (từ vision reader).
+
+    `diagrams`: list[str] — tương thích ngược.
+    `diagram_infos`: list[DiagramInfo] (Fix C) — có figure number + kind
+    (diagram/screen/photo) để index RAG và báo cáo định lượng chính xác.
+    """
     text: str
     diagrams: List[str] = field(default_factory=list)
+    diagram_infos: list = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -339,14 +346,27 @@ async def extract_text(document) -> ParseResult:
                         storage_key, exc,
                     )
             else:
-                # DOCX/PPTX (Option B): Gemini cannot render OOXML-embedded images when
-                # the whole file is sent (it only reads document.xml text). Unzip the
-                # office package, extract the embedded raster images, and send each as a
-                # separate multimodal part alongside the native text as context.
-                # On any vision failure we keep the native text (already extracted) —
-                # we do NOT fall through to the old parser, which would just re-read XML.
+                # DOCX/PPTX (Option B + Fix A/B/C): dựng figure inventory từ OOXML
+                # XML trước (số figure chính xác, caption đúng ảnh, đúng thứ tự
+                # tài liệu), chỉ gửi ảnh RASTER có caption lên vision theo batch.
+                # Ảnh vector (EMF/WMF) và ảnh trùng được loại; ảnh không caption
+                # vẫn vào text qua inventory summary nhưng không tốn token mô tả.
                 native_text = _extract_office_text(data, document.doc_type)
-                images = _extract_office_images(data, document.doc_type)
+                kind = "pptx" if document.doc_type == DocType.PPTX else "docx"
+                inventory = build_figure_inventory(data, kind)
+                images = _inventory_images(data, inventory)
+                if inventory.total_figures:
+                    native_text = (
+                        native_text
+                        + "\n\n=== FIGURE INVENTORY ===\n"
+                        + inventory.summary_text()
+                        + "\n"
+                        + "\n".join(
+                            f"Figure {f.number}: {f.caption}" if f.number is not None
+                            else f"[uncaptioned image {f.order}]"
+                            for f in inventory.figures
+                        )
+                    )
                 if images:
                     try:
                         vision = await vision_read_file(
@@ -357,14 +377,19 @@ async def extract_text(document) -> ParseResult:
                             "Vision reader failed for %s (%s) — using native text only",
                             storage_key, exc,
                         )
-                        return ParseResult(text=native_text, diagrams=[])
+                        return ParseResult(text=native_text, diagrams=[],
+                                           diagram_infos=[])
                     if vision.diagrams:
                         logger.info(
-                            "Vision reader described %d diagrams from %s (Option B, %d images)",
-                            len(vision.diagrams), storage_key, len(images),
+                            "Vision reader described %d/%d figures from %s (batched Option B)",
+                            len(vision.diagrams), len(images), storage_key,
                         )
                         # text is the native text (authoritative); diagrams from vision.
-                        return ParseResult(text=native_text, diagrams=vision.diagrams)
+                        return ParseResult(
+                            text=native_text,
+                            diagrams=vision.diagrams,
+                            diagram_infos=getattr(vision, "diagram_infos", []),
+                        )
                     logger.warning(
                         "Vision reader found no diagrams in %d images of %s — "
                         "using native text only",
@@ -372,7 +397,7 @@ async def extract_text(document) -> ParseResult:
                     )
                 else:
                     logger.info("No embedded images in %s — using native text only", storage_key)
-                return ParseResult(text=native_text, diagrams=[])
+                return ParseResult(text=native_text, diagrams=[], diagram_infos=[])
 
     # ── FALLBACK / NATIVE-ONLY: parser cũ ──
     extractor = _EXTRACTORS.get(document.doc_type)
@@ -473,6 +498,34 @@ def _extract_office_images(data: bytes, doc_type: DocType) -> List[ImagePart]:
     except zipfile.BadZipFile as exc:
         logger.warning("Office file is not a valid zip (%s): %s", doc_type, exc)
         return []
+
+
+def _inventory_images(data: bytes, inventory: FigureInventory) -> List[ImagePart]:
+    """ImageParts từ figure inventory — đúng thứ tự tài liệu, kèm label caption.
+
+    Chỉ nhận ảnh raster đọc được; vector (EMF/WMF) bỏ qua (không gửi Gemini được,
+    caption đã có trong FIGURE INVENTORY text). Ảnh trùng media_path chỉ gửi 1 lần.
+    """
+    parts: List[ImagePart] = []
+    seen_paths: set = set()
+    for f in inventory.figures:
+        if not f.media_path or f.is_vector or f.media_path in seen_paths:
+            continue
+        raw = load_media_bytes(data, f.media_path)
+        if raw is None:
+            continue
+        mime = f.mime or "image/png"
+        raw = _downscale_image(raw, mime)
+        if raw is None:
+            continue
+        seen_paths.add(f.media_path)
+        label = (
+            f"Figure {f.number}: {f.caption}" if f.number is not None
+            else f"Image {f.order} (uncaptioned)"
+        )
+        parts.append(ImagePart(data=raw, mime_type=mime, label=label))
+    logger.info("Vision images from inventory: %d (of %d figures)", len(parts), inventory.total_figures)
+    return parts
 
 
 def _downscale_image(raw: bytes, mime: str) -> Optional[bytes]:
@@ -593,10 +646,24 @@ async def parse_and_chunk(document,
     Returns:
         (chunks, diagrams): list chunk text + list mô tả diagram (có thể rỗng).
         Đây là hàm router/service khác sẽ gọi trực tiếp khi tạo Assessment.
+        Bản đầy đủ có figure number + kind: dùng `parse_and_chunk_full`.
+    """
+    chunks, diagrams, _ = await parse_and_chunk_full(document, chunk_size, overlap)
+    return chunks, diagrams
+
+
+async def parse_and_chunk_full(document,
+                    chunk_size: int = CHUNK_SIZE_CHARS,
+                    overlap: int = CHUNK_OVERLAP_CHARS) -> tuple[List[str], List[str], list]:
+    """Như `parse_and_chunk` nhưng trả kèm diagram_infos có cấu trúc (Fix C).
+
+    Returns:
+        (chunks, diagrams, diagram_infos): diagram_infos là list[DiagramInfo]
+        với {figure, kind, caption, description} — rỗng nếu file không có figure.
     """
     result = await extract_text(document)
     chunks = chunk_text(result.text, chunk_size=chunk_size, overlap=overlap)
-    return chunks, result.diagrams
+    return chunks, result.diagrams, result.diagram_infos
 
 
 # ---------------------------------------------------------------------------
@@ -621,11 +688,11 @@ async def parse_chunk_index(document,
             diagrams: list mô tả diagram
             indexed_count: số chunk đã index (0 nếu index=False hoặc lỗi)
     """
-    chunks, diagrams = await parse_and_chunk(document, chunk_size, overlap)
+    chunks, diagrams, diagram_infos = await parse_and_chunk_full(document, chunk_size, overlap)
     
     indexed_count = 0
     if index and chunks:
         from app.services.chunk_indexer import index_chunks
-        indexed_count = await index_chunks(document, chunks, diagrams)
+        indexed_count = await index_chunks(document, chunks, diagrams, diagram_infos=diagram_infos)
     
     return chunks, diagrams, indexed_count

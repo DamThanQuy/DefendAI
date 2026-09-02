@@ -21,6 +21,7 @@ from app.handlers.questions import (
 from app.handlers.workspace_questions import _ensure_indexed, _format_context
 from app.models.entities import AssessmentStatus, WorkspaceChat
 from app.services.ai_client import ai_gateway
+from app.services.feature_ai import resolve_feature_ai
 from app.services.job_queue import register_handler, update_job
 from app.services.retriever import retrieve_mixed
 
@@ -161,6 +162,7 @@ async def handle_chat_ask(params: dict) -> dict:
         # Reference rỗng thì bỏ qua (chỉ dùng user chunks) — không chặn job
         async with async_session_maker() as db:
             history = await _load_history(db, workspace_id, conversation_id)
+            provider, model = await resolve_feature_ai(db, "workspace_chat")
         contexts = [_format_context(r) for r in user_results + ref_results]
         prompt = _build_rag_answer_prompt(question, history, contexts)
         ai_result = await ai_gateway.generate(
@@ -168,6 +170,8 @@ async def handle_chat_ask(params: dict) -> dict:
             system_prompt=_build_chat_system_prompt(),
             temperature=0.3,
             max_tokens=4000,
+            provider=provider,
+            model=model,
         )
         norm = _normalize_answer(ai_result["content"])
 
