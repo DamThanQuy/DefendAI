@@ -23,6 +23,7 @@ import {
   Settings,
   Scale,
   Bot,
+  Crown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isPublicPath } from "@/lib/shell";
@@ -52,6 +53,7 @@ const SIDEBAR_LINKS: SidebarLink[] = [
   { href: "/bookings", label: "Đặt lịch", icon: CalendarClock, roles: ["student", "admin"] },
   { href: "/mock-room", label: "Mock Room", icon: MonitorPlay, roles: ["student", "admin"] },
   { href: "/report", label: "Báo cáo", icon: BarChart3, roles: ["student", "admin"] },
+  { href: "/pricing", label: "Đăng ký Member", icon: Crown, roles: ["student", "admin"] },
   // --- Mentor section (chỉ hiện với role mentor) ---
   { href: "/mentor/dashboard", label: "Tổng quan Mentor", icon: LayoutDashboard, roles: ["mentor", "admin"] },
   { href: "/mentor/calendar", label: "Lịch rảnh", icon: CalendarDays, roles: ["mentor", "admin"] },

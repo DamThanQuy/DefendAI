@@ -10,6 +10,7 @@ import { isPublicPath } from "@/lib/shell";
 const navLinks: { href: string; label: string; roles?: string[]; public?: boolean }[] = [
   { href: "/", label: "Trang chủ", public: true },
   { href: "/demo", label: "Xem demo", public: true },
+  { href: "/pricing", label: "Bảng giá", public: true },
   { href: "/documents", label: "Tài liệu" },
   { href: "/workspaces", label: "Workspace" },
   { href: "/code-review", label: "Code Review" },
