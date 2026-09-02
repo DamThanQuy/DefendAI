@@ -26,9 +26,9 @@ import {
   type PaymentMethodId,
 } from "./payment-data";
 
-function getPlanFromId(id: string) {
-  if (id === "premium") return { id, name: "Premium", monthly: 99000, yearly: 990000 };
-  if (id === "vip") return { id, name: "VIP", monthly: 199000, yearly: 1990000 };
+function getPlanFromId(id: string): { id: "premium" | "vip"; name: string; monthly: number; yearly: number } | null {
+  if (id === "premium") return { id: "premium", name: "Premium", monthly: 99000, yearly: 990000 };
+  if (id === "vip") return { id: "vip", name: "VIP", monthly: 199000, yearly: 1990000 };
   return null;
 }
 
