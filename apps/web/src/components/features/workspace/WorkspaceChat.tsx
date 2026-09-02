@@ -398,9 +398,9 @@ export default function WorkspaceChat({
   };
 
   return (
-    <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden flex flex-col h-[calc(100vh-340px)] min-h-[450px]">
-      <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center justify-between gap-2 sticky top-0 z-20">
-        <span className="text-[13px] font-bold text-zinc-200">💬 Chat đề tài (toàn workspace)</span>
+    <div className="bg-card rounded-2xl shadow-sm border border-border/60 overflow-hidden flex flex-col h-[calc(100vh-340px)] min-h-[450px]">
+      <div className="px-4 py-3 border-b border-border/60 bg-muted/40 flex items-center justify-between gap-2 sticky top-0 z-20">
+        <span className="text-[13px] font-bold text-foreground">💬 Chat đề tài (toàn workspace)</span>
         <div className="flex items-center gap-3">
           {/* Circular progress: ước lượng context token của đoạn đang mở */}
           <div className="flex items-center gap-2" title={`Context: ~${contextTokens} / ${CONTEXT_MAX} tokens`}>
@@ -414,13 +414,13 @@ export default function WorkspaceChat({
                 transform="rotate(-90 18 18)"
               />
             </svg>
-            <span className="text-[11px] text-zinc-400 tabular-nums">{contextPct}%</span>
+            <span className="text-[11px] text-muted-foreground tabular-nums">{contextPct}%</span>
           </div>
           <div className="flex items-center gap-2">
           <select
             value={chatPersona}
             onChange={(e) => setChatPersona(e.target.value)}
-            className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 focus:outline-none focus:border-primary"
+            className="px-2.5 py-1.5 bg-card border border-border rounded-lg text-[12px] text-foreground focus:outline-none focus:border-primary"
           >
             {PERSONAS.map((p) => (
               <option key={p.key} value={p.key}>{p.label}</option>
@@ -429,7 +429,7 @@ export default function WorkspaceChat({
           <button
             onClick={toggleSidebar}
             title={sidebarOpen ? "Thu gọn danh sách đoạn" : "Mở danh sách đoạn"}
-            className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
+            className="px-2.5 py-1.5 bg-card border border-border rounded-lg text-[12px] text-foreground hover:bg-muted hover:text-white transition-colors"
           >
             {sidebarOpen ? "◀" : "▶"}
           </button>
@@ -440,14 +440,14 @@ export default function WorkspaceChat({
       <div className="flex flex-1 min-h-0">
         {/* Sidebar đoạn chat — thu gọn được, trạng thái lưu theo user */}
         {sidebarOpen && (
-        <div className="w-44 shrink-0 border-r border-zinc-800/60 bg-zinc-900/40 flex flex-col h-full min-h-0">
+        <div className="w-44 shrink-0 border-r border-border/60 bg-card/40 flex flex-col h-full min-h-0">
           {/* Top bar cố định: tiêu đề + nút tạo đoạn mới (không trôi khi cuộn list) */}
-          <div className="shrink-0 px-2 pt-2 pb-2 border-b border-zinc-800/60 flex items-center justify-between gap-1">
-            <p className="px-1 text-[10px] font-bold uppercase tracking-wide text-zinc-500">Đoạn chat</p>
+          <div className="shrink-0 px-2 pt-2 pb-2 border-b border-border/60 flex items-center justify-between gap-1">
+            <p className="px-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Đoạn chat</p>
             <button
               onClick={createConversation}
               title="Tạo đoạn chat mới"
-              className="px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-md text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors whitespace-nowrap"
+              className="px-2 py-1 bg-card border border-border rounded-md text-[11px] text-foreground hover:bg-muted hover:text-white transition-colors whitespace-nowrap"
             >
               ➕ Đoạn mới
             </button>
@@ -455,12 +455,12 @@ export default function WorkspaceChat({
           {/* Danh sách đoạn chat — cuộn độc lập, không làm trôi top bar */}
           <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-2 flex flex-col gap-1">
           {convLoading ? (
-            <p className="text-zinc-500 text-[11px] px-2 py-1">Đang tải...</p>
+            <p className="text-muted-foreground text-[11px] px-2 py-1">Đang tải...</p>
           ) : (
             <>
               <button
                 onClick={() => switchConversation("")}
-                className={`w-full text-left px-2 py-1.5 rounded-md text-[12px] transition-colors ${activeConvId === "" ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-zinc-400 hover:bg-zinc-800/60"}`}
+                className={`w-full text-left px-2 py-1.5 rounded-md text-[12px] transition-colors ${activeConvId === "" ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-muted-foreground hover:bg-muted/60"}`}
               >
                 💬 Đoạn mặc định
               </button>
@@ -476,12 +476,12 @@ export default function WorkspaceChat({
                         if (e.key === "Enter") submitRename(c.conversation_id);
                         if (e.key === "Escape") setRenamingId(null);
                       }}
-                      className="flex-1 px-2 py-1.5 bg-zinc-900 border border-primary rounded-md text-[12px] text-zinc-200 focus:outline-none"
+                      className="flex-1 px-2 py-1.5 bg-card border border-primary rounded-md text-[12px] text-foreground focus:outline-none"
                     />
                   ) : (
                     <button
                       onClick={() => switchConversation(c.conversation_id)}
-                      className={`flex-1 text-left px-2 py-1.5 rounded-md text-[12px] truncate transition-colors ${activeConvId === c.conversation_id ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-zinc-400 hover:bg-zinc-800/60"}`}
+                      className={`flex-1 text-left px-2 py-1.5 rounded-md text-[12px] truncate transition-colors ${activeConvId === c.conversation_id ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-muted-foreground hover:bg-muted/60"}`}
                     >
                       {c.name}
                     </button>
@@ -490,16 +490,16 @@ export default function WorkspaceChat({
                     <button
                       onClick={() => setMenuConvId((prev) => (prev === c.conversation_id ? null : c.conversation_id))}
                       title="Tuỳ chọn đoạn"
-                      className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-zinc-200 text-[14px] leading-none px-1 transition-opacity"
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground text-[14px] leading-none px-1 transition-opacity"
                     >
                       ⋮
                     </button>
                   )}
                   {menuConvId === c.conversation_id && (
-                    <div className="absolute right-0 top-7 z-10 w-28 bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg py-1 text-[12px]">
+                    <div className="absolute right-0 top-7 z-10 w-28 bg-card border border-border rounded-lg shadow-lg py-1 text-[12px]">
                       <button
                         onClick={() => startRename(c)}
-                        className="w-full text-left px-3 py-1.5 text-zinc-300 hover:bg-zinc-800 transition-colors"
+                        className="w-full text-left px-3 py-1.5 text-foreground hover:bg-muted transition-colors"
                       >
                         ✏️ Đổi tên
                       </button>
@@ -525,9 +525,9 @@ export default function WorkspaceChat({
         <div className="relative flex-1 min-h-0">
       <div ref={chatScrollRef} className="absolute inset-0 overflow-y-auto p-5 flex flex-col gap-4 custom-scrollbar">
         {chatLoading ? (
-          <p className="text-zinc-500 text-[13px] text-center py-8">Đang tải hội thoại...</p>
+          <p className="text-muted-foreground text-[13px] text-center py-8">Đang tải hội thoại...</p>
         ) : chatItems.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-zinc-500">
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
             <span className="text-4xl mb-3">💬</span>
             <p className="text-[13px] text-center max-w-[320px]">Hỏi bất kỳ điều gì về toàn bộ workspace — AI trả lời kèm nguồn file:đoạn, giữ ngữ cảnh 6 lượt trước.</p>
           </div>
@@ -538,8 +538,8 @@ export default function WorkspaceChat({
                 {turn.question}
               </div>
               {turn.status === "completed" && turn.answer ? (
-                <div className="self-start max-w-[85%] bg-zinc-800/70 border border-zinc-700/50 rounded-2xl rounded-bl-md px-4 py-2.5">
-                  <div className="text-[13px] text-zinc-300 leading-relaxed whitespace-pre-wrap">{turn.answer}</div>
+                <div className="self-start max-w-[85%] bg-muted/70 border border-border/50 rounded-2xl rounded-bl-md px-4 py-2.5">
+                  <div className="text-[13px] text-foreground leading-relaxed whitespace-pre-wrap">{turn.answer}</div>
                   {turn.citations && turn.citations.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {turn.citations.map((c, i) => (
@@ -550,15 +550,15 @@ export default function WorkspaceChat({
                 </div>
               ) : turn.status === "failed" ? (
                 <div className="self-start max-w-[85%] bg-red-500/10 border border-red-500/20 rounded-2xl rounded-bl-md px-4 py-2.5 text-red-400 text-[13px]">
-                  {turn.answer && <div className="text-[13px] text-zinc-400 leading-relaxed whitespace-pre-wrap mb-2">{turn.answer}</div>}
+                  {turn.answer && <div className="text-[13px] text-muted-foreground leading-relaxed whitespace-pre-wrap mb-2">{turn.answer}</div>}
                   {turn.error || "Trả lời thất bại."}
                 </div>
               ) : (
-                <div className="self-start max-w-[85%] bg-zinc-800/40 border border-zinc-700/40 rounded-2xl rounded-bl-md px-4 py-2.5">
+                <div className="self-start max-w-[85%] bg-muted/40 border border-border/40 rounded-2xl rounded-bl-md px-4 py-2.5">
                   {turn.answer ? (
-                    <div className="text-[13px] text-zinc-300 leading-relaxed whitespace-pre-wrap">{turn.answer}</div>
+                    <div className="text-[13px] text-foreground leading-relaxed whitespace-pre-wrap">{turn.answer}</div>
                   ) : (
-                    <div className="flex items-center gap-2.5 text-zinc-500 text-[13px]">
+                    <div className="flex items-center gap-2.5 text-muted-foreground text-[13px]">
                       <span className="flex gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-bounce" />
                         <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-bounce [animation-delay:150ms]" />
@@ -578,7 +578,7 @@ export default function WorkspaceChat({
         <button
           onClick={scrollToBottom}
           aria-label="Cuộn xuống tin nhắn mới nhất"
-          className="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-300 shadow-lg flex items-center justify-center hover:bg-zinc-700 hover:text-white transition-colors"
+          className="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-muted border border-border text-foreground shadow-lg flex items-center justify-center hover:bg-muted hover:text-white transition-colors"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 5v14" />
@@ -593,13 +593,13 @@ export default function WorkspaceChat({
         <div className="px-4 py-2 bg-red-500/10 border-t border-red-500/20 text-red-400 text-[12px]">{chatError}</div>
       )}
 
-      <div className="px-4 py-3 border-t border-zinc-800/60 flex gap-3">
+      <div className="px-4 py-3 border-t border-border/60 flex gap-3">
         <input
           value={chatQuestion}
           onChange={(e) => setChatQuestion(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sendChatQuestion()}
           placeholder="Hỏi về workspace..."
-          className="flex-1 px-4 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-[14px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-primary"
+          className="flex-1 px-4 py-2.5 bg-card border border-border rounded-xl text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
         />
         <button
           onClick={sendChatQuestion}

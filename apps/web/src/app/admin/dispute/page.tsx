@@ -30,7 +30,7 @@ export default function AdminDisputePage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800 text-left text-zinc-500">
+                  <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="py-2 pr-4 font-medium">Tiêu đề</th>
                     <th className="py-2 pr-4 font-medium">Student</th>
                     <th className="py-2 pr-4 font-medium">Mentor</th>
@@ -38,13 +38,13 @@ export default function AdminDisputePage() {
                     <th className="py-2 font-medium text-right">Chi tiết</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-800/60">
+                <tbody className="divide-y divide-border/60">
                   {bookings.map((b) => (
                     <Fragment key={b.id}>
                       <tr>
-                        <td className="py-2 pr-4 font-medium text-zinc-200">{b.title}</td>
-                        <td className="py-2 pr-4 text-zinc-400">{b.student_name ?? b.student_email}</td>
-                        <td className="py-2 pr-4 text-zinc-400">{b.mentor_name ?? b.mentor_email}</td>
+                        <td className="py-2 pr-4 font-medium text-foreground">{b.title}</td>
+                        <td className="py-2 pr-4 text-muted-foreground">{b.student_name ?? b.student_email}</td>
+                        <td className="py-2 pr-4 text-muted-foreground">{b.mentor_name ?? b.mentor_email}</td>
                         <td className="py-2 pr-4">
                           <span className={statusBadge(b.status)}>{b.status}</span>
                         </td>
@@ -60,12 +60,12 @@ export default function AdminDisputePage() {
                       {disputeDetail === b.id && (
                         <tr>
                           <td colSpan={5} className="py-2">
-                            <div className="bg-zinc-900/60 rounded-xl p-4 space-y-2 text-[12px] text-zinc-400">
+                            <div className="bg-card/60 rounded-xl p-4 space-y-2 text-[12px] text-muted-foreground">
                               <p><span className="text-primary font-semibold">Ghi chú:</span> {b.note ?? "—"}</p>
                               <p><span className="text-primary font-semibold">Lý do từ chối:</span> {b.reject_reason ?? "—"}</p>
                               <p><span className="text-primary font-semibold">Giờ đề xuất:</span> {b.proposed_time ? new Date(b.proposed_time).toLocaleString("vi-VN") : "—"}</p>
                               <p><span className="text-primary font-semibold">Giờ chốt:</span> {b.confirmed_time ? new Date(b.confirmed_time).toLocaleString("vi-VN") : "—"}</p>
-                              <p className="pt-2 text-zinc-500">Phân xử hoàn tiền / giải ngân: chưa có (cần module tài chính).</p>
+                              <p className="pt-2 text-muted-foreground">Phân xử hoàn tiền / giải ngân: chưa có (cần module tài chính).</p>
                             </div>
                           </td>
                         </tr>

@@ -140,21 +140,27 @@ export default function DocumentsPage() {
     <div className="min-h-screen bg-background pb-16">
       <div className="container mx-auto px-4 lg:px-8 pt-6 max-w-[1100px]">
         {/* Breadcrumb */}
-        <div className="flex items-center text-[13px] text-zinc-500 font-medium mb-6">
-          <Link href="/documents" className="hover:text-primary transition-colors">Trang chủ</Link>
-          <span className="mx-2">›</span>
+        <nav className="flex items-center text-[13px] font-medium mb-4">
+          <Link href="/" className="text-muted-foreground hover:text-foreground transition-colors">
+            Trang chủ
+          </Link>
+          <span className="mx-2 text-muted-foreground/50">›</span>
           <span className="text-primary font-semibold">Tài liệu</span>
-        </div>
+        </nav>
 
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-[28px] font-bold text-foreground mb-2">Tài liệu của tôi</h1>
-            <p className="text-zinc-500 text-[14px]">Quản lý tài liệu đã tải lên cho buổi bảo vệ.</p>
+            <h1 className="text-3xl font-serif font-black text-foreground mb-2">
+              Tài liệu của tôi
+            </h1>
+            <p className="text-muted-foreground text-[14px]">
+              Quản lý tài liệu đã tải lên cho buổi bảo vệ.
+            </p>
           </div>
           <button
             onClick={() => setShowUpload(true)}
-            className="px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90 transition-colors shrink-0"
+            className="px-6 py-2.5 bg-primary text-primary-foreground rounded-full text-[14px] font-semibold shadow-[0_0_18px_hsl(var(--primary)/0.4)] hover:brightness-110 transition-all shrink-0"
           >
             + Tải lên tài liệu mới
           </button>
@@ -163,83 +169,90 @@ export default function DocumentsPage() {
         {loading && (
           <div className="text-center py-20">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-zinc-500 text-[14px]">Đang tải danh sách...</p>
+            <p className="text-muted-foreground text-[14px]">Đang tải danh sách...</p>
           </div>
         )}
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-[14px] mb-6">
+          <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 text-destructive text-[14px] mb-6">
             {error}
           </div>
         )}
 
         {!loading && !error && docs.length === 0 && (
-          <div className="text-center py-20">
-            <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="text-center py-20 dark-card rounded-3xl">
+            <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
               </svg>
             </div>
-            <h2 className="text-lg font-bold text-foreground mb-2">Chưa có tài liệu nào</h2>
-            <p className="text-zinc-500 text-[14px] mb-6">Tải lên tài liệu đầu tiên để bắt đầu.</p>
-            <button onClick={() => setShowUpload(true)} className="inline-block px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90">
+            <h2 className="text-lg font-serif font-bold text-foreground mb-2">
+              Chưa có tài liệu nào
+            </h2>
+            <p className="text-muted-foreground text-[14px] mb-6">
+              Tải lên tài liệu đầu tiên để bắt đầu.
+            </p>
+            <button
+              onClick={() => setShowUpload(true)}
+              className="inline-block px-6 py-2.5 bg-primary text-primary-foreground rounded-full text-[14px] font-semibold hover:brightness-110 shadow-[0_0_18px_hsl(var(--primary)/0.4)]"
+            >
               Tải lên ngay
             </button>
           </div>
         )}
 
         {!loading && docs.length > 0 && (
-          <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden">
+          <div className="dark-card rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b border-zinc-800/60 bg-zinc-800/40">
-                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Tên file</th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Loại</th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Ngày tải lên</th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider text-right">Thao tác</th>
+                  <tr className="border-b border-border bg-muted/40">
+                    <th className="px-5 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Tên file</th>
+                    <th className="px-5 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Loại</th>
+                    <th className="px-5 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Ngày tải lên</th>
+                    <th className="px-5 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   {docs.map((doc) => (
-                    <tr key={doc.id} className="border-b border-zinc-800/60 hover:bg-zinc-800/40 transition-colors">
+                    <tr key={doc.id} className="border-b border-border hover:bg-muted/40 transition-colors">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-teal-500/10 flex items-center justify-center shrink-0">
-                            <svg className="w-5 h-5 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                             </svg>
                           </div>
-                          <span className="text-[14px] font-semibold text-zinc-200 truncate max-w-[300px]">
+                          <span className="text-[14px] font-semibold text-foreground truncate max-w-[300px]">
                             {doc.filename}
                           </span>
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <span className="text-[12px] font-bold text-zinc-400 bg-zinc-800 px-2 py-1 rounded">
+                        <span className="text-[12px] font-bold text-secondary bg-secondary/10 px-2 py-1 rounded">
                           {doc.file_type === ".rar" ? "RAR" : docTypeLabel[doc.doc_type] ?? doc.file_type}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-[13px] text-zinc-500">{formatDate(doc.created_at)}</td>
+                      <td className="px-5 py-4 text-[13px] text-muted-foreground">{formatDate(doc.created_at)}</td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           {doc.doc_type === "zip" && (
                             <button
                               onClick={() => setBrowseDoc(doc)}
-                              className="px-3 py-1.5 text-[12px] font-semibold text-zinc-300 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
+                              className="px-3 py-1.5 text-[12px] font-semibold text-foreground bg-muted rounded-lg hover:bg-muted/70 transition-colors"
                             >
                               Xem nội dung
                             </button>
                           )}
                           <button
                             onClick={() => openWsModal(doc)}
-                            className="px-3 py-1.5 text-[12px] font-semibold text-emerald-400 bg-emerald-500/10 rounded-lg hover:bg-emerald-500/20 transition-colors"
+                            className="px-3 py-1.5 text-[12px] font-semibold text-emerald-500 bg-emerald-500/10 rounded-lg hover:bg-emerald-500/20 transition-colors"
                           >
                             ➕ Workspace
                           </button>
                           <a
                             href={`/api/documents/${doc.id}/download`}
-                            className="px-3 py-1.5 text-[12px] font-semibold text-zinc-400 bg-zinc-800/40 rounded-lg hover:bg-zinc-800 transition-colors"
+                            className="px-3 py-1.5 text-[12px] font-semibold text-muted-foreground bg-muted/40 rounded-lg hover:bg-muted transition-colors"
                           >
                             Tải xuống
                           </a>
@@ -260,14 +273,14 @@ export default function DocumentsPage() {
       {browseDoc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setBrowseDoc(null)}>
           <div
-            className="bg-card rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-zinc-800/60"
+            className="bg-card rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-border/60"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/60">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border/60">
               <h3 className="text-[16px] font-bold text-foreground">Nội dung file</h3>
               <button
                 onClick={() => setBrowseDoc(null)}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-zinc-800 text-zinc-500"
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground"
               >
                 ✕
               </button>
@@ -283,15 +296,15 @@ export default function DocumentsPage() {
       {wsTargetDoc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setWsTargetDoc(null)}>
           <div
-            className="bg-card rounded-2xl shadow-2xl w-full max-w-md p-6 border border-zinc-800/60"
+            className="bg-card rounded-2xl shadow-2xl w-full max-w-md p-6 border border-border/60"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-[16px] font-bold text-foreground mb-1">Thêm vào workspace</h3>
-            <p className="text-[13px] text-zinc-500 mb-4 truncate">{wsTargetDoc.filename}</p>
+            <p className="text-[13px] text-muted-foreground mb-4 truncate">{wsTargetDoc.filename}</p>
 
             {workspaces.length === 0 ? (
               <div className="text-center py-6">
-                <p className="text-zinc-500 text-[13px] mb-4">Chưa có workspace nào.</p>
+                <p className="text-muted-foreground text-[13px] mb-4">Chưa có workspace nào.</p>
                 <Link
                   href="/workspaces"
                   onClick={() => setWsTargetDoc(null)}
@@ -306,10 +319,10 @@ export default function DocumentsPage() {
                   <button
                     key={ws.id}
                     onClick={() => handleAddToWorkspace(ws.id)}
-                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-zinc-800 hover:border-primary/40 hover:bg-teal-500/10 transition-colors text-left"
+                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-border hover:border-primary/40 hover:bg-teal-500/10 transition-colors text-left"
                   >
-                    <span className="text-[14px] font-semibold text-zinc-300">{ws.name}</span>
-                    <span className="text-[12px] text-zinc-500">{ws.document_count} file</span>
+                    <span className="text-[14px] font-semibold text-foreground">{ws.name}</span>
+                    <span className="text-[12px] text-muted-foreground">{ws.document_count} file</span>
                   </button>
                 ))}
               </div>
@@ -318,7 +331,7 @@ export default function DocumentsPage() {
             <div className="flex justify-end mt-5">
               <button
                 onClick={() => setWsTargetDoc(null)}
-                className="px-4 py-2 text-[13px] font-semibold text-zinc-500 hover:bg-zinc-800 rounded-lg"
+                className="px-4 py-2 text-[13px] font-semibold text-muted-foreground hover:bg-muted rounded-lg"
               >
                 Đóng
               </button>

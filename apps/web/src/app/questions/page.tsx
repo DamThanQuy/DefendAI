@@ -229,13 +229,13 @@ export default function QuestionsPage() {
 
           {regenerating && (
             <div className="flex-1 max-w-md">
-              <div className="w-full bg-zinc-700 rounded-full h-2 overflow-hidden">
+              <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
                 <div
                   className="bg-primary h-2 rounded-full transition-all duration-300"
                   style={{ width: `${regenProgress}%` }}
                 />
               </div>
-              <p className="text-zinc-400 text-[12px] mt-1">{regenMessage}</p>
+              <p className="text-muted-foreground text-[12px] mt-1">{regenMessage}</p>
             </div>
           )}
 
@@ -279,8 +279,8 @@ export default function QuestionsPage() {
         {/* Loading state */}
         {loading && (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-10 h-10 border-[3px] border-zinc-800 border-t-primary rounded-full animate-spin mb-4" />
-            <p className="text-zinc-400 text-[14px]">Đang tải kết quả phân tích...</p>
+            <div className="w-10 h-10 border-[3px] border-border border-t-primary rounded-full animate-spin mb-4" />
+            <p className="text-muted-foreground text-[14px]">Đang tải kết quả phân tích...</p>
           </div>
         )}
 
@@ -338,10 +338,10 @@ export default function QuestionsPage() {
 
         {/* No questions state */}
         {!loading && !error && questions.length === 0 && (
-          <div className="bg-card rounded-2xl border border-dashed border-zinc-700 p-12 text-center mb-8">
+          <div className="bg-card rounded-2xl border border-dashed border-border p-12 text-center mb-8">
             <div className="text-4xl mb-3">📝</div>
-            <h3 className="text-[16px] font-bold text-zinc-200 mb-2">Chưa có câu hỏi nào</h3>
-            <p className="text-zinc-500 text-[13px] mb-4">
+            <h3 className="text-[16px] font-bold text-foreground mb-2">Chưa có câu hỏi nào</h3>
+            <p className="text-muted-foreground text-[13px] mb-4">
               Chưa có assessment nào được tạo. Hãy upload tài liệu đồ án và bấm "Sinh lại câu hỏi" để tạo bộ câu hỏi mới.
             </p>
             <Link

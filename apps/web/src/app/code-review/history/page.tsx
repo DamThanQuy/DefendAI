@@ -49,8 +49,8 @@ export default function CodeReviewHistoryPage() {
       <div className="container mx-auto px-4 lg:px-8 pt-8 max-w-[1200px]">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-[22px] font-bold text-zinc-200 mb-1">🕘 Lịch sử Code Review</h1>
-            <p className="text-zinc-500 text-[14px]">Các lần phân tích mã nguồn đã chạy, mới nhất trước.</p>
+            <h1 className="text-[22px] font-bold text-foreground mb-1">🕘 Lịch sử Code Review</h1>
+            <p className="text-muted-foreground text-[14px]">Các lần phân tích mã nguồn đã chạy, mới nhất trước.</p>
           </div>
           <Link
             href="/code-review"
@@ -60,14 +60,14 @@ export default function CodeReviewHistoryPage() {
           </Link>
         </div>
 
-        {loading && <p className="text-zinc-500 text-[14px]">Đang tải lịch sử...</p>}
+        {loading && <p className="text-muted-foreground text-[14px]">Đang tải lịch sử...</p>}
         {error && <p className="text-red-400 text-[14px]">{error}</p>}
 
         {!loading && !error && analyses.length === 0 && (
-          <div className="bg-card rounded-2xl border-2 border-dashed border-zinc-700 p-12 text-center">
+          <div className="bg-card rounded-2xl border-2 border-dashed border-border p-12 text-center">
             <div className="text-4xl mb-3">🗜️</div>
-            <p className="text-zinc-400 font-medium mb-2">Chưa có lần code review nào.</p>
-            <p className="text-zinc-500 text-[13px] mb-5">Chạy phân tích đầu tiên để xem kết quả tại đây.</p>
+            <p className="text-muted-foreground font-medium mb-2">Chưa có lần code review nào.</p>
+            <p className="text-muted-foreground text-[13px] mb-5">Chạy phân tích đầu tiên để xem kết quả tại đây.</p>
             <Link
               href="/code-review"
               className="px-5 py-2.5 bg-primary text-primary-foreground font-semibold text-[14px] rounded-lg hover:bg-primary/90 transition-colors"
@@ -91,15 +91,15 @@ export default function CodeReviewHistoryPage() {
                 <Link
                   key={a.analysis_id}
                   href={`/code-review?analysis=${a.analysis_id}`}
-                  className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-5 hover:border-teal-500/40 hover:bg-zinc-800/40 transition-colors"
+                  className="bg-card rounded-2xl shadow-sm border border-border/60 p-5 hover:border-teal-500/40 hover:bg-muted/40 transition-colors"
                 >
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-[14px] font-bold text-zinc-200 truncate">{a.document_name || `Document #${a.document_id}`}</p>
-                        <span className="px-1.5 py-0.5 text-[10px] font-mono font-bold text-zinc-500 bg-zinc-800 rounded shrink-0">ID {a.analysis_id}</span>
+                        <p className="text-[14px] font-bold text-foreground truncate">{a.document_name || `Document #${a.document_id}`}</p>
+                        <span className="px-1.5 py-0.5 text-[10px] font-mono font-bold text-muted-foreground bg-muted rounded shrink-0">ID {a.analysis_id}</span>
                       </div>
-                      <p className="text-[11px] text-zinc-500 mt-0.5">{formatDate(a.created_at)}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{formatDate(a.created_at)}</p>
                     </div>
                     <span className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase shrink-0 ${statusBadge}`}>
                       {a.status}
@@ -108,7 +108,7 @@ export default function CodeReviewHistoryPage() {
 
                   {a.status === "completed" && (
                     <>
-                      <div className="text-[11px] text-zinc-500 mb-3">
+                      <div className="text-[11px] text-muted-foreground mb-3">
                         <div>{a.total_files ?? 0} file</div>
                         <div>{s.critical + s.warnings + s.optimizations} vấn đề</div>
                       </div>
@@ -128,11 +128,11 @@ export default function CodeReviewHistoryPage() {
                           );
                         })}
                       </div>
-                      {a.model && <p className="text-[10px] text-zinc-600 mt-3 truncate">Model: {a.model}</p>}
+                      {a.model && <p className="text-[10px] text-muted-foreground mt-3 truncate">Model: {a.model}</p>}
                     </>
                   )}
                   {a.status !== "completed" && (
-                    <p className="text-[12px] text-zinc-500">Không hiển thị được kết quả.</p>
+                    <p className="text-[12px] text-muted-foreground">Không hiển thị được kết quả.</p>
                   )}
                 </Link>
               );

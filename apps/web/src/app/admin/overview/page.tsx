@@ -29,7 +29,7 @@ export default function AdminOverviewPage() {
               <CardTitle className="text-2xl">{c.value}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-zinc-500">{c.sub}</p>
+              <p className="text-xs text-muted-foreground">{c.sub}</p>
             </CardContent>
           </Card>
         ))}

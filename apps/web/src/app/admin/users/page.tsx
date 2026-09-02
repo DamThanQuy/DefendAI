@@ -31,7 +31,7 @@ export default function AdminUsersPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800 text-left text-zinc-500">
+                  <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="py-2 pr-4 font-medium">Email</th>
                     <th className="py-2 pr-4 font-medium">Họ tên</th>
                     <th className="py-2 pr-4 font-medium">Vai trò</th>
@@ -39,17 +39,17 @@ export default function AdminUsersPage() {
                     <th className="py-2 font-medium text-right">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-800/60">
+                <tbody className="divide-y divide-border/60">
                   {users.map((u) => (
                     <tr key={u.id}>
-                      <td className="py-2 pr-4 font-medium text-zinc-200">{u.email}</td>
-                      <td className="py-2 pr-4 text-zinc-400">{u.full_name ?? "—"}</td>
+                      <td className="py-2 pr-4 font-medium text-foreground">{u.email}</td>
+                      <td className="py-2 pr-4 text-muted-foreground">{u.full_name ?? "—"}</td>
                       <td className="py-2 pr-4">
                         <select
                           value={u.roles[0] ?? "student"}
                           disabled={userSaving === u.id}
                           onChange={(e) => updateUser(u.id, { roles: [e.target.value] })}
-                          className="px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 focus:outline-none focus:border-primary"
+                          className="px-2 py-1 bg-card border border-border rounded-lg text-[12px] text-foreground focus:outline-none focus:border-primary"
                         >
                           {roleOptions.map((r) => (
                             <option key={r} value={r}>{r}</option>
@@ -65,7 +65,7 @@ export default function AdminUsersPage() {
                         <button
                           onClick={() => updateUser(u.id, { is_active: !u.is_active })}
                           disabled={userSaving === u.id}
-                          className="px-3 py-1 text-[12px] font-semibold text-zinc-200 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                          className="px-3 py-1 text-[12px] font-semibold text-foreground bg-muted rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
                         >
                           {u.is_active ? "Khoá" : "Mở"}
                         </button>

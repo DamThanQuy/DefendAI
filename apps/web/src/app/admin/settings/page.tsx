@@ -65,7 +65,7 @@ export default function AdminSettingsPage() {
           <CardDescription>Super Admin cấu hình % hoa hồng, danh mục kỹ năng và mã giảm giá.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-xs text-zinc-500">Tính năng đang phát triển — chưa có trong whitelist cấu hình.</p>
+          <p className="text-xs text-muted-foreground">Tính năng đang phát triển — chưa có trong whitelist cấu hình.</p>
         </CardContent>
       </Card>
 
@@ -84,7 +84,7 @@ export default function AdminSettingsPage() {
                 type="file"
                 accept=".pdf,.docx,.pptx,.zip,.rar,.md"
                 onChange={(e) => ref.setRefFile(e.target.files?.[0] ?? null)}
-                className="w-full text-sm text-zinc-400 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-zinc-800 file:text-zinc-200 file:text-[12px] file:font-semibold hover:file:bg-zinc-700"
+                className="w-full text-sm text-muted-foreground file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-muted file:text-foreground file:text-[12px] file:font-semibold hover:file:bg-muted"
               />
             </div>
             <div className="space-y-1.5">
@@ -92,7 +92,7 @@ export default function AdminSettingsPage() {
               <select
                 value={ref.refCategory}
                 onChange={(e) => ref.setRefCategory(e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-[13px] text-zinc-300 focus:outline-none focus:border-primary"
+                className="w-full px-3 py-2 bg-card border border-border rounded-lg text-[13px] text-foreground focus:outline-none focus:border-primary"
               >
                 {REF_CATEGORIES.map((c) => (
                   <option key={c.key} value={c.key}>{c.label}</option>
@@ -135,7 +135,7 @@ export default function AdminSettingsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800 text-left text-zinc-500">
+                  <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="py-2 pr-4 font-medium">Loại</th>
                     <th className="py-2 pr-4 font-medium">Tiêu đề</th>
                     <th className="py-2 pr-4 font-medium text-right">Số chunk</th>
@@ -143,7 +143,7 @@ export default function AdminSettingsPage() {
                     <th className="py-2 font-medium text-right">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-800/60">
+                <tbody className="divide-y divide-border/60">
                   {ref.refItems.map((it) => {
                     const key = ref.refKey(it.category, it.title);
                     return (
@@ -154,9 +154,9 @@ export default function AdminSettingsPage() {
                               {REF_CATEGORIES.find((c) => c.key === it.category)?.label ?? it.category}
                             </span>
                           </td>
-                          <td className="py-2 pr-4 font-medium text-zinc-200">{it.title}</td>
-                          <td className="py-2 pr-4 text-right text-zinc-400">{it.chunks}</td>
-                          <td className="py-2 pr-4 text-zinc-500">{new Date(it.updated_at + "Z").toLocaleString("vi-VN")}</td>
+                          <td className="py-2 pr-4 font-medium text-foreground">{it.title}</td>
+                          <td className="py-2 pr-4 text-right text-muted-foreground">{it.chunks}</td>
+                          <td className="py-2 pr-4 text-muted-foreground">{new Date(it.updated_at + "Z").toLocaleString("vi-VN")}</td>
                           <td className="py-2 text-right whitespace-nowrap">
                             <button
                               onClick={() => ref.togglePreview(it.category, it.title)}
@@ -176,9 +176,9 @@ export default function AdminSettingsPage() {
                         {ref.refPreview[key] && (
                           <tr>
                             <td colSpan={5} className="py-2">
-                              <div className="bg-zinc-900/60 rounded-xl p-3 space-y-2 max-h-60 overflow-y-auto">
+                              <div className="bg-card/60 rounded-xl p-3 space-y-2 max-h-60 overflow-y-auto">
                                 {ref.refPreview[key].map((content, i) => (
-                                  <p key={i} className="text-[12px] text-zinc-400 whitespace-pre-wrap">
+                                  <p key={i} className="text-[12px] text-muted-foreground whitespace-pre-wrap">
                                     <span className="text-primary font-semibold">#{i + 1}</span> {content}
                                   </p>
                                 ))}

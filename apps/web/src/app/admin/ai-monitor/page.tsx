@@ -26,7 +26,7 @@ export default function AdminAiMonitorPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800 text-left text-zinc-500">
+                  <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="py-2 pr-4 font-medium">User</th>
                     <th className="py-2 pr-4 font-medium">File</th>
                     <th className="py-2 pr-4 font-medium">Trạng thái</th>
@@ -35,18 +35,18 @@ export default function AdminAiMonitorPage() {
                     <th className="py-2 font-medium text-right">Chi tiết</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-800/60">
+                <tbody className="divide-y divide-border/60">
                   {reviews.map((r) => (
                     <tr key={r.analysis_id}>
-                      <td className="py-2 pr-4 font-medium text-zinc-200">{r.user_email}</td>
-                      <td className="py-2 pr-4 text-zinc-400">{r.document_name}</td>
+                      <td className="py-2 pr-4 font-medium text-foreground">{r.user_email}</td>
+                      <td className="py-2 pr-4 text-muted-foreground">{r.document_name}</td>
                       <td className="py-2 pr-4">
-                        <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${r.status === "completed" ? "bg-teal-500/10 text-teal-400" : r.status === "failed" ? "bg-red-500/10 text-red-400" : "bg-zinc-700/40 text-zinc-300"}`}>
+                        <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${r.status === "completed" ? "bg-teal-500/10 text-teal-400" : r.status === "failed" ? "bg-red-500/10 text-red-400" : "bg-muted/40 text-foreground"}`}>
                           {r.status}
                         </span>
                       </td>
-                      <td className="py-2 pr-4 text-right text-zinc-400">{r.total_files ?? "—"}</td>
-                      <td className="py-2 pr-4 text-zinc-500">
+                      <td className="py-2 pr-4 text-right text-muted-foreground">{r.total_files ?? "—"}</td>
+                      <td className="py-2 pr-4 text-muted-foreground">
                         {r.stats ? Object.entries(r.stats).map(([k, v]) => `${k}:${v}`).join(" · ") : "—"}
                       </td>
                       <td className="py-2 text-right">
@@ -65,15 +65,15 @@ export default function AdminAiMonitorPage() {
           )}
           {detailLoading && <p className="text-sm text-muted-foreground">Đang tải chi tiết...</p>}
           {reviewDetail && (
-            <div className="bg-zinc-900/60 rounded-xl p-4 space-y-2 max-h-80 overflow-y-auto">
+            <div className="bg-card/60 rounded-xl p-4 space-y-2 max-h-80 overflow-y-auto">
               <div className="flex justify-between items-center">
                 <span className="text-[12px] font-semibold text-primary">Chi tiết analysis</span>
-                <button onClick={() => setReviewDetail(null)} className="text-[12px] text-zinc-400 hover:text-zinc-200">Đóng</button>
+                <button onClick={() => setReviewDetail(null)} className="text-[12px] text-muted-foreground hover:text-foreground">Đóng</button>
               </div>
               {reviewDetail.error ? (
                 <p className="text-[12px] text-red-400">{String(reviewDetail.error)}</p>
               ) : (
-                <pre className="text-[12px] text-zinc-400 whitespace-pre-wrap">
+                <pre className="text-[12px] text-muted-foreground whitespace-pre-wrap">
                   {JSON.stringify(
                     {
                       status: reviewDetail.status,

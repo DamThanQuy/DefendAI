@@ -185,8 +185,8 @@ export default function MentorBookingsPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-zinc-100 mb-1">Quản lý lịch Mock Room</h1>
-      <p className="text-sm text-zinc-400 mb-6">
+      <h1 className="text-2xl font-bold text-foreground mb-1">Quản lý lịch Mock Room</h1>
+      <p className="text-sm text-muted-foreground mb-6">
         Xác nhận và chốt thời gian với sinh viên. Sau khi chốt, phòng mở cho cả hai vào ngay và chỉ bị khoá khi bạn bấm <b>Kết thúc</b>.
       </p>
 
@@ -197,22 +197,22 @@ export default function MentorBookingsPage() {
       )}
 
       {/* Chờ xác nhận */}
-      <h2 className="text-lg font-semibold text-zinc-200 mb-3 flex items-center gap-2">
+      <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
         <Clock className="w-5 h-5 text-amber-400" /> Chờ xác nhận ({pending.length})
       </h2>
       {pending.length === 0 ? (
-        <p className="text-sm text-zinc-500 mb-6">Không có yêu cầu nào chờ xác nhận.</p>
+        <p className="text-sm text-muted-foreground mb-6">Không có yêu cầu nào chờ xác nhận.</p>
       ) : (
         <div className="space-y-3 mb-8">
           {pending.map((b) => (
-            <div key={b.id} className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+            <div key={b.id} className="rounded-xl border border-border bg-card/40 p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-sm font-medium text-zinc-100">{b.title}</div>
-                  <div className="mt-1 text-xs text-zinc-400">
+                  <div className="text-sm font-medium text-foreground">{b.title}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
                     Sinh viên: {b.student_name ?? b.student_id} · Đề xuất: {fmt(b.proposed_time)}
                   </div>
-                  {b.note && <div className="mt-1 text-xs text-zinc-500">Ghi chú: {b.note}</div>}
+                  {b.note && <div className="mt-1 text-xs text-muted-foreground">Ghi chú: {b.note}</div>}
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <Button
@@ -222,7 +222,7 @@ export default function MentorBookingsPage() {
                       setRejectId(b.id);
                       setRejectReason("");
                     }}
-                    className="rounded-full border-zinc-700 text-red-300"
+                    className="rounded-full border-border text-red-300"
                   >
                     <XCircle className="w-4 h-4 mr-1" /> Từ chối
                   </Button>
@@ -234,7 +234,7 @@ export default function MentorBookingsPage() {
                       setReschedTime("");
                       setReschedNote("");
                     }}
-                    className="rounded-full border-zinc-700 text-amber-300"
+                    className="rounded-full border-border text-amber-300"
                   >
                     <Clock className="w-4 h-4 mr-1" /> Đổi lịch
                   </Button>
@@ -255,22 +255,22 @@ export default function MentorBookingsPage() {
               </div>
 
               {confirmId === b.id && (
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-zinc-800 pt-4">
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-border pt-4">
                   <div>
-                    <label className="block text-xs text-zinc-400 mb-1">Chốt thời gian</label>
+                    <label className="block text-xs text-muted-foreground mb-1">Chốt thời gian</label>
                     <input
                       type="datetime-local"
                       value={confirmTime}
                       onChange={(e) => setConfirmTime(e.target.value)}
-                      className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                      className="w-full rounded-lg bg-muted border border-border px-3 py-2 text-sm text-foreground"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-zinc-400 mb-1">Ghi chú (tuỳ chọn)</label>
+                    <label className="block text-xs text-muted-foreground mb-1">Ghi chú (tuỳ chọn)</label>
                     <input
                       value={confirmNote}
                       onChange={(e) => setConfirmNote(e.target.value)}
-                      className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                      className="w-full rounded-lg bg-muted border border-border px-3 py-2 text-sm text-foreground"
                     />
                   </div>
                   <div className="md:col-span-2 flex gap-2">
@@ -282,7 +282,7 @@ export default function MentorBookingsPage() {
                       size="sm"
                       variant="outline"
                       onClick={() => setConfirmId(null)}
-                      className="rounded-full border-zinc-700"
+                      className="rounded-full border-border"
                     >
                       Huỷ
                     </Button>
@@ -291,21 +291,21 @@ export default function MentorBookingsPage() {
               )}
 
               {rejectId === b.id && (
-                <div className="mt-4 border-t border-zinc-800 pt-4">
-                  <label className="block text-xs text-zinc-400 mb-1">Lý do từ chối</label>
+                <div className="mt-4 border-t border-border pt-4">
+                  <label className="block text-xs text-muted-foreground mb-1">Lý do từ chối</label>
                   <textarea
                     value={rejectReason}
                     onChange={(e) => setRejectReason(e.target.value)}
                     rows={2}
                     placeholder="VD: Khung giờ này tôi đã bận..."
-                    className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                    className="w-full rounded-lg bg-muted border border-border px-3 py-2 text-sm text-foreground"
                   />
                   <div className="mt-2 flex gap-2">
                     <Button size="sm" variant="outline" onClick={() => handleRejectWithReason(b.id)} disabled={busy} className="rounded-full border-red-700 text-red-300">
                       {busy ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
                       Gửi từ chối
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => setRejectId(null)} className="rounded-full border-zinc-700">
+                    <Button size="sm" variant="outline" onClick={() => setRejectId(null)} className="rounded-full border-border">
                       Huỷ
                     </Button>
                   </div>
@@ -313,22 +313,22 @@ export default function MentorBookingsPage() {
               )}
 
               {reschedId === b.id && (
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-zinc-800 pt-4">
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-border pt-4">
                   <div>
-                    <label className="block text-xs text-zinc-400 mb-1">Đề xuất thời gian mới</label>
+                    <label className="block text-xs text-muted-foreground mb-1">Đề xuất thời gian mới</label>
                     <input
                       type="datetime-local"
                       value={reschedTime}
                       onChange={(e) => setReschedTime(e.target.value)}
-                      className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                      className="w-full rounded-lg bg-muted border border-border px-3 py-2 text-sm text-foreground"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-zinc-400 mb-1">Ghi chú (tuỳ chọn)</label>
+                    <label className="block text-xs text-muted-foreground mb-1">Ghi chú (tuỳ chọn)</label>
                     <input
                       value={reschedNote}
                       onChange={(e) => setReschedNote(e.target.value)}
-                      className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                      className="w-full rounded-lg bg-muted border border-border px-3 py-2 text-sm text-foreground"
                     />
                   </div>
                   <div className="md:col-span-2 flex gap-2">
@@ -336,7 +336,7 @@ export default function MentorBookingsPage() {
                       {busy ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
                       Gửi đổi lịch
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => setReschedId(null)} className="rounded-full border-zinc-700">
+                    <Button size="sm" variant="outline" onClick={() => setReschedId(null)} className="rounded-full border-border">
                       Huỷ
                     </Button>
                   </div>
@@ -348,16 +348,16 @@ export default function MentorBookingsPage() {
       )}
 
       {/* Tất cả booking */}
-      <h2 className="text-lg font-semibold text-zinc-200 mb-3">Tất cả lịch hẹn</h2>
+      <h2 className="text-lg font-semibold text-foreground mb-3">Tất cả lịch hẹn</h2>
       {all.length === 0 ? (
-        <p className="text-sm text-zinc-500">Chưa có lịch hẹn nào.</p>
+        <p className="text-sm text-muted-foreground">Chưa có lịch hẹn nào.</p>
       ) : (
         <div className="space-y-3">
           {all.map((b) => (
-            <div key={b.id} className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 flex items-center justify-between">
+            <div key={b.id} className="rounded-xl border border-border bg-card/40 p-4 flex items-center justify-between">
               <div>
-                <div className="text-sm font-medium text-zinc-100">{b.title}</div>
-                <div className="mt-1 text-xs text-zinc-400">
+                <div className="text-sm font-medium text-foreground">{b.title}</div>
+                <div className="mt-1 text-xs text-muted-foreground">
                   SV: {b.student_name ?? b.student_id} · Trạng thái: {b.status}
                 </div>
                 {b.confirmed_time && (
@@ -380,7 +380,7 @@ export default function MentorBookingsPage() {
                     size="sm"
                     variant="outline"
                     onClick={() => handleComplete(b.id)}
-                    className="rounded-full border-zinc-700 text-zinc-300"
+                    className="rounded-full border-border text-foreground"
                   >
                     <Flag className="w-4 h-4 mr-1" /> Kết thúc
                   </Button>
