@@ -21,7 +21,7 @@ import {
   Plan,
   formatVND,
   planIcon,
-} from "./pricing-data.tsx";
+} from "./pricing-data";
 
 export default function PricingClient() {
   const [cycle, setCycle] = useState<BillingCycle>("monthly");

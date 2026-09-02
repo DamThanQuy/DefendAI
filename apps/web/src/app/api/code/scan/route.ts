@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 
 // Scan theo document_id (đã upload) → backend tạo CodeAnalysis + job → poll analysis
