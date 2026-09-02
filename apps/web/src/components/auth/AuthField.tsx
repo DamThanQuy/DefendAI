@@ -17,12 +17,12 @@ export const AuthField = React.forwardRef<
   return (
     <div className="relative">
       {Icon && (
-        <Icon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" />
+        <Icon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
       )}
       <input
         ref={ref}
         className={cn(
-          "h-12 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400",
+          "h-12 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-3 text-sm text-zinc-900 placeholder:text-muted-foreground",
           "transition-colors focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/30",
           className,
         )}
@@ -41,13 +41,13 @@ export const AuthPasswordField = React.forwardRef<
   return (
     <div className="relative">
       {Icon && (
-        <Icon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" />
+        <Icon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
       )}
       <input
         ref={ref}
         type={show ? "text" : "password"}
         className={cn(
-          "h-12 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-11 text-sm text-zinc-900 placeholder:text-zinc-400",
+          "h-12 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-11 text-sm text-zinc-900 placeholder:text-muted-foreground",
           "transition-colors focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/30",
           className,
         )}
@@ -56,7 +56,7 @@ export const AuthPasswordField = React.forwardRef<
       <button
         type="button"
         onClick={() => setShow((s) => !s)}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 transition-colors hover:text-violet-600"
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-violet-600"
         aria-label={show ? "Hide password" : "Show password"}
       >
         {show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}

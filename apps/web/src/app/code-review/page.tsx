@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CodePreview } from "@/components/features/code-review/CodePreview";
@@ -50,10 +50,25 @@ export default function CodeReviewPage() {
   const [expandedPanel, setExpandedPanel] = useState<null | "issues">(null);
   const [moduleProgress, setModuleProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
 
-  const token = useMemo(
-    () => (typeof window !== "undefined" ? localStorage.getItem("access_token") : null),
-    []
-  );
+  // Token luôn đọc trực tiếp từ localStorage khi effect chạy
+  const getToken = () =>
+    typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+
+  // Snapshot token thông qua useSyncExternalStore để tránh setState trong render.
+  // Trả về null khi SSR, và client sẽ lấy token từ localStorage khi mount.
+  const _serverSnapshot = () => null;
+  const _clientSnapshot = () => localStorage.getItem("access_token");
+  const _subscribe = (cb: () => void) => {
+    if (typeof window === "undefined") return () => {};
+    window.addEventListener("storage", cb);
+    window.addEventListener("auth-change", cb);
+    return () => {
+      window.removeEventListener("storage", cb);
+      window.removeEventListener("auth-change", cb);
+    };
+  };
+  // useSyncExternalStore trả null khi SSR, vì vậy thêm `getToken()` fallback bên dưới
+  // khi gọi trực tiếp trong useEffect.
 
   const issues = result?.details ?? [];
   const fileCount = useMemo(() => members.filter((m) => !m.is_dir).length, [members]);
@@ -77,10 +92,11 @@ export default function CodeReviewPage() {
     setActiveIssue(null);
     if (filterIssues && fileIssueStats.get(path)?.count) viewAllFileIssues(path);
     const docId = docIdOverride ?? result?.documentId;
-    if (!docId || !token) return;
+    const _token = getToken();
+    if (!docId || !_token) return;
     setLoadingFile(true);
     fetch(`/api/documents/${docId}/contents/${path}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${_token}` },
     })
       .then(async (r) => {
         if (!r.ok) throw new Error("Không thể đọc file");
@@ -114,11 +130,12 @@ export default function CodeReviewPage() {
     try {
       if (selectedDoc) {
         // Mode 2: scan lại tài liệu đã upload
+        const _token = getToken();
         res = await fetch("/api/code/scan", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(_token ? { Authorization: `Bearer ${_token}` } : {}),
           },
           body: JSON.stringify({ document_id: selectedDoc.id }),
         });
@@ -126,9 +143,10 @@ export default function CodeReviewPage() {
         // Mode 1: upload file mới
         const fd = new FormData();
         fd.append("file", file as File);
+        const _token = getToken();
         res = await fetch("/api/code/scan", {
           method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: _token ? { Authorization: `Bearer ${_token}` } : {},
           body: fd,
         });
       }
@@ -155,10 +173,11 @@ export default function CodeReviewPage() {
     setActiveIssue(null);
     setModuleProgress(data.backendData?.module_progress ?? { done: 0, total: 0 });
     const docId = data.documentId;
-    if (docId && token) {
+    const _token = getToken();
+    if (docId && _token) {
       setLoadingTree(true);
       fetch(`/api/documents/${docId}/contents`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${_token}` },
       })
         .then((r) => r.json())
         .then((c) => {
@@ -175,8 +194,9 @@ export default function CodeReviewPage() {
 
   // Tải danh sách ZIP/RAR đã upload để chọn lại (reuse tài liệu)
   useEffect(() => {
-    if (!token) return;
-    fetch("/api/documents/", { headers: { Authorization: `Bearer ${token}` } })
+    const _token = getToken();
+    if (!_token) return;
+    fetch("/api/documents/", { headers: { Authorization: `Bearer ${_token}` } })
       .then((r) => r.json())
       .then((d) => {
         const zips = (d.items ?? []).filter(
@@ -185,7 +205,8 @@ export default function CodeReviewPage() {
         setUploadedDocs(zips);
       })
       .catch(() => {});
-  }, [token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Query param ?file= để upload nhanh từ nơi khác
   useEffect(() => {
@@ -197,26 +218,53 @@ export default function CodeReviewPage() {
   // Query param ?analysis=id → mở lại kết quả code review đã lưu
   useEffect(() => {
     const analysisId = searchParams.get("analysis");
-    if (!analysisId || !token) return;
+    if (!analysisId) return;
+    const _token = getToken();
+    if (!_token) return;
     setStatus("scanning");
     fetch(`/api/code/analyses/${analysisId}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${_token}` },
     })
       .then(async (r) => {
-        const data = await r.json();
-        if (!r.ok || !data.success) {
+        const raw = await r.json();
+        if (!r.ok) {
           setStatus("error");
-          setErrorMsg(data.error || "Không thể tải kết quả đã lưu");
+          setErrorMsg(raw.error || raw.detail || "Không thể tải kết quả đã lưu");
           return;
         }
-        applyResult(data);
+        // Backend /api/code/analyses/{id} trả về trực tiếp, biến đổi sang format nội bộ
+        const s = raw.stats ?? {};
+        const transformed: ScanResult = {
+          documentId: raw.document_id,
+          backendData: {
+            summary: raw.summary ?? "",
+            provider: raw.provider,
+            model: raw.model,
+            total_modules: raw.total_modules,
+            done_modules: raw.done_modules,
+            module_progress: raw.done_modules != null ? {
+              done: Number(raw.done_modules),
+              total: Number(raw.total_modules ?? 0),
+            } : undefined,
+          },
+          stats: {
+            critical: Number(s.critical ?? 0),
+            warnings: Number(s.high ?? 0) + Number(s.medium ?? 0),
+            optimizations: Number(s.low ?? 0) + Number(s.info ?? 0),
+          },
+          details: (raw.issues ?? []).map((issue: any) => ({
+            ...issue,
+            id: issue.id ?? Math.random(),
+          })),
+        };
+        applyResult(transformed);
       })
       .catch((e: any) => {
         setStatus("error");
         setErrorMsg(e?.message || "Không thể kết nối máy chủ");
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, token]);
+  }, [searchParams]);
 
   // Đóng overlay full-screen bằng Esc
   useEffect(() => {
@@ -270,18 +318,18 @@ export default function CodeReviewPage() {
   };
 
   const renderIssuesCard = (full: boolean) => (
-    <div className={`bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden flex flex-col ${full ? "h-full" : ""}`}>
-      <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2">
-        <span className="text-[13px] font-bold text-zinc-200">Vấn đề ({issues.length})</span>
+    <div className={`bg-card rounded-2xl shadow-sm border border-border/60 overflow-hidden flex flex-col ${full ? "h-full" : ""}`}>
+      <div className="px-4 py-3 border-b border-border/60 bg-muted/40 flex items-center gap-2">
+        <span className="text-[13px] font-bold text-foreground">Vấn đề ({issues.length})</span>
         <button
           onClick={() => setExpandedPanel(full ? null : "issues")}
-          className="ml-auto w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
+          className="ml-auto w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           title={full ? "Thu nhỏ" : "Toàn màn hình"}
         >
           {full ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
         </button>
       </div>
-      <div className="p-2 flex flex-col gap-1.5 border-b border-zinc-800/60">
+      <div className="p-2 flex flex-col gap-1.5 border-b border-border/60">
         <div className="flex gap-1.5 flex-wrap">
           {(() => {
             const counts = {
@@ -309,7 +357,7 @@ export default function CodeReviewPage() {
                 key={f}
                 onClick={() => setFilter(f)}
                 className={`px-3 py-1 rounded-full text-[12px] font-semibold transition-colors ${
-                  filter === f ? "bg-primary text-primary-foreground" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                  filter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted"
                 }`}
               >
                 {label} ({count})
@@ -322,13 +370,13 @@ export default function CodeReviewPage() {
             value={issueQuery}
             onChange={(e) => setIssueQuery(e.target.value)}
             placeholder="🔍 Tìm theo type, file hoặc mô tả..."
-            className="flex-1 min-w-0 px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-primary"
+            className="flex-1 min-w-0 px-3 py-1.5 bg-card border border-border rounded-lg text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
           />
           {selectedFile && fileIssueStats.get(selectedFile)?.count ? (
             fileIssueFilter === selectedFile ? (
               <button
                 onClick={() => { setFileIssueFilter(null); setExpandedIssues(new Set()); }}
-                className="px-2.5 py-1.5 text-[11px] font-semibold text-zinc-300 bg-zinc-800 rounded-lg hover:bg-zinc-700 shrink-0"
+                className="px-2.5 py-1.5 text-[11px] font-semibold text-foreground bg-muted rounded-lg hover:bg-muted shrink-0"
               >
                 ✕ Bỏ lọc
               </button>
@@ -343,9 +391,9 @@ export default function CodeReviewPage() {
           ) : null}
         </div>
       </div>
-      <div data-issues-scroll className={`divide-y divide-zinc-800/60 overflow-y-auto custom-scrollbar ${full ? "flex-1" : "max-h-[480px]"}`}>
+      <div data-issues-scroll className={`divide-y divide-border/60 overflow-y-auto custom-scrollbar ${full ? "flex-1" : "max-h-[480px]"}`}>
         {filteredIssues.length === 0 && (
-          <div className="p-6 text-center text-zinc-500 text-[13px]">Không có vấn đề trong bộ lọc này.</div>
+          <div className="p-6 text-center text-muted-foreground text-[13px]">Không có vấn đề trong bộ lọc này.</div>
         )}
         {filteredIssues.map((issue) => {
           const cfg = severityLabel(issue.severity);
@@ -358,20 +406,20 @@ export default function CodeReviewPage() {
             >
               <button
                 onClick={() => toggleIssue(issue.id)}
-                className="w-full text-left px-3 py-2 hover:bg-zinc-800/40 transition-colors flex items-center gap-2"
+                className="w-full text-left px-3 py-2 hover:bg-muted/40 transition-colors flex items-center gap-2"
               >
-                <span className={`text-[9px] text-zinc-500 transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
+                <span className={`text-[9px] text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
                 <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded uppercase shrink-0 ${cfg.bg} ${cfg.txt}`}>
                   {cfg.label}
                 </span>
-                <span className="text-[12px] font-semibold text-zinc-200 truncate flex-1">{issue.type}</span>
-                <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[45%] shrink-0">
+                <span className="text-[12px] font-semibold text-foreground truncate flex-1">{issue.type}</span>
+                <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[45%] shrink-0">
                   {issue.file.split("/").pop()}:{issue.line}
                 </span>
               </button>
               {open && (
                 <div className="px-5 pb-3">
-                  <p className="text-[12px] text-zinc-400 leading-relaxed">{issue.description}</p>
+                  <p className="text-[12px] text-muted-foreground leading-relaxed">{issue.description}</p>
                   {issue.suggestion && (
                     <p className="text-[12px] text-teal-400 mt-1.5 italic">💡 {issue.suggestion}</p>
                   )}
@@ -396,8 +444,8 @@ export default function CodeReviewPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-8">
           <div>
-            <h1 className="text-[22px] font-bold text-zinc-200 mb-2">Code Review AI</h1>
-            <p className="text-zinc-500 text-[15px]">
+            <h1 className="text-[22px] font-bold text-foreground mb-2">Code Review AI</h1>
+            <p className="text-muted-foreground text-[15px]">
               Phân tích chất lượng mã nguồn trong file ZIP/RAR của bạn.
             </p>
           </div>
@@ -417,7 +465,7 @@ export default function CodeReviewPage() {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={status === "uploading" || status === "scanning"}
-              className="flex items-center gap-2 px-5 py-2.5 bg-card border border-zinc-700 text-zinc-300 font-semibold text-[14px] rounded-lg hover:bg-zinc-800 transition-colors shadow-sm disabled:opacity-50"
+              className="flex items-center gap-2 px-5 py-2.5 bg-card border border-border text-foreground font-semibold text-[14px] rounded-lg hover:bg-muted transition-colors shadow-sm disabled:opacity-50"
             >
               📁 {file ? file.name : "Chọn file ZIP/RAR"}
             </button>
@@ -432,7 +480,7 @@ export default function CodeReviewPage() {
             )}
             <Link
               href="/code-review/history"
-              className="flex items-center gap-2 px-5 py-2.5 bg-card border border-zinc-700 text-zinc-300 font-semibold text-[14px] rounded-lg hover:bg-zinc-800 transition-colors shadow-sm"
+              className="flex items-center gap-2 px-5 py-2.5 bg-card border border-border text-foreground font-semibold text-[14px] rounded-lg hover:bg-muted transition-colors shadow-sm"
             >
               🕘 Lịch sử
             </Link>
@@ -457,21 +505,21 @@ export default function CodeReviewPage() {
         {showDocPicker && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setShowDocPicker(false)}>
             <div
-              className="bg-card rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[80vh] border border-zinc-800/60"
+              className="bg-card rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[80vh] border border-border/60"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/60">
-                <h3 className="text-[15px] font-bold text-zinc-200">🗂️ Chọn file ZIP/RAR đã tải lên</h3>
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border/60">
+                <h3 className="text-[15px] font-bold text-foreground">🗂️ Chọn file ZIP/RAR đã tải lên</h3>
                 <button
                   onClick={() => setShowDocPicker(false)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-zinc-800 text-zinc-500"
+                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground"
                 >
                   ✕
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-2">
                 {uploadedDocs.length === 0 && (
-                  <p className="text-zinc-500 text-[13px] p-4">Chưa có file ZIP/RAR nào được tải lên.</p>
+                  <p className="text-muted-foreground text-[13px] p-4">Chưa có file ZIP/RAR nào được tải lên.</p>
                 )}
                 {uploadedDocs.map((d) => (
                   <button
@@ -484,8 +532,8 @@ export default function CodeReviewPage() {
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-teal-500/10 transition-colors ${selectedDoc?.id === d.id ? "bg-teal-500/10" : ""}`}
                   >
                     <span className="text-lg">🗜️</span>
-                    <span className="flex-1 text-[13px] font-semibold text-zinc-200 truncate">{d.filename}</span>
-                    <span className="text-[11px] text-zinc-500">
+                    <span className="flex-1 text-[13px] font-semibold text-foreground truncate">{d.filename}</span>
+                    <span className="text-[11px] text-muted-foreground">
                       {d.doc_type === "rar" ? "RAR" : "ZIP"} • {new Date(d.created_at).toLocaleDateString("vi-VN")}
                     </span>
                   </button>
@@ -497,10 +545,10 @@ export default function CodeReviewPage() {
 
         {/* Idle: hướng dẫn */}
         {status === "idle" && !result && (
-          <div className="bg-card rounded-2xl border-2 border-dashed border-zinc-700 p-16 text-center">
+          <div className="bg-card rounded-2xl border-2 border-dashed border-border p-16 text-center">
             <div className="text-5xl mb-4">🔍</div>
-            <h2 className="text-xl font-bold text-zinc-200 mb-2">Chọn file ZIP/RAR chứa source code</h2>
-            <p className="text-zinc-500 text-[14px] max-w-md mx-auto">
+            <h2 className="text-xl font-bold text-foreground mb-2">Chọn file ZIP/RAR chứa source code</h2>
+            <p className="text-muted-foreground text-[14px] max-w-md mx-auto">
               Tải file mới lên hoặc chọn lại một file ZIP/RAR đã tải lên trước đó để phân tích lại.
             </p>
           </div>
@@ -540,19 +588,19 @@ export default function CodeReviewPage() {
         {/* Đang xử lý */}
         {(status === "uploading" || status === "scanning") && (
           <div className="bg-card rounded-2xl p-12 text-center">
-            <div className="w-10 h-10 border-[3px] border-zinc-800 border-t-primary rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-zinc-400 font-medium">
+            <div className="w-10 h-10 border-[3px] border-border border-t-primary rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground font-medium">
               {status === "uploading" ? "Đang tải file lên..." : "Đang phân tích mã nguồn..."}
             </p>
             {status === "scanning" && moduleProgress.total > 0 && (
               <div className="mt-4 max-w-md mx-auto">
-                <div className="w-full bg-zinc-700 rounded-full h-2 overflow-hidden">
+                <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
                   <div
                     className="bg-primary h-2 rounded-full transition-all duration-500"
                     style={{ width: `${(moduleProgress.done / moduleProgress.total) * 100}%` }}
                   />
                 </div>
-                <p className="text-zinc-500 text-[12px] mt-1.5">
+                <p className="text-muted-foreground text-[12px] mt-1.5">
                   Module {moduleProgress.done}/{moduleProgress.total}
                 </p>
               </div>
@@ -565,30 +613,30 @@ export default function CodeReviewPage() {
           <>
             {/* Stats row */}
             <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="bg-card rounded-xl shadow-sm border border-zinc-800/60 p-4 flex items-center gap-3">
+              <div className="bg-card rounded-xl shadow-sm border border-border/60 p-4 flex items-center gap-3">
                 <div className="w-11 h-11 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center text-lg font-bold">
                   {result.stats?.critical ?? 0}
                 </div>
                 <div>
-                  <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-wide">Lỗi nghiêm trọng</div>
+                  <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Lỗi nghiêm trọng</div>
                   <div className="text-[14px] font-bold text-red-400">{result.stats?.critical ?? 0}</div>
                 </div>
               </div>
-              <div className="bg-card rounded-xl shadow-sm border border-zinc-800/60 p-4 flex items-center gap-3">
+              <div className="bg-card rounded-xl shadow-sm border border-border/60 p-4 flex items-center gap-3">
                 <div className="w-11 h-11 rounded-full bg-orange-500/10 text-orange-400 flex items-center justify-center text-lg font-bold">
                   {result.stats?.warnings ?? 0}
                 </div>
                 <div>
-                  <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-wide">Cảnh báo</div>
+                  <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Cảnh báo</div>
                   <div className="text-[14px] font-bold text-orange-400">{result.stats?.warnings ?? 0}</div>
                 </div>
               </div>
-              <div className="bg-card rounded-xl shadow-sm border border-zinc-800/60 p-4 flex items-center gap-3">
+              <div className="bg-card rounded-xl shadow-sm border border-border/60 p-4 flex items-center gap-3">
                 <div className="w-11 h-11 rounded-full bg-green-500/10 text-green-400 flex items-center justify-center text-lg font-bold">
                   {result.stats?.optimizations ?? 0}
                 </div>
                 <div>
-                  <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-wide">Tối ưu</div>
+                  <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Tối ưu</div>
                   <div className="text-[14px] font-bold text-green-400">{result.stats?.optimizations ?? 0}</div>
                 </div>
               </div>
@@ -596,35 +644,35 @@ export default function CodeReviewPage() {
 
             {/* Module progress (show if modules were processed) */}
             {moduleProgress.total > 0 && (
-              <div className="bg-card rounded-xl border border-zinc-800/60 p-3 mb-4 flex items-center gap-3">
-                <span className="text-[12px] text-zinc-400">Đã xử lý</span>
-                <div className="flex-1 bg-zinc-700 rounded-full h-1.5">
+              <div className="bg-card rounded-xl border border-border/60 p-3 mb-4 flex items-center gap-3">
+                <span className="text-[12px] text-muted-foreground">Đã xử lý</span>
+                <div className="flex-1 bg-muted rounded-full h-1.5">
                   <div
                     className="bg-green-500 h-1.5 rounded-full"
                     style={{ width: `${(moduleProgress.done / moduleProgress.total) * 100}%` }}
                   />
                 </div>
-                <span className="text-[12px] text-zinc-400">{moduleProgress.done}/{moduleProgress.total} modules</span>
+                <span className="text-[12px] text-muted-foreground">{moduleProgress.done}/{moduleProgress.total} modules</span>
               </div>
             )}
 
             {/* 3-panel: tree | code | summary+issues */}
             <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr_340px] gap-5">
               {/* Panel 1: File tree */}
-              <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden lg:h-[calc(100vh-280px)] lg:sticky lg:top-4 flex flex-col">
-                <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2">
+              <div className="bg-card rounded-2xl shadow-sm border border-border/60 overflow-hidden lg:h-[calc(100vh-280px)] lg:sticky lg:top-4 flex flex-col">
+                <div className="px-4 py-3 border-b border-border/60 bg-muted/40 flex items-center gap-2">
                   <span className="text-sm">🗜️</span>
-                  <span className="text-[13px] font-bold text-zinc-200">Files</span>
-                  <span className="ml-auto text-[11px] text-zinc-500">{fileCount} file</span>
+                  <span className="text-[13px] font-bold text-foreground">Files</span>
+                  <span className="ml-auto text-[11px] text-muted-foreground">{fileCount} file</span>
                 </div>
                 <div className="p-2 overflow-y-auto flex-1 custom-scrollbar">
                   {loadingTree ? (
-                    <div className="flex flex-col items-center justify-center gap-2 py-8 text-zinc-500">
-                      <div className="w-6 h-6 border-2 border-zinc-700 border-t-primary rounded-full animate-spin" />
+                    <div className="flex flex-col items-center justify-center gap-2 py-8 text-muted-foreground">
+                      <div className="w-6 h-6 border-2 border-border border-t-primary rounded-full animate-spin" />
                       <p className="text-[12px]">Đang tải cây thư mục...</p>
                     </div>
                   ) : members.length === 0 ? (
-                    <p className="text-zinc-500 text-[13px] p-3">Không có file</p>
+                    <p className="text-muted-foreground text-[13px] p-3">Không có file</p>
                   ) : (
                     <FileTree members={members} selected={selectedFile} onSelect={(p) => loadFile(p, undefined, true)} fileStats={fileIssueStats} />
                   )}
@@ -632,14 +680,14 @@ export default function CodeReviewPage() {
               </div>
 
               {/* Panel 2: Code preview */}
-              <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden lg:h-[calc(100vh-280px)] lg:sticky lg:top-4 flex flex-col">
-                <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2">
-                  <span className="text-[13px] font-bold text-zinc-200">
+              <div className="bg-card rounded-2xl shadow-sm border border-border/60 overflow-hidden lg:h-[calc(100vh-280px)] lg:sticky lg:top-4 flex flex-col">
+                <div className="px-4 py-3 border-b border-border/60 bg-muted/40 flex items-center gap-2">
+                  <span className="text-[13px] font-bold text-foreground">
                     {selectedFile ? `📄 ${selectedFile}` : "Code Preview"}
                   </span>
                 </div>
                 {loadingFile ? (
-                  <div className="flex-1 flex items-center justify-center text-zinc-500 text-[14px]">Đang tải...</div>
+                  <div className="flex-1 flex items-center justify-center text-muted-foreground text-[14px]">Đang tải...</div>
                 ) : fileContent ? (
                   <CodePreview
                     content={fileContent.text}
@@ -649,7 +697,7 @@ export default function CodeReviewPage() {
                     onPickIssue={pickIssue}
                   />
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center text-zinc-500">
+                  <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
                     <span className="text-4xl mb-3">👈</span>
                     <p className="text-[14px]">Chọn file bên trái để xem mã nguồn</p>
                   </div>
@@ -658,13 +706,13 @@ export default function CodeReviewPage() {
 
               {/* Panel 3: Summary + Issues */}
               <div className="flex flex-col gap-5 lg:h-[calc(100vh-280px)] lg:overflow-y-auto pr-1">
-                <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-5">
-                  <h3 className="text-[14px] font-bold text-zinc-200 mb-2">📝 Tóm tắt</h3>
-                  <p className="text-[13px] text-zinc-400 leading-relaxed">
+                <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-5">
+                  <h3 className="text-[14px] font-bold text-foreground mb-2">📝 Tóm tắt</h3>
+                  <p className="text-[13px] text-muted-foreground leading-relaxed">
                     {result.backendData?.summary || "Không có tóm tắt."}
                   </p>
                   {result.backendData?.model && (
-                    <p className="text-[11px] text-zinc-500 mt-3">
+                    <p className="text-[11px] text-muted-foreground mt-3">
                       Model: {result.backendData.provider} / {result.backendData.model}
                     </p>
                   )}

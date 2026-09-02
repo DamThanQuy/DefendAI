@@ -17,17 +17,17 @@ export default function AdminPayoutPage() {
           <CardDescription>Chưa có dữ liệu giao dịch — cần tích hợp ví thu nhập và cổng thanh toán.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-xl bg-zinc-900/60 p-4">
-            <p className="text-xs text-zinc-500">Tổng doanh thu</p>
-            <p className="text-xl font-bold text-zinc-200 mt-1">0 ₫</p>
+          <div className="rounded-xl bg-card/60 p-4">
+            <p className="text-xs text-muted-foreground">Tổng doanh thu</p>
+            <p className="text-xl font-bold text-foreground mt-1">0 ₫</p>
           </div>
-          <div className="rounded-xl bg-zinc-900/60 p-4">
-            <p className="text-xs text-zinc-500">Lệnh rút tiền chờ</p>
-            <p className="text-xl font-bold text-zinc-200 mt-1">0</p>
+          <div className="rounded-xl bg-card/60 p-4">
+            <p className="text-xs text-muted-foreground">Lệnh rút tiền chờ</p>
+            <p className="text-xl font-bold text-foreground mt-1">0</p>
           </div>
-          <div className="rounded-xl bg-zinc-900/60 p-4">
-            <p className="text-xs text-zinc-500">Đã chi trả</p>
-            <p className="text-xl font-bold text-zinc-200 mt-1">0 ₫</p>
+          <div className="rounded-xl bg-card/60 p-4">
+            <p className="text-xs text-muted-foreground">Đã chi trả</p>
+            <p className="text-xl font-bold text-foreground mt-1">0 ₫</p>
           </div>
         </CardContent>
       </Card>

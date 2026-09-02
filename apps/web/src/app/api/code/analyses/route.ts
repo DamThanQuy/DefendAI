@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 
 export async function GET(request: Request) {

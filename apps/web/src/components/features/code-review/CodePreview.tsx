@@ -63,12 +63,12 @@ export function CodePreview({
             key={n}
             id={`line-${n}`}
             ref={(el) => { lineRefs.current[n] = el; }}
-            className={`flex min-h-[26px] ${iss.length ? lineBg(iss[0].severity) : ""} hover:bg-zinc-800/60 transition-colors`}
+            className={`flex min-h-[26px] ${iss.length ? lineBg(iss[0].severity) : ""} hover:bg-muted/60 transition-colors`}
           >
-            <div className="w-12 text-right pr-3 text-zinc-500 select-none shrink-0 border-r border-zinc-800/60">
+            <div className="w-12 text-right pr-3 text-muted-foreground select-none shrink-0 border-r border-border/60">
               {n}
             </div>
-            <div className="flex-1 whitespace-pre px-3 text-zinc-300">{line || " "}</div>
+            <div className="flex-1 whitespace-pre px-3 text-foreground">{line || " "}</div>
             {iss.length > 0 && (
               <div className="shrink-0 px-2 flex items-center gap-1">
                 {iss.map((i, k) => (

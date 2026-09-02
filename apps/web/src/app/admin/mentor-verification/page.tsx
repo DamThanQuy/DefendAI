@@ -29,18 +29,18 @@ export default function AdminMentorVerificationPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800 text-left text-zinc-500">
+                  <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="py-2 pr-4 font-medium">Họ tên</th>
                     <th className="py-2 pr-4 font-medium">Email</th>
                     <th className="py-2 pr-4 font-medium">Trạng thái</th>
                     <th className="py-2 font-medium text-right">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-800/60">
+                <tbody className="divide-y divide-border/60">
                   {mentors.map((m) => (
                     <tr key={m.id}>
-                      <td className="py-2 pr-4 font-medium text-zinc-200">{m.full_name ?? "—"}</td>
-                      <td className="py-2 pr-4 text-zinc-400">{m.email}</td>
+                      <td className="py-2 pr-4 font-medium text-foreground">{m.full_name ?? "—"}</td>
+                      <td className="py-2 pr-4 text-muted-foreground">{m.email}</td>
                       <td className="py-2 pr-4">
                         <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${m.is_active ? "bg-teal-500/10 text-teal-400" : "bg-red-500/10 text-red-400"}`}>
                           {m.is_active ? "Đã duyệt" : "Khoá"}

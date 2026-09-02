@@ -29,57 +29,57 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 262 83% 58%;            /* purple #7C3AED */
-    --primary-foreground: 210 40% 98%;
+    --primary: 173 80% 40%;            /* teal #14B8A6 — Qiz HUB inspired */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 238 81% 67%;          /* indigo #6366F1 */
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 187 85% 43%;          /* cyan #06B6D4 */
+    --secondary-foreground: 0 0% 100%;
 
     --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted-foreground: 215 16% 47%;
 
-    --accent: 330 81% 60%;             /* pink #EC4899 */
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 38 92% 50%;              /* amber #F59E0B — Qiz HUB highlight */
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 262 83% 58%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 173 80% 40%;
 
     --radius: 0.75rem;
   }
 
   .dark {
-    /* Deep dark SaaS — CodeRabbit palette */
-    --background: 0 0% 3.5%;          /* #09090B pitch-black */
-    --foreground: 0 0% 93%;            /* near-white */
+    /* Deep dark SaaS — Qiz HUB dark inspired */
+    --background: 222 47% 6%;          /* deep navy black */
+    --foreground: 210 20% 96%;
 
-    --card: 215 20% 13%;              /* #182030 — lighter for readability */
-    --card-foreground: 0 0% 93%;
+    --card: 222 30% 9%;
+    --card-foreground: 210 20% 96%;
 
-    --popover: 215 25% 12%;
-    --popover-foreground: 0 0% 93%;
+    --popover: 222 30% 9%;
+    --popover-foreground: 210 20% 96%;
 
-    --primary: 262 83% 58%;           /* purple #7C3AED */
-    --primary-foreground: 0 0% 98%;
+    --primary: 173 80% 45%;           /* teal #14B8A6 */
+    --primary-foreground: 222 47% 6%;
 
-    --secondary: 238 81% 67%;        /* indigo #6366F1 */
-    --secondary-foreground: 0 0% 93%;
+    --secondary: 187 85% 50%;        /* cyan #06B6D4 */
+    --secondary-foreground: 222 47% 6%;
 
-    --muted: 240 3.7% 12%;
-    --muted-foreground: 210 5% 72%;
+    --muted: 222 30% 14%;
+    --muted-foreground: 215 16% 65%;
 
-    --accent: 330 81% 60%;            /* pink #EC4899 */
-    --accent-foreground: 0 0% 98%;
+    --accent: 38 92% 55%;             /* amber #F59E0B */
+    --accent-foreground: 222 47% 6%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 3.7% 18%;           /* crisp dark border */
-    --input: 240 3.7% 15%;
-    --ring: 262 83% 58%;
+    --border: 222 30% 16%;
+    --input: 222 30% 14%;
+    --ring: 173 80% 45%;
   }
 }
 
@@ -90,30 +90,30 @@
   body {
     @apply bg-background text-foreground;
     background-image:
-      radial-gradient(at 0% 0%, hsla(262, 83%, 58%, 0.1) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, hsla(330, 81%, 60%, 0.08) 0px, transparent 50%);
+      radial-gradient(at 0% 0%, hsla(173, 80%, 40%, 0.08) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(187, 85%, 43%, 0.06) 0px, transparent 50%);
     background-attachment: fixed;
     min-height: 100vh;
   }
 
-  /* Light mode: soften the dark radial glows so the page reads as light */
+  /* Light mode: soften the teal/cyan glows */
   .light body {
     background-image:
-      radial-gradient(at 0% 0%, hsla(262, 83%, 58%, 0.06) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, hsla(330, 81%, 60%, 0.05) 0px, transparent 50%);
+      radial-gradient(at 0% 0%, hsla(173, 80%, 40%, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(187, 85%, 43%, 0.04) 0px, transparent 50%);
   }
 }
 
 @layer utilities {
   /* Dark SaaS card — crisp border + subtle teal glow, no blur/shadow */
   .dark-card {
-    @apply rounded-xl border border-zinc-800/60;
+    @apply rounded-xl border border-border;
     background-color: hsl(var(--card));
     transition: all 200ms ease;
   }
   .dark-card:hover {
-    @apply border-zinc-700;
-    box-shadow: 0 0 24px rgba(124, 58, 237, 0.15); /* primary shadow */
+    @apply border-primary/50;
+    box-shadow: 0 0 24px hsla(173, 80%, 40%, 0.12);
   }
 
   /* Feature card — inherits dark-card + padding/overflow for landing */
@@ -127,7 +127,7 @@
   }
 
   .text-gradient {
-    background-image: linear-gradient(135deg, hsl(262, 83%, 58%), hsl(238, 81%, 67%), hsl(330, 81%, 60%));
+    background-image: linear-gradient(135deg, hsl(173, 80%, 40%), hsl(187, 85%, 43%), hsl(38, 92%, 50%));
     -webkit-background-clip: text;
     color: transparent;
   }

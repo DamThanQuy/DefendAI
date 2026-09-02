@@ -159,7 +159,7 @@ export function UploadZone({
           return (
             <React.Fragment key={s.n}>
               {i > 0 && (
-                <div className={`h-0.5 w-8 sm:w-12 rounded-full transition-colors ${done ? "step-grow bg-primary" : "bg-zinc-800"}`} />
+                <div className={`h-0.5 w-8 sm:w-12 rounded-full transition-colors ${done ? "step-grow bg-primary" : "bg-muted"}`} />
               )}
               <div className="flex items-center gap-2">
                 <div
@@ -168,12 +168,12 @@ export function UploadZone({
                       ? "step-pop bg-primary text-primary-foreground ring-4 ring-primary/20 step-ring"
                       : done
                       ? "bg-primary text-primary-foreground"
-                      : "bg-zinc-800 text-zinc-500"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {done ? <span className="step-check">✓</span> : s.n}
                 </div>
-                <span className={`text-[13px] font-semibold transition-colors ${active ? "text-primary" : done ? "text-zinc-300" : "text-zinc-500"}`}>
+                <span className={`text-[13px] font-semibold transition-colors ${active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground"}`}>
                   {s.label}
                 </span>
               </div>
@@ -186,7 +186,7 @@ export function UploadZone({
         className={`w-full h-full border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ease-in-out cursor-pointer flex flex-col items-center justify-center min-h-[460px] relative overflow-hidden bg-card ${
           isDragging
             ? "border-primary bg-teal-500/10"
-            : "border-zinc-700 hover:border-primary/40"
+            : "border-border hover:border-primary/40"
         } ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -210,11 +210,11 @@ export function UploadZone({
 
             {/* Bước 1b: Chưa upload → nút "Tải lên" */}
             {!isProcessing && !uploaded && (
-              <div className="flex flex-col gap-3 pt-4 border-t border-zinc-800/60">
+              <div className="flex flex-col gap-3 pt-4 border-t border-border/60">
                 <button onClick={(e) => { e.stopPropagation(); processFile(); }} className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full shadow-md transition-colors text-sm">
                   Tải lên
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); setFile(null); setUploaded(false); }} className="w-full py-3 text-sm font-medium text-zinc-500 hover:text-zinc-300 transition-colors">
+                <button onClick={(e) => { e.stopPropagation(); setFile(null); setUploaded(false); }} className="w-full py-3 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                   Hủy & Chọn tệp khác
                 </button>
               </div>
@@ -222,14 +222,14 @@ export function UploadZone({
 
             {/* Bước 2: Đã upload xong */}
             {!isProcessing && uploaded && (
-              <div className="pt-4 border-t border-zinc-800/60">
+              <div className="pt-4 border-t border-border/60">
                 <div className="flex items-center justify-center gap-2 mb-3 text-green-400">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   <span className="text-[14px] font-semibold">Đã tải lên thành công</span>
                 </div>
-                <p className="text-[13px] text-zinc-500 text-center mb-4">Dùng nút ➕ Workspace trong danh sách để đưa tài liệu vào workspace và tạo câu hỏi AI.</p>
+                <p className="text-[13px] text-muted-foreground text-center mb-4">Dùng nút ➕ Workspace trong danh sách để đưa tài liệu vào workspace và tạo câu hỏi AI.</p>
                 <button onClick={(e) => { e.stopPropagation(); onDone?.(); }} className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full shadow-md transition-colors text-sm">
                   Xong
                 </button>
@@ -238,8 +238,8 @@ export function UploadZone({
           </div>
         ) : (
           <div className="flex flex-col items-center">
-            <h3 className="text-[22px] font-bold mb-3 text-zinc-100 tracking-tight">{title}</h3>
-            <p className="text-zinc-500 mb-10 text-[15px] font-medium">
+            <h3 className="text-[22px] font-bold mb-3 text-foreground tracking-tight">{title}</h3>
+            <p className="text-muted-foreground mb-10 text-[15px] font-medium">
               {description}
             </p>
             <button className="px-8 py-2.5 bg-primary text-primary-foreground font-semibold rounded-full hover:bg-primary/90 transition-colors text-sm shadow-sm pointer-events-none">
@@ -265,16 +265,16 @@ export function UploadZone({
 
       {/* Loading Overlay */}
       {isProcessing && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/90 backdrop-blur-sm rounded-2xl border border-zinc-800/60">
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/90 backdrop-blur-sm rounded-2xl border border-border/60">
           <div className="w-14 h-14 border-[3px] border-teal-500/20 border-t-primary rounded-full animate-spin mb-6"></div>
-          <h3 className="text-[17px] font-bold text-zinc-100">{statusText}</h3>
-          <div className="w-64 h-2 bg-zinc-800 rounded-full mt-4 overflow-hidden">
+          <h3 className="text-[17px] font-bold text-foreground">{statusText}</h3>
+          <div className="w-64 h-2 bg-muted rounded-full mt-4 overflow-hidden">
             <div
               className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <p className="text-xs text-zinc-500 mt-2 font-medium">{progress}%</p>
+          <p className="text-xs text-muted-foreground mt-2 font-medium">{progress}%</p>
           <button
             onClick={handleCancel}
             className="mt-6 px-6 py-2 text-sm font-medium text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-400 rounded-full transition-all"
