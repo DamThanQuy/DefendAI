@@ -265,7 +265,8 @@ export default function TrashPage() {
                             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-[13px] font-medium hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
                             title="Khôi phục"
                           >
-                            ↩ Khôi phục
+                            <span className="material-icons text-[14px]">restore_from_trash</span>
+                            Khôi phục
                           </button>
                           <button
                             onClick={() => setDeleteTarget(item)}
@@ -273,7 +274,8 @@ export default function TrashPage() {
                             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-[13px] font-medium hover:bg-red-500/20 transition-colors disabled:opacity-50"
                             title="Xóa vĩnh viễn"
                           >
-                            🗑 Xóa vĩnh viễn
+                            <span className="material-icons text-[14px]">delete_forever</span>
+                            Xóa vĩnh viễn
                           </button>
                         </td>
                       </tr>
