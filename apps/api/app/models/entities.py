@@ -34,6 +34,7 @@ from app.models.workspace import Workspace, WorkspaceFile
 from app.models.workspace_chat import WorkspaceChat
 from app.models.workspace_question import WorkspaceQuestion
 from app.models.code_module_hash import CodeModuleHash
+from app.models.upload_session import UploadSession
 
 __all__ = [
     "User",
@@ -62,4 +63,5 @@ __all__ = [
     "WorkspaceChat",
     "WorkspaceQuestion",
     "CodeModuleHash",
+    "UploadSession",
 ]

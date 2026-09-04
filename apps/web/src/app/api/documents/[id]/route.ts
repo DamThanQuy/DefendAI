@@ -7,16 +7,21 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   'http://localhost:8000';
 
-export async function GET(request: Request) {
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
     const authHeader = request.headers.get('authorization') || '';
     const headers: Record<string, string> = {};
     if (authHeader) headers['Authorization'] = authHeader;
 
-    const url = new URL(request.url);
-    const qs = url.search || '';
+    const res = await fetch(`${API_URL}/api/documents/${params.id}`, {
+      method: 'DELETE',
+      headers,
+    });
 
-    const res = await fetch(`${API_URL}/api/documents/${qs}`, { headers });
+    if (res.status === 204) {
+      return new Response(null, { status: 204 });
+    }
+
     const data = await res.text();
     return new Response(data, {
       status: res.status,
@@ -24,7 +29,7 @@ export async function GET(request: Request) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Documents list proxy failed', message: error.message },
+      { error: 'Document delete proxy failed', message: error.message },
       { status: 500 },
     );
   }

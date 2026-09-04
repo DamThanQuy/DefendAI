@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { PERSONAS } from "@/lib/constants";
 import { MarkdownMessage } from "./MarkdownMessage";
 
@@ -69,6 +70,7 @@ export default function WorkspaceChat({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [menuConvId, setMenuConvId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [deletingConvId, setDeletingConvId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   // Hiển thị cả tin failed (mặc định ẩn để history sạch)
   const [showFailed, setShowFailed] = useState(false);
@@ -207,9 +209,15 @@ export default function WorkspaceChat({
   };
 
   const deleteConversation = async (convId: string) => {
+    setDeletingConvId(convId);
+  };
+
+  const confirmDeleteConversation = async () => {
+    const convId = deletingConvId;
+    if (!convId) return;
     const token = getToken();
+    setDeletingConvId(null);
     if (!token) return;
-    if (!window.confirm("Xoá đoạn chat này? Toàn bộ tin nhắn trong đoạn sẽ bị xoá.")) return;
     try {
       const r = await fetch(`/api/workspaces/${workspaceId}/chat/conversations/${convId}`, {
         method: "DELETE",
@@ -692,6 +700,18 @@ export default function WorkspaceChat({
           {chatRunning ? "..." : "Gửi"}
         </button>
       </div>
+
+      <ConfirmModal
+        open={!!deletingConvId}
+        tone="danger"
+        icon="delete"
+        title="Xoá đoạn chat này?"
+        description="Toàn bộ tin nhẮn trong đoạn sẽ bị xoá và không thể khôi phục."
+        confirmLabel="Xoá đoạn chat"
+        cancelLabel="Giữ lại"
+        onCancel={() => setDeletingConvId(null)}
+        onConfirm={confirmDeleteConversation}
+      />
     </div>
   );
 }

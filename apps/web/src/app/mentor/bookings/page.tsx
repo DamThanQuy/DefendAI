@@ -96,16 +96,6 @@ export default function MentorBookingsPage() {
     }
   }
 
-  async function handleReject(id: number) {
-    if (!confirm("Từ chối yêu cầu này?")) return;
-    try {
-      await rejectBooking(id);
-      await load();
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || "Từ chối thất bại");
-    }
-  }
-
   async function handleRejectWithReason(id: number) {
     if (!rejectReason.trim()) {
       setError("Vui lòng nhập lý do từ chối");

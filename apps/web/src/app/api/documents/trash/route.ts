@@ -13,10 +13,7 @@ export async function GET(request: Request) {
     const headers: Record<string, string> = {};
     if (authHeader) headers['Authorization'] = authHeader;
 
-    const url = new URL(request.url);
-    const qs = url.search || '';
-
-    const res = await fetch(`${API_URL}/api/documents/${qs}`, { headers });
+    const res = await fetch(`${API_URL}/api/documents/trash`, { headers });
     const data = await res.text();
     return new Response(data, {
       status: res.status,
@@ -24,7 +21,7 @@ export async function GET(request: Request) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Documents list proxy failed', message: error.message },
+      { error: 'Trash list proxy failed', message: error.message },
       { status: 500 },
     );
   }

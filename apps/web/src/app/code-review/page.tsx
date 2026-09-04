@@ -7,6 +7,9 @@ import { CodePreview } from "@/components/features/code-review/CodePreview";
 import { FileTree } from "@/components/features/assessment/FileTree";
 import type { CodeIssue } from "@/types";
 import { Maximize2, Minimize2 } from "lucide-react";
+import { ChunkedUploader } from "@/lib/chunked-upload";
+
+const CHUNKED_THRESHOLD = 4 * 1024 * 1024; // 4 MB
 
 type ScanStatus = "idle" | "uploading" | "scanning" | "done" | "rejected" | "error";
 
@@ -37,11 +40,53 @@ export default function CodeReviewPage() {
   const [status, setStatus] = useState<ScanStatus>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [result, setResult] = useState<ScanResult | null>(null);
+  // Lưu documentId kể cả khi rejected để có thể retry (không bị xóa khi setResult(null))
+  const [lastDocumentId, setLastDocumentId] = useState<number | null>(null);
   const [members, setMembers] = useState<{ path: string; size: number; is_dir: boolean }[]>([]);
   const [loadingTree, setLoadingTree] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<{ path: string; text: string } | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
+
+  // Tốc độ upload (MB/s) + ETA — track qua lịch sử onProgress
+  const [uploadSpeed, setUploadSpeed] = useState(0); // bytes/sec
+  const [uploadEta, setUploadEta] = useState<number | null>(null); // seconds remaining
+  const [uploadLoaded, setUploadLoaded] = useState(0); // bytes
+  const [uploadTotal, setUploadTotal] = useState(0); // bytes
+  const lastSampleRef = useRef<{ ts: number; loaded: number } | null>(null);
+  const speedSamplesRef = useRef<number[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const resetUploadProgress = () => {
+    lastSampleRef.current = null;
+    speedSamplesRef.current = [];
+    setUploadSpeed(0);
+    setUploadEta(null);
+    setUploadLoaded(0);
+    setUploadTotal(0);
+  };
+
+  const trackUploadProgress = (loaded: number, total: number) => {
+    const now = Date.now();
+    const last = lastSampleRef.current;
+    if (last && now > last.ts) {
+      const dtSec = (now - last.ts) / 1000;
+      const dBytes = loaded - last.loaded;
+      if (dtSec > 0 && dBytes >= 0) {
+        const instSpeed = dBytes / dtSec;
+        const samples = speedSamplesRef.current;
+        samples.push(instSpeed);
+        if (samples.length > 5) samples.shift();
+        const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
+        setUploadSpeed(avg);
+        const remaining = Math.max(0, total - loaded);
+        setUploadEta(avg > 0 ? remaining / avg : null);
+      }
+    }
+    lastSampleRef.current = { ts: now, loaded };
+    setUploadLoaded(loaded);
+    setUploadTotal(total);
+  };
   const [activeIssue, setActiveIssue] = useState<CodeIssue | null>(null);
   const [filter, setFilter] = useState<"all" | "high" | "medium" | "low">("all");
   const [issueQuery, setIssueQuery] = useState("");
@@ -125,6 +170,9 @@ export default function CodeReviewPage() {
     setLoadingTree(false);
     setSelectedFile(null);
     setFileContent(null);
+    setModuleProgress({ done: 0, total: 0 });
+    resetUploadProgress();
+    abortControllerRef.current = new AbortController();
 
     let res: Response;
     try {
@@ -139,23 +187,107 @@ export default function CodeReviewPage() {
           },
           body: JSON.stringify({ document_id: selectedDoc.id }),
         });
+        setLastDocumentId(selectedDoc.id);
       } else {
         // Mode 1: upload file mới
-        const fd = new FormData();
-        fd.append("file", file as File);
-        const _token = getToken();
-        res = await fetch("/api/code/scan", {
-          method: "POST",
-          headers: _token ? { Authorization: `Bearer ${_token}` } : {},
-          body: fd,
-        });
+        // File >= 4MB: dùng chunked (S3 Multipart) — bypass giới hạn 1MB Next.js BFF
+        // File nhỏ: FormData truyền thống
+        const fileToUpload = file as File;
+        if (fileToUpload.size >= CHUNKED_THRESHOLD) {
+          let documentId: number | null = null;
+          try {
+            const uploader = new ChunkedUploader(fileToUpload, {
+              concurrency: 3,
+              signal: abortControllerRef.current?.signal,
+              onProgress: (uploaded, total) => {
+                trackUploadProgress(uploaded, total);
+              },
+            });
+            const result = await uploader.start();
+            documentId = result.document_id;
+          } catch (e: any) {
+            setStatus("error");
+            setErrorMsg(`Upload thất bại: ${e?.message ?? e}`);
+            return;
+          }
+          if (!documentId) {
+            setStatus("error");
+            setErrorMsg("Upload thất bại: không có document_id");
+            return;
+          }
+          // Upload xong → gọi scan với document_id (JSON nhỏ)
+          const _token = getToken();
+          res = await fetch("/api/code/scan", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(_token ? { Authorization: `Bearer ${_token}` } : {}),
+            },
+            body: JSON.stringify({ document_id: documentId }),
+          });
+        } else {
+          // File nhỏ: FormData qua XHR để có upload progress (fetch không expose)
+          const _token = getToken();
+          res = await new Promise<Response>((resolve, reject) => {
+            const fd = new FormData();
+            fd.append("file", fileToUpload);
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", "/api/code/scan");
+            if (_token) xhr.setRequestHeader("Authorization", `Bearer ${_token}`);
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) trackUploadProgress(e.loaded, e.total);
+            };
+            xhr.onload = () => {
+              // Wrap XMLHttpRequest thành Response để phần dưới xử lý thống nhất
+              const resp = new Response(xhr.responseText, {
+                status: xhr.status,
+                statusText: xhr.statusText,
+                headers: new Headers(
+                    xhr.getAllResponseHeaders()
+                      .split("\r\n")
+                      .filter(Boolean)
+                      .map((h): [string, string] => {
+                        const [k, ...v] = h.split(": ");
+                        return [k.trim(), v.join(": ").trim()];
+                      }),
+                ),
+              });
+              resolve(resp);
+            };
+            xhr.onerror = () => reject(new Error("Network error"));
+            abortControllerRef.current?.signal.addEventListener("abort", () => xhr.abort());
+            xhr.send(fd);
+          });
+        }
       }
-      const data = await res.json();
+      // Parse JSON an toàn (response có thể rỗng nếu bị abort)
+      let data: any = {};
+      try {
+        const text = await res.text();
+        if (text) data = JSON.parse(text);
+      } catch (parseErr) {
+        data = { error: `Server returned invalid JSON (status ${res.status})` };
+      }
+      // Lưu documentId cho retry (kể cả khi rejected/error)
+      if (data.documentId) setLastDocumentId(data.documentId);
+
+      // 3 nhánh:
+      // (a) BFF đã hoàn tất ngay (file nhỏ) → success
       if (data.success) {
         applyResult(data);
-      } else if (data.error) {
+        return;
+      }
+      // (b) BFF đã reject/fail ngay (lỗi phân loại hoặc sync)
+      if (data.error && !data.analysis_id) {
         setStatus("rejected");
         setErrorMsg(data.error);
+        return;
+      }
+      // (c) BFF đang scan dở (có analysis_id, không success) → poll status real-time
+      const analysisId = data.analysis_id ?? data.documentId;
+      if (analysisId) {
+        setStatus("scanning");
+        await pollAnalysisUntilDone(analysisId);
       } else {
         setStatus("error");
         setErrorMsg(data.error || "Không thể phân tích file");
@@ -164,6 +296,85 @@ export default function CodeReviewPage() {
       setStatus("error");
       setErrorMsg(e?.message || "Không thể kết nối máy chủ");
     }
+  };
+
+  // Polling real-time status từ /api/code/analyses/{id}/status
+  // Cập nhật moduleProgress mỗi 2s cho tới khi completed/failed.
+  const pollAnalysisUntilDone = async (analysisId: number) => {
+    const _token = getToken();
+    const pollInterval = 2000;
+    const maxAttempts = 300; // 10 phút
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const r = await fetch(`/api/code/analysis-status/${analysisId}`, {
+          headers: _token ? { Authorization: `Bearer ${_token}` } : {},
+          cache: "no-store",
+        });
+        if (!r.ok) {
+          await new Promise((res) => setTimeout(res, pollInterval));
+          continue;
+        }
+        const s = await r.json();
+        setModuleProgress({
+          done: s.done_modules ?? 0,
+          total: s.total_modules ?? 0,
+        });
+        if (s.status === "completed") {
+          // Lấy full result qua endpoint analyses/{id} (BFF cũ)
+          const fullRes = await fetch(`/api/code/analyses/${analysisId}`, {
+            headers: _token ? { Authorization: `Bearer ${_token}` } : {},
+            cache: "no-store",
+          });
+          if (fullRes.ok) {
+            const raw = await fullRes.json();
+            const transformed = transformAnalysisToScanResult(raw);
+            applyResult(transformed);
+            return;
+          }
+          setStatus("error");
+          setErrorMsg("Không tải được kết quả phân tích");
+          return;
+        }
+        if (s.status === "failed") {
+          setStatus("rejected");
+          setErrorMsg(s.error || "Phân tích thất bại");
+          return;
+        }
+      } catch {
+        // ignore poll errors, retry
+      }
+      await new Promise((res) => setTimeout(res, pollInterval));
+    }
+    setStatus("error");
+    setErrorMsg("Quá thời gian phân tích (10 phút)");
+  };
+
+  // Transform raw analysis → ScanResult format
+  const transformAnalysisToScanResult = (raw: any): ScanResult => {
+    const s = raw.stats ?? {};
+    return {
+      documentId: raw.document_id,
+      backendData: {
+        summary: raw.summary ?? "",
+        provider: raw.provider,
+        model: raw.model,
+        total_modules: raw.total_modules,
+        done_modules: raw.done_modules,
+        module_progress: {
+          done: Number(raw.done_modules ?? 0),
+          total: Number(raw.total_modules ?? 0),
+        },
+      },
+      stats: {
+        critical: Number(s.critical ?? 0),
+        warnings: Number(s.high ?? 0) + Number(s.medium ?? 0),
+        optimizations: Number(s.low ?? 0) + Number(s.info ?? 0),
+      },
+      details: (raw.issues ?? []).map((issue: any, idx: number) => ({
+        ...issue,
+        id: issue.id ?? idx + 1,
+      })),
+    };
   };
 
   // Áp kết quả scan/history vào state + tải file tree
@@ -560,7 +771,20 @@ export default function CodeReviewPage() {
             <div className="text-4xl mb-3">🚫</div>
             <h2 className="text-lg font-bold text-red-400 mb-2">File này không được xác định là source code</h2>
             <p className="text-[14px] text-red-400 max-w-xl mx-auto leading-relaxed mb-4">{errorMsg}</p>
-            <div className="flex justify-center gap-3">
+            <div className="flex justify-center gap-3 flex-wrap">
+              {/* Retry cùng file đã upload (nếu có documentId) */}
+              {lastDocumentId && (
+                <button
+                  onClick={() => {
+                    setFile(null);
+                    setSelectedDoc({ id: lastDocumentId, filename: file?.name || "đã upload", doc_type: "zip", status: "uploaded", created_at: new Date().toISOString() });
+                    setTimeout(() => startScan(), 0);
+                  }}
+                  className="px-5 py-2.5 bg-card border border-teal-500/40 text-teal-400 font-semibold text-[13px] rounded-lg hover:bg-teal-500/10 transition-colors"
+                >
+                  🔄 Thử lại
+                </button>
+              )}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="px-5 py-2.5 bg-card border border-red-500/40 text-red-400 font-semibold text-[13px] rounded-lg hover:bg-red-500/10 transition-colors"
@@ -581,7 +805,28 @@ export default function CodeReviewPage() {
         {status === "error" && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center">
             <p className="text-red-400 font-semibold mb-1">Đã xảy ra lỗi</p>
-            <p className="text-[13px] text-red-400">{errorMsg}</p>
+            <p className="text-[13px] text-red-400 mb-4">{errorMsg}</p>
+            <div className="flex justify-center gap-3 flex-wrap">
+              {(file || selectedDoc || lastDocumentId) && (
+                <button
+                  onClick={() => {
+                    if (!file && !selectedDoc && lastDocumentId) {
+                      setSelectedDoc({ id: lastDocumentId, filename: "đã upload", doc_type: "zip", status: "uploaded", created_at: new Date().toISOString() });
+                    }
+                    setTimeout(() => startScan(), 0);
+                  }}
+                  className="px-5 py-2.5 bg-card border border-teal-500/40 text-teal-400 font-semibold text-[13px] rounded-lg hover:bg-teal-500/10 transition-colors"
+                >
+                  🔄 Thử lại
+                </button>
+              )}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-5 py-2.5 bg-card border border-red-500/40 text-red-400 font-semibold text-[13px] rounded-lg hover:bg-red-500/10 transition-colors"
+              >
+                Chọn file khác
+              </button>
+            </div>
           </div>
         )}
 
@@ -592,18 +837,72 @@ export default function CodeReviewPage() {
             <p className="text-muted-foreground font-medium">
               {status === "uploading" ? "Đang tải file lên..." : "Đang phân tích mã nguồn..."}
             </p>
-            {status === "scanning" && moduleProgress.total > 0 && (
-              <div className="mt-4 max-w-md mx-auto">
-                <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-primary h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${(moduleProgress.done / moduleProgress.total) * 100}%` }}
-                  />
+            {status === "uploading" && uploadTotal > 0 && (() => {
+              const pct = Math.min(100, Math.round((uploadLoaded / uploadTotal) * 100));
+              return (
+                <div className="mt-4 max-w-md mx-auto" data-upload-progress>
+                  <div className="flex justify-between text-[12px] text-muted-foreground mb-1.5">
+                    <span>
+                      Đã tải {(uploadLoaded / 1024 / 1024).toFixed(1)}/
+                      {(uploadTotal / 1024 / 1024).toFixed(1)} MB
+                    </span>
+                    <span className="font-mono font-bold text-foreground">{pct}%</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  {uploadSpeed > 0 && (
+                    <p className="text-[12px] text-muted-foreground mt-2 tabular-nums">
+                      {(uploadSpeed / 1024 / 1024).toFixed(2)} MB/s
+                      {uploadEta !== null && uploadEta > 0 && (
+                        <span className="ml-2">
+                          · còn ~{uploadEta < 60
+                            ? `${Math.ceil(uploadEta)}s`
+                            : `${Math.ceil(uploadEta / 60)}m ${Math.ceil(uploadEta % 60)}s`}
+                        </span>
+                      )}
+                    </p>
+                  )}
                 </div>
-                <p className="text-muted-foreground text-[12px] mt-1.5">
-                  Module {moduleProgress.done}/{moduleProgress.total}
-                </p>
-              </div>
+              );
+            })()}
+            {status === "scanning" && moduleProgress.total > 0 && (() => {
+              const pct = Math.min(100, Math.round((moduleProgress.done / moduleProgress.total) * 100));
+              return (
+                <div className="mt-4 max-w-md mx-auto" data-progress-block>
+                  <div className="flex justify-between text-[12px] text-muted-foreground mb-1.5">
+                    <span>Đã xử lý {moduleProgress.done}/{moduleProgress.total} modules</span>
+                    <span className="font-mono font-bold text-foreground">{pct}%</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-primary h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
+            {status === "scanning" && moduleProgress.total === 0 && (
+              <p className="text-muted-foreground text-[12px] mt-2">
+                ⏳ Đang khởi tạo worker phân tích...
+              </p>
+            )}
+            {status === "uploading" && (
+              <button
+                onClick={() => {
+                  abortControllerRef.current?.abort();
+                  setStatus("idle");
+                  setErrorMsg("Đã hủy upload");
+                  resetUploadProgress();
+                }}
+                className="mt-6 px-6 py-2 text-sm font-medium text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-400 rounded-full transition-all"
+              >
+                Hủy quá trình
+              </button>
             )}
           </div>
         )}

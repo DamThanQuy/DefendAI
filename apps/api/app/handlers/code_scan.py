@@ -43,7 +43,7 @@ from app.services.code_scanner import (
     analyze_module_files,
     classify_archive,
     decide_source_code,
-    extract_code_files,
+    iter_code_files,
     list_archive_members,
 )
 from app.services.circuit_breaker import CircuitOpenError, code_review_breaker
@@ -80,57 +80,105 @@ async def handle_code_scan(params: dict) -> dict:
             decision = decide_source_code(classification)
 
             if decision == "reject":
-                await _fail(
-                    db, analysis, document,
-                    "File nén không chứa mã nguồn (chỉ có tài liệu/cấu hình). "
-                    "Bạn có thể dùng luồng Đọc Tài liệu để tạo câu hỏi.",
+                # Trả về message giàu thông tin hơn: liệt kê manifest, project_type,
+                # top file code detect được để user debug nhanh.
+                manifests = ", ".join(classification.get("manifest_paths", [])[:3]) or "không có"
+                project_type = classification.get("project_type", "unknown")
+                preview = classification.get("preview", [])
+                preview_str = "; ".join(preview[:3]) if preview else "không có"
+                detail = (
+                    f"File nén không chứa mã nguồn rõ ràng. "
+                    f"Project type: {project_type}. "
+                    f"Code ratio: {classification.get('code_ratio', 0):.1%}, "
+                    f"manifest: {manifests}. "
+                    f"File code detect được (top 3): {preview_str}. "
+                    f"Bạn có thể dùng luồng Đọc Tài liệu để tạo câu hỏi."
                 )
+                # Lỗi reject do phân loại: GIỮ document.status='uploaded' để user
+                # có thể retry / chọn lại. Chỉ set analysis=failed + error.
+                await _fail_classification(db, analysis, detail)
                 return {"analysis_id": analysis_id, "status": "rejected"}
 
             if decision == "ambiguous":
                 verdict = await agent_fast_check(document, classification)
                 if not verdict.get("is_source_code"):
-                    await _fail(db, analysis, document, verdict.get("reason")
-                                or "File nén không được xác định là source code dự án.")
+                    # Lỗi phân loại (AI agent cũng reject) — giữ document.status='uploaded'
+                    await _fail_classification(
+                        db, analysis,
+                        verdict.get("reason")
+                        or "File nén không được xác định là source code dự án.",
+                    )
                     return {"analysis_id": analysis_id, "status": "rejected"}
 
-            # L2.2 extract ALL files (no cap)
-            files = await extract_code_files(document)
-            analysis.total_files = len(files)
-            analysis.status = CodeAnalysisStatus.processing
-            analysis.provider = provider
-            analysis.model = model
-            await db.commit()
-
-            # Pass-1 heuristic (no LLM) — writes code_analysis_issues immediately
-            await _write_heuristic_pass1(db, analysis_id, files)
-
-            # L2.3 split into module jobs (each ≤ MODULE_FILE_CAP files)
-            module_jobs = _split_into_module_jobs(files, module_cap=40)
-            analysis.total_modules = len(module_jobs)
-            analysis.done_modules = 0
-            await db.commit()
-
-            # Load rubric 1 lần (thước đo) → truyền vào mọi module job
+            # L2.2 extract ALL files (no cap) — streaming + chunked flush
+            # KHÔNG gom full list vào RAM (4GB+ với ZIP 2.7GB → OOM 3.8GB).
+            # Pipeline streaming:
+            #   1. iter_code_files yield từng ScannedFile
+            #   2. Heuristic scan incremental → flush mỗi 500 file (sync DB)
+            #   3. Gom vào buffer 40 file → enqueue code_scan_module NGAY (không giữ list)
+            #   4. Sau loop → flush buffer cuối + commit counts
+            # Counter tăng dần, không tốn thêm RAM cho ScannedFile
+            total_files_count = 0
+            total_modules_count = 0
+            heuristic_buffer: list[ScannedFile] = []
+            HEURISTIC_FLUSH = 500
+            MODULE_FILE_CAP = 40
+            module_buffer: list[ScannedFile] = []
+            current_module_index = 0
             rubric = await get_active_rubric(db, scope="code_review")
 
-            if not module_jobs:
-                await _reduce_analysis(db, analysis_id)
-                return {"analysis_id": analysis_id, "status": "completed"}
+            async def _flush_heuristic() -> None:
+                """Ghi batch heuristic xuống DB (sync, không block stream quá lâu)."""
+                if not heuristic_buffer:
+                    return
+                await _write_heuristic_pass1(db, analysis_id, list(heuristic_buffer))
+                heuristic_buffer.clear()
 
-            for module_name, module_files in module_jobs:
+            async def _flush_module() -> None:
+                """Enqueue 1 module job NGAY vào Redis queue → không giữ list lớn."""
+                nonlocal current_module_index, total_modules_count
+                if not module_buffer:
+                    return
                 payload = {
                     "analysis_id": analysis_id,
                     "document_id": document_id,
-                    "module": module_name,
-                    "files": [{"path": f.path, "content": f.content} for f in module_files],
+                    "module": f"module_{current_module_index:04d}",
+                    "files": [{"path": f.path, "content": f.content} for f in module_buffer],
                     "provider": provider,
                     "model": model,
                     "rubric": rubric,
                 }
                 await create_job("code_scan_module", payload)
+                current_module_index += 1
+                total_modules_count += 1
+                module_buffer.clear()
 
-            return {"analysis_id": analysis_id, "status": "processing", "total_modules": len(module_jobs)}
+            async for scanned_file in iter_code_files(document):
+                total_files_count += 1
+                heuristic_buffer.append(scanned_file)
+                module_buffer.append(scanned_file)
+                if len(heuristic_buffer) >= HEURISTIC_FLUSH:
+                    await _flush_heuristic()
+                if len(module_buffer) >= MODULE_FILE_CAP:
+                    await _flush_module()
+            await _flush_heuristic()
+            await _flush_module()
+
+            analysis.total_files = total_files_count
+            analysis.total_modules = total_modules_count
+            analysis.status = CodeAnalysisStatus.processing
+            analysis.provider = provider
+            analysis.model = model
+            await db.commit()
+            # Giải phóng list khỏi RAM
+            heuristic_buffer.clear()
+            module_buffer.clear()
+
+            if total_modules_count == 0:
+                await _reduce_analysis(db, analysis_id)
+                return {"analysis_id": analysis_id, "status": "completed"}
+
+            return {"analysis_id": analysis_id, "status": "processing", "total_modules": total_modules_count}
         except CodeScanError as exc:
             await _fail(db, analysis, document, str(exc))
             return {"analysis_id": analysis_id, "status": "failed", "error": str(exc)}
@@ -312,8 +360,28 @@ async def _fail(
     document: Document | None,
     error: str,
 ) -> None:
+    """Lỗi hệ thống (timeout, exception, …) — set cả analysis + document = failed.
+
+    Phân biệt với `_fail_classification` (lỗi do phân loại source code) — vẫn giữ
+    document ở trạng thái 'uploaded' để user có thể retry.
+    """
     analysis.status = CodeAnalysisStatus.failed
     analysis.error = error
     if document is not None:
         document.status = DocumentStatus.failed
+    await db.commit()
+
+
+async def _fail_classification(
+    db: AsyncSession,
+    analysis: CodeAnalysis,
+    error: str,
+) -> None:
+    """Lỗi do phân loại source code (reject/ambiguous→reject).
+
+    - analysis.status = failed
+    - document KHÔNG đổi status (giữ 'uploaded') → user có thể chọn lại / retry
+    """
+    analysis.status = CodeAnalysisStatus.failed
+    analysis.error = error
     await db.commit()

@@ -7,16 +7,17 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   'http://localhost:8000';
 
-export async function GET(request: Request) {
+export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
     const authHeader = request.headers.get('authorization') || '';
     const headers: Record<string, string> = {};
     if (authHeader) headers['Authorization'] = authHeader;
 
-    const url = new URL(request.url);
-    const qs = url.search || '';
+    const res = await fetch(`${API_URL}/api/documents/${params.id}/restore`, {
+      method: 'POST',
+      headers,
+    });
 
-    const res = await fetch(`${API_URL}/api/documents/${qs}`, { headers });
     const data = await res.text();
     return new Response(data, {
       status: res.status,
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Documents list proxy failed', message: error.message },
+      { error: 'Document restore proxy failed', message: error.message },
       { status: 500 },
     );
   }

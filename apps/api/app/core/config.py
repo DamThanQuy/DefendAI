@@ -77,12 +77,15 @@ class LocalGatewayConfig(BaseSettings):
 class MinioConfig(BaseSettings):
     """Config cho MinIO / S3-compatible object storage."""
     endpoint: str = ""
+    # Public endpoint trả về trong presigned URLs cho browser truy cập được.
+    # Trong Docker: BE dùng `minio:9000` (internal), nhưng browser ở host nên cần `localhost:9000`.
+    public_endpoint: str = ""
     access_key_id: str = ""
     secret_access_key: str = ""
     bucket: str = ""
     region: str = "us-east-1"
     secure: bool = False
-    
+
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore", env_prefix="MINIO_", env_file=ENV_FILE, env_file_encoding="utf-8")
 
 class RAGConfig(BaseSettings):

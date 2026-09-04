@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 interface WorkspaceFile {
   document_id: number;
@@ -149,10 +150,18 @@ export default function WorkspacesPage() {
     }
   };
 
+  const [deletingWs, setDeletingWs] = useState<Workspace | null>(null);
+
   const handleDelete = async (ws: Workspace) => {
+    setDeletingWs(ws);
+  };
+
+  const confirmDeleteWorkspace = async () => {
+    const ws = deletingWs;
+    if (!ws) return;
     const token = getToken();
+    setDeletingWs(null);
     if (!token) return;
-    if (!window.confirm(`Xoá workspace "${ws.name}"? File gốc không bị xoá.`)) return;
     try {
       const r = await fetch(`/api/workspaces/${ws.id}`, {
         method: "DELETE",
@@ -483,6 +492,22 @@ export default function WorkspacesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={!!deletingWs}
+        tone="danger"
+        icon="delete"
+        title="Xoá workspace này?"
+        description={
+          <>
+            Workspace <span className="font-semibold text-foreground">"{deletingWs?.name}"</span> sẽ bị xoá. Tên tài liệu gốc <span className="text-green-400">không bị xoá</span>.
+          </>
+        }
+        confirmLabel="Xoá workspace"
+        cancelLabel="Huỷ"
+        onCancel={() => setDeletingWs(null)}
+        onConfirm={confirmDeleteWorkspace}
+      />
     </div>
   );
 }

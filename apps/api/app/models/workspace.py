@@ -1,4 +1,4 @@
-"""Workspace models — gom nhiều file thành 1 đề tài.
+﻿"""Workspace models — gom nhiều file thành 1 đề tài.
 
 Nguyên tắc: Workspace chỉ TRỎ tới file trong thùng documents — không copy file.
 Thêm file vào workspace = thêm 1 dòng workspace_files, không phồng dữ liệu.
@@ -24,10 +24,17 @@ class Workspace(Base):
         back_populates="workspace",
         cascade="all, delete-orphan",
     )
-    
+
     # Messages (ChatGPT-style)
     messages = relationship(
         "Message",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+    )
+
+    # Questions (R6: Hỏi theo đề tài)
+    questions = relationship(
+        "WorkspaceQuestion",
         back_populates="workspace",
         cascade="all, delete-orphan",
     )

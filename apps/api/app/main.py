@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.routers import ai as ai_router
 from app.routers import admin as admin_router
 from app.routers import admin_reference as admin_reference_router
+from app.routers import admin_documents as admin_documents_router
 from app.routers import auth as auth_router
 from app.routers import code_scan as code_scan_router
 from app.routers import documents as documents_router
@@ -55,6 +56,8 @@ app.include_router(ai_router.router)
 app.include_router(admin_router.router)
 # Admin: tài liệu chuẩn (R9) — upload/index reference_chunks
 app.include_router(admin_reference_router.router)
+# Admin: hard-purge documents (xoá cứng row + MinIO)
+app.include_router(admin_documents_router.router)
 # Auth endpoints (login, register)
 app.include_router(auth_router.router)
 # Document upload endpoints (upload, get, list)
@@ -124,6 +127,28 @@ async def _load_ai_config_from_db() -> None:
             )
     except Exception as exc:
         logging.getLogger(__name__).warning("startup: load AI config from DB skipped: %s", exc)
+
+
+_trash_purger = None
+
+
+@app.on_event("startup")
+async def _start_trash_purger() -> None:
+    """Khởi background task purge document quá hạn 30 ngày (chạy lúc 02:00)."""
+    global _trash_purger
+    from app.core.database import async_session_maker
+    from app.services.trash_purge import TrashPurger
+    _trash_purger = TrashPurger(session_factory=async_session_maker)
+    _trash_purger.start()
+
+
+@app.on_event("shutdown")
+async def _stop_trash_purger() -> None:
+    """Dừng trash purger khi shutdown."""
+    global _trash_purger
+    if _trash_purger is not None:
+        await _trash_purger.stop()
+        _trash_purger = None
 
 
 @app.get("/")

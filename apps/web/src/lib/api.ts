@@ -97,6 +97,13 @@ export function uploadDocument(file: File) {
   });
 }
 
+/**
+ * Upload file lớn qua chunked (S3 Multipart) — bypass giới hạn 1MB của Next.js BFF.
+ * Trả về document_id khi hoàn tất.
+ */
+export { ChunkedUploader } from "./chunked-upload";
+export type { ChunkedUploadResult, ChunkedUploadOptions } from "./chunked-upload";
+
 export function generateQuestions(documentId: number) {
   // Thêm provider và model vào kiểu trả về ở đây:
   return api.post<{ questions: Question[]; provider?: string; model?: string }>("/api/questions/generate", {
