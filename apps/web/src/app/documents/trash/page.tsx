@@ -63,6 +63,8 @@ export default function TrashPage() {
   const [error, setError] = useState("");
   const [restoringId, setRestoringId] = useState<number | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<TrashItem | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TrashItem | null>(null);
 
   const fetchTrash = async () => {
     const token = getToken();
@@ -132,6 +134,30 @@ export default function TrashPage() {
       setError(`Khôi phục thất bại: ${e.message || e}`);
     } finally {
       setRestoringId(null);
+    }
+  };
+
+  const confirmDelete = async () => {
+    const item = deleteTarget;
+    if (!item) return;
+    const id = item.id;
+    setDeleteTarget(null);
+    setDeletingId(id);
+    try {
+      const token = getToken();
+      const r = await fetch(`/api/documents/${id}/permanent-delete`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(t || `HTTP ${r.status}`);
+      }
+      await fetchTrash();
+    } catch (e: any) {
+      setError(`Xóa vĩnh viễn thất bại: ${e.message || e}`);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -232,7 +258,7 @@ export default function TrashPage() {
                             <span className="text-zinc-300">{days} ngày</span>
                           )}
                         </td>
-                        <td className="px-5 py-4 text-right">
+                        <td className="px-5 py-4 text-right flex justify-end gap-2">
                           <button
                             onClick={() => setRestoreTarget(item)}
                             disabled={restoringId === item.id}
@@ -240,6 +266,14 @@ export default function TrashPage() {
                             title="Khôi phục"
                           >
                             ↩ Khôi phục
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget(item)}
+                            disabled={deletingId === item.id}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-[13px] font-medium hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                            title="Xóa vĩnh viễn"
+                          >
+                            🗑 Xóa vĩnh viễn
                           </button>
                         </td>
                       </tr>
@@ -267,6 +301,23 @@ export default function TrashPage() {
         loading={!!restoringId}
         onCancel={() => !restoringId && setRestoreTarget(null)}
         onConfirm={confirmRestore}
+      />
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        tone="danger"
+        icon="delete"
+        title="Xóa vĩnh viễn tài liệu này?"
+        description={
+          <>
+            Tài liệu <span className="font-semibold text-foreground">"{deleteTarget?.filename}"</span> sẽ bị xoá hoàn toàn khỏi hệ thống (cơ sở dữ liệu + file lưu trữ) và <span className="font-semibold text-red-400">không thể khôi phục</span>.
+          </>
+        }
+        confirmLabel={deletingId ? "Đang xoá..." : "Xóa vĩnh viễn"}
+        cancelLabel="Huỷ"
+        loading={!!deletingId}
+        onCancel={() => !deletingId && setDeleteTarget(null)}
+        onConfirm={confirmDelete}
       />
     </div>
   );

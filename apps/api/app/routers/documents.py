@@ -24,7 +24,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
@@ -407,6 +407,66 @@ async def restore_document(
         "restore document id=%s by user=%s", doc_id, user.id
     )
     return doc
+
+
+@router.delete("/{doc_id}/permanent-delete", status_code=204)
+async def permanent_delete_document(
+    doc_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Hard delete: xoá cứng document (DB row + MinIO file).
+    User chỉ xoá được tài liệu của chính mình hoặc tài liệu privileged.
+    """
+    result = await db.execute(
+        select(Document)
+        .options(
+            selectinload(Document.assessments),
+            selectinload(Document.code_analyses),
+            selectinload(Document.chunks),
+            selectinload(Document.code_module_hashes),
+        )
+        .where(Document.id == doc_id)
+    )
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+    if doc.deleted_at is None:
+        raise HTTPException(status_code=400, detail="Tài liệu chưa bị xoá")
+
+    _assert_doc_access(doc, user)
+
+    storage_key = doc.storage_key
+
+    # Best-effort xoá MinIO. Nếu lỗi, log và vẫn tiếp tục xoá DB row.
+    try:
+        await delete_doc(storage_key, bucket=settings.minio.bucket)
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "permanent-delete: MinIO delete failed for key=%s err=%s", storage_key, exc
+        )
+
+    try:
+        # Xoá code_analysis_issues trước (FK từ issues → code_analyses)
+        if doc.code_analyses:
+            analysis_ids = [a.id for a in doc.code_analyses]
+            from app.models.assessment import CodeAnalysisIssue
+
+            await db.execute(
+                sa_delete(CodeAnalysisIssue).where(
+                    CodeAnalysisIssue.analysis_id.in_(analysis_ids)
+                )
+            )
+        await db.delete(doc)
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Không thể xoá vĩnh viễn: {exc}")
+
+    logging.getLogger(__name__).info(
+        "permanent-delete document id=%s by user=%s", doc_id, user.id
+    )
+    return Response(status_code=204)
 
 
 @router.get("/{doc_id}", response_model=DocumentResponse)
