@@ -20,6 +20,7 @@ from app.handlers.questions import (
     _heuristic_questions,
     _truncate_text,
 )
+from app.services.source_item_builder import to_source_list
 from app.models.entities import (
     AssessmentStatus,
     Document,
@@ -241,16 +242,7 @@ async def handle_workspace_questions(params: dict) -> dict:
             questions = [q.model_dump() | {"citations": []} for q in qs]
 
         # Nguồn đã dùng, đánh số 1..N đúng thứ tự context trong prompt (circle style)
-        sources = [
-            {
-                "num": i + 1,
-                "source": r["source"],
-                "title": str(r.get("title") or r.get("filename") or ""),
-                "chunk_index": r.get("chunk_index"),
-                "content": str(r.get("content") or "")[:500],
-            }
-            for i, r in enumerate(user_results + ref_results)
-        ]
+        sources = to_source_list(user_results + ref_results)
 
         async with async_session_maker() as db:
             row = await db.get(WorkspaceQuestion, question_id)

@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 _KNN_SQL = text("""
     SELECT c.content,
            c.meta->>'filename' AS filename,
+           c.meta->>'doc_type' AS doc_type,
            c.chunk_index,
            1 - (c.embedding <=> CAST(:q AS vector)) AS score
     FROM document_chunks c
@@ -161,15 +162,17 @@ _bm25_cache: Dict[int, Tuple[BM25Index, float]] = {}  # workspace_id -> (index, 
 async def _build_bm25_index(workspace_id: int) -> BM25Index:
     """Build BM25 index from all chunks in workspace."""
     sql = text("""
-        SELECT c.id, c.content, c.meta->>'filename' AS filename, c.chunk_index
+        SELECT c.id, c.content, c.meta->>'filename' AS filename,
+               c.meta->>'doc_type' AS doc_type, c.chunk_index
         FROM document_chunks c
         JOIN workspace_files wf ON wf.document_id = c.document_id
         WHERE wf.workspace_id = :ws AND c.embedding IS NOT NULL
     """)
-    
+
     async with async_session_maker() as db:
         result = await db.execute(text("""
-            SELECT c.content, c.meta->>'filename' AS filename, c.chunk_index
+            SELECT c.content, c.meta->>'filename' AS filename,
+                   c.meta->>'doc_type' AS doc_type, c.chunk_index
             FROM document_chunks c
             JOIN workspace_files wf ON wf.document_id = c.document_id
             WHERE wf.workspace_id = :ws AND c.embedding IS NOT NULL
@@ -177,10 +180,15 @@ async def _build_bm25_index(workspace_id: int) -> BM25Index:
         rows = result.mappings().all()
     
     documents = [
-        {"content": row["content"], "filename": row["filename"], "chunk_index": row["chunk_index"]}
+        {
+            "content": row["content"],
+            "filename": row["filename"],
+            "doc_type": row.get("doc_type"),
+            "chunk_index": row["chunk_index"],
+        }
         for row in rows
     ]
-    
+
     index = BM25Index()
     index.build(documents)
     return index
@@ -358,6 +366,7 @@ async def retrieve(
         {
             "content": row["content"],
             "filename": row["filename"],
+            "doc_type": row.get("doc_type"),
             "chunk_index": row["chunk_index"],
             "score": round(float(row["score"]), 4),
             "source": "user",
@@ -383,7 +392,8 @@ async def retrieve(
         # Get full documents for BM25 results
         async with async_session_maker() as db:
             result = await db.execute(text("""
-                SELECT c.content, c.meta->>'filename' AS filename, c.chunk_index
+                SELECT c.content, c.meta->>'filename' AS filename,
+                       c.meta->>'doc_type' AS doc_type, c.chunk_index
                 FROM document_chunks c
                 JOIN workspace_files wf ON wf.document_id = c.document_id
                 WHERE wf.workspace_id = :ws AND c.embedding IS NOT NULL
@@ -404,6 +414,7 @@ async def retrieve(
                 bm25_formatted.append({
                     "content": documents[doc_idx]["content"],
                     "filename": documents[doc_idx]["filename"],
+                    "doc_type": documents[doc_idx].get("doc_type"),
                     "chunk_index": documents[doc_idx]["chunk_index"],
                     "score": score,
                     "source": "user",
@@ -427,6 +438,7 @@ _FIGURE_REF_RE = re.compile(
 _FIGURE_SQL = text("""
     SELECT c.content,
            c.meta->>'filename' AS filename,
+           c.meta->>'doc_type' AS doc_type,
            c.chunk_index,
            1.0 AS score
     FROM document_chunks c
@@ -461,6 +473,7 @@ async def _retrieve_by_figure(query: str, workspace_id: int, limit: int) -> List
         {
             "content": row["content"],
             "filename": row["filename"],
+            "doc_type": row.get("doc_type"),
             "chunk_index": row["chunk_index"],
             "score": 1.0,
             "source": "user",
@@ -505,6 +518,7 @@ async def retrieve_reference(
         {
             "content": row["content"],
             "title": row["title"],
+            "doc_type": None,  # reference_chunks không có doc_type — helper sẽ fallback
             "chunk_index": row["chunk_index"],
             "score": round(float(row["score"]), 4),
             "source": "ref",
@@ -553,6 +567,7 @@ async def retrieve_mixed(
             {
                 "content": row["content"],
                 "title": row["title"],
+                "doc_type": None,  # reference_chunks không có doc_type — helper sẽ fallback
                 "chunk_index": row["chunk_index"],
                 "score": round(float(row["score"]), 4),
                 "source": "ref",
