@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { TrashIcon } from "@/components/icons/TrashIcon";
+import { RestoreIcon } from "@/components/icons/RestoreIcon";
+import { DeleteForeverIcon } from "@/components/icons/DeleteForeverIcon";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 interface TrashItem {
@@ -262,19 +264,19 @@ export default function TrashPage() {
                           <button
                             onClick={() => setRestoreTarget(item)}
                             disabled={restoringId === item.id}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-[13px] font-medium hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-[13px] font-medium hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
                             title="Khôi phục"
                           >
-                            <span className="material-icons text-[14px]">restore_from_trash</span>
+                            <RestoreIcon className="w-4 h-4" />
                             Khôi phục
                           </button>
                           <button
                             onClick={() => setDeleteTarget(item)}
                             disabled={deletingId === item.id}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-[13px] font-medium hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-[13px] font-medium hover:bg-red-500/20 transition-colors disabled:opacity-50"
                             title="Xóa vĩnh viễn"
                           >
-                            <span className="material-icons text-[14px]">delete_forever</span>
+                            <DeleteForeverIcon className="w-4 h-4" />
                             Xóa vĩnh viễn
                           </button>
                         </td>

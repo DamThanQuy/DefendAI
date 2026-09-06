@@ -16,16 +16,23 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     const res = await fetch(`${API_URL}/api/documents/${params.id}`, {
       method: 'DELETE',
       headers,
+      cache: 'no-store',
     });
 
     if (res.status === 204) {
-      return new Response(null, { status: 204 });
+      return new Response(null, {
+        status: 204,
+        headers: { 'cache-control': 'no-store, must-revalidate' },
+      });
     }
 
     const data = await res.text();
     return new Response(data, {
       status: res.status,
-      headers: { 'content-type': res.headers.get('content-type') || 'application/json' },
+      headers: {
+        'content-type': res.headers.get('content-type') || 'application/json',
+        'cache-control': 'no-store, must-revalidate',
+      },
     });
   } catch (error: any) {
     return NextResponse.json(

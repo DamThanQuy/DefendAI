@@ -13,11 +13,17 @@ export async function GET(request: Request) {
     const headers: Record<string, string> = {};
     if (authHeader) headers['Authorization'] = authHeader;
 
-    const res = await fetch(`${API_URL}/api/documents/trash`, { headers });
+    const res = await fetch(`${API_URL}/api/documents/trash`, {
+      headers,
+      cache: 'no-store',
+    });
     const data = await res.text();
     return new Response(data, {
       status: res.status,
-      headers: { 'content-type': res.headers.get('content-type') || 'application/json' },
+      headers: {
+        'content-type': res.headers.get('content-type') || 'application/json',
+        'cache-control': 'no-store, must-revalidate',
+      },
     });
   } catch (error: any) {
     return NextResponse.json(

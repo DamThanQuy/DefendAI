@@ -121,7 +121,6 @@ async function callAbort(uploadId: string): Promise<void> {
 
 // ---------------------------------------------------------------------------
 // PUT 1 chunk lên presigned URL — có retry
-// Dùng XHR thay vì fetch vì fetch không expose upload progress event.
 // ---------------------------------------------------------------------------
 
 async function putChunk(
@@ -129,7 +128,6 @@ async function putChunk(
   body: Blob,
   partNumber: number,
   signal: AbortSignal,
-  onPartProgress?: (loaded: number, total: number) => void,
 ): Promise<string> {
   let lastError: unknown;
 
@@ -138,29 +136,24 @@ async function putChunk(
       throw new DOMException("Upload aborted", "AbortError");
     }
     try {
-      // Dùng fetch thay vì XMLHttpRequest. Lý do: xhr.send(blob) với Blob
-      // lớn (>700KB) trên file 2.7GB có thể upload data sai ở part cuối —
-      // bytes gửi đi khác với file gốc dù slice đúng. Fetch xử lý Blob
-      // streaming tốt hơn và tương thích với ReadableStream.
-      const resp = await fetch(url, {
+      const res = await fetch(url, {
         method: "PUT",
         body,
-        // Tắt cache để retry nhận response mới
-        cache: "no-store",
-        // KHÔNG set keepalive: PUT lớn cần connection sống
         signal,
       });
-      if (!resp.ok) {
-        throw new Error(`PUT part ${partNumber} failed: ${resp.status} ${resp.statusText}`);
+      if (!res.ok) {
+        throw new Error(
+          `PUT part ${partNumber} failed: ${res.status} ${res.statusText}`,
+        );
       }
-      // MinIO trả ETag trong response header (có dấu nháy kép)
-      const raw = resp.headers.get("ETag") ?? resp.headers.get("etag") ?? "";
-      if (!raw) {
+      // ETag trả về trong header (có/không có dấu nháy đều OK)
+      const etag = res.headers.get("ETag") ?? res.headers.get("etag") ?? "";
+      const cleanEtag = etag.replace(/"/g, "");
+      if (!cleanEtag) {
+        // Một số trường hợp MinIO có thể trả etag trong body — fallback
         throw new Error(`No ETag in response for part ${partNumber}`);
       }
-      // Report 100% progress khi complete
-      onPartProgress?.((body as any).size, (body as any).size);
-      return raw;
+      return cleanEtag;
     } catch (err) {
       if ((err as any)?.name === "AbortError") throw err;
       lastError = err;
@@ -233,29 +226,6 @@ export class ChunkedUploader {
       );
     }
 
-    // Sanity check: mỗi ETag phải là hex string (md5 của MinIO), có thể
-    // có hoặc không có cặp nháy kép bao quanh — S3 spec cho phép cả 2 dạng.
-    // Nếu ETag rỗng / malformed → complete sẽ fail, và object trên MinIO
-    // sẽ bị BE verify EOCD reject (Fix 1). Check sớm ở FE để log rõ.
-    for (const { PartNumber, ETag } of partsList) {
-      if (!ETag) {
-        throw new Error(`Invalid (empty) ETag for part ${PartNumber}`);
-      }
-      // Strip optional quotes trước khi validate content
-      const inner = ETag.replace(/^"|"$/g, "");
-      if (!/^[a-f0-9]{32,128}$/i.test(inner)) {
-        throw new Error(
-          `Invalid ETag for part ${PartNumber}: ${JSON.stringify(ETag).slice(0, 60)}`,
-        );
-      }
-      // PartNumber hợp lệ: 1..10000 (S3 multipart limit).
-      if (!Number.isInteger(PartNumber) || PartNumber < 1 || PartNumber > 10000) {
-        throw new Error(
-          `Invalid PartNumber: ${PartNumber} (must be 1..10000)`,
-        );
-      }
-    }
-
     const result = await callComplete(this.uploadId!, partsList);
     options.onProgress(file.size, file.size);
     return result;
@@ -272,46 +242,23 @@ export class ChunkedUploader {
   }
 
   private async uploadAllParts(signal: AbortSignal): Promise<void> {
-    const { concurrency, onProgress } = this.options;
+    const { concurrency } = this.options;
     const total = this.parts.length;
     let partIndex = 0;
-
-    // Track per-part loaded bytes cho mục đích progress reporting
-    const partLoaded = new Map<number, number>();
 
     const worker = async () => {
       while (partIndex < total) {
         if (signal.aborted) return;
         const myIndex = partIndex++;
         const part = this.parts[myIndex];
-        // Dùng DEFAULT_CHUNK_SIZE để tính start, vì BE trả chunk_size cho
-        // part cuối = size thực tế (nhỏ hơn 8MB) chứ không phải 8MB. Dùng
-        // part.chunk_size ở đây sẽ khiến part cuối bị slice sai offset.
-        const start = (part.part_number - 1) * DEFAULT_CHUNK_SIZE;
+        const start = (part.part_number - 1) * part.chunk_size;
         const end = Math.min(start + part.chunk_size, this.file.size);
-        const partSize = end - start;
         const blob = this.file.slice(start, end);
 
-        partLoaded.set(part.part_number, 0);
-        const etag = await putChunk(
-          part.url,
-          blob,
-          part.part_number,
-          signal,
-          (loaded) => {
-            // Update tổng bytes uploaded: sum loaded của tất cả parts
-            partLoaded.set(part.part_number, loaded);
-            let total = 0;
-            partLoaded.forEach((v) => (total += v));
-            onProgress(total, this.file.size);
-          },
-        );
+        const etag = await putChunk(part.url, blob, part.part_number, signal);
         this.etags.set(part.part_number, etag);
-        partLoaded.set(part.part_number, partSize);
-        let totalLoaded = 0;
-        partLoaded.forEach((v) => (totalLoaded += v));
-        this.bytesUploaded = totalLoaded;
-        onProgress(this.bytesUploaded, this.file.size);
+        this.bytesUploaded += end - start;
+        this.options.onProgress(this.bytesUploaded, this.file.size);
         this.options.onPartUploaded(part.part_number, total);
       }
     };

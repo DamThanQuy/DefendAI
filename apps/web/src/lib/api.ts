@@ -313,3 +313,83 @@ export function rejectBookingWithReason(
   return api.post<Booking>(`/api/bookings/${bookingId}/reject`, { reason });
 }
 
+// ---------------------------------------------------------------------------
+// ZIP/BR Analysis — Step 5 (exported for AnalysisProgress, WorkspaceChat, etc.)
+// ---------------------------------------------------------------------------
+
+/** POST /api/workspaces/{workspace_id}/analysis — tạo/tái sử dụng AnalysisJob. */
+export function createAnalysis(
+  workspaceId: number,
+  payload: { zip_document_id: number; requirement_document_ids: number[] },
+) {
+  return api.post<{
+    analysis_job_id: number;
+    worker_job_id: string;
+    status: string;
+    idempotent_reused: boolean;
+    input_hash: string;
+  }>(`/api/workspaces/${workspaceId}/analysis`, payload);
+}
+
+/** GET /api/analysis/{job_id} — lấy trạng thái + progress. */
+export function getAnalysisStatus(jobId: number) {
+  return api.get<{
+    analysis_job_id: number;
+    workspace_id: number;
+    status: string;
+    current_step: string | null;
+    progress: number;
+    error: string | null;
+    framework: string | null;
+    selection_mode: string | null;
+    evidence_rows: number | null;
+    selected_files: number | null;
+    created_at: string;
+    started_at: string | null;
+    finished_at: string | null;
+  }>(`/api/analysis/${jobId}`);
+}
+
+/** GET /api/analysis/{job_id}/matches — lấy danh sách requirement match (Step 3 M2). */
+export function getAnalysisMatches(jobId: number) {
+  return api.get<{
+    analysis_job_id: number;
+    workspace_id: number;
+    status: string;
+    total: number;
+    matched: number;
+    partial: number;
+    not_found: number;
+    insufficient_evidence: number;
+    matches: Array<{
+      id: number;
+      requirement_code: string;
+      requirement_title: string;
+      status: string;
+      confidence: number;
+      evidence: Array<{
+        path: string;
+        symbol_name: string;
+        symbol_kind?: string;
+        line_start?: number;
+        line_end?: number;
+        snippet?: string;
+      }>;
+      missing_evidence: string[];
+      reason: string | null;
+      reason_provider: string | null;
+      reason_model: string | null;
+      reason_fallback: string | null;
+    }>;
+  }>(`/api/analysis/${jobId}/matches`);
+}
+
+/** POST /api/analysis/{job_id}/retry — chạy lại job. */
+export function retryAnalysis(jobId: number) {
+  return api.post<{
+    analysis_job_id: number;
+    worker_job_id: string;
+    status: string;
+  }>(`/api/analysis/${jobId}/retry`);
+}
+

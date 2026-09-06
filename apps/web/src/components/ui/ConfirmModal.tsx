@@ -2,6 +2,9 @@
 
 import React, { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { TrashIcon } from "@/components/icons/TrashIcon";
+import { RestoreIcon } from "@/components/icons/RestoreIcon";
+import { DeleteForeverIcon } from "@/components/icons/DeleteForeverIcon";
 
 export type ConfirmTone = "danger" | "warning" | "info";
 
@@ -107,7 +110,15 @@ export function ConfirmModal({
           <div
             className={`shrink-0 w-12 h-12 rounded-full ${styles.iconBg} flex items-center justify-center`}
           >
-            <span className={`material-icons text-[28px] ${styles.iconText}`}>{iconName}</span>
+            {iconName === "delete" ? (
+              <TrashIcon className={`w-7 h-7 ${styles.iconText}`} />
+            ) : iconName === "restore_from_trash" ? (
+              <RestoreIcon className={`w-7 h-7 ${styles.iconText}`} />
+            ) : iconName === "delete_forever" ? (
+              <DeleteForeverIcon className={`w-7 h-7 ${styles.iconText}`} />
+            ) : (
+              <span className={`text-[28px] ${styles.iconText}`}>⚠</span>
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <h2

@@ -4,10 +4,12 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { FileTree } from "@/components/features/assessment/FileTree";
 import { FilePreview } from "@/components/features/assessment/FilePreview";
 import WorkspaceChat from "@/components/features/workspace/WorkspaceChat";
+import ZipBrAnalysis from "@/components/features/workspace/ZipBrAnalysis";
 import { useCollapsedSidebar } from "@/hooks/useCollapsedSidebar";
 
 interface WorkspaceFile {
@@ -160,33 +162,69 @@ function DocPreview({ docId, filename }: { docId: number; filename: string }) {
   if (!content) return null;
 
   const isMd = filename.toLowerCase().endsWith(".md");
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  const icon: Record<string, string> = {
+    md: "📝", txt: "📄", pdf: "📕", docx: "📘", pptx: "📙", xlsx: "📗",
+    png: "🖼️", jpg: "🖼️", jpeg: "🖼️", gif: "🖼️", svg: "🖼️",
+  };
+  const headerBadge = isMd ? "MARKDOWN" : ext.toUpperCase();
+
+  const header = (
+    <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-zinc-800 bg-zinc-900/60 shrink-0">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="text-[16px] shrink-0">{icon[ext] ?? "📄"}</span>
+        <span className="text-[13px] font-semibold text-zinc-200 truncate" title={filename}>{filename}</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded shrink-0">
+          {headerBadge}
+        </span>
+      </div>
+      <a
+        href={`/api/documents/${docId}/download`}
+        target="_blank"
+        rel="noreferrer"
+        className="text-[12px] text-zinc-500 hover:text-teal-400 transition-colors shrink-0"
+        title="Tải xuống"
+      >
+        Tải xuống ↓
+      </a>
+    </div>
+  );
 
   if (content.type === "binary") {
     return (
-      <div className="flex-1 flex items-center justify-center bg-zinc-900 overflow-auto">
-        {filename.toLowerCase().endsWith(".pdf") ? (
-          <iframe src={content.text} className="w-full h-full" title={filename} />
-        ) : (
-          <img src={content.text} alt={filename} className="max-w-full max-h-full object-contain" />
-        )}
+      <div className="flex-1 flex flex-col min-h-0">
+        {header}
+        <div className="flex-1 flex items-center justify-center bg-zinc-900 overflow-auto">
+          {filename.toLowerCase().endsWith(".pdf") ? (
+            <iframe src={content.text} className="w-full h-full" title={filename} />
+          ) : (
+            <img src={content.text} alt={filename} className="max-w-full max-h-full object-contain" />
+          )}
+        </div>
       </div>
     );
   }
 
   if (isMd) {
     return (
-      <div className="flex-1 overflow-auto p-6">
-        <article className="prose prose-invert prose-sm max-w-none text-zinc-300 leading-relaxed">
-          <ReactMarkdown>{content.text}</ReactMarkdown>
-        </article>
+      <div className="flex-1 flex flex-col min-h-0">
+        {header}
+        <div className="flex-1 overflow-auto p-6 bg-zinc-950/30">
+          <article className="prose prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:text-zinc-100 prose-h1:text-[20px] prose-h1:mb-3 prose-h2:text-[16px] prose-h2:mt-5 prose-h2:mb-2 prose-h3:text-[14px] prose-h2:border-b prose-h2:border-zinc-800 prose-h2:pb-1.5 prose-p:text-zinc-300 prose-p:my-2 prose-strong:text-zinc-100 prose-a:text-teal-400 prose-blockquote:border-l-4 prose-blockquote:border-teal-500/40 prose-blockquote:bg-teal-500/5 prose-blockquote:px-3 prose-blockquote:py-1 prose-blockquote:not-italic prose-blockquote:text-zinc-400 prose-code:bg-zinc-800 prose-code:text-teal-300 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-800 prose-table:border-collapse prose-th:border prose-th:border-zinc-700 prose-th:bg-zinc-800/60 prose-th:px-3 prose-th:py-2 prose-th:text-left prose-td:border prose-td:border-zinc-800 prose-td:px-3 prose-td:py-2 prose-li:my-0.5 leading-relaxed">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content.text}</ReactMarkdown>
+          </article>
+        </div>
       </div>
     );
   }
 
   return (
-    <pre className="flex-1 overflow-auto p-4 text-[13px] leading-relaxed font-mono text-zinc-300 whitespace-pre">
-      {content.text}
-    </pre>
+    <div className="flex-1 flex flex-col min-h-0">
+      {header}
+      <pre className="flex-1 overflow-auto p-4 text-[13px] leading-relaxed font-mono text-zinc-300 whitespace-pre">
+        {content.text}
+      </pre>
+    </div>
   );
 }
 
@@ -456,7 +494,7 @@ export default function WorkspaceDetailPage() {
     }
   };
 
-  const askWorkspaceTopic = async () => {
+  const askWorkspaceTopic = async (focusTopic?: string) => {
     if (wsRunning) return;
     const token = getToken();
     if (!token) return;
@@ -464,13 +502,14 @@ export default function WorkspaceDetailPage() {
     setWsQError("");
     setWsStageText("Đang chuẩn bị tài liệu...");
     try {
+      const topic = focusTopic && focusTopic.trim() ? focusTopic : (ws?.name ?? "");
       const r = await fetch(`/api/workspaces/${wsId}/questions`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ topic: ws?.name ?? "" }),
+        body: JSON.stringify({ topic }),
       });
       if (!r.ok) throw new Error("Không tạo được yêu cầu sinh câu hỏi");
       const created = await r.json();
@@ -856,7 +895,7 @@ export default function WorkspaceDetailPage() {
                         </button>
                       ) : (
                         <button
-                          onClick={askWorkspaceTopic}
+                          onClick={() => askWorkspaceTopic()}
                           className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-[14px] font-semibold hover:bg-primary/90 whitespace-nowrap"
                         >
                           Sinh câu hỏi
@@ -988,11 +1027,34 @@ export default function WorkspaceDetailPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* ZIP/BR Analysis — đối chiếu bằng chứng triển khai với yêu cầu BR */}
+                  <ZipBrAnalysis
+                    workspaceId={wsId}
+                    documents={ws.files.map((f) => ({
+                      id: f.document_id,
+                      filename: f.filename,
+                      doc_type: f.doc_type,
+                      status: "completed",
+                    }))}
+                    onFocusWeakSpots={(topic) => {
+                      setRightTab("questions");
+                      void askWorkspaceTopic(topic);
+                    }}
+                  />
                 </div>
               )}
 
               {rightTab === "chat" && (
-                <WorkspaceChat workspaceId={wsId} />
+                <WorkspaceChat
+                  workspaceId={wsId}
+                  documents={ws.files.map((f) => ({
+                    id: f.document_id,
+                    filename: f.filename,
+                    doc_type: f.doc_type,
+                    status: "completed",
+                  }))}
+                />
               )}
 
               {rightTab === "history" && (

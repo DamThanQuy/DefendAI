@@ -5,6 +5,7 @@ import Link from "next/link";
 import { UploadModal } from "@/components/features/assessment/UploadModal";
 import { ArchiveBrowser } from "@/components/features/assessment/ArchiveBrowser";
 import { TrashIcon } from "@/components/icons/TrashIcon";
+import { PlusIcon } from "@/components/icons/PlusIcon";
 import { useAuth } from "@/hooks/useAuth";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
@@ -142,23 +143,39 @@ export default function DocumentsPage() {
     if (!doc) return;
     const token = getToken();
     if (!token) return;
-    setDeleteTarget(null);
     setDeletingId(doc.id);
     try {
       const r = await fetch(`/api/documents/${doc.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (r.status === 204) {
+        setDeleteTarget(null);
+        await fetchDocs();
+        return;
+      }
+      // Đọc message từ backend để hiển thị đúng nguyên nhân
+      let backendMsg = "";
+      try {
+        const data = await r.json();
+        backendMsg = data?.detail || "";
+      } catch {
+        // response không phải JSON, dùng status text
+      }
+      if (r.status === 400 && backendMsg.includes("thùng rác")) {
+        // File đã được xoá từ trước (double-click) — coi như thành công
+        setDeleteTarget(null);
+        await fetchDocs();
+        return;
+      }
       if (r.status === 409) {
         setError("Tài liệu đã có đánh giá hoàn thành, không thể xoá. Liên hệ mentor.");
-        return;
-      }
-      if (r.status === 403) {
+      } else if (r.status === 403) {
         setError("Bạn không có quyền xoá tài liệu này.");
-        return;
+      } else {
+        setError(backendMsg || `Xoá thất bại: HTTP ${r.status}`);
       }
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      await fetchDocs();
+      setDeleteTarget(null);
     } catch (e: any) {
       setError(`Xoá thất bại: ${e.message}`);
     } finally {
@@ -287,9 +304,10 @@ export default function DocumentsPage() {
                           )}
                           <button
                             onClick={() => openWsModal(doc)}
-                            className="px-3 py-1.5 text-[12px] font-semibold text-emerald-400 bg-emerald-500/10 rounded-lg hover:bg-emerald-500/20 transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-emerald-400 bg-emerald-500/10 rounded-lg hover:bg-emerald-500/20 transition-colors"
                           >
-                            ➕ Workspace
+                            <PlusIcon className="w-4 h-4" />
+                            Workspace
                           </button>
                           <a
                             href={`/api/documents/${doc.id}/download`}

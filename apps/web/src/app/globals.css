@@ -1,11 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,500,700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --font-material: 'Material Symbols Rounded', sans-serif;
+  /* Tách font Google Fonts (Material Symbols) ra khỏi global — bị chặn bởi ad-blocker.
+     Mọi icon dùng SVG component trong src/components/icons/* thay thế. */
 }
 
 .material-icons {

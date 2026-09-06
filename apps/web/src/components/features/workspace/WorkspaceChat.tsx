@@ -3,8 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
-import { PERSONAS } from "@/lib/constants";
 import { MarkdownMessage } from "./MarkdownMessage";
+
+export interface WorkspaceDocument {
+  id: number;
+  filename: string;
+  doc_type: string;
+  status: string;
+}
 
 export interface WorkspaceChatItem {
   id: number;
@@ -46,16 +52,19 @@ function sidebarStorageKey(): string {
  */
 export default function WorkspaceChat({
   workspaceId,
+  documents = [],
   defaultPersona = "theory",
 }: {
   workspaceId: number;
+  documents?: WorkspaceDocument[];
   defaultPersona?: string;
 }) {
   const [chatItems, setChatItems] = useState<WorkspaceChatItem[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState("");
   const [chatQuestion, setChatQuestion] = useState("");
-  const [chatPersona, setChatPersona] = useState(defaultPersona);
+  // Chat dùng một persona thống nhất; giữ giá trị backend cũ để tương thích API.
+  const chatPersona = "theory";
   const [chatRunning, setChatRunning] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const streamingIdRef = useRef<number | null>(null);
@@ -75,6 +84,9 @@ export default function WorkspaceChat({
   // Hiển thị cả tin failed (mặc định ẩn để history sạch)
   const [showFailed, setShowFailed] = useState(false);
   const [cleaningHistory, setCleaningHistory] = useState(false);
+
+  // ── ZIP/BR Analysis state moved to ZipBrAnalysis component (mounted in page.tsx
+  //    dưới panel "Luyện phản biện"). ──────────────────────────────────────
 
   // Xoá các tin failed/processing cũ (stale > 5 phút) khỏi DB
   const cleanFailedChats = async () => {
@@ -105,6 +117,8 @@ export default function WorkspaceChat({
       setCleaningHistory(false);
     }
   };
+
+  // ── ZIP/BR Analysis handlers moved to ZipBrAnalysis component ───────────
 
   // Ước lượng context token của đoạn đang mở (char/4 ≈ token) so với trần ~12k.
   const CONTEXT_MAX = 12000;
@@ -468,6 +482,7 @@ export default function WorkspaceChat({
     <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden flex flex-col h-[calc(100vh-260px)] min-h-[480px]">
       <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center justify-between gap-2 sticky top-0 z-20">
         <span className="text-[13px] font-bold text-zinc-200">Chat đề tài (toàn workspace)</span>
+
         <div className="flex items-center gap-3">
           {/* Circular progress: ước lượng context token của đoạn đang mở */}
           <div className="flex items-center gap-2" title={`Context: ~${contextTokens} / ${CONTEXT_MAX} tokens`}>
@@ -484,15 +499,6 @@ export default function WorkspaceChat({
             <span className="text-[11px] text-zinc-400 tabular-nums">{contextPct}%</span>
           </div>
           <div className="flex items-center gap-2">
-          <select
-            value={chatPersona}
-            onChange={(e) => setChatPersona(e.target.value)}
-            className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 focus:outline-none focus:border-primary"
-          >
-            {PERSONAS.map((p) => (
-              <option key={p.key} value={p.key}>{p.label}</option>
-            ))}
-          </select>
           <button
             onClick={() => {
               const next = !showFailed;

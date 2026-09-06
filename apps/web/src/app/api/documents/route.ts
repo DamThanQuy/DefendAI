@@ -16,11 +16,18 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const qs = url.search || '';
 
-    const res = await fetch(`${API_URL}/api/documents/${qs}`, { headers });
+    const res = await fetch(`${API_URL}/api/documents/${qs}`, {
+      headers,
+      redirect: 'follow',
+      cache: 'no-store',
+    });
     const data = await res.text();
     return new Response(data, {
       status: res.status,
-      headers: { 'content-type': res.headers.get('content-type') || 'application/json' },
+      headers: {
+        'content-type': res.headers.get('content-type') || 'application/json',
+        'cache-control': 'no-store, must-revalidate',
+      },
     });
   } catch (error: any) {
     return NextResponse.json(
