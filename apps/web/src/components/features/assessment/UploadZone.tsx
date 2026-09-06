@@ -1,7 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { MAX_FILE_SIZE } from "@/lib/constants";
+import { ChunkedUploader } from "@/lib/chunked-upload";
+
+// File nhỏ dùng FormData upload truyền thống (nhanh, ít overhead).
+// File >= ngưỡng này chuyển sang chunked (S3 Multipart) để bypass giới hạn 1MB của Next.js BFF.
+const CHUNKED_THRESHOLD = 4 * 1024 * 1024; // 4 MB
 
 type Props = {
   onFileSelected?: (file: File) => void;
@@ -29,6 +34,45 @@ export function UploadZone({
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  // Tốc độ upload (MB/s) + ETA — tính từ lịch sử onProgress
+  const [speed, setSpeed] = useState(0); // bytes/sec
+  const [eta, setEta] = useState<number | null>(null); // seconds remaining
+  const lastSampleRef = useRef<{ ts: number; loaded: number } | null>(null);
+  const speedSamplesRef = useRef<number[]>([]);
+
+  const updateProgress = (loaded: number, total: number) => {
+    const now = Date.now();
+    const last = lastSampleRef.current;
+    if (last && now > last.ts) {
+      const dtSec = (now - last.ts) / 1000;
+      const dBytes = loaded - last.loaded;
+      if (dtSec > 0 && dBytes >= 0) {
+        const instSpeed = dBytes / dtSec; // bytes/sec
+        // EMA để mượt: alpha 0.4
+        const samples = speedSamplesRef.current;
+        samples.push(instSpeed);
+        if (samples.length > 5) samples.shift();
+        const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
+        setSpeed(avg);
+        const remaining = Math.max(0, total - loaded);
+        setEta(avg > 0 ? remaining / avg : null);
+      }
+    }
+    lastSampleRef.current = { ts: now, loaded };
+    const pct = Math.round((loaded / total) * 100);
+    setProgress(pct);
+    setStatusText(
+      `Đang tải tài liệu lên... ${(loaded / 1024 / 1024).toFixed(1)}/${(total / 1024 / 1024).toFixed(1)} MB`,
+    );
+  };
+
+  const resetProgressTracking = () => {
+    lastSampleRef.current = null;
+    speedSamplesRef.current = [];
+    setSpeed(0);
+    setEta(null);
+    setProgress(0);
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -73,42 +117,90 @@ export function UploadZone({
       onFileSelected(file);
     }
 
-    // Bước "Tải lên": upload mọi loại file (PDF/DOCX/PPTX/ZIP/RAR) như tài liệu
-    setStatusText("Đang tải tài liệu lên...");
+    setStatusText(
+      file.size >= CHUNKED_THRESHOLD
+        ? "Đang tải tài liệu lên (chunked)..."
+        : "Đang tải tài liệu lên...",
+    );
     setIsProcessing(true);
+    resetProgressTracking();
 
     const ac = new AbortController();
     setAbortController(ac);
+    let uploader: ChunkedUploader | null = null;
 
     try {
       const token = localStorage.getItem("access_token");
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/documents/upload", {
-        method: "POST",
-        body: formData,
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        signal: ac.signal,
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        setUploaded(true);
+      if (file.size >= CHUNKED_THRESHOLD) {
+        // File lớn → dùng chunked (S3 Multipart) qua MinIO presigned URLs
+        uploader = new ChunkedUploader(file, {
+          concurrency: 3,
+          signal: ac.signal,
+          onProgress: (uploaded, total) => {
+            updateProgress(uploaded, total);
+          },
+        });
+        const result = await uploader.start();
+        if (result?.document_id) {
+          setUploaded(true);
+        } else {
+          setError("Tải lên thất bại: không nhận được document_id");
+        }
       } else {
-        const msg = data.error || data.detail?.detail || data.message || "Tải lên thất bại";
-        setError(msg);
+        // File nhỏ → FormData truyền thống (nhanh, ít overhead).
+        // Dùng XMLHttpRequest thay vì fetch để có progress event (fetch không expose upload progress).
+        await new Promise<void>((resolve, reject) => {
+          const formData = new FormData();
+          formData.append("file", file);
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/documents/upload");
+          if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) updateProgress(e.loaded, e.total);
+          };
+          xhr.onload = () => {
+            try {
+              const data = JSON.parse(xhr.responseText || "{}");
+              if (xhr.status >= 200 && xhr.status < 300 && data.success) {
+                setUploaded(true);
+                resolve();
+              } else {
+                const msg =
+                  data.error || data.detail?.detail || data.message || `HTTP ${xhr.status}`;
+                setError(msg);
+                reject(new Error(msg));
+              }
+            } catch (e) {
+              setError("Phản hồi từ server không hợp lệ");
+              reject(e);
+            }
+          };
+          xhr.onerror = () => {
+            setError("Không thể kết nối đến máy chủ");
+            reject(new Error("network"));
+          };
+          ac.signal.addEventListener("abort", () => xhr.abort());
+          xhr.send(formData);
+        });
       }
     } catch (error: any) {
-      if (error?.name === "AbortError") { handleCancel(); return; }
+      if (error?.name === "AbortError") {
+        // Hủy thì cleanup parts trên MinIO (nếu chunked)
+        if (uploader) await uploader.abort();
+        handleCancel();
+        return;
+      }
       console.error(error);
-      setError("Không thể kết nối đến máy chủ phân tích");
+      setError(
+        error?.message ?? "Không thể kết nối đến máy chủ phân tích",
+      );
     } finally {
       setIsProcessing(false);
       setAbortController(null);
     }
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (abortController) {
       abortController.abort();
       setAbortController(null);
@@ -119,6 +211,10 @@ export function UploadZone({
     setProgress(0);
     setStatusText("");
     setError("");
+    setSpeed(0);
+    setEta(null);
+    speedSamplesRef.current = [];
+    lastSampleRef.current = null;
   };
 
   return (
@@ -275,6 +371,16 @@ export function UploadZone({
             />
           </div>
           <p className="text-xs text-muted-foreground mt-2 font-medium">{progress}%</p>
+          {speed > 0 && (
+            <p className="text-[12px] text-muted-foreground mt-1 tabular-nums">
+              {(speed / 1024 / 1024).toFixed(2)} MB/s
+              {eta !== null && eta > 0 && (
+                <span className="ml-2">
+                  · còn ~{eta < 60 ? `${Math.ceil(eta)}s` : `${Math.ceil(eta / 60)}m ${Math.ceil(eta % 60)}s`}
+                </span>
+              )}
+            </p>
+          )}
           <button
             onClick={handleCancel}
             className="mt-6 px-6 py-2 text-sm font-medium text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-400 rounded-full transition-all"

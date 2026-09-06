@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 interface Question {
   id: number;
   question: string;
@@ -14,11 +16,27 @@ interface Question {
 
 interface WorkspaceSourceItem {
   num: number;
-  source: string;
+  kind: "reference" | "user_upload";
   title: string;
+  display_title: string;
+  doc_type: string;
+  is_markdown: boolean;
   chunk_index?: number;
   content?: string;
 }
+
+// Icon map theo `doc_type` (BE trả về). Icon là presentation logic, FE tự chịu.
+const DOC_TYPE_ICON: Record<string, string> = {
+  markdown: "📝",
+  txt: "📄",
+  pdf: "📕",
+  docx: "📘",
+  pptx: "📙",
+  xlsx: "📗",
+  zip: "🗜️",
+  image: "🖼️",
+  other: "📄",
+};
 
 interface WorkspaceQuestionDetail {
   id: number;
@@ -174,22 +192,48 @@ export default function WqDetailPage() {
         )}
 
         {data.sources && data.sources.length > 0 && (
-          <details className="mt-5 bg-card border border-border/60 rounded-2xl">
-            <summary className="cursor-pointer px-5 py-3 text-[13px] font-bold text-foreground select-none">📚 Nguồn tham khảo ({data.sources.length})</summary>
-            <div className="px-5 pb-5 flex flex-col gap-2">
-              {data.sources.map((s) => (
-                <div key={s.num} className="text-[13px]">
-                  <div className="flex items-start gap-2">
-                    <span className="inline-flex items-center justify-center w-[17px] h-[17px] rounded-full bg-muted text-foreground text-[10px] font-bold leading-none shrink-0 mt-0.5">{s.num}</span>
-                    <div>
-                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${s.source === "ref" ? "bg-purple-500/15 text-purple-300" : "bg-muted text-muted-foreground"}`}>{s.source === "ref" ? "REF" : "USER"}</span>
-                      <span className="ml-2 font-semibold text-foreground">{s.title}</span>
-                      {typeof s.chunk_index === "number" && <span className="text-muted-foreground"> — đoạn {s.chunk_index}</span>}
+          <details className="mt-5 bg-card border border-border/60 rounded-2xl overflow-hidden" open>
+            <summary className="cursor-pointer px-5 py-3 text-[13px] font-bold text-foreground select-none flex items-center gap-2">
+              <span>📚</span>
+              <span>Nguồn tham khảo ({data.sources.length})</span>
+              <span className="text-[11px] font-normal text-muted-foreground ml-1">— đoạn trích dùng để sinh câu hỏi</span>
+            </summary>
+            <div className="px-5 pb-5 flex flex-col gap-3 border-t border-border/40 pt-3">
+              {data.sources.map((s) => {
+                const isMd = s.is_markdown;
+                const isRef = s.kind === "reference";
+                return (
+                  <div key={s.num} className="text-[13px] bg-background/40 border border-border/40 rounded-xl overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/40 bg-zinc-900/40">
+                      <span className="inline-flex items-center justify-center w-[22px] h-[22px] rounded-full bg-teal-500/15 text-teal-300 text-[11px] font-bold leading-none shrink-0">{s.num}</span>
+                      <span className="text-[14px] shrink-0">{DOC_TYPE_ICON[s.doc_type] ?? "📄"}</span>
+                      <span className="font-semibold text-foreground truncate" title={s.display_title}>{s.display_title}</span>
+                      <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${isRef ? "bg-purple-500/15 text-purple-300" : "bg-muted text-muted-foreground"}`}>
+                        {isRef ? "REF" : "USER"}
+                      </span>
+                      {s.chunk_index !== undefined && s.chunk_index !== null && (
+                        <span className="text-[11px] text-muted-foreground shrink-0">— đoạn {s.chunk_index}</span>
+                      )}
+                      {isMd && (
+                        <span className="ml-auto shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-teal-500/10 text-teal-400">
+                          MARKDOWN
+                        </span>
+                      )}
                     </div>
+                    {s.content && (
+                      <div className="px-4 py-3">
+                        {isMd ? (
+                          <article className="prose prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:text-zinc-100 prose-h1:text-[16px] prose-h1:mb-2 prose-h2:text-[14px] prose-h2:mt-3 prose-h2:mb-1.5 prose-h2:border-b prose-h2:border-zinc-800 prose-h2:pb-1 prose-h3:text-[13px] prose-p:text-zinc-300 prose-p:my-1.5 prose-strong:text-zinc-100 prose-a:text-teal-400 prose-blockquote:border-l-2 prose-blockquote:border-teal-500/40 prose-blockquote:bg-teal-500/5 prose-blockquote:px-2 prose-blockquote:py-0.5 prose-blockquote:not-italic prose-blockquote:text-zinc-400 prose-code:bg-zinc-800 prose-code:text-teal-300 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-800 prose-table:border-collapse prose-th:border prose-th:border-zinc-700 prose-th:bg-zinc-800/60 prose-th:px-2 prose-th:py-1 prose-th:text-left prose-td:border prose-td:border-zinc-800 prose-td:px-2 prose-td:py-1 prose-li:my-0 text-[12.5px] leading-relaxed">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{s.content}</ReactMarkdown>
+                          </article>
+                        ) : (
+                          <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap text-[12.5px]">{s.content}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  {s.content && <p className="pl-[25px] text-muted-foreground leading-relaxed mt-1">{s.content}</p>}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </details>
         )}

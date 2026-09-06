@@ -4,6 +4,15 @@
 > Quyết định `377/QĐ-ĐHFPT` (04/09/2026). Scoring scale: 10. **MinAvgMarkToPass: 5**.
 > Dùng làm rubric chuẩn cho DefendAI (admin upload → `/admin` → Tài liệu chuẩn, category `rubric`).
 
+## 0. Nhãn độ tin cậy nguồn (quy ước áp dụng cho toàn file)
+
+| Nhãn | Ý nghĩa | Áp dụng |
+|---|---|---|
+| ✅ **Confirmed** | Khớp ≥2 nguồn độc lập (syllabus + PDF SEP490 W1–W5) | §1–§6 (trọng số OGA/TDA, rule trượt/hoãn, thang 10, pass 5) |
+| 🟡 **1 nguồn** | Mới có NotebookLM/kinh nghiệm, chưa thấy trong văn bản chính thức | Cap 80% bảo vệ lại lần 2; quy trình 3 vòng bảo vệ; buổi 90' = 45+45 → đưa vào config `/admin`, mặc định tắt chờ GV xác nhận |
+| 🔍 **Cần xác minh** | Chưa lấy được toàn văn | Assessment Matrix chi tiết per report (CMS folder id=150581, cần login FPT) — có sẽ nạp thêm `rubric_item` con, không đổi schema |
+| 📝 **Kinh nghiệm** | Không có trong syllabus, từ người chấm thực tế | §8 |
+
 ## 1. Thông tin chung
 
 | Trường | Giá trị |
@@ -110,7 +119,7 @@ Tổng = **OGA 50%** + **TDA 50%**
 | CLO6 | Presentation Skills + Q&A |
 | CLO7 | Thái độ (điểm danh ≥80%, không gian lận) |
 
-## 8. Tiêu chí đánh giá thực tế (từ người đã chấm đồ án)
+## 8. Tiêu chí đánh giá thực tế (từ người đã chấm đồ án) 📝 Kinh nghiệm
 
 > Nguồn: kinh nghiệm người chấm đồ án tốt nghiệp thực tế (không có trong syllabus chính thức).
 > Dùng bổ sung để AI đánh giá **chất lượng thực sự** của đồ án, không chỉ đối chiếu tài liệu.

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { ChevronRight } from "lucide-react";
 
 interface Member {
   path: string;
@@ -112,9 +113,12 @@ export function FileTree({
             <div key={full}>
               <button
                 onClick={() => toggleDir(full)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 text-[13px] text-muted-foreground hover:bg-muted/60 rounded-md text-left"
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-[13px] text-zinc-400 hover:bg-zinc-800/60 rounded-md text-left"
               >
-                <span className={`text-[10px] text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`}>▶</span>
+                <ChevronRight
+                  className={`w-3.5 h-3.5 text-zinc-500 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
+                  strokeWidth={2.5}
+                />
                 <span>📁</span>
                 <span className="font-medium truncate">{name}</span>
                 {ds && ds.count > 0 && (
@@ -123,7 +127,7 @@ export function FileTree({
                   </span>
                 )}
               </button>
-              {isOpen && <div className="ml-4 border-l border-border pl-1">{renderNode(child, full)}</div>}
+              {isOpen && <div className="ml-4 border-l border-zinc-800 pl-1">{renderNode(child, full)}</div>}
             </div>
           );
         })}
@@ -136,7 +140,7 @@ export function FileTree({
               key={f.path}
               onClick={() => onSelect(f.path)}
               className={`w-full flex items-center gap-2 px-2 py-1.5 text-[13px] rounded-md text-left ${
-                isActive ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-muted-foreground hover:bg-muted/60"
+                isActive ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-zinc-400 hover:bg-zinc-800/60"
               }`}
             >
               <span>{fileIcon(f.path)}</span>
@@ -146,7 +150,7 @@ export function FileTree({
                   {fs.count}
                 </span>
               ) : (
-                <span className="text-[10px] text-muted-foreground shrink-0">{formatSize(f.size)}</span>
+                <span className="text-[10px] text-zinc-500 shrink-0">{formatSize(f.size)}</span>
               )}
             </button>
           );

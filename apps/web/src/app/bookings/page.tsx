@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import {
   Booking,
   createBooking,
@@ -51,6 +52,7 @@ export default function BookingsPage() {
   const [proposedTime, setProposedTime] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<number | null>(null);
 
   // Lịch rảnh của mentor đang chọn
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
@@ -140,8 +142,14 @@ export default function BookingsPage() {
     }
   }
 
-  async function handleCancel(id: number) {
-    if (!confirm("Huỷ yêu cầu đặt lịch này?")) return;
+  async function handleCancelClick(id: number) {
+    setCancelTarget(id);
+  }
+
+  async function confirmCancel() {
+    const id = cancelTarget;
+    if (id == null) return;
+    setCancelTarget(null);
     try {
       await cancelBooking(id);
       await load();
@@ -348,7 +356,7 @@ export default function BookingsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleCancel(b.id)}
+                      onClick={() => handleCancelClick(b.id)}
                       className="rounded-full border-border text-foreground"
                     >
                       Huỷ
@@ -360,6 +368,18 @@ export default function BookingsPage() {
           })}
         </div>
       )}
+
+      <ConfirmModal
+        open={cancelTarget !== null}
+        tone="warning"
+        icon="cancel"
+        title="Huỷ yêu cầu đặt lịch này?"
+        description="Yêu cầu của bạn sẽ bị huỷ và không thể khôi phục."
+        confirmLabel="Huỷ đặt lịch"
+        cancelLabel="Giữ lại"
+        onCancel={() => setCancelTarget(null)}
+        onConfirm={confirmCancel}
+      />
     </div>
   );
 }
