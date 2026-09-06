@@ -13,6 +13,7 @@ Endpoints:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -335,14 +336,27 @@ async def check_workspace_deliverables(
     ]
 
     classifications: dict[int, FileClassification] = {}
-    try:
-        classifications = await classify_files(layer2_files, deliverables)
-    except Exception as exc:
-        logger.warning(
-            "Layer 2 classify failed for workspace %s: %s — fallback to Layer 1 only",
-            workspace_id,
-            exc,
-        )
+    # Archive files can be very large and extracting them for AI classification
+    # can exhaust the API process. Presence/type checking above is sufficient
+    # for archives; only send text-oriented documents to the optional AI layer.
+    ai_files = [
+        f for f in layer2_files
+        if str(f.get("filename", "")).lower().endswith((".pdf", ".docx", ".pptx"))
+    ]
+    if ai_files:
+        try:
+            # AI provider có thể mất nhiều phút (read timeout mặc định 600s).
+            # Endpoint phải trả kết quả presence nhanh khi provider chậm/lỗi.
+            classifications = await asyncio.wait_for(
+                classify_files(ai_files, deliverables),
+                timeout=10.0,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Layer 2 classify failed for workspace %s: %s — fallback to Layer 1 only",
+                workspace_id,
+                exc,
+            )
 
     # Build map: deliverable_code -> first FileClassification assigned
     code_to_cls: dict[str, FileClassification] = {}

@@ -25,8 +25,6 @@ class DocumentResponse(BaseModel):
     content_hash: Optional[str] = None
     uploaded_by: Optional[int] = None
     created_at: datetime
-    deleted_at: Optional[datetime] = None
-    deleted_by: Optional[int] = None
 
     class Config:
         from_attributes = True

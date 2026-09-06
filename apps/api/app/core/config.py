@@ -88,6 +88,27 @@ class MinioConfig(BaseSettings):
 
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore", env_prefix="MINIO_", env_file=ENV_FILE, env_file_encoding="utf-8")
 
+class ArchiveAnalysisConfig(BaseSettings):
+    """Config cho ZIP/BR analysis pipeline (Step 2)."""
+    temp_dir: str = "/var/lib/defendai/analysis-tmp"
+    max_archive_bytes: int = 20 * 1024 * 1024 * 1024
+    max_expanded_bytes: int = 100 * 1024 * 1024 * 1024
+    max_entries: int = 100_000
+    max_entry_bytes: int = 50 * 1024 * 1024
+    max_compression_ratio: float = 1_000.0
+    max_nested_archive_depth: int = 1
+    timeout_seconds: int = 600
+
+    model_config = SettingsConfigDict(case_sensitive=False, extra="ignore", env_prefix="ARCHIVE_ANALYSIS_", env_file=ENV_FILE, env_file_encoding="utf-8")
+
+class AnalysisStorageConfig(BaseSettings):
+    """Config cho storage lifecycle của analysis jobs."""
+    temp_dir: str = "/var/lib/defendai/analysis-tmp"
+    min_free_disk_bytes: int = 500 * 1024 * 1024
+    cleanup_stale_seconds: int = 3600
+
+    model_config = SettingsConfigDict(case_sensitive=False, extra="ignore", env_prefix="ANALYSIS_STORAGE_", env_file=ENV_FILE, env_file_encoding="utf-8")
+
 class RAGConfig(BaseSettings):
     """Config cho RAG retrieval (R5) — đổi qua .env, không cần sửa code."""
     top_k: int = 8
@@ -138,6 +159,8 @@ class Settings(BaseSettings):
     minio: Optional[MinioConfig] = None
     rag: Optional[RAGConfig] = None
     google_embed: Optional[GoogleEmbedConfig] = None
+    archive_analysis: Optional[ArchiveAnalysisConfig] = None
+    analysis_storage: Optional[AnalysisStorageConfig] = None
 
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore", env_file=ENV_FILE, env_file_encoding="utf-8")
 
@@ -149,6 +172,8 @@ class Settings(BaseSettings):
         self.minio = MinioConfig()
         self.rag = RAGConfig()
         self.google_embed = GoogleEmbedConfig()
+        self.archive_analysis = ArchiveAnalysisConfig()
+        self.analysis_storage = AnalysisStorageConfig()
 
 # Singleton instance
 settings = Settings()

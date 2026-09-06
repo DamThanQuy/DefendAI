@@ -31,6 +31,7 @@ from app.routers import use_cases as use_cases_router
 from app.routers import defects as defects_router
 from app.routers import mock_qa as mock_qa_router
 from app.routers import signaling as signaling_router
+from app.routers import analysis as analysis_router
 # Khởi tạo AI gateway ngay khi import (sẽ log providers nào đã ready)
 from app.services.ai_client import ai_gateway
 
@@ -96,6 +97,8 @@ app.include_router(defects_router.router)
 app.include_router(mock_qa_router.router)
 # WebRTC signaling (voice chat + screen share) cho Mock Room
 app.include_router(signaling_router.router)
+# ZIP / BR consistency analysis (Step 2+)
+app.include_router(analysis_router.router)
 
 @app.on_event("startup")
 async def _ensure_storage() -> None:

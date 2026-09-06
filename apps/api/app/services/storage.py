@@ -87,21 +87,13 @@ def _client_kwargs() -> dict:
 
     aioboto3 ≥ 13 ưu tiên nhận credentials/region trong `client()` thay vì `Session()`.
     Nếu truyền ở Session() mà client() tự khởi tạo lại credentials chain → NoCredentialsError.
-
-    Note: bắt buộc `addressing_style='path'` cho MinIO vì mặc định boto3 dùng
-    `virtual` (host-style bucket) → presigned URL sẽ trả SignatureDoesNotMatch.
     """
-    from botocore.config import Config
     cfg = settings.minio
     return {
         "endpoint_url": cfg.endpoint,
         "aws_access_key_id": cfg.access_key_id,
         "aws_secret_access_key": cfg.secret_access_key,
         "region_name": cfg.region,
-        "config": Config(
-            signature_version="s3v4",
-            s3={"addressing_style": "path"},
-        ),
     }
 
 
@@ -160,25 +152,17 @@ async def get(bucket: str, key: str) -> bytes:
 
 
 async def get_range(bucket: str, key: str, start: int, end: int) -> bytes:
-    """GET một vùng byte [start, end] (inclusive) từ MinIO bằng Range header.
-
-    Dùng để verify integrity sau multipart complete mà KHÔNG tải toàn bộ
-    object (file có thể vài GB). MinIO/S3 hỗ trợ `Range: bytes=start-end`.
+    """GET một phần (byte range) của object từ MinIO bucket.
 
     Args:
-        bucket: MinIO bucket.
-        key: object key.
-        start: byte offset bắt đầu (0-based, inclusive).
-        end: byte offset kết thúc (0-based, inclusive).
+        bucket: tên bucket
+        key: object key
+        start: byte offset bắt đầu (inclusive)
+        end: byte offset kết thúc (inclusive)
 
     Returns:
-        bytes — payload trong khoảng [start, end].
-
-    Raises:
-        ClientError nếu object không tồn tại hoặc range không hợp lệ.
+        Raw bytes của range được yêu cầu.
     """
-    if end < start:
-        raise ValueError(f"end ({end}) phải >= start ({start})")
     session = _get_session()
     async with session.client("s3", **_client_kwargs()) as s3:
         resp = await s3.get_object(
@@ -187,10 +171,7 @@ async def get_range(bucket: str, key: str, start: int, end: int) -> bytes:
             Range=f"bytes={start}-{end}",
         )
         data = await resp["Body"].read()
-    logger.debug(
-        "Range GET %s/%s [%d-%d] -> %d bytes",
-        bucket, key, start, end, len(data),
-    )
+    logger.debug("Downloaded range %d-%d of %s/%s (%s bytes)", start, end, bucket, key, len(data))
     return data
 
 

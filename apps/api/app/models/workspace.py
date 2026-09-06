@@ -39,6 +39,27 @@ class Workspace(Base):
         cascade="all, delete-orphan",
     )
 
+    # Chats (R7: Hội thoại multi-turn)
+    chats = relationship(
+        "WorkspaceChat",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+    )
+
+    # Conversations (tên tuỳ chỉnh cho đoạn chat)
+    conversations = relationship(
+        "WorkspaceConversation",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+    )
+
+    # ZIP / BR consistency analysis jobs (Step 2+)
+    analysis_jobs = relationship(
+        "AnalysisJob",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+    )
+
 
 class WorkspaceFile(Base):
     __tablename__ = "workspace_files"

@@ -317,7 +317,10 @@ async def extract_text(document) -> ParseResult:
 
     # Markdown / plain text: decode directly, no vision needed.
     if storage_key.lower().endswith(".md"):
-        text = data.decode("utf-8", errors="replace").strip()
+        # Normalize CRLF/CR → LF so chunk_text() (split on "\n\n") sees real paragraph
+        # breaks. Without this, files saved with Windows line endings collapse to one
+        # giant paragraph and chunks end up as a single line of text.
+        text = data.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n").strip()
         if len(text) < MIN_TEXT_LENGTH_WARN:
             logger.warning("Extracted text is suspiciously short (%s chars) from %s", len(text), storage_key)
         return ParseResult(text=text, diagrams=[])

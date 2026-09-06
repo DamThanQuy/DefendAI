@@ -45,6 +45,14 @@ from app.models.message import Message  # noqa: F401
 from app.models.workspace import Workspace, WorkspaceFile  # noqa: F401
 from app.models.workspace_question import WorkspaceQuestion  # noqa: F401
 from app.models.workspace_chat import WorkspaceChat  # noqa: F401
+from app.models.analysis_job import (  # noqa: F401
+    AnalysisJob,
+    AnalysisStatus,
+    MatchStatus,
+    ProjectEvidence,
+    ProjectManifest,
+    RequirementMatch,
+)
 
 __all__ = [
     "User",
@@ -89,4 +97,10 @@ __all__ = [
     "Message",
     "WorkspaceQuestion",
     "WorkspaceChat",
+    "AnalysisJob",
+    "AnalysisStatus",
+    "MatchStatus",
+    "ProjectEvidence",
+    "ProjectManifest",
+    "RequirementMatch",
 ]

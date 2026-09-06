@@ -160,6 +160,7 @@ services:
     volumes:
       - ./apps/api:/app
       - /app/__pycache__
+      - analysis_tmp:/var/lib/defendai/analysis-tmp
     depends_on:
       db:
         condition: service_healthy
@@ -195,6 +196,7 @@ services:
     volumes:
       - ./apps/api:/app
       - /app/__pycache__
+      - analysis_tmp:/var/lib/defendai/analysis-tmp
     depends_on:
       db:
         condition: service_healthy
@@ -238,6 +240,8 @@ volumes:
     name: defense_minio_data
   redis_data:
     name: defense_redis_data
+  analysis_tmp:
+    name: defense_analysis_tmp
 
 # ========================================================================
 # Networks
