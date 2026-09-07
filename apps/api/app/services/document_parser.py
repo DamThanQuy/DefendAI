@@ -36,8 +36,9 @@ from app.services.vision_read import ImagePart, ReadResult
 from app.services.figure_inventory import FigureInventory, build_figure_inventory, load_media_bytes
 
 from app.models.document import DocType, Document
-from app.services.storage import get_doc
+from app.services.storage import get_doc, iter_zip_members
 from app.services.vision_read import read_file as vision_read_file
+from app.core.config import settings
 
 try:
     import rarfile
@@ -239,16 +240,75 @@ def _extract_member_text(raw: bytes, name: str, ext: str) -> str:
     return ""
 
 
-def _extract_archive(src) -> str:
+async def _extract_archive(src) -> str:
     """Nhận ZIP hoặc RAR, tự detect theo magic bytes và dispatch."""
     data = src if isinstance(src, bytes) else src.read()
     if data[:8].startswith(b"Rar!\x1a\x07"):
-        return _extract_rar(data)
-    return _extract_zip(data)
+        return await asyncio.to_thread(_extract_rar, data)
+    return await asyncio.to_thread(_extract_zip_sync, data)
+
+
+def _extract_zip_sync(data: bytes) -> str:
+    """Sync implementation of ZIP extraction (runs in thread)."""
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as archive:
+            infos = [i for i in archive.infolist() if not i.is_dir()]
+            if len(infos) > MAX_ARCHIVE_MEMBERS:
+                raise DocumentParserError(
+                    f"ZIP chứa quá nhiều file ({len(infos)} > {MAX_ARCHIVE_MEMBERS})"
+                )
+            parts: List[str] = []
+            total = 0
+            for info in infos:
+                name = info.filename
+                ext = name.split(".")[-1].lower() if "." in name else ""
+                ext = f".{ext}"
+                total += info.file_size
+                if total > MAX_ARCHIVE_TOTAL_TEXT:
+                    break
+                try:
+                    raw = archive.read(info)
+                except Exception:
+                    continue
+                text = _extract_member_text(raw, name, ext)
+                if text:
+                    parts.append(f"### {name}\n{text}")
+            return "\n\n".join(parts).strip()
+    except zipfile.BadZipFile as exc:
+        raise DocumentParserError("File ZIP bị lỗi hoặc không thể giải nén") from exc
+
+
+async def _extract_zip_streaming(storage_key: str) -> str:
+    """Stream-extract text from a ZIP stored in MinIO without loading it all into RAM.
+
+    This avoids the OOM path that occurs when a large ZIP is downloaded in full
+    via `get_doc()` and then parsed in-memory. Instead, it uses `iter_zip_members`
+    to stream members one-by-one from MinIO.
+    """
+    parts: List[str] = []
+    total = 0
+    try:
+        async for name, raw in iter_zip_members(
+            bucket=settings.minio.bucket,
+            key=storage_key,
+        ):
+            ext = name.split(".")[-1].lower() if "." in name else ""
+            ext = f".{ext}"
+            total += len(raw)
+            if total > MAX_ARCHIVE_TOTAL_TEXT:
+                break
+            text = _extract_member_text(raw, name, ext)
+            if text:
+                parts.append(f"### {name}\n{text}")
+        return "\n\n".join(parts).strip()
+    except zipfile.BadZipFile as exc:
+        raise DocumentParserError("File ZIP bị lỗi hoặc không thể giải nén") from exc
+    except Exception as exc:
+        logger.exception("Stream ZIP extraction failed for %s", storage_key)
+        raise DocumentParserError(f"Extract failed for {storage_key}: {exc}") from exc
 
 
 def _extract_xlsx(src) -> str:
-    """Trích xuất text từ XLSX (openpyxl nếu có, không thì bỏ qua)."""
     try:
         from openpyxl import load_workbook
         wb = load_workbook(BytesIO(src.read()) if isinstance(src, BytesIO) else src, read_only=True, data_only=True)
@@ -308,6 +368,18 @@ async def extract_text(document) -> ParseResult:
     storage_key = document.storage_key
     if not storage_key:
         raise DocumentParserError(f"Document {document.id} has no storage key")
+
+    # ZIP: stream members from MinIO without loading the whole archive into RAM.
+    # This avoids OOM-killing the worker on multi-GB submissions.
+    if document.doc_type == DocType.ZIP:
+        text = await _extract_zip_streaming(storage_key)
+        if len(text) < MIN_TEXT_LENGTH_WARN:
+            logger.warning(
+                "Extracted text is suspiciously short (%s chars) from %s "
+                "(file có thể là scan, ảnh, hoặc rỗng).",
+                len(text), storage_key,
+            )
+        return ParseResult(text=text, diagrams=[])
 
     try:
         data = await get_doc(storage_key)
