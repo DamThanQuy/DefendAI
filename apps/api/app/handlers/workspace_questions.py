@@ -5,6 +5,7 @@ Luồng: load row → index-on-demand các file chưa có chunk → retrieve top
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, List
 
@@ -42,7 +43,7 @@ logger = logging.getLogger(__name__)
 _VALID_DIFFICULTIES = ("easy", "medium", "hard")
 
 
-async def _ensure_indexed(workspace_id: int, force: bool = False) -> None:
+async def _ensure_indexed(workspace_id: int, force: bool = False, job_id: str | None = None) -> None:
     """Index-on-demand: parse + embed các file trong workspace chưa có document_chunks.
 
     Tự re-index file đã index bằng pipeline cũ (trước figure-inventory): bản cũ
@@ -52,7 +53,9 @@ async def _ensure_indexed(workspace_id: int, force: bool = False) -> None:
 
     Args:
         force: nếu True, re-index tất cả file dù đã có chunks.
+        job_id: job ID for logging context.
     """
+    logger.info("Job %s: _ensure_indexed entered for workspace %s", job_id, workspace_id)
     async with async_session_maker() as db:
         result = await db.execute(
             select(WorkspaceFile.document_id).where(WorkspaceFile.workspace_id == workspace_id)
@@ -86,6 +89,7 @@ async def _ensure_indexed(workspace_id: int, force: bool = False) -> None:
             missing = list(dict.fromkeys(missing))  # dedup giữ thứ tự
 
         docs: List[Document] = []
+        skipped: List[int] = []
         if missing:
             # R9 harden: bỏ qua tài liệu chuẩn (staff_reference) — chúng chỉ đi
             # vào reference_chunks, không bao giờ được index vào document_chunks
@@ -96,15 +100,29 @@ async def _ensure_indexed(workspace_id: int, force: bool = False) -> None:
                 )
             )
             docs = r4.scalars().all()
+            skipped = [d for d in missing if d not in {doc.id for doc in docs}]
+            if skipped:
+                logger.info(
+                    "Skipped indexing for staff_reference docs: %s", skipped
+                )
 
+    logger.info("Job %s: _ensure_indexed finished for workspace %s", job_id, workspace_id)
     for doc in docs:
         try:
-            chunks, diagrams, diagram_infos = await parse_and_chunk_full(doc)
+            logger.info("Job %s: indexing doc %s (%s)", job_id, doc.id, doc.filename)
+            chunks, diagrams, diagram_infos = await asyncio.wait_for(
+                parse_and_chunk_full(doc), timeout=300
+            )
+            logger.info("Job %s: parsed doc %s (%s chunks)", job_id, doc.id, len(chunks))
             if chunks:
                 await index_chunks(doc, chunks, diagrams, diagram_infos=diagram_infos)
-                logger.info("Index on-demand doc %s (%s chunks)", doc.id, len(chunks))
+                logger.info("Job %s: indexed doc %s (%s chunks)", job_id, doc.id, len(chunks))
+            else:
+                logger.warning("Job %s: doc %s produced 0 chunks", job_id, doc.id)
+        except asyncio.TimeoutError:
+            logger.warning("Job %s: index-on-demand timed out for doc %s", job_id, doc.id)
         except Exception as exc:  # best-effort từng doc, không chặn cả job
-            logger.warning("Index-on-demand failed for doc %s: %s", doc.id, exc)
+            logger.warning("Job %s: index-on-demand failed for doc %s: %s", job_id, doc.id, exc)
 
 
 def _format_context(item: dict) -> str:
@@ -194,12 +212,18 @@ async def handle_workspace_questions(params: dict) -> dict:
         await update_job(job_id, progress="10")
 
     try:
-        await _ensure_indexed(workspace_id)
+        logger.info("Job %s: starting _ensure_indexed for workspace %s", job_id, workspace_id)
+        await _ensure_indexed(workspace_id, job_id=job_id)
+        logger.info("Job %s: finished _ensure_indexed for workspace %s", job_id, workspace_id)
         if job_id:
             await update_job(job_id, progress="50")
 
+        logger.info("Job %s: starting retrieve_mixed for workspace %s", job_id, workspace_id)
         # R10: 2 query song song — user chunks + reference chunks (cùng 1 embed)
         user_results, ref_results = await retrieve_mixed(topic, workspace_id)
+        logger.info("Job %s: retrieve_mixed returned %d user results, %d ref results", job_id, len(user_results), len(ref_results))
+        if job_id:
+            await update_job(job_id, progress="60")
 
         # min_score (R5) quá cao / topic xa → fallback lấy toàn bộ user chunks đạt ngưỡng 0
         saved_min = settings.rag.min_score

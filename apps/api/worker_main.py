@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # Import handlers để đăng ký trước khi worker loop chạy
 # noqa: F401 — imported for side-effect (handler registration)
@@ -28,9 +31,32 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+HEALTH_PORT = int(os.getenv("WORKER_HEALTH_PORT", "9091"))
+
+
+class _HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:  # noqa: N802
+        if self.path in ("/health", "/"):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"ok")
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, *args) -> None:  # silence default stderr logging
+        pass
+
+
+def _run_health_server() -> None:
+    server = ThreadingHTTPServer(("0.0.0.0", HEALTH_PORT), _HealthHandler)
+    server.serve_forever()
+
 
 async def main() -> None:
     logger.info("DefendAI Worker starting...")
+    threading.Thread(target=_run_health_server, daemon=True).start()
     await worker_loop()
 
 

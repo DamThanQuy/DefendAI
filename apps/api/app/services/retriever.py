@@ -346,7 +346,7 @@ async def retrieve(
     Raises:
         RuntimeError/httpx.HTTPStatusError: nếu embed câu hỏi thất bại.
     """
-    q_vec = (await embed([query]))[0]
+    q_vec = (await embed([query], input_type="query"))[0]
     limit = top_k or settings.rag.top_k
 
     # Vector search (semantic)
@@ -500,7 +500,7 @@ async def retrieve_reference(
     Raises:
         RuntimeError/httpx.HTTPStatusError: nếu embed câu hỏi thất bại.
     """
-    q_vec = (await embed([query]))[0]
+    q_vec = (await embed([query], input_type="query"))[0]
     limit = top_k or settings.rag.ref_top_k
 
     async with async_session_maker() as db:
@@ -544,7 +544,7 @@ async def retrieve_mixed(
     Raises:
         RuntimeError/httpx.HTTPStatusError: nếu embed câu hỏi thất bại.
     """
-    q_lit = _vector_literal((await embed([query]))[0])
+    q_lit = _vector_literal((await embed([query], input_type="query"))[0])
     user_limit = top_k or settings.rag.top_k
     ref_limit = settings.rag.ref_top_k
 
@@ -557,7 +557,7 @@ async def retrieve_mixed(
             result = await db.execute(
                 _REF_KNN_SQL,
                 {
-                    "q": _vector_literal((await embed([query]))[0]),
+                    "q": _vector_literal((await embed([query], input_type="query"))[0]),
                     "min_score": settings.rag.ref_min_score,
                     "top_k": ref_limit,
                 },
