@@ -21,6 +21,7 @@ Tham khảo:
     python-docx:  https://python-docx.readthedocs.io
     python-pptx:  https://python-pptx.readthedocs.io
 """
+import asyncio
 from io import BytesIO
 
 import logging
