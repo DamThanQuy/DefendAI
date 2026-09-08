@@ -58,8 +58,26 @@ class GoogleEmbedConfig(BaseSettings):
     model: str = ""
     base_url: str = "https://generativelanguage.googleapis.com/v1beta/models"
     dim: int = 1024
-    
+
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore", env_prefix="GOOGLE_EMBED_", env_file=ENV_FILE, env_file_encoding="utf-8")
+
+class NVIDIAEmbedConfig(BaseSettings):
+    """Config NVIDIA NIM embedding (OpenAI-compatible /v1/embeddings).
+
+    Dùng làm fallback khi Google embed 429: nếu NVIDIA_EMBED_API_KEY có giá trị,
+    embedder ưu tiên NVIDIA thay vì Google. Model trả 2048-dim, embedder tự slice
+    về dim (1024) + L2-normalize lại (matryoshka, theo model card).
+
+    `model` nên là model VLM (llama-nemotron-embed-vl) để nhận cả chunk chứa ảnh;
+    `text_model` là model text-only dùng làm fallback cuối khi model chính từ chối
+    input (ảnh lỗi, 503 VLM serving).
+    """
+    api_key: str = ""
+    model: str = "nvidia/nemotron-3-embed-1b"
+    text_model: str = "nvidia/nemotron-3-embed-1b"
+    base_url: str = "https://integrate.api.nvidia.com/v1"
+
+    model_config = SettingsConfigDict(case_sensitive=False, extra="ignore", env_prefix="NVIDIA_EMBED_", env_file=ENV_FILE, env_file_encoding="utf-8")
 
 class LocalGatewayConfig(BaseSettings):
     """Config cho Local Gateway (OpenAI-compatible, chạy tại localhost:20128).
@@ -159,6 +177,7 @@ class Settings(BaseSettings):
     minio: Optional[MinioConfig] = None
     rag: Optional[RAGConfig] = None
     google_embed: Optional[GoogleEmbedConfig] = None
+    nvidia_embed: Optional[NVIDIAEmbedConfig] = None
     archive_analysis: Optional[ArchiveAnalysisConfig] = None
     analysis_storage: Optional[AnalysisStorageConfig] = None
 
@@ -172,6 +191,7 @@ class Settings(BaseSettings):
         self.minio = MinioConfig()
         self.rag = RAGConfig()
         self.google_embed = GoogleEmbedConfig()
+        self.nvidia_embed = NVIDIAEmbedConfig()
         self.archive_analysis = ArchiveAnalysisConfig()
         self.analysis_storage = AnalysisStorageConfig()
 

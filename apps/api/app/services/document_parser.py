@@ -151,6 +151,10 @@ NESTED_ARCHIVE_EXTENSIONS = {".zip", ".rar"}
 MAX_ARCHIVE_MEMBERS = 500
 MAX_ARCHIVE_TOTAL_TEXT = 200 * 1024 * 1024  # 200MB text tổng
 
+# Giới hạn chunk embed từ ZIP để tránh 429 rate limit (free tier ~100 req/phút)
+# 500 chunks ÷ 32 batch = ~16 request — an toàn trong 1 lần chạy
+MAX_ZIP_EMBED_CHUNKS = 500
+
 
 def _extract_zip(src) -> str:
     """Trích xuất text từ ZIP: đọc mọi file text/code/office bên trong rồi ghép lại.

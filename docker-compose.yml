@@ -157,6 +157,12 @@ services:
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
       REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      EMBED_BATCH_SIZE: "4"
+      EMBED_REQUEST_DELAY: "5"
+      NVIDIA_EMBED_API_KEY: ${NVIDIA_EMBED_API_KEY:-}
+      NVIDIA_EMBED_MODEL: ${NVIDIA_EMBED_MODEL:-nvidia/llama-nemotron-embed-vl-1b-v2}
+      NVIDIA_EMBED_TEXT_MODEL: ${NVIDIA_EMBED_TEXT_MODEL:-nvidia/nemotron-3-embed-1b}
+      NVIDIA_EMBED_BASE_URL: ${NVIDIA_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
     volumes:
       - ./apps/api:/app
       - /app/__pycache__
@@ -195,6 +201,12 @@ services:
       LOCAL_BASE_URL: ${LOCAL_BASE_URL:-https://apihub.agnes-ai.com/v1}
       LOCAL_API_KEY: ${LOCAL_API_KEY:-sk-x4yIzIz3M26SDmJLrPsjbXSwDUxL8HMrVehmAdrOVWSnqqsX}
       WORKER_PROCESSES: 4
+      EMBED_BATCH_SIZE: "4"
+      EMBED_REQUEST_DELAY: "5"
+      NVIDIA_EMBED_API_KEY: ${NVIDIA_EMBED_API_KEY:-}
+      NVIDIA_EMBED_MODEL: ${NVIDIA_EMBED_MODEL:-nvidia/llama-nemotron-embed-vl-1b-v2}
+      NVIDIA_EMBED_TEXT_MODEL: ${NVIDIA_EMBED_TEXT_MODEL:-nvidia/nemotron-3-embed-1b}
+      NVIDIA_EMBED_BASE_URL: ${NVIDIA_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
