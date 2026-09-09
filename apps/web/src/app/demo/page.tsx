@@ -48,23 +48,22 @@ const mockQuestions = [
   {
     id: 3,
     diff: "easy",
-    q: "Thiếu null-check tại analyzer.ts:12 có nguy hiểm không?",
-    hint: "Phân tích hậu quả khi dữ liệu null xuất hiện và cách phòng ngừa bằng optional chaining.",
+    q: "BR-03 về hoàn 100% học phí — vì sao hệ thống chưa cài đặt rule này?",
+    hint: "Giải thích gap giữa thiết kế trong tài liệu và triển khai thực tế, kèm kế hoạch hoàn thiện.",
   },
 ];
 
-const mockFileTree = [
-  { name: "main.py", count: 2 },
-  { name: "utils/db.py", count: 5 },
-  { name: "app/routes.py", count: 0 },
-  { name: "models/user.py", count: 3 },
+const mockBrResults = [
+  { id: "BR-01", rule: "Sinh viên chỉ đăng ký tối đa 21 tín chỉ mỗi kỳ", status: "implemented", evidence: "course_registration.py:88" },
+  { id: "BR-02", rule: "Môn tiên quyết phải hoàn thành trước khi đăng ký", status: "partial", evidence: "prereq_check.py:34" },
+  { id: "BR-03", rule: "Hủy lớp trong 2 tuần đầu được hoàn 100% học phí", status: "not_found", evidence: "—" },
 ];
 
-const mockIssues = [
-  { sev: "critical", type: "NullPointer", line: 12, file: "main.py", desc: "Có thể truy cập thuộc tính trên None" },
-  { sev: "medium", type: "N+1 Query", line: 41, file: "utils/db.py", desc: "Truy vấn lặp trong vòng lặp — chậm khi dữ liệu lớn" },
-  { sev: "low", type: "Magic Number", line: 7, file: "utils/db.py", desc: "Sử dụng hằng số ẩn, nên đặt tên rõ ràng" },
-];
+const brStatusCfg: Record<string, { label: string; bg: string; txt: string }> = {
+  implemented: { label: "ĐÃ CÀI ĐẶT", bg: "bg-green-500/10", txt: "text-green-400" },
+  partial: { label: "CÀI ĐẶT MỘT PHẦN", bg: "bg-orange-500/10", txt: "text-orange-400" },
+  not_found: { label: "KHÔNG TÌM THẤY", bg: "bg-red-500/10", txt: "text-red-400" },
+};
 
 /** Khung thẻ mockup UI. */
 function WindowFrame({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -148,51 +147,42 @@ export default function DemoPage() {
           </WindowFrame>
         </div>
 
-        {/* 2. Code Review + Câu hỏi AI — 2 cột */}
+        {/* 2. Phân tích BR ↔ Code + Câu hỏi AI — 2 cột */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-20">
-          {/* Code Review */}
+          {/* Phân tích BR ↔ Code */}
           <div>
             <h3 className="text-xl font-bold flex items-center gap-2 mb-6">
-              <FileSearch className="w-5 h-5 text-primary" /> Code Review AI
+              <FileSearch className="w-5 h-5 text-primary" /> Phân tích BR ↔ Code
             </h3>
             <WindowFrame>
               <div className="p-5">
                 {/* Stats */}
-                <div className="grid grid-cols-1 gap-3 mb-5">
+                <div className="grid grid-cols-3 gap-3 mb-5">
                   <div className="bg-muted/40 rounded-xl p-4 border border-border/60">
-                    <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Lỗi nghiêm trọng</div>
-                    <div className="text-[24px] font-bold text-red-400 mt-1">3</div>
+                    <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Đã cài đặt</div>
+                    <div className="text-[24px] font-bold text-green-400 mt-1">1</div>
+                  </div>
+                  <div className="bg-muted/40 rounded-xl p-4 border border-border/60">
+                    <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Một phần</div>
+                    <div className="text-[24px] font-bold text-orange-400 mt-1">1</div>
+                  </div>
+                  <div className="bg-muted/40 rounded-xl p-4 border border-border/60">
+                    <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Không thấy</div>
+                    <div className="text-[24px] font-bold text-red-400 mt-1">1</div>
                   </div>
                 </div>
 
-                {/* File tree */}
-                <div className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Files</div>
-                <div className="mb-5">
-                  {mockFileTree.map((f) => (
-                    <div key={f.name} className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] text-muted-foreground">
-                      <span className="text-[12px]">{f.name.endsWith(".py") ? "🐍" : "📁"}</span>
-                      <span className="truncate flex-1">{f.name}</span>
-                      {f.count > 0 && (
-                        <span className="text-[10px] font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                          {f.count}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Issues */}
-                <div className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Lỗi tìm thấy</div>
+                {/* BR list */}
+                <div className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Business Rules</div>
                 <div className="space-y-2">
-                  {mockIssues.map((i, idx) => {
-                    const c = i.sev === "critical" ? "bg-red-500/10 text-red-400" : i.sev === "medium" ? "bg-orange-500/10 text-orange-400" : "bg-green-500/10 text-green-400";
-                    const l = i.sev === "critical" ? "CRITICAL" : i.sev === "medium" ? "WARNING" : "OPTIMIZATION";
+                  {mockBrResults.map((r) => {
+                    const c = brStatusCfg[r.status];
                     return (
-                      <div key={idx} className="bg-card/40 rounded-lg px-3 py-2.5 border border-border/60 flex items-start gap-2">
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mt-0.5 shrink-0 ${c}`}>{l}</span>
+                      <div key={r.id} className="bg-card/40 rounded-lg px-3 py-2.5 border border-border/60 flex items-start gap-2">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mt-0.5 shrink-0 ${c.bg} ${c.txt}`}>{c.label}</span>
                         <div className="min-w-0">
-                          <p className="text-[12px] text-foreground font-medium truncate">{i.type} — {i.file}:{i.line}</p>
-                          <p className="text-[11px] text-muted-foreground truncate">{i.desc}</p>
+                          <p className="text-[12px] text-foreground font-medium truncate">{r.id} — {r.rule}</p>
+                          <p className="text-[11px] text-muted-foreground truncate">Evidence: {r.evidence}</p>
                         </div>
                       </div>
                     );

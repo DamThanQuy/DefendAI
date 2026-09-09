@@ -14,7 +14,6 @@ const navLinks: { href: string; label: string; roles?: string[]; public?: boolea
   { href: "/demo", label: "Xem demo", public: true },
   { href: "/documents", label: "Tài liệu" },
   { href: "/workspaces", label: "Workspace" },
-  { href: "/code-review", label: "Code Review" },
   { href: "/mock-room", label: "Mock Room" },
   { href: "/report", label: "Báo cáo" },
   { href: "/admin/overview", label: "Quản trị", roles: ["admin"] },

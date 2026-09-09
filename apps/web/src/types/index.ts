@@ -122,3 +122,21 @@ export interface AnalysisRetryResponse {
   worker_job_id: string;
   status: string;
 }
+
+export interface AnalysisJobListItem {
+  analysis_job_id: number;
+  status: string;
+  zip_document_id: number;
+  zip_filename: string | null;
+  created_at: string;
+  finished_at: string | null;
+  matched: number;
+  partial: number;
+  not_found: number;
+}
+
+export interface AnalysisJobListResponse {
+  workspace_id: number;
+  total: number;
+  jobs: AnalysisJobListItem[];
+}

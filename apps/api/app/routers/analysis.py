@@ -20,7 +20,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -137,6 +137,24 @@ class AnalysisRetryResponse(BaseModel):
     analysis_job_id: int
     worker_job_id: str
     status: str
+
+
+class AnalysisJobListItem(BaseModel):
+    analysis_job_id: int
+    status: str
+    zip_document_id: int
+    zip_filename: str | None = None
+    created_at: datetime
+    finished_at: datetime | None = None
+    matched: int = 0
+    partial: int = 0
+    not_found: int = 0
+
+
+class AnalysisJobListResponse(BaseModel):
+    workspace_id: int
+    total: int
+    jobs: list[AnalysisJobListItem] = []
 
 
 # ──────────────────────────────────────────────────────────── helpers ──
@@ -414,6 +432,67 @@ async def get_analysis_matches(
     )
 
 
+@router.get(
+    "/workspaces/{workspace_id}/analyses",
+    response_model=AnalysisJobListResponse,
+    summary="Lịch sử các lần phân tích BR của workspace (mới nhất trước).",
+)
+async def list_workspace_analyses(
+    workspace_id: int,
+    limit: int = 20,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AnalysisJobListResponse:
+    await _owned_workspace_or_404(db, workspace_id, user)
+    rows = (
+        await db.execute(
+            select(AnalysisJob, Document.filename)
+            .join(Document, Document.id == AnalysisJob.zip_document_id)
+            .where(
+                AnalysisJob.workspace_id == workspace_id,
+                AnalysisJob.user_id == user.id,
+            )
+            .order_by(AnalysisJob.created_at.desc())
+            .limit(max(1, min(limit, 50)))
+        )
+    ).all()
+
+    job_ids = [job.id for job, _ in rows]
+    counts: dict[int, dict[str, int]] = {}
+    if job_ids:
+        count_rows = await db.execute(
+            select(
+                RequirementMatch.analysis_job_id,
+                RequirementMatch.status,
+                func.count(RequirementMatch.id),
+            )
+            .where(RequirementMatch.analysis_job_id.in_(job_ids))
+            .group_by(
+                RequirementMatch.analysis_job_id, RequirementMatch.status
+            )
+        )
+        for job_id, status, count in count_rows.all():
+            counts.setdefault(job_id, {})[status.value] = count
+
+    items = [
+        AnalysisJobListItem(
+            analysis_job_id=job.id,
+            status=job.status.value,
+            zip_document_id=job.zip_document_id,
+            zip_filename=filename,
+            created_at=job.created_at,
+            finished_at=job.finished_at,
+            matched=counts.get(job.id, {}).get("matched", 0),
+            partial=counts.get(job.id, {}).get("partial", 0),
+            not_found=counts.get(job.id, {}).get("not_found", 0),
+        )
+        for job, filename in rows
+    ]
+    return AnalysisJobListResponse(
+        workspace_id=workspace_id, total=len(items), jobs=items
+    )
+
+
 @router.post(
     "/analysis/{job_id}/retry",
     response_model=AnalysisRetryResponse,
@@ -484,6 +563,7 @@ __all__ = [
     "create_analysis",
     "get_analysis_status",
     "get_analysis_results",
+    "list_workspace_analyses",
     "retry_analysis",
     "_hash_input",
     "_compute_requirements_hash",

@@ -53,8 +53,8 @@ const STEPS = [
 const FEATURES = [
   {
     icon: Code2,
-    title: "Phân tích code chuyên sâu",
-    desc: "Tự động review code, phát hiện bug, anti-pattern và đề xuất cải thiện theo chuẩn ngành.",
+    title: "Phân tích BR ↔ Code",
+    desc: "Đối chiếu Business Rules trong tài liệu với source code thực tế, phát hiện requirement chưa được cài đặt.",
   },
   {
     icon: GitBranch,
@@ -323,10 +323,10 @@ export default function LandingPage() {
                 <div className="dark-card p-5">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="w-2 h-2 rounded-full bg-accent" />
-                    <p className="text-sm font-semibold text-accent">Code Review</p>
+                    <p className="text-sm font-semibold text-accent">Đồng bộ BR ↔ Code</p>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Thiếu null-check tại analyzer.ts:12 — có thể gây crash runtime.
+                    BR-07 "chặn vượt 21 tín chỉ" — chưa tìm thấy validation trong code.
                   </p>
                 </div>
               </div>

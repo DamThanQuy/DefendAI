@@ -17,7 +17,6 @@ export function Footer() {
   const resources = [
     { href: "/documents", label: "Tài liệu" },
     { href: "/workspaces", label: "Workspace" },
-    { href: "/code-review", label: "Code Review" },
     { href: "/mock-room", label: "Mock Room" },
   ];
   const company = [
