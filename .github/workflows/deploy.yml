@@ -1,0 +1,38 @@
+name: Deploy DefendAI
+
+on:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, Windows, X64, defendai]
+
+    steps:
+      - name: Deploy latest master
+        shell: powershell
+        run: |
+          Set-Location F:\DefendAI
+
+          git fetch origin master
+          git reset --hard origin/master
+
+          docker compose up -d --build --remove-orphans
+          docker compose ps
+
+      - name: Check API health
+        shell: powershell
+        run: |
+          $response = Invoke-WebRequest `
+            -Uri "http://localhost:8000/health" `
+            -UseBasicParsing `
+            -TimeoutSec 30
+
+          if ($response.StatusCode -ne 200) {
+            throw "API health check failed: HTTP $($response.StatusCode)"
+          }
