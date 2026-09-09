@@ -76,6 +76,7 @@ export interface AnalysisStatusOut {
   framework: string | null;
   selection_mode: string | null;
   evidence_rows: number | null;
+  evidence_rows_total: number | null;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;

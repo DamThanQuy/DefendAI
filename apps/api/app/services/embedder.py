@@ -15,6 +15,7 @@ import math
 import os
 import re
 import time
+from collections.abc import Awaitable, Callable
 
 import httpx
 
@@ -29,7 +30,7 @@ EMBEDDING_MODEL = settings.google_embed.model or "gemini-embedding-001"
 if "flash" in EMBEDDING_MODEL or "pro" in EMBEDDING_MODEL or "lite" in EMBEDDING_MODEL:
     EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIM = settings.google_embed.dim
-BATCH_SIZE = int(os.getenv("EMBED_BATCH_SIZE", "32"))
+BATCH_SIZE = int(os.getenv("EMBED_BATCH_SIZE", "64"))
 _TIMEOUT = httpx.Timeout(60.0)
 # Retry cho 429 (rate limit) / 5xx — re-index 100+ chunks dễ chạm quota free tier.
 _MAX_RETRIES = 5
@@ -86,7 +87,11 @@ def _nvidia_err(resp: httpx.Response) -> str:
 
 
 async def _embed_nvidia(
-    texts: list[str], batch_size: int, request_delay: float, input_type: str = "passage"
+    texts: list[str],
+    batch_size: int,
+    request_delay: float,
+    input_type: str = "passage",
+    on_progress: Callable[[int, int], Awaitable[None]] | None = None,
 ) -> list[list[float]]:
     """Embed qua NVIDIA NIM (OpenAI-compatible /v1/embeddings).
 
@@ -166,11 +171,19 @@ async def _embed_nvidia(
             # giữa các batch trừ batch cuối (rate limit 40 RPM).
             if request_delay > 0 and i < last_index:
                 await asyncio.sleep(request_delay)
+            if on_progress is not None:
+                try:
+                    await on_progress(min(i + batch_size, len(safe_texts)), len(safe_texts))
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("embed on_progress callback failed: %s", exc)
     return vectors
 
 
 async def embed(
-    texts: list[str], batch_size: int = BATCH_SIZE, input_type: str = "passage"
+    texts: list[str],
+    batch_size: int = BATCH_SIZE,
+    input_type: str = "passage",
+    on_progress: Callable[[int, int], Awaitable[None]] | None = None,
 ) -> list[list[float]]:
     """Embed danh sách text → list vector (mỗi vector EMBEDDING_DIM phần tử, L2-normalized).
 
@@ -179,6 +192,8 @@ async def embed(
         batch_size: số text gửi mỗi request batch.
         input_type: "passage" cho chunks (index), "query" cho câu truy vấn retrieval
             (chỉ NVIDIA dùng param này; Google bỏ qua).
+        on_progress: callback async (done_texts, total_texts) gọi sau mỗi batch —
+            cho phép caller cập nhật progress job thay vì đứng yên giữa chừng.
 
     Returns:
         list[list[float]] — vector đã chuẩn hóa. Trả [] nếu `texts` rỗng.
@@ -192,7 +207,7 @@ async def embed(
     vectors: list[list[float]] = []
     request_delay = float(os.getenv("EMBED_REQUEST_DELAY", "1.5"))  # delay between batches
     if settings.nvidia_embed.api_key:
-        return await _embed_nvidia(texts, batch_size, request_delay, input_type)
+        return await _embed_nvidia(texts, batch_size, request_delay, input_type, on_progress)
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         # Batch qua batchEmbedContents (mỗi request cần field model)
         for i in range(0, len(texts), batch_size):
@@ -226,4 +241,9 @@ async def embed(
             # Rate-limit: delay between batches to avoid 429
             if request_delay > 0 and i + batch_size < len(texts):
                 await asyncio.sleep(request_delay)
+            if on_progress is not None:
+                try:
+                    await on_progress(min(i + batch_size, len(texts)), len(texts))
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("embed on_progress callback failed: %s", exc)
     return vectors

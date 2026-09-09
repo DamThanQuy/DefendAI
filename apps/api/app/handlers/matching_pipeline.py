@@ -46,7 +46,7 @@ from app.services.requirement_extractor import (
     extract_requirements_from_text,
     stable_requirement_hash,
 )
-from app.services.job_queue import register_handler
+from app.services.job_queue import create_job, register_handler
 from app.services.storage import get as minio_get
 
 logger = logging.getLogger(__name__)
@@ -215,6 +215,16 @@ async def _run_matching(
         },
         finished=True,
     )
+
+    # Step 4 (A1) — chain AI explanation AFTER matches are persisted. Running
+    # it from analysis_pipeline raced with matching: the explanation handler
+    # saw zero matches and skipped silently.
+    try:
+        await create_job("explanation_pipeline", {"analysis_job_id": analysis.id})
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Cannot enqueue explanation_pipeline for %s: %s", analysis.id, exc,
+        )
 
     return {
         "analysis_job_id": analysis.id,

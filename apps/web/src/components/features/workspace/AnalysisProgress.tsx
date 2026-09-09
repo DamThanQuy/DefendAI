@@ -9,15 +9,23 @@ const POLL_INTERVAL_MS = 2000;
 const STEP_LABELS: Record<string, string> = {
   extracting: "Đang giải nén ZIP",
   indexing: "Đang phân tích source code",
+  embedding: "Đang tạo vector embedding",
   matching: "Đang đối chiếu requirement…",
   explaining: "Đang phân tích bằng chứng…",
 };
 
 const STEPS = ["extracting", "indexing", "matching", "explaining"] as const;
 
+const STEP_DOT_LABELS: Record<string, string> = {
+  extracting: "Giải nén",
+  indexing: "Quét mã nguồn",
+  matching: "Đối chiếu",
+  explaining: "AI phân tích",
+};
+
 interface AnalysisProgressProps {
   jobId: number;
-  onComplete: (matches: RequirementMatchesResponse) => void;
+  onComplete: (matches: RequirementMatchesResponse, status: AnalysisStatusOut) => void;
   onError: (error: string) => void;
 }
 
@@ -25,6 +33,7 @@ function stepIndex(current: string | null): number {
   if (!current) return -1;
   if (current.includes("explaining")) return 3;
   if (current.includes("matching")) return 2;
+  if (current.includes("embedding")) return 1;
   if (current.includes("indexing")) return 1;
   if (current.includes("extracting")) return 0;
   return -1;
@@ -48,7 +57,7 @@ export function AnalysisProgress({ jobId, onComplete, onError }: AnalysisProgres
         stopPolling();
         // Fetch matches
         const { data: matches } = await getAnalysisMatches(jobId);
-        if (mountedRef.current) onComplete(matches);
+        if (mountedRef.current) onComplete(matches, data);
         return;
       }
       if (data.status === "failed" || data.status === "rejected" || data.status === "timeout") {
@@ -85,6 +94,10 @@ export function AnalysisProgress({ jobId, onComplete, onError }: AnalysisProgres
   const currentLabel = status?.current_step
     ? (STEP_LABELS[status.current_step.split(":")[0]] ?? status.current_step)
     : "Đang khởi tạo…";
+  // "embedding:12/20" → " (12/20)" hiển thị kèm label để user thấy tiến độ thật.
+  const stepDetail = status?.current_step?.includes(":")
+    ? status.current_step.split(":")[1]
+    : null;
 
   return (
     <div className="flex flex-col gap-4 w-full">
@@ -122,7 +135,7 @@ export function AnalysisProgress({ jobId, onComplete, onError }: AnalysisProgres
                   ${isDone ? "text-green-500" : isActive ? "text-teal-400" : "text-muted-foreground"}
                 `}
               >
-                {step.charAt(0).toUpperCase() + step.slice(1)}
+                {STEP_DOT_LABELS[step] ?? step}
               </span>
               {/* Connector */}
               {idx < STEPS.length - 1 && (
@@ -136,7 +149,10 @@ export function AnalysisProgress({ jobId, onComplete, onError }: AnalysisProgres
       </div>
 
       {/* Current step text */}
-      <p className="text-sm text-muted-foreground text-center">{currentLabel}</p>
+      <p className="text-sm text-muted-foreground text-center">
+        {currentLabel}
+        {stepDetail && <span className="text-teal-400 font-medium"> ({stepDetail})</span>}
+      </p>
     </div>
   );
 }

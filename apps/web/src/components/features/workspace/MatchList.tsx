@@ -9,10 +9,10 @@ interface MatchListProps {
 }
 
 const STATUS_CONFIG: Record<MatchStatus, { label: string; badge: string; color: string }> = {
-  matched: { label: "Matched", badge: "bg-green-500/10 text-green-400 border-green-500/30", color: "text-green-400" },
-  partial: { label: "Partial", badge: "bg-amber-500/10 text-amber-400 border-amber-500/30", color: "text-amber-400" },
-  not_found: { label: "Not Found", badge: "bg-red-500/10 text-red-400 border-red-500/30", color: "text-red-400" },
-  insufficient_evidence: { label: "Insufficient", badge: "bg-muted/30 text-muted-foreground border-border", color: "text-muted-foreground" },
+  matched: { label: "Khớp đầy đủ", badge: "bg-green-500/10 text-green-400 border-green-500/30", color: "text-green-400" },
+  partial: { label: "Khớp một phần", badge: "bg-amber-500/10 text-amber-400 border-amber-500/30", color: "text-amber-400" },
+  not_found: { label: "Không tìm thấy", badge: "bg-red-500/10 text-red-400 border-red-500/30", color: "text-red-400" },
+  insufficient_evidence: { label: "Thiếu bằng chứng", badge: "bg-muted/30 text-muted-foreground border-border", color: "text-muted-foreground" },
 };
 
 const FILTERS = ["all", "matched", "partial", "not_found", "insufficient_evidence"] as const;
@@ -42,7 +42,7 @@ export function MatchList({ matches }: MatchListProps) {
   return (
     <div className="flex flex-col gap-4">
       {/* Filter bar */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap justify-center gap-2">
         {FILTERS.map((f) => {
           const count = f === "all" ? matches.length : matches.filter((m) => m.status === f).length;
           return (
@@ -57,7 +57,7 @@ export function MatchList({ matches }: MatchListProps) {
                 }
               `}
             >
-              {f === "all" ? "All" : f === "insufficient_evidence" ? "Insufficient" : f === "not_found" ? "Not Found" : f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === "all" ? "Tất cả" : f === "insufficient_evidence" ? "Thiếu bằng chứng" : f === "not_found" ? "Không tìm thấy" : f === "matched" ? "Khớp đầy đủ" : "Khớp một phần"}
               <span className="ml-1.5 opacity-60">{count}</span>
             </button>
           );
@@ -103,12 +103,12 @@ export function MatchList({ matches }: MatchListProps) {
                     {/* AI badge */}
                     {isAiReviewed ? (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/30">
-                        🤖 AI-reviewed
-                        {isFallback ? " (fallback)" : ""}
+                        🤖 AI đã đánh giá
+                        {isFallback ? " (dự phòng)" : ""}
                       </span>
                     ) : (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-muted/50 text-muted-foreground border border-border">
-                        ⚙️ Heuristic only
+                        ⚙️ Chỉ heuristic
                       </span>
                     )}
                     {/* Model tooltip on hover */}

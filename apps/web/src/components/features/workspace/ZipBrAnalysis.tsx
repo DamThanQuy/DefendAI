@@ -5,7 +5,7 @@ import { AnalysisProgress } from "./AnalysisProgress";
 import { AnalysisSummary } from "./AnalysisSummary";
 import { MatchList } from "./MatchList";
 import { createAnalysis, retryAnalysis } from "@/lib/api";
-import type { RequirementMatchesResponse } from "@/types";
+import type { AnalysisStatusOut, RequirementMatchesResponse } from "@/types";
 
 export interface ZipBrDocument {
   id: number;
@@ -40,6 +40,7 @@ export default function ZipBrAnalysis({
   const [analysisMatches, setAnalysisMatches] = useState<RequirementMatchesResponse | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatusOut | null>(null);
 
   const startAnalysis = async (zipDocumentId: number, requirementDocumentIds: number[]) => {
     setAnalysisLoading(true);
@@ -59,8 +60,12 @@ export default function ZipBrAnalysis({
     }
   };
 
-  const handleAnalysisComplete = (matches: RequirementMatchesResponse) => {
+  const handleAnalysisComplete = (
+    matches: RequirementMatchesResponse,
+    status: AnalysisStatusOut,
+  ) => {
     setAnalysisMatches(matches);
+    setAnalysisStatus(status);
     setAnalysisView("results");
   };
 
@@ -88,6 +93,7 @@ export default function ZipBrAnalysis({
     setAnalysisView(null);
     setAnalysisJobId(null);
     setAnalysisMatches(null);
+    setAnalysisStatus(null);
     setAnalysisError(null);
   };
 
@@ -195,6 +201,21 @@ export default function ZipBrAnalysis({
               Kết quả chỉ mang tính tham khảo.
             </p>
           </div>
+
+          {analysisStatus?.evidence_rows_total != null &&
+            analysisStatus.evidence_rows != null &&
+            analysisStatus.evidence_rows < analysisStatus.evidence_rows_total && (
+              <div className="flex items-start gap-2.5 px-4 py-3 bg-zinc-900/60 border border-zinc-800 rounded-xl">
+                <span className="text-zinc-400 shrink-0 mt-0.5">ℹ️</span>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Source code có <strong>{analysisStatus.evidence_rows_total.toLocaleString("vi-VN")}</strong> đoạn
+                  mã tiềm năng nhưng hệ thống chỉ giữ{" "}
+                  <strong>{analysisStatus.evidence_rows.toLocaleString("vi-VN")}</strong> đoạn ưu tiên
+                  (route/class/function) để giữ thời gian phân tích hợp lý. Kết quả vẫn đủ tin cậy
+                  cho các yêu cầu chính.
+                </p>
+              </div>
+            )}
 
           <AnalysisSummary matches={analysisMatches} />
 

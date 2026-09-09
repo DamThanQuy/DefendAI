@@ -18,7 +18,7 @@ export function AnalysisSummary({ matches }: AnalysisSummaryProps) {
 
   const cards = [
     {
-      label: "Matched",
+      label: "Khớp đầy đủ",
       value: `${matched}/${total}`,
       sub: `${pct(matched, total)}%`,
       accent: "text-green-400",
@@ -27,7 +27,7 @@ export function AnalysisSummary({ matches }: AnalysisSummaryProps) {
       bg: "bg-green-500/5",
     },
     {
-      label: "Partial",
+      label: "Khớp một phần",
       value: `${partial}/${total}`,
       sub: `${pct(partial, total)}%`,
       accent: "text-amber-400",
@@ -36,7 +36,7 @@ export function AnalysisSummary({ matches }: AnalysisSummaryProps) {
       bg: "bg-amber-500/5",
     },
     {
-      label: "Not Found",
+      label: "Không tìm thấy",
       value: `${not_found}/${total}`,
       sub: `${pct(not_found, total)}%`,
       accent: "text-red-400",
@@ -45,7 +45,7 @@ export function AnalysisSummary({ matches }: AnalysisSummaryProps) {
       bg: "bg-red-500/5",
     },
     {
-      label: "Insufficient",
+      label: "Thiếu bằng chứng",
       value: `${insufficient_evidence}/${total}`,
       sub: `${pct(insufficient_evidence, total)}%`,
       accent: "text-muted-foreground",
@@ -58,14 +58,14 @@ export function AnalysisSummary({ matches }: AnalysisSummaryProps) {
   return (
     <div className="flex flex-col gap-4">
       {/* Overall confidence */}
-      <div className="flex items-center justify-between px-1">
-        <span className="text-sm text-muted-foreground">Overall Confidence</span>
+      <div className="flex items-center justify-center gap-2 px-1">
+        <span className="text-sm text-muted-foreground">Độ tin cậy tổng thể:</span>
         <span className="text-sm font-semibold text-foreground">{conf}%</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {cards.map((c) => (
           <Card key={c.label} className={`${c.border} ${c.bg}`}>
-            <CardContent className="p-4 flex flex-col gap-1">
+            <CardContent className="p-4 flex flex-col items-center text-center gap-1">
               <CardDescription className="text-xs flex items-center gap-1.5">
                 <span className={`w-2 h-2 rounded-full shrink-0 ${c.dot}`} />
                 {c.label}

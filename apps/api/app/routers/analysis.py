@@ -74,6 +74,7 @@ class AnalysisStatusOut(BaseModel):
     framework: str | None = None
     selection_mode: str | None = None
     evidence_rows: int | None = None
+    evidence_rows_total: int | None = None
     selected_files: int | None = None
     created_at: datetime
     started_at: datetime | None = None
@@ -300,6 +301,7 @@ async def get_analysis_status(
         framework=manifest.framework if manifest else None,
         selection_mode=manifest.selection_mode if manifest else None,
         evidence_rows=summary.get("evidence_rows"),
+        evidence_rows_total=summary.get("evidence_rows_total"),
         selected_files=summary.get("selected_files"),
         created_at=analysis.created_at,
         started_at=analysis.started_at,

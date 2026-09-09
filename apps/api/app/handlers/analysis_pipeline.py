@@ -16,6 +16,7 @@ the persisted evidence rows.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 from datetime import datetime
 from typing import Any
@@ -49,6 +50,40 @@ from app.services.source_indexer import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Cap số snippet được embed cho 1 job. Repo lớn (vd source code của chính dự án)
+# sinh hàng nghìn snippet → embedding tuần tự có thể chạy >1 giờ. Matching chỉ
+# cần bằng chứng đại diện, không cần toàn bộ — ưu tiên kind giá trị cao trước.
+MAX_EMBED_SNIPPETS = int(os.getenv("ANALYSIS_MAX_EMBED_SNIPPETS", "2000"))
+
+# Thứ tự ưu tiên embed: route/controller/service/model là bằng chứng mạnh nhất
+# cho đối chiếu BR↔code; arrow/decorator là bổ sung.
+_KIND_PRIORITY = {
+    "route": 0,
+    "class": 1,
+    "function": 2,
+    "method": 3,
+    "arrow": 4,
+    "decorator": 5,
+}
+
+
+def _prioritize_snippets(
+    snippets: list[EvidenceSnippet], cap: int = MAX_EMBED_SNIPPETS
+) -> list[EvidenceSnippet]:
+    """Giữ tối đa ``cap`` snippet, ưu tiên theo symbol_kind rồi theo path."""
+    if len(snippets) <= cap:
+        return snippets
+    ranked = sorted(
+        snippets,
+        key=lambda s: (_KIND_PRIORITY.get(s.symbol_kind, 9), s.path),
+    )
+    kept = ranked[:cap]
+    logger.warning(
+        "Snippet cap applied: %d → %d (dropped %d low-priority snippets)",
+        len(snippets), len(kept), len(snippets) - len(kept),
+    )
+    return kept
 
 
 @register_handler("analysis_pipeline")
@@ -131,13 +166,26 @@ async def _run_pipeline(
             files_for_indexer.append((ef.path, text))
 
         snippets: list[EvidenceSnippet] = index_source_files(files_for_indexer)
+        total_snippets = len(snippets)
+        snippets = _prioritize_snippets(snippets)
 
         await _set_status(db, analysis, AnalysisStatus.indexing, step="embedding", progress=70)
 
         embedding_vectors: list[list[float]] = []
         if snippets:
+            # Progress nhích dần trong embedding (70→95) thay vì đứng yên ở 70
+            # suốt hàng chục phút với repo lớn — callback được gọi mỗi batch.
+            async def _embed_progress(done: int, total: int) -> None:
+                pct = 70 + int(25 * done / max(total, 1))
+                analysis.progress = min(pct, 95)
+                analysis.current_step = f"embedding:{done}/{total}"
+                await db.commit()
+
             try:
-                embedding_vectors = await embed([snippet_to_embedding_text(s) for s in snippets])
+                embedding_vectors = await embed(
+                    [snippet_to_embedding_text(s) for s in snippets],
+                    on_progress=_embed_progress,
+                )
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Embedder failed for job %s: %s — continuing without vectors", job_id, exc)
                 embedding_vectors = [None] * len(snippets)  # type: ignore[assignment]
@@ -165,6 +213,8 @@ async def _run_pipeline(
                 "selection_mode": selection_mode,
                 "selected_files": manifest["selected_count"],
                 "evidence_rows": len(snippets),
+                "evidence_rows_total": total_snippets,
+                "evidence_rows_capped": total_snippets > len(snippets),
             },
             finished=True,
         )
@@ -172,22 +222,15 @@ async def _run_pipeline(
         # Step 3 (M2) — chain into matching_pipeline so requirement↔evidence
         # comparison happens automatically. The job is enqueued only when there
         # are requirement documents to keep the queue quiet for ZIP-only uploads.
+        # NOTE: explanation_pipeline is NOT enqueued here — matching_pipeline
+        # chains it after matches are persisted. Enqueueing both in parallel
+        # raced: explanation ran before matching wrote any match row and
+        # silently skipped with reviewed=0.
         if analysis.requirement_document_ids:
             try:
                 await create_job("matching_pipeline", {"analysis_job_id": analysis.id})
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Cannot enqueue matching_pipeline for %s: %s", analysis.id, exc)
-
-        # Step 4 (A1) — once matching is enqueued, also schedule the AI
-        # explanation pass. The handler is idempotent: it skips matches whose
-        # ``reason_provider`` is already set, so re-enqueueing a job is safe.
-        if analysis.requirement_document_ids:
-            try:
-                await create_job("explanation_pipeline", {"analysis_job_id": analysis.id})
-            except Exception as exc:  # noqa: BLE001
-                logger.warning(
-                    "Cannot enqueue explanation_pipeline for %s: %s", analysis.id, exc,
-                )
     finally:
         # We disabled the extractor's auto-cleanup so the indexer could read
         # files from disk. Remove the extraction root now that we're done with
