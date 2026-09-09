@@ -65,8 +65,8 @@ export function AnalysisSummary({ matches }: AnalysisSummaryProps) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {cards.map((c) => (
           <Card key={c.label} className={`${c.border} ${c.bg}`}>
-            <CardContent className="p-4 flex flex-col items-center text-center gap-1">
-              <CardDescription className="text-xs flex items-center gap-1.5">
+            <CardContent className="p-4 h-full flex flex-col items-center text-center gap-1">
+              <CardDescription className="text-xs w-full min-h-12 flex items-center justify-center gap-1.5 text-center leading-4">
                 <span className={`w-2 h-2 rounded-full shrink-0 ${c.dot}`} />
                 {c.label}
               </CardDescription>

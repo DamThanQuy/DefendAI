@@ -289,7 +289,7 @@ export default function WorkspacesPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
             <h1 className="text-[28px] font-bold text-foreground mb-2">Workspace của tôi</h1>
-            <p className="text-zinc-500 text-[14px]">Gom nhiều tài liệu vào 1 đề tài, xem lịch sử phiên hỏi đáp &amp; code review.</p>
+            <p className="text-zinc-500 text-[14px]">Gom nhiều tài liệu vào 1 đề tài, xem lịch sử phiên hỏi đáp &amp; phân tích.</p>
           </div>
           <button
             onClick={() => setShowCreate(true)}
@@ -524,7 +524,7 @@ function SessionsView({ sessions }: { sessions?: SessionsResponse }) {
     })),
     ...sessions.code_analyses.map((s) => ({
       ...s,
-      kind: "🔍 Code Review" as const,
+      kind: "🔍 Phân tích code" as const,
       detail: s.status,
     })),
   ];
@@ -544,7 +544,7 @@ function SessionsView({ sessions }: { sessions?: SessionsResponse }) {
             <div className="text-[11px] text-zinc-500 mt-0.5">{s.detail} · {new Date(s.created_at + "Z").toLocaleString("vi-VN")}</div>
           </div>
           <Link
-            href={s.kind.includes("Code") ? "/code-review" : `/documents/${s.document_id}`}
+            href={s.kind.includes("Phân tích") ? "/code-review" : `/documents/${s.document_id}`}
             className="px-3 py-1 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors shrink-0"
           >
             Xem

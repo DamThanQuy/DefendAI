@@ -7,15 +7,14 @@ import { refreshAccessToken, clearSession, getTokenExpiry } from "@/lib/auth";
 
 // Trang cần đăng nhập mới truy cập được.
 const PROTECTED_PATHS = [
-  "/questions",
-  "/code-review",
-  "/room",
-  "/report",
-  "/analyze",
-  "/documents",
-  "/bookings",
-  "/mock-room",
-  "/mentor/bookings",
+"/questions",
+"/room",
+"/report",
+"/analyze",
+"/documents",
+"/bookings",
+"/mock-room",
+"/mentor/bookings",
 ];
 
 // Route → role được phép. Thiếu role → redirect "/".

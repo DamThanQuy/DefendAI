@@ -7,7 +7,6 @@ import { clearSession } from "@/lib/auth";
 import {
   FileText,
   FolderKanban,
-  Code2,
   MonitorPlay,
   BarChart3,
   ShieldCheck,
@@ -53,7 +52,6 @@ const SIDEBAR_LINKS: SidebarLink[] = [
   // --- Tính năng sinh viên ---
   { href: "/documents", label: "Tài liệu", icon: FileText, roles: ["student", "admin"] },
   { href: "/workspaces", label: "Workspace", icon: FolderKanban, roles: ["student", "admin"] },
-  { href: "/code-review", label: "Code Review", icon: Code2, roles: ["student", "admin"] },
   { href: "/bookings", label: "Đặt lịch", icon: CalendarClock, roles: ["student", "admin"] },
   { href: "/mock-room", label: "Mock Room", icon: MonitorPlay, roles: ["student", "admin"] },
   { href: "/report", label: "Báo cáo", icon: BarChart3, roles: ["student", "admin"] },

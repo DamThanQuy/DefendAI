@@ -598,7 +598,7 @@ export default function WorkspaceDetailPage() {
       })),
       ...sessions.code_analyses.map((s) => ({
         ...s,
-        kind: "Code Review" as const,
+        kind: "Phân tích code" as const,
         detail: s.issue_count != null ? `${s.issue_count} vấn đề` : "",
       })),
       ...sessions.workspace_questions.map((s) => ({
@@ -1093,7 +1093,7 @@ export default function WorkspaceDetailPage() {
                               </Link>
                             ) : (
                               <Link
-                                href={s.kind.includes("Code") ? "/code-review" : `/documents/${s.document_id}`}
+                                href={s.kind.includes("Phân tích") ? "/code-review" : `/documents/${s.document_id}`}
                                 className="px-3 py-1 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors shrink-0"
                               >
                                 Xem

@@ -1,11 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AnalysisProgress } from "./AnalysisProgress";
 import { AnalysisSummary } from "./AnalysisSummary";
 import { MatchList } from "./MatchList";
-import { createAnalysis, retryAnalysis } from "@/lib/api";
-import type { AnalysisStatusOut, RequirementMatchesResponse } from "@/types";
+import {
+  createAnalysis,
+  getAnalysisMatches,
+  listWorkspaceAnalyses,
+  retryAnalysis,
+} from "@/lib/api";
+import type {
+  AnalysisJobListItem,
+  AnalysisStatusOut,
+  RequirementMatchesResponse,
+} from "@/types";
 
 export interface ZipBrDocument {
   id: number;
@@ -42,6 +51,26 @@ export default function ZipBrAnalysis({
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatusOut | null>(null);
 
+  // Lịch sử các lần phân tích BR của workspace (mới nhất trước)
+  const [history, setHistory] = useState<AnalysisJobListItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const refreshHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const { data } = await listWorkspaceAnalyses(workspaceId);
+      setHistory(data.jobs ?? []);
+    } catch {
+      // Lịch sử là phụ — lỗi thì im lặng, không chặn luồng chính
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [workspaceId]);
+
+  useEffect(() => {
+    refreshHistory();
+  }, [refreshHistory]);
+
   const startAnalysis = async (zipDocumentId: number, requirementDocumentIds: number[]) => {
     setAnalysisLoading(true);
     setAnalysisError(null);
@@ -52,6 +81,7 @@ export default function ZipBrAnalysis({
       });
       setAnalysisJobId(data.analysis_job_id);
       setAnalysisView("running");
+      refreshHistory();
     } catch (e: any) {
       setAnalysisError(e?.response?.data?.detail ?? e?.message ?? "Không thể bắt đầu phân tích");
       setAnalysisView("results");
@@ -67,6 +97,33 @@ export default function ZipBrAnalysis({
     setAnalysisMatches(matches);
     setAnalysisStatus(status);
     setAnalysisView("results");
+    refreshHistory();
+  };
+
+  // Mở lại một lần phân tích trong lịch sử: job còn chạy → xem progress;
+  // job đã xong → load thẳng kết quả, không chạy lại pipeline.
+  const openHistoryJob = async (item: AnalysisJobListItem) => {
+    setAnalysisError(null);
+    setAnalysisMatches(null);
+    setAnalysisStatus(null);
+    setAnalysisJobId(item.analysis_job_id);
+    if (item.status === "completed" || item.status === "partial") {
+      setAnalysisLoading(true);
+      try {
+        const { data } = await getAnalysisMatches(item.analysis_job_id);
+        setAnalysisMatches(data);
+        setAnalysisView("results");
+      } catch (e: any) {
+        setAnalysisError(
+          e?.response?.data?.detail ?? e?.message ?? "Không tải được kết quả cũ",
+        );
+        setAnalysisView("results");
+      } finally {
+        setAnalysisLoading(false);
+      }
+      return;
+    }
+    setAnalysisView("running");
   };
 
   const handleAnalysisError = (error: string) => {
@@ -107,6 +164,12 @@ export default function ZipBrAnalysis({
   // Build topic string từ các match partial/not_found để làm input cho /workspaces/{id}/questions
   // → RAG retrieval sẽ bias theo UC codes + evidence còn thiếu, giúp LLM sinh câu hỏi
   // tập trung vào điểm yếu hội đồng có thể hỏi.
+  const formatDate = (iso: string | null) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return `${d.toLocaleDateString("vi-VN")} ${d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
+  };
+
   const weakSpots = analysisMatches?.matches?.filter(
     (m) => m.status === "partial" || m.status === "not_found",
   ) ?? [];
@@ -153,6 +216,62 @@ export default function ZipBrAnalysis({
           <p className="mt-2 text-[12px] text-zinc-500">
             Cần tối thiểu 1 file ZIP (source code) và 1 file BR (pdf/docx/pptx/md) đã xử lý xong.
           </p>
+        )}
+
+        {history.length > 0 && (
+          <div className="mt-5 border-t border-zinc-800/60 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[12px] font-semibold text-zinc-400">
+                🕘 Các lần phân tích gần đây
+              </p>
+              <button
+                onClick={refreshHistory}
+                disabled={historyLoading}
+                className="text-[11px] text-zinc-500 hover:text-zinc-300 disabled:opacity-50"
+              >
+                {historyLoading ? "Đang tải…" : "Làm mới"}
+              </button>
+            </div>
+            <div className="flex flex-col gap-1.5 max-h-64 overflow-y-auto pr-1">
+              {history.map((h) => {
+                const done = h.status === "completed" || h.status === "partial";
+                const failed = ["failed", "rejected", "timeout"].includes(h.status);
+                const statusCfg = done
+                  ? "bg-teal-500/10 text-teal-400"
+                  : failed
+                    ? "bg-red-500/10 text-red-400"
+                    : "bg-orange-500/10 text-orange-400";
+                return (
+                  <button
+                    key={h.analysis_job_id}
+                    onClick={() => openHistoryJob(h)}
+                    className="w-full text-left px-3 py-2 rounded-lg border border-zinc-800/60 bg-zinc-900/40 hover:border-teal-500/40 hover:bg-zinc-800/60 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[12px] font-medium text-zinc-300 truncate">
+                        #{h.analysis_job_id} · {h.zip_filename || `ZIP ${h.zip_document_id}`}
+                      </span>
+                      <span className={`shrink-0 px-1.5 py-0.5 text-[10px] font-bold rounded uppercase ${statusCfg}`}>
+                        {h.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] text-zinc-500">{formatDate(h.created_at)}</span>
+                      {done && (
+                        <span className="text-[10px] tabular-nums">
+                          <span className="text-teal-400">{h.matched} khớp</span>
+                          <span className="text-zinc-600"> · </span>
+                          <span className="text-amber-400">{h.partial} một phần</span>
+                          <span className="text-zinc-600"> · </span>
+                          <span className="text-red-400">{h.not_found} thiếu</span>
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
     );

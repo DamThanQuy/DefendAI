@@ -394,3 +394,22 @@ export function retryAnalysis(jobId: number) {
   }>(`/api/analysis/${jobId}/retry`);
 }
 
+/** GET /api/workspaces/{workspace_id}/analyses — lịch sử phân tích BR. */
+export function listWorkspaceAnalyses(workspaceId: number, limit = 20) {
+  return api.get<{
+    workspace_id: number;
+    total: number;
+    jobs: Array<{
+      analysis_job_id: number;
+      status: string;
+      zip_document_id: number;
+      zip_filename: string | null;
+      created_at: string;
+      finished_at: string | null;
+      matched: number;
+      partial: number;
+      not_found: number;
+    }>;
+  }>(`/api/workspaces/${workspaceId}/analyses`, { params: { limit } });
+}
+
