@@ -22,6 +22,14 @@ jobs:
           git fetch origin master
           git reset --hard origin/master
 
+          # Keep the Linux entrypoint executable after a Windows Git checkout.
+          $entrypoint = "F:\DefendAI\apps\api\entrypoint.sh"
+          $bytes = [System.IO.File]::ReadAllBytes($entrypoint)
+          [System.IO.File]::WriteAllBytes(
+            $entrypoint,
+            [byte[]]($bytes | Where-Object { $_ -ne 13 })
+          )
+
           docker compose up -d --build --remove-orphans
           docker compose ps
 
