@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PERSONAS } from "@/lib/constants";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { MarkdownMessage } from "./MarkdownMessage";
+
+export interface WorkspaceDocument {
+  id: number;
+  filename: string;
+  doc_type: string;
+  status: string;
+}
 
 export interface WorkspaceChatItem {
   id: number;
@@ -43,19 +52,26 @@ function sidebarStorageKey(): string {
  */
 export default function WorkspaceChat({
   workspaceId,
+  documents = [],
   defaultPersona = "theory",
 }: {
   workspaceId: number;
+  documents?: WorkspaceDocument[];
   defaultPersona?: string;
 }) {
   const [chatItems, setChatItems] = useState<WorkspaceChatItem[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState("");
   const [chatQuestion, setChatQuestion] = useState("");
-  const [chatPersona, setChatPersona] = useState(defaultPersona);
+  // Chat dùng một persona thống nhất; giữ giá trị backend cũ để tương thích API.
+  const chatPersona = "theory";
   const [chatRunning, setChatRunning] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const streamingIdRef = useRef<number | null>(null);
+  // AbortController cho loadChatHistory: hủy fetch cũ khi switch conversation,
+  // tránh race khi response resolve sau khi state đã reset → trộn tin nhắn
+  // giữa 2 conversation khác nhau.
+  const loadAbortRef = useRef<AbortController | null>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [activeConvId, setActiveConvId] = useState<string>(""); // "" = đoạn mặc định
@@ -63,7 +79,46 @@ export default function WorkspaceChat({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [menuConvId, setMenuConvId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [deletingConvId, setDeletingConvId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  // Hiển thị cả tin failed (mặc định ẩn để history sạch)
+  const [showFailed, setShowFailed] = useState(false);
+  const [cleaningHistory, setCleaningHistory] = useState(false);
+
+  // ── ZIP/BR Analysis state moved to ZipBrAnalysis component (mounted in page.tsx
+  //    dưới panel "Luyện phản biện"). ──────────────────────────────────────
+
+  // Xoá các tin failed/processing cũ (stale > 5 phút) khỏi DB
+  const cleanFailedChats = async () => {
+    const token = getToken();
+    if (!token || cleaningHistory) return;
+    setCleaningHistory(true);
+    try {
+      const r = await fetch(`/api/workspaces/${workspaceId}/chat/failed`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (r.ok) {
+        await loadChatHistory(activeConvId || undefined);
+        if (!showFailed) {
+          // Re-query để đếm tin failed còn lại
+          const r2 = await fetch(`/api/workspaces/${workspaceId}/chat?conversation_id=${encodeURIComponent(activeConvId || "")}&show_failed=true`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (r2.ok) {
+            const data = await r2.json();
+            const failedCount = data.filter((i: any) => i.status === "failed").length;
+            if (failedCount === 0) setShowFailed(false);
+          }
+        }
+      }
+    } catch { /* ignore */ }
+    finally {
+      setCleaningHistory(false);
+    }
+  };
+
+  // ── ZIP/BR Analysis handlers moved to ZipBrAnalysis component ───────────
 
   // Ước lượng context token của đoạn đang mở (char/4 ≈ token) so với trần ~12k.
   const CONTEXT_MAX = 12000;
@@ -114,6 +169,13 @@ export default function WorkspaceChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId]);
 
+  // Cleanup: hủy fetch cũ khi component unmount
+  useEffect(() => {
+    return () => {
+      loadAbortRef.current?.abort();
+    };
+  }, []);
+
   const loadConversations = async () => {
     const token = getToken();
     if (!token) return;
@@ -161,9 +223,15 @@ export default function WorkspaceChat({
   };
 
   const deleteConversation = async (convId: string) => {
+    setDeletingConvId(convId);
+  };
+
+  const confirmDeleteConversation = async () => {
+    const convId = deletingConvId;
+    if (!convId) return;
     const token = getToken();
+    setDeletingConvId(null);
     if (!token) return;
-    if (!window.confirm("Xoá đoạn chat này? Toàn bộ tin nhắn trong đoạn sẽ bị xoá.")) return;
     try {
       const r = await fetch(`/api/workspaces/${workspaceId}/chat/conversations/${convId}`, {
         method: "DELETE",
@@ -182,10 +250,16 @@ export default function WorkspaceChat({
   };
 
   const switchConversation = (convId: string) => {
+    // Hủy fetch cũ đang pending (nếu có) trước khi load conversation mới —
+    // tránh race khi response cũ resolve sau khi state đã reset, dẫn đến
+    // setChatItems(prev) trộn tin nhắn của 2 conversation khác nhau.
+    loadAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    loadAbortRef.current = ctrl;
     setActiveConvId(convId);
     setChatItems([]);
     setChatError("");
-    loadChatHistory(convId);
+    loadChatHistory(convId, ctrl.signal);
   };
 
   const startRename = (c: ConversationItem) => {
@@ -216,36 +290,35 @@ export default function WorkspaceChat({
     }
   };
 
-  const loadChatHistory = async (convId?: string) => {
+  const loadChatHistory = async (convId?: string, signal?: AbortSignal, showFailedParam?: boolean) => {
     const token = getToken();
     if (!token) return;
     setChatLoading(true);
     setChatError("");
     try {
-      const q = convId !== undefined ? `?conversation_id=${encodeURIComponent(convId)}` : "";
-      const r = await fetch(`/api/workspaces/${workspaceId}/chat${q}`, {
+      const convParam = convId !== undefined ? `conversation_id=${encodeURIComponent(convId)}&` : "";
+      const q = `${convParam}show_failed=${showFailedParam ?? showFailed}`;
+      const r = await fetch(`/api/workspaces/${workspaceId}/chat?${q}`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal,
       });
       if (!r.ok) throw new Error("Không thể tải lịch sử chat");
       const data = await r.json();
-      setChatItems((prev) => {
-        // Server trả mới → cũ (created_at.desc()), đảo lại để state là cũ → mới
-        // → render map() tự nhiên, tin nhắn mới nhất nằm dưới cùng (chuẩn chat).
-        const list: WorkspaceChatItem[] = (data ?? []).reverse();
-        // Merge thay vì overwrite: giữ các turn local (optimistic/streaming) chưa
-        // có trong server list. Trước đây nếu fetch resolve sau khi stream xong
-        // (streamingIdRef = null) thì list cũ (fetch lúc row chưa tạo) overwrite
-        // mất turn vừa gửi → UI không hiển thị prompt/answer cho tới khi F5.
-        const byId = new Map(list.map((b) => [b.id, b]));
-        prev.forEach((t) => {
-          if (!byId.has(t.id)) byId.set(t.id, t);
-        });
-        return Array.from(byId.values());
-      });
+      // Server trả mới → cũ (created_at.desc()), đảo lại để state là cũ → mới
+      // → render map() tự nhiên, tin nhắn mới nhất nằm dưới cùng (chuẩn chat).
+      // Replace thuần (không merge) — vì switchConversation đã abort fetch cũ
+      // và abort controller ngăn response cũ ghi đè state mới. Bỏ merge giúp
+      // tránh trộn turn giữa 2 conversation khác nhau.
+      const list: WorkspaceChatItem[] = (data ?? []).reverse();
+      // Nếu fetch bị abort sau khi parse xong nhưng trước khi setState, bỏ qua.
+      if (signal?.aborted) return;
+      setChatItems(list);
     } catch (e: any) {
+      // AbortError không phải lỗi thật — user vừa switch conversation khác
+      if (e?.name === "AbortError") return;
       setChatError(e.message);
     } finally {
-      setChatLoading(false);
+      if (!signal?.aborted) setChatLoading(false);
     }
   };
 
@@ -302,8 +375,13 @@ export default function WorkspaceChat({
       let errored = "";
       let ended = false;
       let lastFrame = Date.now();
+      // Watchdog chống kẹt: hủy nếu lâu không nhận frame nào. Giai đoạn index
+      // (file vừa upload chưa có chunk) có thể mất 1-2 phút → cho thời gian chờ
+      // dài hơn hẳn (90s) khi server báo đang indexing (heartbeat "status: indexing").
+      let stage: string = "";
       const idleTimer = setInterval(() => {
-        if (Date.now() - lastFrame > 30000) controller.abort();
+        const limit = stage === "indexing" ? 90000 : 30000;
+        if (Date.now() - lastFrame > limit) controller.abort();
       }, 5000);
       try {
         while (true) {
@@ -335,6 +413,9 @@ export default function WorkspaceChat({
               setChatItems((prev) =>
                 prev.map((t) => (t.id === tempId ? { ...t, id: evt.chat_id } : t))
               );
+            } else if (evt.type === "status") {
+              // Cập nhật trạng thái (indexing/thinking) — reset watchdog theo stage
+              stage = evt.stage || "";
             } else if (evt.type === "delta") {
               const id = streamingIdRef.current;
               setChatItems((prev) =>
@@ -398,9 +479,10 @@ export default function WorkspaceChat({
   };
 
   return (
-    <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden flex flex-col h-[calc(100vh-340px)] min-h-[450px]">
+    <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden flex flex-col h-[calc(100vh-260px)] min-h-[480px]">
       <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center justify-between gap-2 sticky top-0 z-20">
-        <span className="text-[13px] font-bold text-zinc-200">💬 Chat đề tài (toàn workspace)</span>
+        <span className="text-[13px] font-bold text-zinc-200">Chat đề tài (toàn workspace)</span>
+
         <div className="flex items-center gap-3">
           {/* Circular progress: ước lượng context token của đoạn đang mở */}
           <div className="flex items-center gap-2" title={`Context: ~${contextTokens} / ${CONTEXT_MAX} tokens`}>
@@ -417,21 +499,35 @@ export default function WorkspaceChat({
             <span className="text-[11px] text-zinc-400 tabular-nums">{contextPct}%</span>
           </div>
           <div className="flex items-center gap-2">
-          <select
-            value={chatPersona}
-            onChange={(e) => setChatPersona(e.target.value)}
-            className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 focus:outline-none focus:border-primary"
+          <button
+            onClick={() => {
+              const next = !showFailed;
+              setShowFailed(next);
+              // Hủy fetch cũ, gọi với giá trị mới của showFailed (tránh stale)
+              loadAbortRef.current?.abort();
+              const ctrl = new AbortController();
+              loadAbortRef.current = ctrl;
+              loadChatHistory(activeConvId || undefined, ctrl.signal, next);
+            }}
+            title={showFailed ? "Ẩn tin nhắn lỗi" : "Hiển thị cả tin nhắn lỗi"}
+            className={`px-2.5 py-1.5 rounded-lg text-[12px] border transition-colors ${showFailed ? "bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600"}`}
           >
-            {PERSONAS.map((p) => (
-              <option key={p.key} value={p.key}>{p.label}</option>
-            ))}
-          </select>
+            {showFailed ? "Ẩn lỗi" : "Xem lỗi"}
+          </button>
+          <button
+            onClick={cleanFailedChats}
+            disabled={cleaningHistory}
+            title="Xoá các tin nhắn lỗi và đang xử lý cũ"
+            className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors disabled:opacity-50"
+          >
+            {cleaningHistory ? "Đang dọn..." : "Dọn lỗi"}
+          </button>
           <button
             onClick={toggleSidebar}
             title={sidebarOpen ? "Thu gọn danh sách đoạn" : "Mở danh sách đoạn"}
             className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
           >
-            {sidebarOpen ? "◀" : "▶"}
+            {sidebarOpen ? <ChevronLeft className="w-3.5 h-3.5" strokeWidth={2.5} /> : <ChevronRight className="w-3.5 h-3.5" strokeWidth={2.5} />}
           </button>
         </div>
         </div>
@@ -449,7 +545,7 @@ export default function WorkspaceChat({
               title="Tạo đoạn chat mới"
               className="px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-md text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors whitespace-nowrap"
             >
-              ➕ Đoạn mới
+              Đoạn mới
             </button>
           </div>
           {/* Danh sách đoạn chat — cuộn độc lập, không làm trôi top bar */}
@@ -462,7 +558,7 @@ export default function WorkspaceChat({
                 onClick={() => switchConversation("")}
                 className={`w-full text-left px-2 py-1.5 rounded-md text-[12px] transition-colors ${activeConvId === "" ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-zinc-400 hover:bg-zinc-800/60"}`}
               >
-                💬 Đoạn mặc định
+                Đoạn mặc định
               </button>
               {conversations.map((c) => (
                 <div key={c.conversation_id} className="group relative flex items-center gap-1">
@@ -501,7 +597,7 @@ export default function WorkspaceChat({
                         onClick={() => startRename(c)}
                         className="w-full text-left px-3 py-1.5 text-zinc-300 hover:bg-zinc-800 transition-colors"
                       >
-                        ✏️ Đổi tên
+                        Đổi tên
                       </button>
                       <button
                         onClick={() => {
@@ -510,7 +606,7 @@ export default function WorkspaceChat({
                         }}
                         className="w-full text-left px-3 py-1.5 text-red-400 hover:bg-red-500/10 transition-colors"
                       >
-                        🗑 Xoá đoạn
+                        Xoá đoạn
                       </button>
                     </div>
                   )}
@@ -528,35 +624,36 @@ export default function WorkspaceChat({
           <p className="text-zinc-500 text-[13px] text-center py-8">Đang tải hội thoại...</p>
         ) : chatItems.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-zinc-500">
-            <span className="text-4xl mb-3">💬</span>
             <p className="text-[13px] text-center max-w-[320px]">Hỏi bất kỳ điều gì về toàn bộ workspace — AI trả lời kèm nguồn file:đoạn, giữ ngữ cảnh 6 lượt trước.</p>
           </div>
         ) : (
           chatItems.map((turn) => (
-            <div key={turn.id} className="flex flex-col gap-2">
+            <div key={turn.id} className="flex flex-col gap-1.5">
               <div className="self-end max-w-[85%] bg-primary text-primary-foreground rounded-2xl rounded-br-md px-4 py-2.5 text-[14px] leading-relaxed whitespace-pre-wrap">
                 {turn.question}
               </div>
               {turn.status === "completed" && turn.answer ? (
                 <div className="self-start max-w-[85%] bg-zinc-800/70 border border-zinc-700/50 rounded-2xl rounded-bl-md px-4 py-2.5">
-                  <div className="text-[13px] text-zinc-300 leading-relaxed whitespace-pre-wrap">{turn.answer}</div>
+                  {/* Markdown render (ChatGPT-style): heading, bold, list, bảng... */}
+                  <MarkdownMessage content={turn.answer} />
                   {turn.citations && turn.citations.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {turn.citations.map((c, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-primary/10 text-primary text-[11px] font-semibold rounded-md">📎 {c}</span>
+                        <span key={i} className="px-2 py-0.5 bg-primary/10 text-primary text-[11px] font-semibold rounded-md">{c}</span>
                       ))}
                     </div>
                   )}
                 </div>
               ) : turn.status === "failed" ? (
-                <div className="self-start max-w-[85%] bg-red-500/10 border border-red-500/20 rounded-2xl rounded-bl-md px-4 py-2.5 text-red-400 text-[13px]">
-                  {turn.answer && <div className="text-[13px] text-zinc-400 leading-relaxed whitespace-pre-wrap mb-2">{turn.answer}</div>}
+                <div className="self-start max-w-[85%] bg-red-500/10 border border-red-500/20 rounded-2xl rounded-bl-md px-4 py-2.5 text-red-400 text-[12px]">
+                  {turn.answer && <div className="text-[12px] text-zinc-400 leading-relaxed whitespace-pre-wrap mb-1.5">{turn.answer}</div>}
                   {turn.error || "Trả lời thất bại."}
                 </div>
               ) : (
                 <div className="self-start max-w-[85%] bg-zinc-800/40 border border-zinc-700/40 rounded-2xl rounded-bl-md px-4 py-2.5">
                   {turn.answer ? (
-                    <div className="text-[13px] text-zinc-300 leading-relaxed whitespace-pre-wrap">{turn.answer}</div>
+                    // Streaming: markdown render live theo từng delta
+                    <MarkdownMessage content={turn.answer} />
                   ) : (
                     <div className="flex items-center gap-2.5 text-zinc-500 text-[13px]">
                       <span className="flex gap-1">
@@ -593,22 +690,34 @@ export default function WorkspaceChat({
         <div className="px-4 py-2 bg-red-500/10 border-t border-red-500/20 text-red-400 text-[12px]">{chatError}</div>
       )}
 
-      <div className="px-4 py-3 border-t border-zinc-800/60 flex gap-3">
+      <div className="px-5 py-4 border-t border-zinc-800/60 flex gap-3">
         <input
           value={chatQuestion}
           onChange={(e) => setChatQuestion(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sendChatQuestion()}
           placeholder="Hỏi về workspace..."
-          className="flex-1 px-4 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-[14px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-primary"
+          className="flex-1 px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-xl text-[15px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-primary"
         />
         <button
           onClick={sendChatQuestion}
           disabled={!chatQuestion.trim() || chatRunning}
-          className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-[14px] font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          className="px-6 py-3 bg-primary text-primary-foreground rounded-xl text-[15px] font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
         >
           {chatRunning ? "..." : "Gửi"}
         </button>
       </div>
+
+      <ConfirmModal
+        open={!!deletingConvId}
+        tone="danger"
+        icon="delete"
+        title="Xoá đoạn chat này?"
+        description="Toàn bộ tin nhẮn trong đoạn sẽ bị xoá và không thể khôi phục."
+        confirmLabel="Xoá đoạn chat"
+        cancelLabel="Giữ lại"
+        onCancel={() => setDeletingConvId(null)}
+        onConfirm={confirmDeleteConversation}
+      />
     </div>
   );
 }

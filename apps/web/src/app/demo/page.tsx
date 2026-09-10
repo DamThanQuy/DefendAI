@@ -48,28 +48,27 @@ const mockQuestions = [
   {
     id: 3,
     diff: "easy",
-    q: "Thiếu null-check tại analyzer.ts:12 có nguy hiểm không?",
-    hint: "Phân tích hậu quả khi dữ liệu null xuất hiện và cách phòng ngừa bằng optional chaining.",
+    q: "BR-03 về hoàn 100% học phí — vì sao hệ thống chưa cài đặt rule này?",
+    hint: "Giải thích gap giữa thiết kế trong tài liệu và triển khai thực tế, kèm kế hoạch hoàn thiện.",
   },
 ];
 
-const mockFileTree = [
-  { name: "main.py", count: 2 },
-  { name: "utils/db.py", count: 5 },
-  { name: "app/routes.py", count: 0 },
-  { name: "models/user.py", count: 3 },
+const mockBrResults = [
+  { id: "BR-01", rule: "Sinh viên chỉ đăng ký tối đa 21 tín chỉ mỗi kỳ", status: "implemented", evidence: "course_registration.py:88" },
+  { id: "BR-02", rule: "Môn tiên quyết phải hoàn thành trước khi đăng ký", status: "partial", evidence: "prereq_check.py:34" },
+  { id: "BR-03", rule: "Hủy lớp trong 2 tuần đầu được hoàn 100% học phí", status: "not_found", evidence: "—" },
 ];
 
-const mockIssues = [
-  { sev: "critical", type: "NullPointer", line: 12, file: "main.py", desc: "Có thể truy cập thuộc tính trên None" },
-  { sev: "medium", type: "N+1 Query", line: 41, file: "utils/db.py", desc: "Truy vấn lặp trong vòng lặp — chậm khi dữ liệu lớn" },
-  { sev: "low", type: "Magic Number", line: 7, file: "utils/db.py", desc: "Sử dụng hằng số ẩn, nên đặt tên rõ ràng" },
-];
+const brStatusCfg: Record<string, { label: string; bg: string; txt: string }> = {
+  implemented: { label: "ĐÃ CÀI ĐẶT", bg: "bg-green-500/10", txt: "text-green-400" },
+  partial: { label: "CÀI ĐẶT MỘT PHẦN", bg: "bg-orange-500/10", txt: "text-orange-400" },
+  not_found: { label: "KHÔNG TÌM THẤY", bg: "bg-red-500/10", txt: "text-red-400" },
+};
 
 /** Khung thẻ mockup UI. */
 function WindowFrame({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-card rounded-2xl border border-zinc-800/60 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] overflow-hidden ${className}`}>
+    <div className={`bg-card rounded-2xl border border-border/60 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] overflow-hidden ${className}`}>
       {children}
     </div>
   );
@@ -97,7 +96,7 @@ export default function DemoPage() {
               <h3 className="text-xl font-bold flex items-center gap-2">
                 <FileText className="w-5 h-5 text-primary" /> Tài liệu của tôi
               </h3>
-              <p className="text-zinc-500 text-[14px] mt-1">Tải lên, phân tích và theo dõi trạng thái từng tài liệu.</p>
+              <p className="text-muted-foreground text-[14px] mt-1">Tải lên, phân tích và theo dõi trạng thái từng tài liệu.</p>
             </div>
             <span className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-[13px] font-semibold">
               + Tải lên tài liệu mới
@@ -107,29 +106,29 @@ export default function DemoPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b border-zinc-800/60 bg-zinc-800/40">
-                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Tên file</th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Loại</th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Ngày tải lên</th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Trạng thái</th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider text-right">Thao tác</th>
+                  <tr className="border-b border-border/60 bg-muted/40">
+                    <th className="px-5 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Tên file</th>
+                    <th className="px-5 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Loại</th>
+                    <th className="px-5 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Ngày tải lên</th>
+                    <th className="px-5 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Trạng thái</th>
+                    <th className="px-5 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   {mockDocs.map((doc) => (
-                    <tr key={doc.id} className="border-b border-zinc-800/60 hover:bg-zinc-800/40 transition-colors">
+                    <tr key={doc.id} className="border-b border-border/60 hover:bg-muted/40 transition-colors">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-lg bg-teal-500/10 flex items-center justify-center shrink-0">
                             <FileText className="w-5 h-5 text-teal-400" />
                           </div>
-                          <span className="text-[14px] font-semibold text-zinc-200 truncate max-w-[280px]">{doc.filename}</span>
+                          <span className="text-[14px] font-semibold text-foreground truncate max-w-[280px]">{doc.filename}</span>
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <span className="text-[12px] font-bold text-zinc-400 bg-zinc-800 px-2 py-1 rounded">{doc.type}</span>
+                        <span className="text-[12px] font-bold text-muted-foreground bg-muted px-2 py-1 rounded">{doc.type}</span>
                       </td>
-                      <td className="px-5 py-4 text-[13px] text-zinc-500">{doc.date}</td>
+                      <td className="px-5 py-4 text-[13px] text-muted-foreground">{doc.date}</td>
                       <td className="px-5 py-4">
                         <span className={`text-[12px] font-semibold px-2.5 py-1 rounded-full ${statusColor[doc.status]}`}>
                           {statusLabel[doc.status]}
@@ -148,51 +147,42 @@ export default function DemoPage() {
           </WindowFrame>
         </div>
 
-        {/* 2. Code Review + Câu hỏi AI — 2 cột */}
+        {/* 2. Phân tích BR ↔ Code + Câu hỏi AI — 2 cột */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-20">
-          {/* Code Review */}
+          {/* Phân tích BR ↔ Code */}
           <div>
             <h3 className="text-xl font-bold flex items-center gap-2 mb-6">
-              <FileSearch className="w-5 h-5 text-primary" /> Code Review AI
+              <FileSearch className="w-5 h-5 text-primary" /> Phân tích BR ↔ Code
             </h3>
             <WindowFrame>
               <div className="p-5">
                 {/* Stats */}
-                <div className="grid grid-cols-1 gap-3 mb-5">
-                  <div className="bg-zinc-800/40 rounded-xl p-4 border border-zinc-800/60">
-                    <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-wide">Lỗi nghiêm trọng</div>
-                    <div className="text-[24px] font-bold text-red-400 mt-1">3</div>
+                <div className="grid grid-cols-3 gap-3 mb-5">
+                  <div className="bg-muted/40 rounded-xl p-4 border border-border/60">
+                    <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Đã cài đặt</div>
+                    <div className="text-[24px] font-bold text-green-400 mt-1">1</div>
+                  </div>
+                  <div className="bg-muted/40 rounded-xl p-4 border border-border/60">
+                    <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Một phần</div>
+                    <div className="text-[24px] font-bold text-orange-400 mt-1">1</div>
+                  </div>
+                  <div className="bg-muted/40 rounded-xl p-4 border border-border/60">
+                    <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Không thấy</div>
+                    <div className="text-[24px] font-bold text-red-400 mt-1">1</div>
                   </div>
                 </div>
 
-                {/* File tree */}
-                <div className="text-[12px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Files</div>
-                <div className="mb-5">
-                  {mockFileTree.map((f) => (
-                    <div key={f.name} className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] text-zinc-400">
-                      <span className="text-[12px]">{f.name.endsWith(".py") ? "🐍" : "📁"}</span>
-                      <span className="truncate flex-1">{f.name}</span>
-                      {f.count > 0 && (
-                        <span className="text-[10px] font-bold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded">
-                          {f.count}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Issues */}
-                <div className="text-[12px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Lỗi tìm thấy</div>
+                {/* BR list */}
+                <div className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Business Rules</div>
                 <div className="space-y-2">
-                  {mockIssues.map((i, idx) => {
-                    const c = i.sev === "critical" ? "bg-red-500/10 text-red-400" : i.sev === "medium" ? "bg-orange-500/10 text-orange-400" : "bg-green-500/10 text-green-400";
-                    const l = i.sev === "critical" ? "CRITICAL" : i.sev === "medium" ? "WARNING" : "OPTIMIZATION";
+                  {mockBrResults.map((r) => {
+                    const c = brStatusCfg[r.status];
                     return (
-                      <div key={idx} className="bg-zinc-900/40 rounded-lg px-3 py-2.5 border border-zinc-800/60 flex items-start gap-2">
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mt-0.5 shrink-0 ${c}`}>{l}</span>
+                      <div key={r.id} className="bg-card/40 rounded-lg px-3 py-2.5 border border-border/60 flex items-start gap-2">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mt-0.5 shrink-0 ${c.bg} ${c.txt}`}>{c.label}</span>
                         <div className="min-w-0">
-                          <p className="text-[12px] text-zinc-300 font-medium truncate">{i.type} — {i.file}:{i.line}</p>
-                          <p className="text-[11px] text-zinc-500 truncate">{i.desc}</p>
+                          <p className="text-[12px] text-foreground font-medium truncate">{r.id} — {r.rule}</p>
+                          <p className="text-[11px] text-muted-foreground truncate">Evidence: {r.evidence}</p>
                         </div>
                       </div>
                     );
@@ -212,15 +202,15 @@ export default function DemoPage() {
                 {mockQuestions.map((q) => {
                   const d = diffCfg[q.diff];
                   return (
-                    <div key={q.id} className="bg-zinc-900/40 rounded-xl border border-zinc-800/60 p-4">
+                    <div key={q.id} className="bg-card/40 rounded-xl border border-border/60 p-4">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className={`px-2.5 py-1 ${d.bg} ${d.txt} text-[11px] font-bold rounded-full`}>{d.label}</span>
                       </div>
                       <h4 className="text-[14px] font-bold text-teal-400 leading-snug mb-2">{q.q}</h4>
-                      <div className="bg-zinc-800/40 rounded-lg px-3 py-2 flex items-center gap-2">
+                      <div className="bg-muted/40 rounded-lg px-3 py-2 flex items-center gap-2">
                         <span className="text-[12px] font-semibold text-primary">💡 Gợi ý trả lời</span>
                       </div>
-                      <p className="text-[12px] text-zinc-500 mt-2 leading-relaxed">{q.hint}</p>
+                      <p className="text-[12px] text-muted-foreground mt-2 leading-relaxed">{q.hint}</p>
                     </div>
                   );
                 })}
@@ -238,40 +228,40 @@ export default function DemoPage() {
             <div className="p-5">
               {/* Hội đồng */}
               <div className="grid grid-cols-3 gap-3 mb-4">
-                <div className="bg-zinc-900/40 rounded-xl border border-zinc-800/60 p-3 text-center">
+                <div className="bg-card/40 rounded-xl border border-border/60 p-3 text-center">
                   <div className="w-12 h-12 rounded-full bg-teal-500/20 text-teal-400 flex items-center justify-center mx-auto mb-2">
                     <Mic className="w-5 h-5" />
                   </div>
-                  <p className="text-[11px] font-bold text-zinc-200">PGS.TS Nguyễn Văn B</p>
-                  <p className="text-[10px] text-zinc-500">Chủ tịch hội đồng</p>
+                  <p className="text-[11px] font-bold text-foreground">PGS.TS Nguyễn Văn B</p>
+                  <p className="text-[10px] text-muted-foreground">Chủ tịch hội đồng</p>
                   <span className="inline-block mt-1 px-1.5 py-0.5 text-[9px] font-bold text-red-400 bg-red-500/10 rounded">● LIVE</span>
                 </div>
-                <div className="bg-zinc-900/40 rounded-xl border border-zinc-800/60 p-3 text-center">
-                  <div className="w-12 h-12 rounded-full bg-zinc-800 text-zinc-400 flex items-center justify-center mx-auto mb-2">
+                <div className="bg-card/40 rounded-xl border border-border/60 p-3 text-center">
+                  <div className="w-12 h-12 rounded-full bg-muted text-muted-foreground flex items-center justify-center mx-auto mb-2">
                     <Mic className="w-5 h-5" />
                   </div>
-                  <p className="text-[11px] font-bold text-zinc-200">TS Trần Thị C</p>
-                  <p className="text-[10px] text-zinc-500">Phản biện</p>
-                  <span className="inline-block mt-1 px-1.5 py-0.5 text-[9px] font-bold text-zinc-500 bg-zinc-800 rounded">Muted</span>
+                  <p className="text-[11px] font-bold text-foreground">TS Trần Thị C</p>
+                  <p className="text-[10px] text-muted-foreground">Phản biện</p>
+                  <span className="inline-block mt-1 px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground bg-muted rounded">Muted</span>
                 </div>
-                <div className="bg-zinc-900/40 rounded-xl border border-zinc-800/60 p-3 text-center flex flex-col items-center justify-center">
+                <div className="bg-card/40 rounded-xl border border-border/60 p-3 text-center flex flex-col items-center justify-center">
                   <div className="w-12 h-12 rounded-full bg-primary/20 text-primary flex items-center justify-center mx-auto mb-2">
                     <span className="text-lg">👤</span>
                   </div>
-                  <p className="text-[11px] font-bold text-zinc-200">Bạn (Sinh viên)</p>
-                  <p className="text-[10px] text-zinc-500">Đang trình bày</p>
+                  <p className="text-[11px] font-bold text-foreground">Bạn (Sinh viên)</p>
+                  <p className="text-[10px] text-muted-foreground">Đang trình bày</p>
                 </div>
               </div>
               {/* Chat */}
-              <div className="bg-zinc-900/40 rounded-lg border border-zinc-800/60 p-3 mb-4">
+              <div className="bg-card/40 rounded-lg border border-border/60 p-3 mb-4">
                 <p className="text-[11px] font-semibold text-teal-400 mb-1">PGS.TS Nguyễn Văn B</p>
-                <p className="text-[12px] text-zinc-300 leading-relaxed">
+                <p className="text-[12px] text-foreground leading-relaxed">
                   Hãy trình bày kết quả của bạn — bạn có 10 phút cho phần báo cáo.
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-zinc-500">⏱ 08:42</span>
-                <span className="text-[11px] font-bold text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">3 / 8</span>
+                <span className="text-[11px] text-muted-foreground">⏱ 08:42</span>
+                <span className="text-[11px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">3 / 8</span>
                 <span className="ml-auto px-3 py-1.5 bg-primary text-primary-foreground text-[11px] font-semibold rounded-full">🎙 Trả lời</span>
               </div>
             </div>

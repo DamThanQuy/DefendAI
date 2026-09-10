@@ -6,6 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+
+type AdminDeleteTarget =
+  | { kind: "provider"; name: string }
+  | { kind: "model"; modelId: number; mid: string }
+  | { kind: "ref"; category: string; title: string };
 
 // Cấu hình provider — admin chỉnh qua UI, lưu DB, áp dụng runtime.
 // ponytail: form đơn giản, không dùng react-hook-form — đủ cho 6 field tĩnh.
@@ -82,6 +88,38 @@ export default function AdminPage() {
   const [reviewsLoading, setReviewsLoading] = useState(true);
   const [reviewDetail, setReviewDetail] = useState<Record<string, unknown> | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // ── AI Provider / Model / Feature config (DB là nguồn chính) ──
+  interface AIModelRow { id: number; provider_name: string; model_id: string }
+  interface AIProviderRow {
+    name: string;
+    base_url: string;
+    enabled: boolean;
+    source?: string; // 'db' | 'env' — nguồn cấu hình đang chạy
+    runtime_model?: string | null;
+    models: { id: number; model_id: string }[];
+  }
+  const [aiProviders, setAiProviders] = useState<AIProviderRow[]>([]);
+  const [aiLoading, setAiLoading] = useState(true);
+  const [aiMsg, setAiMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [newProvider, setNewProvider] = useState({ name: "", base_url: "", api_key: "" });
+  const [newModel, setNewModel] = useState({ provider_name: "", model_id: "" });
+  const [aiBusy, setAiBusy] = useState<string | null>(null);
+  const [adminDeleteTarget, setAdminDeleteTarget] = useState<AdminDeleteTarget | null>(null);
+  const [testResult, setTestResult] = useState<Record<string, { ok: boolean; detail: string }>>({});
+
+  // Feature → provider/model mapping
+  const FEATURE_LABELS: Record<string, string> = {
+    chat: "Chat hỏi đáp tài liệu",
+    workspace_chat: "Chat trong workspace",
+    code_review: "Code review AI",
+    mock_qa: "Mock room Q&A",
+    question_gen: "Sinh câu hỏi phản biện",
+    classify: "Phân loại deliverable",
+    feedback: "Feedback sau mock",
+  };
+  const [featureConfig, setFeatureConfig] = useState<Record<string, { provider_name: string; model_id: string | null } | null>>({});
+  const [featureDraft, setFeatureDraft] = useState<Record<string, { provider_name: string; model_id: string }>>({});
 
   const authHeaders = () => {
     const token = localStorage.getItem("access_token");
@@ -212,8 +250,206 @@ export default function AdminPage() {
   useEffect(() => {
     loadUsers();
     loadReviews();
+    loadAIConfig();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── AI Provider / Model / Feature config loaders & actions ──
+  const loadAIConfig = async () => {
+    setAiLoading(true);
+    try {
+      const [provRes, featRes] = await Promise.all([
+        fetch("/api/admin/ai-providers", { headers: authHeaders() }),
+        fetch("/api/admin/feature-ai-config", { headers: authHeaders() }),
+      ]);
+      const provData = await provRes.json();
+      const featData = await featRes.json();
+      if (provData.providers) {
+        setAiProviders(provData.providers);
+        setNewModel((m) => ({ ...m, provider_name: m.provider_name || provData.providers[0]?.name || "" }));
+      } else {
+        setAiMsg({ type: "err", text: provData.error || provData.detail || "Không tải được provider" });
+      }
+      if (featData.config) {
+        setFeatureConfig(featData.config);
+        const draft: Record<string, { provider_name: string; model_id: string }> = {};
+        for (const f of featData.features ?? []) {
+          const cfg = featData.config[f];
+          draft[f] = { provider_name: cfg?.provider_name ?? "", model_id: cfg?.model_id ?? "" };
+        }
+        setFeatureDraft(draft);
+      }
+    } catch {
+      setAiMsg({ type: "err", text: "Không kết nối được máy chủ" });
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const addProvider = async () => {
+    if (!newProvider.name.trim() || !newProvider.base_url.trim()) return;
+    setAiBusy("add-provider");
+    setAiMsg(null);
+    try {
+      const res = await fetch("/api/admin/ai-providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          name: newProvider.name.trim(),
+          base_url: newProvider.base_url.trim(),
+          api_key: newProvider.api_key,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAiMsg({ type: "err", text: data.detail || "Thêm provider thất bại" });
+        return;
+      }
+      setAiMsg({ type: "ok", text: `Đã thêm provider "${newProvider.name.trim()}".` });
+      setNewProvider({ name: "", base_url: "", api_key: "" });
+      await loadAIConfig();
+    } catch {
+      setAiMsg({ type: "err", text: "Không kết nối được máy chủ" });
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  const confirmDeleteProvider = async () => {
+    const t = adminDeleteTarget;
+    if (!t || t.kind !== "provider") return;
+    const name = t.name;
+    setAdminDeleteTarget(null);
+    setAiBusy(`del-${name}`);
+    setAiMsg(null);
+    try {
+      const res = await fetch(`/api/admin/ai-providers?name=${encodeURIComponent(name)}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAiMsg({ type: "err", text: data.detail || "Xoá provider thất bại" });
+        return;
+      }
+      setAiMsg({ type: "ok", text: `Đã xoá provider "${name}".` });
+      await loadAIConfig();
+    } catch {
+      setAiMsg({ type: "err", text: "Không kết nối được máy chủ" });
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  const testProvider = async (name: string) => {
+    setAiBusy(`test-${name}`);
+    setAiMsg(null);
+    try {
+      const res = await fetch(`/api/admin/ai-providers/test?name=${encodeURIComponent(name)}`, {
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      setTestResult((t) => ({ ...t, [name]: { ok: !!data.ok, detail: data.detail || "" } }));
+    } catch {
+      setTestResult((t) => ({ ...t, [name]: { ok: false, detail: "Không kết nối được máy chủ" } }));
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  const addModel = async () => {
+    if (!newModel.provider_name || !newModel.model_id.trim()) return;
+    setAiBusy("add-model");
+    setAiMsg(null);
+    try {
+      const res = await fetch("/api/admin/ai-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          provider_name: newModel.provider_name,
+          model_id: newModel.model_id.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAiMsg({ type: "err", text: data.detail || "Thêm model thất bại" });
+        return;
+      }
+      setAiMsg({ type: "ok", text: `Đã thêm model "${newModel.model_id.trim()}".` });
+      setNewModel((m) => ({ ...m, model_id: "" }));
+      await loadAIConfig();
+    } catch {
+      setAiMsg({ type: "err", text: "Không kết nối được máy chủ" });
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  const deleteModel = async (modelId: number, mid: string) => {
+    setAdminDeleteTarget({ kind: "model", modelId, mid });
+  };
+
+  const confirmDeleteModel = async () => {
+    const t = adminDeleteTarget;
+    if (!t || t.kind !== "model") return;
+    const { modelId, mid } = t;
+    setAdminDeleteTarget(null);
+    setAiBusy(`del-model-${modelId}`);
+    setAiMsg(null);
+    try {
+      const res = await fetch(`/api/admin/ai-models?id=${modelId}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAiMsg({ type: "err", text: data.detail || "Xoá model thất bại" });
+        return;
+      }
+      setAiMsg({ type: "ok", text: `Đã xoá model "${mid}".` });
+      await loadAIConfig();
+    } catch {
+      setAiMsg({ type: "err", text: "Không kết nối được máy chủ" });
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  const saveFeature = async (feature: string) => {
+    const draft = featureDraft[feature];
+    if (!draft?.provider_name) return;
+    // Backend yêu cầu model_id cụ thể — rỗng thì lấy model đầu tiên của provider
+    const models = aiProviders.find((p) => p.name === draft.provider_name)?.models ?? [];
+    const modelId = draft.model_id || models[0]?.model_id || "";
+    if (!modelId) {
+      setAiMsg({ type: "err", text: `Provider "${draft.provider_name}" chưa có model nào. Hãy thêm model trước.` });
+      return;
+    }
+    setAiBusy(`feat-${feature}`);
+    setAiMsg(null);
+    try {
+      const res = await fetch("/api/admin/feature-ai-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          feature,
+          provider_name: draft.provider_name,
+          model_id: modelId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAiMsg({ type: "err", text: data.detail || "Lưu cấu hình chức năng thất bại" });
+        return;
+      }
+      setAiMsg({ type: "ok", text: `Đã lưu cấu hình cho "${FEATURE_LABELS[feature] ?? feature}".` });
+      await loadAIConfig();
+    } catch {
+      setAiMsg({ type: "err", text: "Không kết nối được máy chủ" });
+    } finally {
+      setAiBusy(null);
+    }
+  };
 
   const uploadReference = async () => {
     if (!refFile || !refTitle.trim() || refRunning) return;
@@ -279,8 +515,15 @@ export default function AdminPage() {
   };
 
   const removeRef = async (category: string, title: string) => {
-    if (!confirm(`Xoá tài liệu chuẩn "${title}"? (chunks + file gốc)`)) return;
+    setAdminDeleteTarget({ kind: "ref", category, title });
+  };
+
+  const confirmRemoveRef = async () => {
+    const t = adminDeleteTarget;
+    if (!t || t.kind !== "ref") return;
+    const { category, title } = t;
     const key = refKey(category, title);
+    setAdminDeleteTarget(null);
     setRefDeleting(key);
     setRefMsg(null);
     try {
@@ -347,6 +590,206 @@ export default function AdminPage() {
                 {saving ? "Đang lưu..." : "Lưu & áp dụng"}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* ── AI Provider / Model / Feature config (DB là nguồn chính) ── */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>🤖 AI Provider & Model (DB)</CardTitle>
+            <CardDescription>
+              Thêm provider/model cho hệ thống, test kết nối, và chọn model cho từng chức năng AI.
+              Lưu DB — áp dụng runtime trong ≤30s, không cần restart.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {aiLoading ? (
+              <p className="text-sm text-muted-foreground">Đang tải cấu hình AI...</p>
+            ) : (
+              <>
+                {aiMsg && (
+                  <p className={`text-sm font-medium ${aiMsg.type === "ok" ? "text-teal-400" : "text-red-400"}`}>
+                    {aiMsg.text}
+                  </p>
+                )}
+
+                {/* Danh sách provider + models */}
+                <div className="space-y-3">
+                  {aiProviders.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Chưa có provider nào trong DB.</p>
+                  ) : (
+                    aiProviders.map((p) => (
+                      <div key={p.name} className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div>
+                            <span className="font-semibold text-zinc-100">{p.name}</span>
+                            <span className={`ml-2 px-2 py-0.5 text-[11px] font-bold rounded-full ${p.enabled ? "bg-teal-500/10 text-teal-400" : "bg-zinc-700/40 text-zinc-400"}`}>
+                              {p.enabled ? "enabled" : "disabled"}
+                            </span>
+                            <span
+                              className={`ml-1 px-2 py-0.5 text-[11px] font-bold rounded-full ${
+                                p.source === "db"
+                                  ? "bg-blue-500/10 text-blue-400"
+                                  : p.source === "env"
+                                    ? "bg-amber-500/10 text-amber-400"
+                                    : "bg-zinc-700/40 text-zinc-400"
+                              }`}
+                              title={p.source === "db" ? "Cấu hình từ DB (admin quản lý)" : p.source === "env" ? "Cấu hình từ file .env" : "Nguồn không xác định"}
+                            >
+                              {p.source === "db" ? "● DB" : p.source === "env" ? "● ENV" : "● ?"}
+                            </span>
+                            {p.runtime_model && (
+                              <span className="ml-1 px-2 py-0.5 text-[11px] font-bold rounded-full bg-violet-500/10 text-violet-400">
+                                {p.runtime_model}
+                              </span>
+                            )}
+                            <p className="text-[12px] text-zinc-500">{p.base_url}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => testProvider(p.name)}
+                              disabled={aiBusy === `test-${p.name}`}
+                              className="px-3 py-1 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors disabled:opacity-50"
+                            >
+                              {aiBusy === `test-${p.name}` ? "Đang test..." : "🔌 Test"}
+                            </button>
+                            <button
+                              onClick={() => setAdminDeleteTarget({ kind: "provider", name: p.name })}
+                              disabled={aiBusy === `del-${p.name}`}
+                              className="px-3 py-1 text-[12px] font-semibold text-red-400 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                            >
+                              🗑 Xoá
+                            </button>
+                          </div>
+                        </div>
+                        {testResult[p.name] && (
+                          <p className={`text-[12px] ${testResult[p.name].ok ? "text-teal-400" : "text-red-400"}`}>
+                            {testResult[p.name].ok ? "✅" : "❌"} {testResult[p.name].detail}
+                          </p>
+                        )}
+                        {p.models.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {p.models.map((m) => (
+                              <span key={m.id} className="inline-flex items-center gap-1 px-2 py-1 bg-zinc-800 rounded-lg text-[12px] text-zinc-300">
+                                {m.model_id}
+                                <button
+                                  onClick={() => setAdminDeleteTarget({ kind: "model", modelId: m.id, mid: m.model_id })}
+                                  disabled={aiBusy === `del-model-${m.id}`}
+                                  className="text-red-400 hover:text-red-300 disabled:opacity-50"
+                                  title="Xoá model"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Thêm provider mới */}
+                <div className="rounded-xl border border-zinc-800 p-4 space-y-3">
+                  <p className="text-[13px] font-semibold text-zinc-200">Thêm provider mới</p>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <Input
+                      value={newProvider.name}
+                      onChange={(e) => setNewProvider((s) => ({ ...s, name: e.target.value }))}
+                      placeholder="Tên provider (VD: nvidia)"
+                    />
+                    <Input
+                      value={newProvider.base_url}
+                      onChange={(e) => setNewProvider((s) => ({ ...s, base_url: e.target.value }))}
+                      placeholder="Base URL (VD: http://localhost:20128/v1)"
+                    />
+                    <Input
+                      type="password"
+                      value={newProvider.api_key}
+                      onChange={(e) => setNewProvider((s) => ({ ...s, api_key: e.target.value }))}
+                      placeholder="API key (tùy chọn)"
+                    />
+                  </div>
+                  <Button onClick={addProvider} disabled={aiBusy === "add-provider" || !newProvider.name.trim() || !newProvider.base_url.trim()}>
+                    {aiBusy === "add-provider" ? "Đang thêm..." : "+ Thêm provider"}
+                  </Button>
+                </div>
+
+                {/* Thêm model cho provider */}
+                <div className="rounded-xl border border-zinc-800 p-4 space-y-3">
+                  <p className="text-[13px] font-semibold text-zinc-200">Thêm model cho provider</p>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <select
+                      value={newModel.provider_name}
+                      onChange={(e) => setNewModel((s) => ({ ...s, provider_name: e.target.value }))}
+                      className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-[13px] text-zinc-300 focus:outline-none focus:border-primary"
+                    >
+                      <option value="">— Chọn provider —</option>
+                      {aiProviders.map((p) => (
+                        <option key={p.name} value={p.name}>{p.name}</option>
+                      ))}
+                    </select>
+                    <Input
+                      value={newModel.model_id}
+                      onChange={(e) => setNewModel((s) => ({ ...s, model_id: e.target.value }))}
+                      placeholder="Model ID (VD: gemma-4-31b-it)"
+                    />
+                  </div>
+                  <Button onClick={addModel} disabled={aiBusy === "add-model" || !newModel.provider_name || !newModel.model_id.trim()}>
+                    {aiBusy === "add-model" ? "Đang thêm..." : "+ Thêm model"}
+                  </Button>
+                </div>
+
+                {/* Feature → provider/model mapping */}
+                <div className="rounded-xl border border-zinc-800 p-4 space-y-3">
+                  <p className="text-[13px] font-semibold text-zinc-200">Chọn model cho từng chức năng</p>
+                  <div className="space-y-2">
+                    {Object.keys(FEATURE_LABELS).map((feature) => {
+                      const draft = featureDraft[feature] ?? { provider_name: "", model_id: "" };
+                      const models = aiProviders.find((p) => p.name === draft.provider_name)?.models ?? [];
+                      return (
+                        <div key={feature} className="flex items-center gap-3 flex-wrap">
+                          <span className="w-56 text-[13px] text-zinc-300">{FEATURE_LABELS[feature]}</span>
+                          <select
+                            value={draft.provider_name}
+                            onChange={(e) => setFeatureDraft((s) => ({
+                              ...s,
+                              [feature]: { provider_name: e.target.value, model_id: "" },
+                            }))}
+                            className="px-2 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 focus:outline-none focus:border-primary"
+                          >
+                            <option value="">— Mặc định hệ thống —</option>
+                            {aiProviders.map((p) => (
+                              <option key={p.name} value={p.name}>{p.name}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={draft.model_id}
+                            onChange={(e) => setFeatureDraft((s) => ({
+                              ...s,
+                              [feature]: { ...draft, model_id: e.target.value },
+                            }))}
+                            className="px-2 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[12px] text-zinc-300 focus:outline-none focus:border-primary"
+                          >
+                            <option value="">— Model đầu tiên —</option>
+                            {models.map((m) => (
+                              <option key={m.id} value={m.model_id}>{m.model_id}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => saveFeature(feature)}
+                            disabled={aiBusy === `feat-${feature}` || !draft.provider_name}
+                            className="px-3 py-1 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors disabled:opacity-50"
+                          >
+                            {aiBusy === `feat-${feature}` ? "..." : "Lưu"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -642,6 +1085,60 @@ export default function AdminPage() {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmModal
+        open={!!adminDeleteTarget}
+        tone="danger"
+        icon={
+          !adminDeleteTarget
+            ? "delete"
+            : adminDeleteTarget.kind === "provider"
+            ? "delete"
+            : adminDeleteTarget.kind === "model"
+            ? "delete"
+            : "description"
+        }
+        title={
+          !adminDeleteTarget
+            ? "Xoá mục này?"
+            : adminDeleteTarget.kind === "provider"
+            ? `Xoá provider "${adminDeleteTarget.name}"?`
+            : adminDeleteTarget.kind === "model"
+            ? `Xoá model "${adminDeleteTarget.mid}"?`
+            : `Xoá tài liệu chuẩn "${adminDeleteTarget.title}"?`
+        }
+        description={
+          !adminDeleteTarget ? null : (
+            <>
+              {adminDeleteTarget.kind === "provider" && (
+                <p className="text-[14px] text-muted-foreground">
+                  Hành động này sẽ xoá luôn các model và cấu hình chức năng trỏ tới provider này.
+                </p>
+              )}
+              {adminDeleteTarget.kind === "model" && (
+                <p className="text-[14px] text-muted-foreground">
+                  Bạn có chắc muốn xoá model này khỏi provider?
+                </p>
+              )}
+              {adminDeleteTarget.kind === "ref" && (
+                <p className="text-[14px] text-muted-foreground">
+                  Hành động này sẽ xoá toàn bộ chunks và file gốc.
+                </p>
+              )}
+            </>
+          )
+        }
+        confirmLabel="Xoá"
+        cancelLabel="Huỷ"
+        onCancel={() => setAdminDeleteTarget(null)}
+        onConfirm={async () => {
+          const t = adminDeleteTarget;
+          if (!t) return;
+          if (t.kind === "provider") await confirmDeleteProvider();
+          else if (t.kind === "model") await confirmDeleteModel();
+          else if (t.kind === "ref") await confirmRemoveRef();
+        }}
+      />
     </main>
   );
 }

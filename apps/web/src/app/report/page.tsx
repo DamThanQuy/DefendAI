@@ -14,11 +14,11 @@ export default function ReportPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-10">
           <div>
             <h1 className="text-[32px] font-bold text-foreground mb-2 tracking-tight">Báo cáo Đánh giá</h1>
-            <p className="text-zinc-500 text-[15px] font-medium">
+            <p className="text-muted-foreground text-[15px] font-medium">
               Chi tiết kết quả bảo vệ đồ án tốt nghiệp - Sinh viên: Nguyễn Văn A
             </p>
           </div>
-          <div className="flex items-center gap-2 text-zinc-400 text-[14px] font-medium bg-card px-4 py-2 rounded-lg shadow-sm border border-zinc-800/60">
+          <div className="flex items-center gap-2 text-muted-foreground text-[14px] font-medium bg-card px-4 py-2 rounded-lg shadow-sm border border-border/60">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
@@ -26,107 +26,87 @@ export default function ReportPage() {
           </div>
         </div>
 
-        {/* Top Section: Score Cards */}
+        {/* Top Section: Qualitative Summary (KHÔNG chấm điểm số) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           
-          {/* Main Score Card (Left) */}
-          <div className="lg:col-span-1 bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-8 flex flex-col items-center justify-center">
-            <h3 className="text-[13px] font-bold text-zinc-500 uppercase tracking-widest mb-6">Điểm Tổng Kết</h3>
+          {/* Overall Assessment Card (Left) */}
+          <div className="lg:col-span-1 bg-card rounded-2xl shadow-sm border border-border/60 p-8 flex flex-col items-center justify-center">
+            <h3 className="text-[13px] font-bold text-muted-foreground uppercase tracking-widest mb-6">Đánh giá tổng quan</h3>
             
-            {/* Circular Progress */}
-            <div className="relative w-40 h-40 mb-6 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                <path
-                  className="text-zinc-800"
-                  strokeWidth="3.5"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                />
-                <path
-                  className="text-primary"
-                  strokeWidth="3.5"
-                  strokeDasharray="85, 100"
-                  strokeLinecap="round"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                />
-              </svg>
-              <div className="absolute flex flex-col items-center justify-center mt-1">
-                <span className="text-[40px] font-bold text-primary leading-none mb-1">8.5</span>
-                <span className="text-[15px] text-zinc-500 font-semibold">/ 10</span>
-              </div>
+            <div className="w-40 h-40 mb-6 flex items-center justify-center rounded-full border-4 border-teal-500/30 bg-teal-500/5">
+              <span className="text-[22px] font-bold text-teal-400 text-center leading-tight px-2">
+                ĐẠT
+              </span>
             </div>
             
             <div className="px-5 py-2 bg-teal-500/10 text-teal-400 text-[14px] font-semibold rounded-full">
-              Xếp loại: Giỏi
+              Nhận xét theo tiêu chí rubric
             </div>
           </div>
 
-          {/* Sub Scores (Right 2x2 Grid) */}
+          {/* Sub Criteria (Right 2x2 Grid) */}
           <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Kiến thức */}
-            <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-6 flex flex-col justify-between">
+            <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 flex flex-col justify-between">
               <div className="flex justify-between items-start mb-4">
                 <div className="w-12 h-12 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                   </svg>
                 </div>
-                <span className="text-[28px] font-bold text-primary">9.0</span>
+                <span className="px-3 py-1 text-[13px] font-semibold rounded-full bg-teal-500/10 text-teal-400">Tốt</span>
               </div>
               <div>
-                <h4 className="text-[18px] font-bold text-zinc-200 mb-1">Kiến thức</h4>
-                <p className="text-[12px] text-zinc-500 font-medium">Khả năng nắm vững lý thuyết và áp dụng vào thực tế đồ án.</p>
+                <h4 className="text-[18px] font-bold text-foreground mb-1">Kiến thức</h4>
+                <p className="text-[12px] text-muted-foreground font-medium">Nắm vững lý thuyết và áp dụng tốt vào thực tế đồ án.</p>
               </div>
             </div>
 
             {/* Trình bày */}
-            <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-6 flex flex-col justify-between">
+            <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 flex flex-col justify-between">
               <div className="flex justify-between items-start mb-4">
                 <div className="w-12 h-12 rounded-xl bg-slate-500/10 text-slate-400 flex items-center justify-center">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <span className="text-[28px] font-bold text-primary">8.0</span>
+                <span className="px-3 py-1 text-[13px] font-semibold rounded-full bg-teal-500/10 text-teal-400">Tốt</span>
               </div>
               <div>
-                <h4 className="text-[18px] font-bold text-zinc-200 mb-1">Trình bày</h4>
-                <p className="text-[12px] text-zinc-500 font-medium">Khả năng diễn đạt, sử dụng slide và phong thái tự tin.</p>
+                <h4 className="text-[18px] font-bold text-foreground mb-1">Trình bày</h4>
+                <p className="text-[12px] text-muted-foreground font-medium">Diễn đạt rõ ràng, slide trực quan, phong thái tự tin.</p>
               </div>
             </div>
 
             {/* Phản biện */}
-            <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-6 flex flex-col justify-between">
+            <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 flex flex-col justify-between">
               <div className="flex justify-between items-start mb-4">
                 <div className="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
                 </div>
-                <span className="text-[28px] font-bold text-primary">8.2</span>
+                <span className="px-3 py-1 text-[13px] font-semibold rounded-full bg-amber-500/10 text-amber-400">Khá</span>
               </div>
               <div>
-                <h4 className="text-[18px] font-bold text-zinc-200 mb-1">Phản biện</h4>
-                <p className="text-[12px] text-zinc-500 font-medium">Xử lý câu hỏi khó và bảo vệ quan điểm logic.</p>
+                <h4 className="text-[18px] font-bold text-foreground mb-1">Phản biện</h4>
+                <p className="text-[12px] text-muted-foreground font-medium">Xử lý câu hỏi khá tốt, cần bảo vệ quan điểm logic chặt chẽ hơn.</p>
               </div>
             </div>
 
             {/* Đồ án */}
-            <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 p-6 flex flex-col justify-between">
+            <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 flex flex-col justify-between">
               <div className="flex justify-between items-start mb-4">
                 <div className="w-12 h-12 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                   </svg>
                 </div>
-                <span className="text-[28px] font-bold text-primary">8.8</span>
+                <span className="px-3 py-1 text-[13px] font-semibold rounded-full bg-teal-500/10 text-teal-400">Tốt</span>
               </div>
               <div>
-                <h4 className="text-[18px] font-bold text-zinc-200 mb-1">Đồ án</h4>
-                <p className="text-[12px] text-zinc-500 font-medium">Tính hoàn thiện, cấu trúc code và giải pháp kỹ thuật.</p>
+                <h4 className="text-[18px] font-bold text-foreground mb-1">Đồ án</h4>
+                <p className="text-[12px] text-muted-foreground font-medium">Hoàn thiện, cấu trúc code tốt, giải pháp kỹ thuật hợp lý.</p>
               </div>
             </div>
           </div>
@@ -136,7 +116,7 @@ export default function ReportPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
           
           {/* Điểm mạnh */}
-          <div className="bg-zinc-900/40 rounded-2xl border border-teal-800/40 overflow-hidden flex flex-col h-full">
+          <div className="bg-card/40 rounded-2xl border border-teal-800/40 overflow-hidden flex flex-col h-full">
             <div className="px-6 py-5 border-b border-teal-800/40 flex items-center gap-3">
               <div className="text-teal-400">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -150,7 +130,7 @@ export default function ReportPage() {
                 <svg className="w-5 h-5 text-teal-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                 </svg>
-                <p className="text-[14px] text-zinc-300 leading-relaxed font-medium">
+                <p className="text-[14px] text-foreground leading-relaxed font-medium">
                   Nắm rất vững kiến thức nền tảng về cấu trúc dữ liệu và giải thuật áp dụng trong AI.
                 </p>
               </div>
@@ -158,7 +138,7 @@ export default function ReportPage() {
                 <svg className="w-5 h-5 text-teal-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                 </svg>
-                <p className="text-[14px] text-zinc-300 leading-relaxed font-medium">
+                <p className="text-[14px] text-foreground leading-relaxed font-medium">
                   Phong thái trình bày chuyên nghiệp, tự tin, trả lời trôi chảy các câu hỏi liên quan đến code.
                 </p>
               </div>
@@ -166,7 +146,7 @@ export default function ReportPage() {
                 <svg className="w-5 h-5 text-teal-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                 </svg>
-                <p className="text-[14px] text-zinc-300 leading-relaxed font-medium">
+                <p className="text-[14px] text-foreground leading-relaxed font-medium">
                   Đồ án có tính ứng dụng thực tiễn cao, giao diện người dùng mượt mà và trực quan.
                 </p>
               </div>
@@ -174,7 +154,7 @@ export default function ReportPage() {
           </div>
 
           {/* Cần cải thiện */}
-          <div className="bg-zinc-900/40 rounded-2xl border border-red-800/40 overflow-hidden flex flex-col h-full">
+          <div className="bg-card/40 rounded-2xl border border-red-800/40 overflow-hidden flex flex-col h-full">
             <div className="px-6 py-5 border-b border-red-800/40 flex items-center gap-3">
               <div className="text-red-400">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -188,7 +168,7 @@ export default function ReportPage() {
                 <svg className="w-5 h-5 text-red-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                 </svg>
-                <p className="text-[14px] text-zinc-300 leading-relaxed font-medium">
+                <p className="text-[14px] text-foreground leading-relaxed font-medium">
                   Cần tối ưu hóa hiệu suất cho các tập dữ liệu lớn hơn trong phần xử lý ngôn ngữ tự nhiên.
                 </p>
               </div>
@@ -196,7 +176,7 @@ export default function ReportPage() {
                 <svg className="w-5 h-5 text-red-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                 </svg>
-                <p className="text-[14px] text-zinc-300 leading-relaxed font-medium">
+                <p className="text-[14px] text-foreground leading-relaxed font-medium">
                   Slide trình bày phần kỹ thuật chuyên sâu nên có thêm biểu đồ minh họa chi tiết hơn.
                 </p>
               </div>
@@ -204,7 +184,7 @@ export default function ReportPage() {
                 <svg className="w-5 h-5 text-red-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                 </svg>
-                <p className="text-[14px] text-zinc-300 leading-relaxed font-medium">
+                <p className="text-[14px] text-foreground leading-relaxed font-medium">
                   Báo cáo tài liệu (documentation) phần API cần bổ sung các trường hợp lỗi biên.
                 </p>
               </div>

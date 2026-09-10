@@ -32,6 +32,8 @@ class Meeting(Base):
 
     members = relationship("MeetingMember", back_populates="meeting", cascade="all, delete-orphan")
     evaluations = relationship("Evaluation", back_populates="meeting", cascade="all, delete-orphan")
+    defense_scores = relationship("DefenseScore", back_populates="meeting", cascade="all, delete-orphan")
+    committee_decisions = relationship("CommitteeDecision", back_populates="meeting", cascade="all, delete-orphan")
     messages = relationship("MeetingMessage", back_populates="meeting", cascade="all, delete-orphan")
 
 

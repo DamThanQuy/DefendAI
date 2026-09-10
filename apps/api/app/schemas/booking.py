@@ -33,6 +33,12 @@ class BookingReject(BaseModel):
 
     reason: str = Field(..., min_length=1, max_length=500)
 
+class BookingInvite(BaseModel):
+    """Sinh viên chủ trì mời thêm sinh viên khác vào phòng Mock Room."""
+
+    # username hoặc email của sinh viên được mời
+    identifier: str = Field(..., min_length=1, max_length=255)
+
 
 class BookingOut(BaseModel):
     """Response hiển thị thông tin booking."""
@@ -57,3 +63,6 @@ class BookingOut(BaseModel):
     mentor_name: Optional[str] = None
     # Cờ phòng đã mở (còn <=5p và confirmed)
     room_open: Optional[bool] = None
+
+    # Danh sách sinh viên được mời thêm (student chủ trì mời)
+    invited_students: Optional[list] = None

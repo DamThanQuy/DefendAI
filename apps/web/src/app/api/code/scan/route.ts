@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 
 // Scan theo document_id (đã upload) → backend tạo CodeAnalysis + job → poll analysis
@@ -25,6 +27,7 @@ async function scanDocument(documentId: number, authHeader: string) {
   const pollInterval = 2000;
   const maxAttempts = 300;
   let analysis: any = null;
+  let moduleProgress = { done: 0, total: 0 };
 
   for (let i = 0; i < maxAttempts; i++) {
     const pollRes = await fetch(`${backendUrl}/api/code/analyses/${analysisId}`, {
@@ -35,6 +38,11 @@ async function scanDocument(documentId: number, authHeader: string) {
       return NextResponse.json({ error: 'Analysis polling failed', details: err }, { status: pollRes.status });
     }
     analysis = await pollRes.json();
+
+    // Track module progress during scanning
+    if (analysis.total_modules && analysis.done_modules !== undefined) {
+      moduleProgress = { done: analysis.done_modules, total: analysis.total_modules };
+    }
 
     if (analysis.status === 'completed') break;
     if (analysis.status === 'failed') {
@@ -81,6 +89,7 @@ async function scanDocument(documentId: number, authHeader: string) {
       model: analysis.model,
       total_modules: analysis.total_modules,
       done_modules: analysis.done_modules,
+      module_progress: moduleProgress,
     },
     details: issues.map((it: any, idx: number) => ({
       id: it.id ?? idx + 1,

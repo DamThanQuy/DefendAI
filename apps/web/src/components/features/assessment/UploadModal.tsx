@@ -22,7 +22,7 @@ export function UploadModal({ open, onClose }: Props) {
           transition={{ duration: 0.2 }}
         >
           <motion.div
-            className="bg-card rounded-2xl p-6 md:p-8 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto border border-zinc-800/60"
+            className="bg-card rounded-2xl p-6 md:p-8 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto border border-border/60"
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -32,7 +32,7 @@ export function UploadModal({ open, onClose }: Props) {
               <h3 className="text-2xl font-bold text-foreground">Tải lên tài liệu mới</h3>
               <button
                 onClick={onClose}
-                className="p-2 rounded-full hover:bg-zinc-800/60 text-zinc-500 transition-colors"
+                className="p-2 rounded-full hover:bg-muted/60 text-muted-foreground transition-colors"
                 aria-label="Đóng"
               >
                 <X className="w-5 h-5" />

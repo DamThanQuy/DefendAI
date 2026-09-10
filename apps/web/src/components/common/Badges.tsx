@@ -24,7 +24,7 @@ export function SeverityBadge({ severity, className }: SeverityBadgeProps) {
     <span
       className={cn(
         "text-xs font-medium px-2 py-1 rounded-full",
-        severityStyles[severity] ?? "bg-zinc-800 text-zinc-400",
+        severityStyles[severity] ?? "bg-muted text-muted-foreground",
         className,
       )}
     >
@@ -59,7 +59,7 @@ export function DifficultyBadge({ difficulty, className }: DifficultyBadgeProps)
     <span
       className={cn(
         "text-xs font-medium px-2 py-1 rounded-full",
-        difficultyStyles[difficulty] ?? "bg-zinc-800 text-zinc-400",
+        difficultyStyles[difficulty] ?? "bg-muted text-muted-foreground",
         className,
       )}
     >

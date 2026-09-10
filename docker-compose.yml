@@ -34,6 +34,10 @@ services:
 
       # Redis connection
       REDIS_URL: redis://redis:6379/0
+      # Force correct local model (image has stale LOCAL_MODEL=google)
+      LOCAL_MODEL: ${LOCAL_MODEL:-agnes-2.5-flash}
+      LOCAL_BASE_URL: ${LOCAL_BASE_URL:-https://apihub.agnes-ai.com/v1}
+      LOCAL_API_KEY: ${LOCAL_API_KEY:-sk-x4yIzIz3M26SDmJLrPsjbXSwDUxL8HMrVehmAdrOVWSnqqsX}
     volumes:
       # Mount code để dev có hot-reload
       - ./apps/api:/app
@@ -117,8 +121,8 @@ services:
       - "9000:9000"   # S3 API
       - "9001:9001"   # Console UI
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_ACCESS_KEY}
       MINIO_DOMAIN: localhost
     volumes:
       - ./data/minio:/data
@@ -146,18 +150,34 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/defense_db
       REDIS_URL: redis://redis:6379/0
       DEFAULT_PROVIDER: localhost
+      LOCAL_MODEL: ${LOCAL_MODEL:-agnes-2.5-flash}
+      LOCAL_BASE_URL: ${LOCAL_BASE_URL:-https://apihub.agnes-ai.com/v1}
+      LOCAL_API_KEY: ${LOCAL_API_KEY:-sk-x4yIzIz3M26SDmJLrPsjbXSwDUxL8HMrVehmAdrOVWSnqqsX}
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
       REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      EMBED_BATCH_SIZE: "64"
+      EMBED_REQUEST_DELAY: "1.5"
+      NVIDIA_EMBED_API_KEY: ${NVIDIA_EMBED_API_KEY:-}
+      NVIDIA_EMBED_MODEL: ${NVIDIA_EMBED_MODEL:-nvidia/llama-nemotron-embed-vl-1b-v2}
+      NVIDIA_EMBED_TEXT_MODEL: ${NVIDIA_EMBED_TEXT_MODEL:-nvidia/nemotron-3-embed-1b}
+      NVIDIA_EMBED_BASE_URL: ${NVIDIA_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
     volumes:
       - ./apps/api:/app
       - /app/__pycache__
+      - analysis_tmp:/var/lib/defendai/analysis-tmp
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9091/health', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - defense-net
 
@@ -177,7 +197,16 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/defense_db
       REDIS_URL: redis://redis:6379/0
       DEFAULT_PROVIDER: localhost
+      LOCAL_MODEL: ${LOCAL_MODEL:-agnes-2.5-flash}
+      LOCAL_BASE_URL: ${LOCAL_BASE_URL:-https://apihub.agnes-ai.com/v1}
+      LOCAL_API_KEY: ${LOCAL_API_KEY:-sk-x4yIzIz3M26SDmJLrPsjbXSwDUxL8HMrVehmAdrOVWSnqqsX}
       WORKER_PROCESSES: 4
+      EMBED_BATCH_SIZE: "64"
+      EMBED_REQUEST_DELAY: "1.5"
+      NVIDIA_EMBED_API_KEY: ${NVIDIA_EMBED_API_KEY:-}
+      NVIDIA_EMBED_MODEL: ${NVIDIA_EMBED_MODEL:-nvidia/llama-nemotron-embed-vl-1b-v2}
+      NVIDIA_EMBED_TEXT_MODEL: ${NVIDIA_EMBED_TEXT_MODEL:-nvidia/nemotron-3-embed-1b}
+      NVIDIA_EMBED_BASE_URL: ${NVIDIA_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
@@ -185,6 +214,7 @@ services:
     volumes:
       - ./apps/api:/app
       - /app/__pycache__
+      - analysis_tmp:/var/lib/defendai/analysis-tmp
     depends_on:
       db:
         condition: service_healthy
@@ -228,6 +258,8 @@ volumes:
     name: defense_minio_data
   redis_data:
     name: defense_redis_data
+  analysis_tmp:
+    name: defense_analysis_tmp
 
 # ========================================================================
 # Networks

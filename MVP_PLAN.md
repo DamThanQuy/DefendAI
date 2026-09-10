@@ -63,8 +63,8 @@ Xây dựng bản Beta (MVP) tập trung vào luồng giá trị cốt lõi đ�
 
 | Ngày | Dev A | Dev B | Dev C |
 |------|-------|-------|-------|
-| Ngày 15-16 | **UI Form chấm điểm** theo 3 tiêu chí: Kiến thức / Thuyết trình / Phản xạ | **AI Review cuối**: Tổng hợp điểm yếu từ câu hỏi + trả lời | **API lưu điểm số**, tính trung bình real-time |
-| Ngày 17-18 | **UI Biểu đồ Radar** (Chart.js) hiển thị năng lực | **AI Tổng kết "Bệnh án đồ án"**: Lỗ hổng logic & đề xuất cải thiện | **API Export báo cáo** (JSON data cho PDF) |
+| Ngày 15-16 | **UI Form chấm điểm** theo rubric OGA/TDA đọc từ DB (BR-A1/A2): 7 report per nhóm + 9 hạng mục TDA per sinh viên | **AI Review cuối**: Tổng hợp điểm yếu từ câu hỏi + trả lời | **API lưu điểm số** per (student, committee, item), tính trung bình real-time |
+| Ngày 17-18 | **UI Biểu đồ Radar** (Chart.js) 9 trục = 9 hạng mục TDA, overlay ngưỡng 5.0 (BR-E2) | **AI Tổng kết "Bệnh án đồ án"**: rule check 7 rule (BR-B1) + lỗ hổng logic & đề xuất cải thiện | **API Export báo cáo** (JSON data cho PDF) |
 | Ngày 19-20 | **UI Export PDF Report**, responsive & printable | **Prompt fine-tuning** dựa trên test cases | **Integration** luồng cuối: Chấm điểm → Radar Chart → Xuất PDF |
 | Ngày 21 | **Final Testing**: Happy path từ đầu đến cuối, fix UI bugs | **Prompt tuning** cuối, optimize cost AI API | **Deploy production**, setup CI/CD cơ bản, backup |
 
@@ -79,7 +79,17 @@ Xây dựng bản Beta (MVP) tập trung vào luồng giá trị cốt lõi đ�
 | 2 | **Quét Source Code (.zip) phát hiện lỗi logic, code smell** | **Quý + Dev C** |
 | 3 | Giả lập bộ câu hỏi theo 3 Persona (Lý thuyết/Thực tế/Khắt khe) | Dev B |
 | 4 | Phòng họp trực tuyến có Timer đếm ngược | Dev C + A |
-| 5 | Chấm điểm theo tiêu chí và xuất PDF báo cáo | Dev A + B + C |
+| 5 | Chấm điểm theo rubric OGA/TDA (per SV) và xuất PDF báo cáo rule-based | Dev A + B + C |
+
+### 🔀 Cải tiến theo tiêu chí SEP490 (sau MVP gốc — trình tự trong `document/issue/HUONG-DAN-trien-khai.md`)
+
+| Phase | Issue BR-* | Nội dung | Priority |
+|---|---|---|---|
+| 0 | BR-00 | Đồng bộ docs theo rubric chính thức | Must |
+| 1 | BR-A1 → BR-A2 → BR-B1 | Rubric DB-driven · điểm TDA per SV · rule engine đậu/trượt | Must |
+| 2 | BR-B2 → BR-B3 → BR-D1 | Đếm UC từ SRS · phân loại defect · state machine vòng đời | Should |
+| 3 | BR-E2 · BR-E1 · BR-F1 · BR-F2 · BR-D2 | Radar 9 trục · pool câu hỏi theo rubric area · demo script/drill · hồ sơ năng lực · timer 45+45 | Should |
+| 4 | BR-H1 → BR-A3 → BR-H2 → BR-H3 | DB health · phiếu GVHD chuẩn · rủi ro trí mạng · checklist trước khi nộp | Should |
 
 ### ❌ Out-of-scope (Để sau MVP)
 - **Auth / Đăng nhập** → Bỏ qua, tập trung demo main function trước

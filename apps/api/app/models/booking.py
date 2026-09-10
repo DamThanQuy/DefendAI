@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Column, Integer, String, DateTime, Enum as SQLEnum, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Enum as SQLEnum, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -58,6 +58,10 @@ class MockBooking(Base):
 
     # Liên kết tới phòng họp (meeting) được tạo khi confirm
     meeting_id = Column(Integer, ForeignKey("meetings.id"), nullable=True)
+
+    # Danh sách sinh viên được mời thêm vào phòng (student chủ trì mời).
+    # Lưu dạng JSON: [{"user_id": 12, "name": "Nguyễn Văn B"}, ...]
+    invited_students = Column(JSON, nullable=True, default=list)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(

@@ -1,0 +1,60 @@
+name: Deploy DefendAI
+
+on:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, Windows, X64, defendai]
+
+    steps:
+      - name: Deploy latest master
+        shell: powershell
+        run: |
+          Set-Location F:\DefendAI
+
+          git fetch origin master
+          git reset --hard origin/master
+
+          # Keep the Linux entrypoint executable after a Windows Git checkout.
+          $entrypoint = "F:\DefendAI\apps\api\entrypoint.sh"
+          $bytes = [System.IO.File]::ReadAllBytes($entrypoint)
+          [System.IO.File]::WriteAllBytes(
+            $entrypoint,
+            [byte[]]($bytes | Where-Object { $_ -ne 13 })
+          )
+
+          docker compose up -d --build --remove-orphans
+          docker compose ps
+
+      - name: Check API health
+        shell: powershell
+        run: |
+          $healthy = $false
+          for ($attempt = 1; $attempt -le 12; $attempt++) {
+            try {
+              $response = Invoke-WebRequest `
+                -Uri "http://localhost:8000/health" `
+                -UseBasicParsing `
+                -TimeoutSec 10
+
+              if ($response.StatusCode -eq 200) {
+                $healthy = $true
+                break
+              }
+            } catch {
+              Write-Host "API is not ready yet (attempt $attempt/12): $($_.Exception.Message)"
+            }
+
+            Start-Sleep -Seconds 5
+          }
+
+          if (-not $healthy) {
+            throw "API health check failed after 12 attempts"
+          }

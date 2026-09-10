@@ -2,6 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Tách font Google Fonts (Material Symbols) ra khỏi global — bị chặn bởi ad-blocker.
+     Mọi icon dùng SVG component trong src/components/icons/* thay thế. */
+}
+
+.material-icons {
+  font-family: 'Material Symbols Rounded' !important;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  font-variation-settings:
+    'FILL' 1,
+    'wght' 500,
+    'GRAD' 0,
+    'opsz' 24;
+  -webkit-font-smoothing: antialiased;
+}
+
 /* NProgress top bar styling - YouTube-style red progress bar */
 #nprogress {
   pointer-events: none;
@@ -29,57 +55,57 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 262 83% 58%;            /* purple #7C3AED */
-    --primary-foreground: 210 40% 98%;
+    --primary: 173 80% 40%;            /* teal #14B8A6 — Qiz HUB inspired */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 238 81% 67%;          /* indigo #6366F1 */
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 187 85% 43%;          /* cyan #06B6D4 */
+    --secondary-foreground: 0 0% 100%;
 
     --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted-foreground: 215 16% 47%;
 
-    --accent: 330 81% 60%;             /* pink #EC4899 */
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 38 92% 50%;              /* amber #F59E0B — Qiz HUB highlight */
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 262 83% 58%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 173 80% 40%;
 
     --radius: 0.75rem;
   }
 
   .dark {
-    /* Deep dark SaaS — CodeRabbit palette */
-    --background: 0 0% 3.5%;          /* #09090B pitch-black */
-    --foreground: 0 0% 93%;            /* near-white */
+    /* Deep dark SaaS — Qiz HUB dark inspired */
+    --background: 222 47% 6%;          /* deep navy black */
+    --foreground: 210 20% 96%;
 
-    --card: 215 20% 13%;              /* #182030 — lighter for readability */
-    --card-foreground: 0 0% 93%;
+    --card: 222 30% 9%;
+    --card-foreground: 210 20% 96%;
 
-    --popover: 215 25% 12%;
-    --popover-foreground: 0 0% 93%;
+    --popover: 222 30% 9%;
+    --popover-foreground: 210 20% 96%;
 
-    --primary: 262 83% 58%;           /* purple #7C3AED */
-    --primary-foreground: 0 0% 98%;
+    --primary: 173 80% 45%;           /* teal #14B8A6 */
+    --primary-foreground: 222 47% 6%;
 
-    --secondary: 238 81% 67%;        /* indigo #6366F1 */
-    --secondary-foreground: 0 0% 93%;
+    --secondary: 187 85% 50%;        /* cyan #06B6D4 */
+    --secondary-foreground: 222 47% 6%;
 
-    --muted: 240 3.7% 12%;
-    --muted-foreground: 210 5% 72%;
+    --muted: 222 30% 14%;
+    --muted-foreground: 215 16% 65%;
 
-    --accent: 330 81% 60%;            /* pink #EC4899 */
-    --accent-foreground: 0 0% 98%;
+    --accent: 38 92% 55%;             /* amber #F59E0B */
+    --accent-foreground: 222 47% 6%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 3.7% 18%;           /* crisp dark border */
-    --input: 240 3.7% 15%;
-    --ring: 262 83% 58%;
+    --border: 222 30% 16%;
+    --input: 222 30% 14%;
+    --ring: 173 80% 45%;
   }
 }
 
@@ -90,30 +116,30 @@
   body {
     @apply bg-background text-foreground;
     background-image:
-      radial-gradient(at 0% 0%, hsla(262, 83%, 58%, 0.1) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, hsla(330, 81%, 60%, 0.08) 0px, transparent 50%);
+      radial-gradient(at 0% 0%, hsla(173, 80%, 40%, 0.08) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(187, 85%, 43%, 0.06) 0px, transparent 50%);
     background-attachment: fixed;
     min-height: 100vh;
   }
 
-  /* Light mode: soften the dark radial glows so the page reads as light */
+  /* Light mode: soften the teal/cyan glows */
   .light body {
     background-image:
-      radial-gradient(at 0% 0%, hsla(262, 83%, 58%, 0.06) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, hsla(330, 81%, 60%, 0.05) 0px, transparent 50%);
+      radial-gradient(at 0% 0%, hsla(173, 80%, 40%, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(187, 85%, 43%, 0.04) 0px, transparent 50%);
   }
 }
 
 @layer utilities {
   /* Dark SaaS card — crisp border + subtle teal glow, no blur/shadow */
   .dark-card {
-    @apply rounded-xl border border-zinc-800/60;
+    @apply rounded-xl border border-border;
     background-color: hsl(var(--card));
     transition: all 200ms ease;
   }
   .dark-card:hover {
-    @apply border-zinc-700;
-    box-shadow: 0 0 24px rgba(124, 58, 237, 0.15); /* primary shadow */
+    @apply border-primary/50;
+    box-shadow: 0 0 24px hsla(173, 80%, 40%, 0.12);
   }
 
   /* Feature card — inherits dark-card + padding/overflow for landing */
@@ -127,7 +153,7 @@
   }
 
   .text-gradient {
-    background-image: linear-gradient(135deg, hsl(262, 83%, 58%), hsl(238, 81%, 67%), hsl(330, 81%, 60%));
+    background-image: linear-gradient(135deg, hsl(173, 80%, 40%), hsl(187, 85%, 43%), hsl(38, 92%, 50%));
     -webkit-background-clip: text;
     color: transparent;
   }
@@ -217,3 +243,107 @@
 
 /* Room page dùng nền đen cố định (#0A0A0A) — giữ nguyên dark kể cả light
    mode vì đây là "stage" video call. Không override. */
+
+/* =========================================================================
+   MARKDOWN IN CHAT BUBBLES — tinh chỉnh prose cho gọn trong bubble chat.
+   prose mặc định (typography plugin) có margin/padding lớn, phù hợp article
+   nhưng quá rộng trong bubble chat. Override để giống ChatGPT.
+   ========================================================================= */
+.markdown-body {
+  font-size: 13.5px;
+  color: hsl(var(--foreground) / 0.85);
+}
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  margin-top: 0.9em;
+  margin-bottom: 0.4em;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.markdown-body h1 { font-size: 1.15em; }
+.markdown-body h2 { font-size: 1.08em; }
+.markdown-body h3 { font-size: 1.02em; }
+.markdown-body p {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0.4em;
+  margin-bottom: 0.4em;
+  padding-left: 1.4em;
+}
+.markdown-body li {
+  margin-top: 0.15em;
+  margin-bottom: 0.15em;
+}
+.markdown-body table {
+  font-size: 0.92em;
+  margin-top: 0.6em;
+  margin-bottom: 0.6em;
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+  border-color: hsl(var(--border));
+}
+.markdown-body th,
+.markdown-body td {
+  padding: 0.35em 0.7em;
+  border-color: hsl(var(--border));
+}
+.markdown-body th {
+  background: hsl(var(--muted));
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+.markdown-body blockquote {
+  border-left-color: hsl(var(--primary) / 0.5);
+  font-style: normal;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  padding-top: 0.2em;
+  padding-bottom: 0.2em;
+  color: hsl(var(--muted-foreground));
+}
+.markdown-body code {
+  font-size: 0.88em;
+  background: hsl(var(--muted));
+  color: hsl(var(--primary));
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-weight: 500;
+}
+.markdown-body pre {
+  margin-top: 0.6em;
+  margin-bottom: 0.6em;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border));
+}
+.markdown-body pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+.markdown-body strong {
+  color: hsl(var(--foreground));
+  font-weight: 650;
+}
+.markdown-body a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}
+.markdown-body hr {
+  margin-top: 0.8em;
+  margin-bottom: 0.8em;
+  border-color: hsl(var(--border));
+}

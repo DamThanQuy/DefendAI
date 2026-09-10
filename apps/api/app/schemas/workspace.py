@@ -71,6 +71,10 @@ class DeliverableCheckItem(BaseModel):
     desc: str = ""
     present: bool
     matched_file: Optional[str] = None
+    # Layer 2 fields — AI classification
+    content_ok: Optional[bool] = None           # None = chưa check / AI lỗi, True=đạt, False=thiếu
+    content_reason: Optional[str] = None        # lý do AI gán / từ chối
+    ai_classified: bool = False                 # True nếu Layer 2 đã chạy
 
 
 class DeliverableCheckResponse(BaseModel):

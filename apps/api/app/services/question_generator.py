@@ -77,7 +77,8 @@ YÊU CẦU:
 2. Mỗi câu hỏi phải có gợi ý trả lời (hint) ngắn gọn
 3. Phân loại độ khó: easy (dễ), medium (trung bình), hard (khó)
 4. Câu hỏi phải liên quan trực tiếp đến nội dung tài liệu
-5. Trả về ĐÚNG định dạng JSON sau (không thêm markdown, không thêm text thừa):
+5. CHỈ trả lời bằng tiếng Việt. TUYỆT ĐỐI KHÔNG dùng ngôn ngữ khác (Trung, Nhật, Hàn, Anh).
+6. Trả về ĐÚNG định dạng JSON sau (không thêm markdown, không thêm text thừa):
 
 {
   "questions": [
@@ -183,7 +184,11 @@ async def generate_questions(
         user_prompt = _build_user_prompt(chunks, persona_prompt, NUM_QUESTIONS)
 
         logger.info("Calling AI Gateway for question generation (persona=%s)...", persona)
-        ai_result = await ai_gateway.generate(prompt=user_prompt, system_prompt=SYSTEM_PROMPT)
+        from app.services.feature_ai import resolve_feature_ai
+        provider, model = await resolve_feature_ai(db, "question_gen")
+        ai_result = await ai_gateway.generate(
+            prompt=user_prompt, system_prompt=SYSTEM_PROMPT, provider=provider, model=model
+        )
 
         # Step 4: Parse AI response
         content = ai_result.get("content", "")

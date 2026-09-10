@@ -35,3 +35,108 @@ export interface Metric {
   label: string;
   value: string;
 }
+
+// ---------------------------------------------------------------------------
+// ZIP/BR Analysis — Step 5 types
+// ---------------------------------------------------------------------------
+
+export type AnalysisStatus =
+  | "queued"
+  | "extracting"
+  | "indexing"
+  | "matching"
+  | "completed"
+  | "partial"
+  | "rejected"
+  | "failed"
+  | "timeout";
+
+export type MatchStatus =
+  | "matched"
+  | "partial"
+  | "not_found"
+  | "insufficient_evidence";
+
+export interface EvidenceItem {
+  path: string;
+  symbol_name: string;
+  symbol_kind?: string;
+  line_start?: number;
+  line_end?: number;
+  snippet?: string;
+}
+
+export interface AnalysisStatusOut {
+  analysis_job_id: number;
+  workspace_id: number;
+  status: AnalysisStatus | string;
+  current_step: string | null;
+  progress: number;
+  error: string | null;
+  framework: string | null;
+  selection_mode: string | null;
+  evidence_rows: number | null;
+  evidence_rows_total: number | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface RequirementMatchOut {
+  id: number;
+  requirement_code: string;
+  requirement_title: string;
+  status: MatchStatus | string;
+  confidence: number;
+  evidence: EvidenceItem[];
+  missing_evidence: string[];
+  // Step 4 fields
+  reason: string | null;
+  reason_provider: string | null;
+  reason_model: string | null;
+  reason_fallback: string | null;
+}
+
+export interface RequirementMatchesResponse {
+  analysis_job_id: number;
+  workspace_id: number;
+  status: string;
+  total: number;
+  matched: number;
+  partial: number;
+  not_found: number;
+  insufficient_evidence: number;
+  matches: RequirementMatchOut[];
+}
+
+export interface AnalysisCreateResponse {
+  analysis_job_id: number;
+  worker_job_id: string;
+  status: string;
+  idempotent_reused: boolean;
+  input_hash: string;
+}
+
+export interface AnalysisRetryResponse {
+  analysis_job_id: number;
+  worker_job_id: string;
+  status: string;
+}
+
+export interface AnalysisJobListItem {
+  analysis_job_id: number;
+  status: string;
+  zip_document_id: number;
+  zip_filename: string | null;
+  created_at: string;
+  finished_at: string | null;
+  matched: number;
+  partial: number;
+  not_found: number;
+}
+
+export interface AnalysisJobListResponse {
+  workspace_id: number;
+  total: number;
+  jobs: AnalysisJobListItem[];
+}

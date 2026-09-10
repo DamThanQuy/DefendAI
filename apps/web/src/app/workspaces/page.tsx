@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 interface WorkspaceFile {
   document_id: number;
@@ -149,10 +150,18 @@ export default function WorkspacesPage() {
     }
   };
 
+  const [deletingWs, setDeletingWs] = useState<Workspace | null>(null);
+
   const handleDelete = async (ws: Workspace) => {
+    setDeletingWs(ws);
+  };
+
+  const confirmDeleteWorkspace = async () => {
+    const ws = deletingWs;
+    if (!ws) return;
     const token = getToken();
+    setDeletingWs(null);
     if (!token) return;
-    if (!window.confirm(`Xoá workspace "${ws.name}"? File gốc không bị xoá.`)) return;
     try {
       const r = await fetch(`/api/workspaces/${ws.id}`, {
         method: "DELETE",
@@ -280,7 +289,7 @@ export default function WorkspacesPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
             <h1 className="text-[28px] font-bold text-foreground mb-2">Workspace của tôi</h1>
-            <p className="text-zinc-500 text-[14px]">Gom nhiều tài liệu vào 1 đề tài, xem lịch sử phiên hỏi đáp &amp; code review.</p>
+            <p className="text-zinc-500 text-[14px]">Gom nhiều tài liệu vào 1 đề tài, xem lịch sử phiên hỏi đáp &amp; phân tích.</p>
           </div>
           <button
             onClick={() => setShowCreate(true)}
@@ -340,13 +349,13 @@ export default function WorkspacesPage() {
                     onClick={() => setRenameWs(ws)}
                     className="px-3 py-1.5 text-[12px] font-semibold text-zinc-400 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
                   >
-                    ✏️ Đổi tên
+                    Đổi tên
                   </button>
                   <button
                     onClick={() => handleDelete(ws)}
                     className="px-3 py-1.5 text-[12px] font-semibold text-red-400 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors"
                   >
-                    🗑️ Xoá
+                    Xoá
                   </button>
                   <button
                     onClick={() => openAddModal(ws)}
@@ -374,20 +383,6 @@ export default function WorkspacesPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {f.doc_type === "zip" && (
-                          <Link
-                            href={`/code-review?doc=${f.document_id}`}
-                            className="px-3 py-1.5 text-[12px] font-semibold text-zinc-300 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
-                          >
-                            🔍 Code Review
-                          </Link>
-                        )}
-                        <Link
-                          href={`/documents/${f.document_id}`}
-                          className="px-3 py-1.5 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors"
-                        >
-                          Tạo câu hỏi
-                        </Link>
                         <button
                           onClick={() => handleRemoveFile(ws, f.document_id)}
                           className="w-7 h-7 flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
@@ -497,6 +492,22 @@ export default function WorkspacesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={!!deletingWs}
+        tone="danger"
+        icon="delete"
+        title="Xoá workspace này?"
+        description={
+          <>
+            Workspace <span className="font-semibold text-foreground">"{deletingWs?.name}"</span> sẽ bị xoá. Tên tài liệu gốc <span className="text-green-400">không bị xoá</span>.
+          </>
+        }
+        confirmLabel="Xoá workspace"
+        cancelLabel="Huỷ"
+        onCancel={() => setDeletingWs(null)}
+        onConfirm={confirmDeleteWorkspace}
+      />
     </div>
   );
 }
@@ -513,7 +524,7 @@ function SessionsView({ sessions }: { sessions?: SessionsResponse }) {
     })),
     ...sessions.code_analyses.map((s) => ({
       ...s,
-      kind: "🔍 Code Review" as const,
+      kind: "🔍 Phân tích code" as const,
       detail: s.status,
     })),
   ];
@@ -533,7 +544,7 @@ function SessionsView({ sessions }: { sessions?: SessionsResponse }) {
             <div className="text-[11px] text-zinc-500 mt-0.5">{s.detail} · {new Date(s.created_at + "Z").toLocaleString("vi-VN")}</div>
           </div>
           <Link
-            href={s.kind.includes("Code") ? "/code-review" : `/documents/${s.document_id}`}
+            href={s.kind.includes("Phân tích") ? "/code-review" : `/documents/${s.document_id}`}
             className="px-3 py-1 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors shrink-0"
           >
             Xem

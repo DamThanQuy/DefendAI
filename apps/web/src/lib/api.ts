@@ -97,6 +97,13 @@ export function uploadDocument(file: File) {
   });
 }
 
+/**
+ * Upload file lớn qua chunked (S3 Multipart) — bypass giới hạn 1MB của Next.js BFF.
+ * Trả về document_id khi hoàn tất.
+ */
+export { ChunkedUploader } from "./chunked-upload";
+export type { ChunkedUploadResult, ChunkedUploadOptions } from "./chunked-upload";
+
 export function generateQuestions(documentId: number) {
   // Thêm provider và model vào kiểu trả về ở đây:
   return api.post<{ questions: Question[]; provider?: string; model?: string }>("/api/questions/generate", {
@@ -143,6 +150,7 @@ export interface Booking {
   student_name?: string | null;
   mentor_name?: string | null;
   room_open?: boolean | null;
+  invited_students?: { user_id: number; name: string | null }[] | null;
 }
 
 export interface MeetingAccess {
@@ -173,6 +181,14 @@ export function cancelBooking(bookingId: number) {
   return api.post<Booking>(`/api/bookings/${bookingId}/cancel`);
 }
 
+// Student chủ trì: mời thêm sinh viên khác vào phòng Mock Room
+export function inviteStudent(
+  bookingId: number,
+  identifier: string,
+) {
+  return api.post<Booking>(`/api/bookings/${bookingId}/invite`, { identifier });
+}
+
 // Mentor: danh sách chờ xác nhận
 export function getPendingBookings() {
   return api.get<Booking[]>("/api/bookings/pending");
@@ -199,6 +215,28 @@ export function completeBooking(bookingId: number) {
 // Kiểm tra phòng có mở không (trước 5 phút)
 export function checkMeetingAccess(meetingId: number) {
   return api.get<MeetingAccess>(`/api/meetings/${meetingId}/access`);
+}
+
+// Lịch sử tin nhắn / speech-to-text của phòng (để xem lại sau reload)
+export interface MeetingMessageItem {
+  id: number;
+  meeting_id: number;
+  sender_name: string;
+  sender_role: string;
+  content: string;
+  created_at: string;
+}
+
+export function getMeetingMessages(meetingId: number) {
+  return api.get<MeetingMessageItem[]>(`/api/meetings/${meetingId}/messages`);
+}
+
+// Lưu tin nhắn / speech-to-text (dùng khi WS signaling chưa sẵn sàng)
+export function postMeetingMessage(
+  meetingId: number,
+  payload: { sender_name: string; sender_role: string; content: string },
+) {
+  return api.post<MeetingMessageItem>(`/api/meetings/${meetingId}/messages`, payload);
 }
 
 // Danh sách mentor (cho student chọn khi đặt lịch)
@@ -273,5 +311,105 @@ export function rejectBookingWithReason(
   reason: string,
 ) {
   return api.post<Booking>(`/api/bookings/${bookingId}/reject`, { reason });
+}
+
+// ---------------------------------------------------------------------------
+// ZIP/BR Analysis — Step 5 (exported for AnalysisProgress, WorkspaceChat, etc.)
+// ---------------------------------------------------------------------------
+
+/** POST /api/workspaces/{workspace_id}/analysis — tạo/tái sử dụng AnalysisJob. */
+export function createAnalysis(
+  workspaceId: number,
+  payload: { zip_document_id: number; requirement_document_ids: number[] },
+) {
+  return api.post<{
+    analysis_job_id: number;
+    worker_job_id: string;
+    status: string;
+    idempotent_reused: boolean;
+    input_hash: string;
+  }>(`/api/workspaces/${workspaceId}/analysis`, payload);
+}
+
+/** GET /api/analysis/{job_id} — lấy trạng thái + progress. */
+export function getAnalysisStatus(jobId: number) {
+  return api.get<{
+    analysis_job_id: number;
+    workspace_id: number;
+    status: string;
+    current_step: string | null;
+    progress: number;
+    error: string | null;
+    framework: string | null;
+    selection_mode: string | null;
+    evidence_rows: number | null;
+    evidence_rows_total: number | null;
+    selected_files: number | null;
+    created_at: string;
+    started_at: string | null;
+    finished_at: string | null;
+  }>(`/api/analysis/${jobId}`);
+}
+
+/** GET /api/analysis/{job_id}/matches — lấy danh sách requirement match (Step 3 M2). */
+export function getAnalysisMatches(jobId: number) {
+  return api.get<{
+    analysis_job_id: number;
+    workspace_id: number;
+    status: string;
+    total: number;
+    matched: number;
+    partial: number;
+    not_found: number;
+    insufficient_evidence: number;
+    matches: Array<{
+      id: number;
+      requirement_code: string;
+      requirement_title: string;
+      status: string;
+      confidence: number;
+      evidence: Array<{
+        path: string;
+        symbol_name: string;
+        symbol_kind?: string;
+        line_start?: number;
+        line_end?: number;
+        snippet?: string;
+      }>;
+      missing_evidence: string[];
+      reason: string | null;
+      reason_provider: string | null;
+      reason_model: string | null;
+      reason_fallback: string | null;
+    }>;
+  }>(`/api/analysis/${jobId}/matches`);
+}
+
+/** POST /api/analysis/{job_id}/retry — chạy lại job. */
+export function retryAnalysis(jobId: number) {
+  return api.post<{
+    analysis_job_id: number;
+    worker_job_id: string;
+    status: string;
+  }>(`/api/analysis/${jobId}/retry`);
+}
+
+/** GET /api/workspaces/{workspace_id}/analyses — lịch sử phân tích BR. */
+export function listWorkspaceAnalyses(workspaceId: number, limit = 20) {
+  return api.get<{
+    workspace_id: number;
+    total: number;
+    jobs: Array<{
+      analysis_job_id: number;
+      status: string;
+      zip_document_id: number;
+      zip_filename: string | null;
+      created_at: string;
+      finished_at: string | null;
+      matched: number;
+      partial: number;
+      not_found: number;
+    }>;
+  }>(`/api/workspaces/${workspaceId}/analyses`, { params: { limit } });
 }
 

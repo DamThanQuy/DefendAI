@@ -21,6 +21,7 @@ Tham khảo:
     python-docx:  https://python-docx.readthedocs.io
     python-pptx:  https://python-pptx.readthedocs.io
 """
+import asyncio
 from io import BytesIO
 
 import logging
@@ -33,10 +34,12 @@ from docx import Document as DocxDocument
 from pptx import Presentation
 
 from app.services.vision_read import ImagePart, ReadResult
+from app.services.figure_inventory import FigureInventory, build_figure_inventory, load_media_bytes
 
 from app.models.document import DocType, Document
-from app.services.storage import get_doc
+from app.services.storage import get_doc, iter_zip_members
 from app.services.vision_read import read_file as vision_read_file
+from app.core.config import settings
 
 try:
     import rarfile
@@ -48,9 +51,15 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ParseResult:
-    """Kết quả parse: text thường + mô tả diagram (từ vision reader)."""
+    """Kết quả parse: text thường + mô tả diagram (từ vision reader).
+
+    `diagrams`: list[str] — tương thích ngược.
+    `diagram_infos`: list[DiagramInfo] (Fix C) — có figure number + kind
+    (diagram/screen/photo) để index RAG và báo cáo định lượng chính xác.
+    """
     text: str
     diagrams: List[str] = field(default_factory=list)
+    diagram_infos: list = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +152,10 @@ NESTED_ARCHIVE_EXTENSIONS = {".zip", ".rar"}
 MAX_ARCHIVE_MEMBERS = 500
 MAX_ARCHIVE_TOTAL_TEXT = 200 * 1024 * 1024  # 200MB text tổng
 
+# Giới hạn chunk embed từ ZIP để tránh 429 rate limit (free tier ~100 req/phút)
+# 500 chunks ÷ 32 batch = ~16 request — an toàn trong 1 lần chạy
+MAX_ZIP_EMBED_CHUNKS = 500
+
 
 def _extract_zip(src) -> str:
     """Trích xuất text từ ZIP: đọc mọi file text/code/office bên trong rồi ghép lại.
@@ -232,16 +245,75 @@ def _extract_member_text(raw: bytes, name: str, ext: str) -> str:
     return ""
 
 
-def _extract_archive(src) -> str:
+async def _extract_archive(src) -> str:
     """Nhận ZIP hoặc RAR, tự detect theo magic bytes và dispatch."""
     data = src if isinstance(src, bytes) else src.read()
     if data[:8].startswith(b"Rar!\x1a\x07"):
-        return _extract_rar(data)
-    return _extract_zip(data)
+        return await asyncio.to_thread(_extract_rar, data)
+    return await asyncio.to_thread(_extract_zip_sync, data)
+
+
+def _extract_zip_sync(data: bytes) -> str:
+    """Sync implementation of ZIP extraction (runs in thread)."""
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as archive:
+            infos = [i for i in archive.infolist() if not i.is_dir()]
+            if len(infos) > MAX_ARCHIVE_MEMBERS:
+                raise DocumentParserError(
+                    f"ZIP chứa quá nhiều file ({len(infos)} > {MAX_ARCHIVE_MEMBERS})"
+                )
+            parts: List[str] = []
+            total = 0
+            for info in infos:
+                name = info.filename
+                ext = name.split(".")[-1].lower() if "." in name else ""
+                ext = f".{ext}"
+                total += info.file_size
+                if total > MAX_ARCHIVE_TOTAL_TEXT:
+                    break
+                try:
+                    raw = archive.read(info)
+                except Exception:
+                    continue
+                text = _extract_member_text(raw, name, ext)
+                if text:
+                    parts.append(f"### {name}\n{text}")
+            return "\n\n".join(parts).strip()
+    except zipfile.BadZipFile as exc:
+        raise DocumentParserError("File ZIP bị lỗi hoặc không thể giải nén") from exc
+
+
+async def _extract_zip_streaming(storage_key: str) -> str:
+    """Stream-extract text from a ZIP stored in MinIO without loading it all into RAM.
+
+    This avoids the OOM path that occurs when a large ZIP is downloaded in full
+    via `get_doc()` and then parsed in-memory. Instead, it uses `iter_zip_members`
+    to stream members one-by-one from MinIO.
+    """
+    parts: List[str] = []
+    total = 0
+    try:
+        async for name, raw in iter_zip_members(
+            bucket=settings.minio.bucket,
+            key=storage_key,
+        ):
+            ext = name.split(".")[-1].lower() if "." in name else ""
+            ext = f".{ext}"
+            total += len(raw)
+            if total > MAX_ARCHIVE_TOTAL_TEXT:
+                break
+            text = _extract_member_text(raw, name, ext)
+            if text:
+                parts.append(f"### {name}\n{text}")
+        return "\n\n".join(parts).strip()
+    except zipfile.BadZipFile as exc:
+        raise DocumentParserError("File ZIP bị lỗi hoặc không thể giải nén") from exc
+    except Exception as exc:
+        logger.exception("Stream ZIP extraction failed for %s", storage_key)
+        raise DocumentParserError(f"Extract failed for {storage_key}: {exc}") from exc
 
 
 def _extract_xlsx(src) -> str:
-    """Trích xuất text từ XLSX (openpyxl nếu có, không thì bỏ qua)."""
     try:
         from openpyxl import load_workbook
         wb = load_workbook(BytesIO(src.read()) if isinstance(src, BytesIO) else src, read_only=True, data_only=True)
@@ -302,6 +374,18 @@ async def extract_text(document) -> ParseResult:
     if not storage_key:
         raise DocumentParserError(f"Document {document.id} has no storage key")
 
+    # ZIP: stream members from MinIO without loading the whole archive into RAM.
+    # This avoids OOM-killing the worker on multi-GB submissions.
+    if document.doc_type == DocType.ZIP:
+        text = await _extract_zip_streaming(storage_key)
+        if len(text) < MIN_TEXT_LENGTH_WARN:
+            logger.warning(
+                "Extracted text is suspiciously short (%s chars) from %s "
+                "(file có thể là scan, ảnh, hoặc rỗng).",
+                len(text), storage_key,
+            )
+        return ParseResult(text=text, diagrams=[])
+
     try:
         data = await get_doc(storage_key)
     except Exception as exc:
@@ -310,7 +394,10 @@ async def extract_text(document) -> ParseResult:
 
     # Markdown / plain text: decode directly, no vision needed.
     if storage_key.lower().endswith(".md"):
-        text = data.decode("utf-8", errors="replace").strip()
+        # Normalize CRLF/CR → LF so chunk_text() (split on "\n\n") sees real paragraph
+        # breaks. Without this, files saved with Windows line endings collapse to one
+        # giant paragraph and chunks end up as a single line of text.
+        text = data.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n").strip()
         if len(text) < MIN_TEXT_LENGTH_WARN:
             logger.warning("Extracted text is suspiciously short (%s chars) from %s", len(text), storage_key)
         return ParseResult(text=text, diagrams=[])
@@ -339,14 +426,27 @@ async def extract_text(document) -> ParseResult:
                         storage_key, exc,
                     )
             else:
-                # DOCX/PPTX (Option B): Gemini cannot render OOXML-embedded images when
-                # the whole file is sent (it only reads document.xml text). Unzip the
-                # office package, extract the embedded raster images, and send each as a
-                # separate multimodal part alongside the native text as context.
-                # On any vision failure we keep the native text (already extracted) —
-                # we do NOT fall through to the old parser, which would just re-read XML.
+                # DOCX/PPTX (Option B + Fix A/B/C): dựng figure inventory từ OOXML
+                # XML trước (số figure chính xác, caption đúng ảnh, đúng thứ tự
+                # tài liệu), chỉ gửi ảnh RASTER có caption lên vision theo batch.
+                # Ảnh vector (EMF/WMF) và ảnh trùng được loại; ảnh không caption
+                # vẫn vào text qua inventory summary nhưng không tốn token mô tả.
                 native_text = _extract_office_text(data, document.doc_type)
-                images = _extract_office_images(data, document.doc_type)
+                kind = "pptx" if document.doc_type == DocType.PPTX else "docx"
+                inventory = build_figure_inventory(data, kind)
+                images = _inventory_images(data, inventory)
+                if inventory.total_figures:
+                    native_text = (
+                        native_text
+                        + "\n\n=== FIGURE INVENTORY ===\n"
+                        + inventory.summary_text()
+                        + "\n"
+                        + "\n".join(
+                            f"Figure {f.number}: {f.caption}" if f.number is not None
+                            else f"[uncaptioned image {f.order}]"
+                            for f in inventory.figures
+                        )
+                    )
                 if images:
                     try:
                         vision = await vision_read_file(
@@ -357,14 +457,19 @@ async def extract_text(document) -> ParseResult:
                             "Vision reader failed for %s (%s) — using native text only",
                             storage_key, exc,
                         )
-                        return ParseResult(text=native_text, diagrams=[])
+                        return ParseResult(text=native_text, diagrams=[],
+                                           diagram_infos=[])
                     if vision.diagrams:
                         logger.info(
-                            "Vision reader described %d diagrams from %s (Option B, %d images)",
-                            len(vision.diagrams), storage_key, len(images),
+                            "Vision reader described %d/%d figures from %s (batched Option B)",
+                            len(vision.diagrams), len(images), storage_key,
                         )
                         # text is the native text (authoritative); diagrams from vision.
-                        return ParseResult(text=native_text, diagrams=vision.diagrams)
+                        return ParseResult(
+                            text=native_text,
+                            diagrams=vision.diagrams,
+                            diagram_infos=getattr(vision, "diagram_infos", []),
+                        )
                     logger.warning(
                         "Vision reader found no diagrams in %d images of %s — "
                         "using native text only",
@@ -372,7 +477,7 @@ async def extract_text(document) -> ParseResult:
                     )
                 else:
                     logger.info("No embedded images in %s — using native text only", storage_key)
-                return ParseResult(text=native_text, diagrams=[])
+                return ParseResult(text=native_text, diagrams=[], diagram_infos=[])
 
     # ── FALLBACK / NATIVE-ONLY: parser cũ ──
     extractor = _EXTRACTORS.get(document.doc_type)
@@ -473,6 +578,34 @@ def _extract_office_images(data: bytes, doc_type: DocType) -> List[ImagePart]:
     except zipfile.BadZipFile as exc:
         logger.warning("Office file is not a valid zip (%s): %s", doc_type, exc)
         return []
+
+
+def _inventory_images(data: bytes, inventory: FigureInventory) -> List[ImagePart]:
+    """ImageParts từ figure inventory — đúng thứ tự tài liệu, kèm label caption.
+
+    Chỉ nhận ảnh raster đọc được; vector (EMF/WMF) bỏ qua (không gửi Gemini được,
+    caption đã có trong FIGURE INVENTORY text). Ảnh trùng media_path chỉ gửi 1 lần.
+    """
+    parts: List[ImagePart] = []
+    seen_paths: set = set()
+    for f in inventory.figures:
+        if not f.media_path or f.is_vector or f.media_path in seen_paths:
+            continue
+        raw = load_media_bytes(data, f.media_path)
+        if raw is None:
+            continue
+        mime = f.mime or "image/png"
+        raw = _downscale_image(raw, mime)
+        if raw is None:
+            continue
+        seen_paths.add(f.media_path)
+        label = (
+            f"Figure {f.number}: {f.caption}" if f.number is not None
+            else f"Image {f.order} (uncaptioned)"
+        )
+        parts.append(ImagePart(data=raw, mime_type=mime, label=label))
+    logger.info("Vision images from inventory: %d (of %d figures)", len(parts), inventory.total_figures)
+    return parts
 
 
 def _downscale_image(raw: bytes, mime: str) -> Optional[bytes]:
@@ -593,7 +726,53 @@ async def parse_and_chunk(document,
     Returns:
         (chunks, diagrams): list chunk text + list mô tả diagram (có thể rỗng).
         Đây là hàm router/service khác sẽ gọi trực tiếp khi tạo Assessment.
+        Bản đầy đủ có figure number + kind: dùng `parse_and_chunk_full`.
+    """
+    chunks, diagrams, _ = await parse_and_chunk_full(document, chunk_size, overlap)
+    return chunks, diagrams
+
+
+async def parse_and_chunk_full(document,
+                    chunk_size: int = CHUNK_SIZE_CHARS,
+                    overlap: int = CHUNK_OVERLAP_CHARS) -> tuple[List[str], List[str], list]:
+    """Như `parse_and_chunk` nhưng trả kèm diagram_infos có cấu trúc (Fix C).
+
+    Returns:
+        (chunks, diagrams, diagram_infos): diagram_infos là list[DiagramInfo]
+        với {figure, kind, caption, description} — rỗng nếu file không có figure.
     """
     result = await extract_text(document)
     chunks = chunk_text(result.text, chunk_size=chunk_size, overlap=overlap)
-    return chunks, result.diagrams
+    return chunks, result.diagrams, result.diagram_infos
+
+
+# ---------------------------------------------------------------------------
+# Auto-embedding Hook — parse → chunk → embed → index (one-liner)
+# ---------------------------------------------------------------------------
+async def parse_chunk_index(document,
+                    chunk_size: int = CHUNK_SIZE_CHARS,
+                    overlap: int = CHUNK_OVERLAP_CHARS,
+                    index: bool = True) -> tuple[List[str], List[str], int]:
+    """
+    Parse document → chunk → embed & index (one-liner pipeline).
+    
+    Args:
+        document: ORM Document
+        chunk_size: ký tự mỗi chunk (default 4000)
+        overlap: overlap giữa chunks (default 600)
+        index: nếu True, auto embed + index vào document_chunks (default True)
+    
+    Returns:
+        (chunks, diagrams, indexed_count):
+            chunks: list chunk text
+            diagrams: list mô tả diagram
+            indexed_count: số chunk đã index (0 nếu index=False hoặc lỗi)
+    """
+    chunks, diagrams, diagram_infos = await parse_and_chunk_full(document, chunk_size, overlap)
+    
+    indexed_count = 0
+    if index and chunks:
+        from app.services.chunk_indexer import index_chunks
+        indexed_count = await index_chunks(document, chunks, diagrams, diagram_infos=diagram_infos)
+    
+    return chunks, diagrams, indexed_count

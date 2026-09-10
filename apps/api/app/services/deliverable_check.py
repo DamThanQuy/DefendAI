@@ -1,6 +1,7 @@
 """Stage 1 — Logic đối chiếu file sinh viên nộp đủ deliverables hay chưa.
 
 Pure function, 0 LLM, 0 I/O. So khớp workspace files ↔ rubric.deliverables.
+REFACTOR: bỏ keyword matching, chỉ giữ type_ok. Field mới: content_ok, ai_classified.
 """
 from __future__ import annotations
 
@@ -16,6 +17,10 @@ class DeliverableMatch:
     desc: str
     present: bool
     matched_file: str | None = None
+    # Layer 2 fields — AI classification
+    content_ok: bool | None = None           # None = chưa check / AI lỗi, True=đạt, False=thiếu
+    content_reason: str | None = None        # lý do AI gán / từ chối
+    ai_classified: bool = False              # True nếu Layer 2 đã chạy
 
 
 @dataclass
@@ -38,11 +43,15 @@ class DeliverableCheckResult:
 def check_deliverables(
     files: list[dict[str, Any]], deliverables: list[dict[str, Any]]
 ) -> DeliverableCheckResult:
-    """Đối chiếu files (workspace) với deliverables (rubric).
+    """Đối chiếu files (workspace) với deliverables (rubric) — فقط theo LOẠI FILE.
+
+    REFACTOR: chỉ dùng file_types (đuôi), bỏ so khớp tên file (keyword).
+    Đây là Lớp 1 (Presence). Lớp 2 (AI classify) được gọi riêng để xác định
+    content_ok + deliverable code.
 
     Args:
         files: list các dict có ít nhất ``filename`` và ``file_type``
-            (vd [{"filename": "R3_SRS.docx", "file_type": ".docx"}]).
+            (vd [{"filename": "bao-cao.docx", "file_type": ".docx"}]).
         deliverables: list các dict từ rubric.config["deliverables"]
             (vd [{"code": "R3", "name": "...", "file_types": [".docx"], "desc": "..."}]).
 
@@ -53,6 +62,7 @@ def check_deliverables(
         {
             "filename": (f.get("filename") or ""),
             "file_type": (f.get("file_type") or "").lower(),
+            "document_id": f.get("document_id"),
         }
         for f in files
     ]
@@ -63,20 +73,11 @@ def check_deliverables(
         name = d.get("name", "")
         file_types = [t.lower() for t in d.get("file_types", [])]
         desc = d.get("desc", "")
-        code_lower = code.lower()
-        # Keyword bắt buộc: lấy từ d["keywords"] nếu có.
-        # Nếu không: R1..R7 (mẫu "r<n>") → dùng chính code làm keyword (sv hay đặt "R3_SRS.docx").
-        # SP/SL → KHÔNG bắt keyword, chỉ cần đúng file_type (.zip/.pptx).
-        keywords = [k.lower() for k in d.get("keywords", [])]
-        if not keywords and code_lower.startswith("r") and code_lower[1:].isdigit():
-            keywords = [code_lower]
 
         matched = None
         for f in norm_files:
-            fname_lower = f["filename"].lower()
             type_ok = f["file_type"] in file_types if file_types else True
-            keyword_ok = not keywords or any(kw in fname_lower for kw in keywords)
-            if type_ok and keyword_ok:
+            if type_ok:
                 matched = f["filename"]
                 break
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import {
   Booking,
   createBooking,
@@ -24,8 +25,8 @@ const STATUS_META: Record<
   pending: { label: "Chờ mentor xác nhận", color: "text-amber-400 bg-amber-400/10", icon: Hourglass },
   confirmed: { label: "Đã xác nhận", color: "text-teal-400 bg-teal-400/10", icon: CheckCircle2 },
   rejected: { label: "Bị từ chối", color: "text-red-400 bg-red-400/10", icon: XCircle },
-  completed: { label: "Đã hoàn thành", color: "text-zinc-400 bg-zinc-400/10", icon: CheckCircle2 },
-  cancelled: { label: "Đã huỷ", color: "text-zinc-500 bg-zinc-500/10", icon: XCircle },
+  completed: { label: "Đã hoàn thành", color: "text-muted-foreground bg-zinc-400/10", icon: CheckCircle2 },
+  cancelled: { label: "Đã huỷ", color: "text-muted-foreground bg-zinc-500/10", icon: XCircle },
 };
 
 function fmt(dt: string | null) {
@@ -51,6 +52,7 @@ export default function BookingsPage() {
   const [proposedTime, setProposedTime] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<number | null>(null);
 
   // Lịch rảnh của mentor đang chọn
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
@@ -140,8 +142,14 @@ export default function BookingsPage() {
     }
   }
 
-  async function handleCancel(id: number) {
-    if (!confirm("Huỷ yêu cầu đặt lịch này?")) return;
+  async function handleCancelClick(id: number) {
+    setCancelTarget(id);
+  }
+
+  async function confirmCancel() {
+    const id = cancelTarget;
+    if (id == null) return;
+    setCancelTarget(null);
     try {
       await cancelBooking(id);
       await load();
@@ -158,8 +166,10 @@ export default function BookingsPage() {
         router.push(`/room?meeting=${b.meeting_id}`);
       } else {
         alert(
-          res.data.reason === "too_early"
-            ? "Phòng sẽ mở trước 5 phút so với giờ đã chốt. Vui lòng quay lại sau."
+          res.data.reason === "booking_completed"
+            ? "Buổi mock đã kết thúc, phòng đã bị khoá."
+            : res.data.reason === "booking_pending" || res.data.reason === "booking_rejected" || res.data.reason === "booking_cancelled"
+            ? "Lịch chưa được xác nhận, phòng chưa mở."
             : "Phòng chưa được mở.",
         );
       }
@@ -178,9 +188,9 @@ export default function BookingsPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-zinc-100 mb-1">Đặt lịch Mock Room</h1>
-      <p className="text-sm text-zinc-400 mb-6">
-        Sinh viên đặt lịch với mentor. Phòng họp sẽ tự động mở <b>5 phút trước</b> giờ đã chốt.
+      <h1 className="text-2xl font-bold text-foreground mb-1">Đặt lịch Mock Room</h1>
+      <p className="text-sm text-muted-foreground mb-6">
+        Sinh viên đặt lịch với mentor. Sau khi mentor xác nhận, phòng họp mở cho cả hai vào ngay lập tức và chỉ bị khoá khi mentor kết thúc buổi mock.
       </p>
 
       {error && (
@@ -193,14 +203,14 @@ export default function BookingsPage() {
       {isStudent && (
         <form
           onSubmit={handleSubmit}
-          className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 mb-8 space-y-4"
+          className="rounded-xl border border-border bg-card/40 p-5 mb-8 space-y-4"
         >
           <div className="flex items-center gap-2 text-teal-400 font-semibold">
             <CalendarPlus className="w-5 h-5" /> Tạo yêu cầu mới
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-zinc-400 mb-1">Mentor</label>
+              <label className="block text-xs text-muted-foreground mb-1">Mentor</label>
               <select
                 value={mentorId}
                 onChange={(e) => {
@@ -209,7 +219,7 @@ export default function BookingsPage() {
                   setProposedTime("");
                   if (v) loadAvailability(v);
                 }}
-                className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                className="w-full rounded-lg bg-muted border border-border px-3 py-2 text-sm text-foreground"
               >
                 <option value="">-- Chọn mentor --</option>
                 {mentors.map((m) => (
@@ -220,22 +230,22 @@ export default function BookingsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-zinc-400 mb-1">Thời gian đề xuất</label>
+              <label className="block text-xs text-muted-foreground mb-1">Thời gian đề xuất</label>
               <input
                 type="datetime-local"
                 value={proposedTime}
                 onChange={(e) => setProposedTime(e.target.value)}
-                className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                className="w-full rounded-lg bg-muted border border-border px-3 py-2 text-sm text-foreground"
               />
               {mentorId && (
                 <div className="mt-2">
                   {availLoading ? (
-                    <span className="text-xs text-zinc-500">Đang tải lịch rảnh...</span>
+                    <span className="text-xs text-muted-foreground">Đang tải lịch rảnh...</span>
                   ) : availability.length === 0 ? (
                     <span className="text-xs text-amber-400">Mentor chưa cài lịch rảnh. Bạn vẫn có thể đề xuất giờ, mentor sẽ xác nhận.</span>
                   ) : (
                     <div className="flex flex-wrap gap-1.5 mt-1">
-                      <span className="text-xs text-zinc-500 w-full">Khung giờ rảnh &amp; chưa ai đặt (bấm để chọn):</span>
+                      <span className="text-xs text-muted-foreground w-full">Khung giờ rảnh &amp; chưa ai đặt (bấm để chọn):</span>
                       {availability.map((s) => {
                         const dayName = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][s.day_of_week] ?? `T${s.day_of_week}`;
                         return (
@@ -269,21 +279,21 @@ export default function BookingsPage() {
               )}
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs text-zinc-400 mb-1">Tiêu đề</label>
+              <label className="block text-xs text-muted-foreground mb-1">Tiêu đề</label>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Ví dụ: Mock bảo vệ đồ án Nhóm 5"
-                className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                className="w-full rounded-lg bg-muted border border-border px-3 py-2 text-sm text-foreground"
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs text-zinc-400 mb-1">Ghi chú (tuỳ chọn)</label>
+              <label className="block text-xs text-muted-foreground mb-1">Ghi chú (tuỳ chọn)</label>
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 rows={2}
-                className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                className="w-full rounded-lg bg-muted border border-border px-3 py-2 text-sm text-foreground"
               />
             </div>
           </div>
@@ -295,9 +305,9 @@ export default function BookingsPage() {
       )}
 
       {/* Danh sách booking */}
-      <h2 className="text-lg font-semibold text-zinc-200 mb-3">Lịch sử đặt lịch</h2>
+      <h2 className="text-lg font-semibold text-foreground mb-3">Lịch sử đặt lịch</h2>
       {bookings.length === 0 ? (
-        <p className="text-sm text-zinc-500">Chưa có yêu cầu đặt lịch nào.</p>
+        <p className="text-sm text-muted-foreground">Chưa có yêu cầu đặt lịch nào.</p>
       ) : (
         <div className="space-y-3">
           {bookings.map((b) => {
@@ -306,16 +316,16 @@ export default function BookingsPage() {
             return (
               <div
                 key={b.id}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 flex items-center justify-between"
+                className="rounded-xl border border-border bg-card/40 p-4 flex items-center justify-between"
               >
                 <div>
                   <div className="flex items-center gap-2">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${meta.color}`}>
                       <Icon className="w-3.5 h-3.5" /> {meta.label}
                     </span>
-                    <span className="text-sm font-medium text-zinc-100">{b.title}</span>
+                    <span className="text-sm font-medium text-foreground">{b.title}</span>
                   </div>
-                  <div className="mt-1.5 flex items-center gap-4 text-xs text-zinc-400">
+                  <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3.5 h-3.5" />
                       Đề xuất: {fmt(b.proposed_time)}
@@ -335,20 +345,19 @@ export default function BookingsPage() {
                   {b.status === "confirmed" && b.meeting_id && (
                     <Button
                       size="sm"
-                      variant={b.room_open ? "default" : "outline"}
-                      disabled={!b.room_open}
+                      variant="default"
                       onClick={() => handleEnterRoom(b)}
                       className="rounded-full"
                     >
-                      {b.room_open ? "Vào phòng" : "Chưa mở"}
+                      Vào phòng
                     </Button>
                   )}
                   {isStudent && b.status === "pending" && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleCancel(b.id)}
-                      className="rounded-full border-zinc-700 text-zinc-300"
+                      onClick={() => handleCancelClick(b.id)}
+                      className="rounded-full border-border text-foreground"
                     >
                       Huỷ
                     </Button>
@@ -359,6 +368,18 @@ export default function BookingsPage() {
           })}
         </div>
       )}
+
+      <ConfirmModal
+        open={cancelTarget !== null}
+        tone="warning"
+        icon="cancel"
+        title="Huỷ yêu cầu đặt lịch này?"
+        description="Yêu cầu của bạn sẽ bị huỷ và không thể khôi phục."
+        confirmLabel="Huỷ đặt lịch"
+        cancelLabel="Giữ lại"
+        onCancel={() => setCancelTarget(null)}
+        onConfirm={confirmCancel}
+      />
     </div>
   );
 }

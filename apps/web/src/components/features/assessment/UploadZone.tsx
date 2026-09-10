@@ -1,7 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { MAX_FILE_SIZE } from "@/lib/constants";
+import { ChunkedUploader } from "@/lib/chunked-upload";
+
+// File nhỏ dùng FormData upload truyền thống (nhanh, ít overhead).
+// File >= ngưỡng này chuyển sang chunked (S3 Multipart) để bypass giới hạn 1MB của Next.js BFF.
+const CHUNKED_THRESHOLD = 4 * 1024 * 1024; // 4 MB
 
 type Props = {
   onFileSelected?: (file: File) => void;
@@ -29,6 +34,45 @@ export function UploadZone({
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  // Tốc độ upload (MB/s) + ETA — tính từ lịch sử onProgress
+  const [speed, setSpeed] = useState(0); // bytes/sec
+  const [eta, setEta] = useState<number | null>(null); // seconds remaining
+  const lastSampleRef = useRef<{ ts: number; loaded: number } | null>(null);
+  const speedSamplesRef = useRef<number[]>([]);
+
+  const updateProgress = (loaded: number, total: number) => {
+    const now = Date.now();
+    const last = lastSampleRef.current;
+    if (last && now > last.ts) {
+      const dtSec = (now - last.ts) / 1000;
+      const dBytes = loaded - last.loaded;
+      if (dtSec > 0 && dBytes >= 0) {
+        const instSpeed = dBytes / dtSec; // bytes/sec
+        // EMA để mượt: alpha 0.4
+        const samples = speedSamplesRef.current;
+        samples.push(instSpeed);
+        if (samples.length > 5) samples.shift();
+        const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
+        setSpeed(avg);
+        const remaining = Math.max(0, total - loaded);
+        setEta(avg > 0 ? remaining / avg : null);
+      }
+    }
+    lastSampleRef.current = { ts: now, loaded };
+    const pct = Math.round((loaded / total) * 100);
+    setProgress(pct);
+    setStatusText(
+      `Đang tải tài liệu lên... ${(loaded / 1024 / 1024).toFixed(1)}/${(total / 1024 / 1024).toFixed(1)} MB`,
+    );
+  };
+
+  const resetProgressTracking = () => {
+    lastSampleRef.current = null;
+    speedSamplesRef.current = [];
+    setSpeed(0);
+    setEta(null);
+    setProgress(0);
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -73,42 +117,90 @@ export function UploadZone({
       onFileSelected(file);
     }
 
-    // Bước "Tải lên": upload mọi loại file (PDF/DOCX/PPTX/ZIP/RAR) như tài liệu
-    setStatusText("Đang tải tài liệu lên...");
+    setStatusText(
+      file.size >= CHUNKED_THRESHOLD
+        ? "Đang tải tài liệu lên (chunked)..."
+        : "Đang tải tài liệu lên...",
+    );
     setIsProcessing(true);
+    resetProgressTracking();
 
     const ac = new AbortController();
     setAbortController(ac);
+    let uploader: ChunkedUploader | null = null;
 
     try {
       const token = localStorage.getItem("access_token");
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/documents/upload", {
-        method: "POST",
-        body: formData,
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        signal: ac.signal,
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        setUploaded(true);
+      if (file.size >= CHUNKED_THRESHOLD) {
+        // File lớn → dùng chunked (S3 Multipart) qua MinIO presigned URLs
+        uploader = new ChunkedUploader(file, {
+          concurrency: 3,
+          signal: ac.signal,
+          onProgress: (uploaded, total) => {
+            updateProgress(uploaded, total);
+          },
+        });
+        const result = await uploader.start();
+        if (result?.document_id) {
+          setUploaded(true);
+        } else {
+          setError("Tải lên thất bại: không nhận được document_id");
+        }
       } else {
-        const msg = data.error || data.detail?.detail || data.message || "Tải lên thất bại";
-        setError(msg);
+        // File nhỏ → FormData truyền thống (nhanh, ít overhead).
+        // Dùng XMLHttpRequest thay vì fetch để có progress event (fetch không expose upload progress).
+        await new Promise<void>((resolve, reject) => {
+          const formData = new FormData();
+          formData.append("file", file);
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/documents/upload");
+          if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) updateProgress(e.loaded, e.total);
+          };
+          xhr.onload = () => {
+            try {
+              const data = JSON.parse(xhr.responseText || "{}");
+              if (xhr.status >= 200 && xhr.status < 300 && data.success) {
+                setUploaded(true);
+                resolve();
+              } else {
+                const msg =
+                  data.error || data.detail?.detail || data.message || `HTTP ${xhr.status}`;
+                setError(msg);
+                reject(new Error(msg));
+              }
+            } catch (e) {
+              setError("Phản hồi từ server không hợp lệ");
+              reject(e);
+            }
+          };
+          xhr.onerror = () => {
+            setError("Không thể kết nối đến máy chủ");
+            reject(new Error("network"));
+          };
+          ac.signal.addEventListener("abort", () => xhr.abort());
+          xhr.send(formData);
+        });
       }
     } catch (error: any) {
-      if (error?.name === "AbortError") { handleCancel(); return; }
+      if (error?.name === "AbortError") {
+        // Hủy thì cleanup parts trên MinIO (nếu chunked)
+        if (uploader) await uploader.abort();
+        handleCancel();
+        return;
+      }
       console.error(error);
-      setError("Không thể kết nối đến máy chủ phân tích");
+      setError(
+        error?.message ?? "Không thể kết nối đến máy chủ phân tích",
+      );
     } finally {
       setIsProcessing(false);
       setAbortController(null);
     }
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (abortController) {
       abortController.abort();
       setAbortController(null);
@@ -119,6 +211,10 @@ export function UploadZone({
     setProgress(0);
     setStatusText("");
     setError("");
+    setSpeed(0);
+    setEta(null);
+    speedSamplesRef.current = [];
+    lastSampleRef.current = null;
   };
 
   return (
@@ -159,7 +255,7 @@ export function UploadZone({
           return (
             <React.Fragment key={s.n}>
               {i > 0 && (
-                <div className={`h-0.5 w-8 sm:w-12 rounded-full transition-colors ${done ? "step-grow bg-primary" : "bg-zinc-800"}`} />
+                <div className={`h-0.5 w-8 sm:w-12 rounded-full transition-colors ${done ? "step-grow bg-primary" : "bg-muted"}`} />
               )}
               <div className="flex items-center gap-2">
                 <div
@@ -168,12 +264,12 @@ export function UploadZone({
                       ? "step-pop bg-primary text-primary-foreground ring-4 ring-primary/20 step-ring"
                       : done
                       ? "bg-primary text-primary-foreground"
-                      : "bg-zinc-800 text-zinc-500"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {done ? <span className="step-check">✓</span> : s.n}
                 </div>
-                <span className={`text-[13px] font-semibold transition-colors ${active ? "text-primary" : done ? "text-zinc-300" : "text-zinc-500"}`}>
+                <span className={`text-[13px] font-semibold transition-colors ${active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground"}`}>
                   {s.label}
                 </span>
               </div>
@@ -186,7 +282,7 @@ export function UploadZone({
         className={`w-full h-full border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ease-in-out cursor-pointer flex flex-col items-center justify-center min-h-[460px] relative overflow-hidden bg-card ${
           isDragging
             ? "border-primary bg-teal-500/10"
-            : "border-zinc-700 hover:border-primary/40"
+            : "border-border hover:border-primary/40"
         } ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -210,11 +306,11 @@ export function UploadZone({
 
             {/* Bước 1b: Chưa upload → nút "Tải lên" */}
             {!isProcessing && !uploaded && (
-              <div className="flex flex-col gap-3 pt-4 border-t border-zinc-800/60">
+              <div className="flex flex-col gap-3 pt-4 border-t border-border/60">
                 <button onClick={(e) => { e.stopPropagation(); processFile(); }} className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full shadow-md transition-colors text-sm">
                   Tải lên
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); setFile(null); setUploaded(false); }} className="w-full py-3 text-sm font-medium text-zinc-500 hover:text-zinc-300 transition-colors">
+                <button onClick={(e) => { e.stopPropagation(); setFile(null); setUploaded(false); }} className="w-full py-3 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                   Hủy & Chọn tệp khác
                 </button>
               </div>
@@ -222,14 +318,14 @@ export function UploadZone({
 
             {/* Bước 2: Đã upload xong */}
             {!isProcessing && uploaded && (
-              <div className="pt-4 border-t border-zinc-800/60">
+              <div className="pt-4 border-t border-border/60">
                 <div className="flex items-center justify-center gap-2 mb-3 text-green-400">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   <span className="text-[14px] font-semibold">Đã tải lên thành công</span>
                 </div>
-                <p className="text-[13px] text-zinc-500 text-center mb-4">Dùng nút ➕ Workspace trong danh sách để đưa tài liệu vào workspace và tạo câu hỏi AI.</p>
+                <p className="text-[13px] text-muted-foreground text-center mb-4">Dùng nút ➕ Workspace trong danh sách để đưa tài liệu vào workspace và tạo câu hỏi AI.</p>
                 <button onClick={(e) => { e.stopPropagation(); onDone?.(); }} className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full shadow-md transition-colors text-sm">
                   Xong
                 </button>
@@ -238,8 +334,8 @@ export function UploadZone({
           </div>
         ) : (
           <div className="flex flex-col items-center">
-            <h3 className="text-[22px] font-bold mb-3 text-zinc-100 tracking-tight">{title}</h3>
-            <p className="text-zinc-500 mb-10 text-[15px] font-medium">
+            <h3 className="text-[22px] font-bold mb-3 text-foreground tracking-tight">{title}</h3>
+            <p className="text-muted-foreground mb-10 text-[15px] font-medium">
               {description}
             </p>
             <button className="px-8 py-2.5 bg-primary text-primary-foreground font-semibold rounded-full hover:bg-primary/90 transition-colors text-sm shadow-sm pointer-events-none">
@@ -265,16 +361,26 @@ export function UploadZone({
 
       {/* Loading Overlay */}
       {isProcessing && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/90 backdrop-blur-sm rounded-2xl border border-zinc-800/60">
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/90 backdrop-blur-sm rounded-2xl border border-border/60">
           <div className="w-14 h-14 border-[3px] border-teal-500/20 border-t-primary rounded-full animate-spin mb-6"></div>
-          <h3 className="text-[17px] font-bold text-zinc-100">{statusText}</h3>
-          <div className="w-64 h-2 bg-zinc-800 rounded-full mt-4 overflow-hidden">
+          <h3 className="text-[17px] font-bold text-foreground">{statusText}</h3>
+          <div className="w-64 h-2 bg-muted rounded-full mt-4 overflow-hidden">
             <div
               className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <p className="text-xs text-zinc-500 mt-2 font-medium">{progress}%</p>
+          <p className="text-xs text-muted-foreground mt-2 font-medium">{progress}%</p>
+          {speed > 0 && (
+            <p className="text-[12px] text-muted-foreground mt-1 tabular-nums">
+              {(speed / 1024 / 1024).toFixed(2)} MB/s
+              {eta !== null && eta > 0 && (
+                <span className="ml-2">
+                  · còn ~{eta < 60 ? `${Math.ceil(eta)}s` : `${Math.ceil(eta / 60)}m ${Math.ceil(eta % 60)}s`}
+                </span>
+              )}
+            </p>
+          )}
           <button
             onClick={handleCancel}
             className="mt-6 px-6 py-2 text-sm font-medium text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-400 rounded-full transition-all"

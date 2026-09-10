@@ -7,10 +7,15 @@
     { "name": "src-bundle.zip", "size": "3.7 MB" }
   ],
   "radar": [
-    { "label": "Kiến thức", "score": 7 },
-    { "label": "Thuyết trình", "score": 6 },
-    { "label": "Phản xạ", "score": 5 },
-    { "label": "Chất lượng code", "score": 8 }
+    { "label": "Introduction (5%)", "score": 7 },
+    { "label": "PMP (5%)", "score": 6 },
+    { "label": "Requirement (15%)", "score": 7 },
+    { "label": "Design (10%)", "score": 6 },
+    { "label": "Testing (10%)", "score": 5 },
+    { "label": "User Guides (5%)", "score": 7 },
+    { "label": "Implementation (35%)", "score": 8 },
+    { "label": "Presentation (5%)", "score": 6 },
+    { "label": "Q&A (10%)", "score": 6 }
   ],
   "questions": [
     {

@@ -7,20 +7,28 @@ import { refreshAccessToken, clearSession, getTokenExpiry } from "@/lib/auth";
 
 // Trang cần đăng nhập mới truy cập được.
 const PROTECTED_PATHS = [
-  "/questions",
-  "/code-review",
-  "/room",
-  "/report",
-  "/analyze",
-  "/documents",
-  "/bookings",
-  "/mentor/bookings",
+"/questions",
+"/room",
+"/report",
+"/analyze",
+"/documents",
+"/bookings",
+"/mock-room",
+"/mentor/bookings",
 ];
 
 // Route → role được phép. Thiếu role → redirect "/".
 // ponytail: client guard chỉ là UX; BE (deps.require_roles) mới là bảo mật thực sự.
 const ROLE_ROUTES: Record<string, string[]> = {
   "/admin": ["admin"],
+  "/admin/overview": ["admin"],
+  "/admin/mentor-verification": ["admin"],
+  "/admin/dispute": ["admin"],
+  "/admin/payout": ["admin"],
+  "/admin/users": ["admin"],
+  "/admin/settings": ["admin"],
+  "/admin/moderation": ["admin"],
+  "/admin/ai-monitor": ["admin"],
 };
 
 export function AuthGate({ children }: { children: React.ReactNode }) {

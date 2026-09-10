@@ -4,6 +4,10 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { UploadModal } from "@/components/features/assessment/UploadModal";
 import { ArchiveBrowser } from "@/components/features/assessment/ArchiveBrowser";
+import { TrashIcon } from "@/components/icons/TrashIcon";
+import { PlusIcon } from "@/components/icons/PlusIcon";
+import { useAuth } from "@/hooks/useAuth";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 interface DocumentItem {
   id: number;
@@ -13,6 +17,7 @@ interface DocumentItem {
   status: string;
   purpose: string;
   created_at: string;
+  uploaded_by?: number | null;
 }
 
 interface DocumentsResponse {
@@ -49,6 +54,14 @@ export default function DocumentsPage() {
   const [wsTargetDoc, setWsTargetDoc] = useState<DocumentItem | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
 
+  // Xoá tài liệu (soft delete — chuyển vào thùng rác 30 ngày)
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DocumentItem | null>(null);
+
+  const { user } = useAuth();
+  const currentUserId = user?.id != null ? Number(user.id) : null;
+  const isAdminOrMentor = (user?.roles ?? []).some((r) => r === "admin" || r === "mentor");
+
   useEffect(() => {
     fetchDocs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -62,7 +75,7 @@ export default function DocumentsPage() {
       return;
     }
     try {
-      const r = await fetch("/api/documents/", {
+      const r = await fetch("/api/documents", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!r.ok) throw new Error("Failed to fetch");
@@ -123,6 +136,57 @@ export default function DocumentsPage() {
     }
   };
 
+  // Soft delete: chuyển vào thùng rác 30 ngày rồi auto-purge.
+  const handleDeleteClick = (doc: DocumentItem) => setDeleteTarget(doc);
+  const confirmDelete = async () => {
+    const doc = deleteTarget;
+    if (!doc) return;
+    const token = getToken();
+    if (!token) return;
+    setDeletingId(doc.id);
+    try {
+      const r = await fetch(`/api/documents/${doc.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (r.status === 204) {
+        setDeleteTarget(null);
+        await fetchDocs();
+        return;
+      }
+      // Đọc message từ backend để hiển thị đúng nguyên nhân
+      let backendMsg = "";
+      try {
+        const data = await r.json();
+        backendMsg = data?.detail || "";
+      } catch {
+        // response không phải JSON, dùng status text
+      }
+      if (r.status === 400 && backendMsg.includes("thùng rác")) {
+        // File đã được xoá từ trước (double-click) — coi như thành công
+        setDeleteTarget(null);
+        await fetchDocs();
+        return;
+      }
+      if (r.status === 409) {
+        setError("Tài liệu đã có đánh giá hoàn thành, không thể xoá. Liên hệ mentor.");
+      } else if (r.status === 403) {
+        setError("Bạn không có quyền xoá tài liệu này.");
+      } else {
+        setError(backendMsg || `Xoá thất bại: HTTP ${r.status}`);
+      }
+      setDeleteTarget(null);
+    } catch (e: any) {
+      setError(`Xoá thất bại: ${e.message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Có thể xoá: admin/mentor xoá mọi file; student chỉ xoá file mình upload.
+  const canDelete = (doc: DocumentItem) =>
+    isAdminOrMentor || (currentUserId != null && doc.uploaded_by === currentUserId);
+
   const token = typeof window !== "undefined" ? getToken() : null;
 
   if (!token) {
@@ -158,6 +222,13 @@ export default function DocumentsPage() {
           >
             + Tải lên tài liệu mới
           </button>
+          <Link
+            href="/documents/trash"
+            className="px-4 py-2.5 rounded-lg border border-zinc-700 text-zinc-300 text-[13px] font-medium hover:bg-zinc-800 hover:text-foreground transition-colors shrink-0 inline-flex items-center gap-1.5"
+          >
+            <TrashIcon className="w-4 h-4" />
+            Thùng rác
+          </Link>
         </div>
 
         {loading && (
@@ -233,16 +304,38 @@ export default function DocumentsPage() {
                           )}
                           <button
                             onClick={() => openWsModal(doc)}
-                            className="px-3 py-1.5 text-[12px] font-semibold text-emerald-400 bg-emerald-500/10 rounded-lg hover:bg-emerald-500/20 transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-emerald-400 bg-emerald-500/10 rounded-lg hover:bg-emerald-500/20 transition-colors"
                           >
-                            ➕ Workspace
+                            <PlusIcon className="w-4 h-4" />
+                            Workspace
                           </button>
                           <a
                             href={`/api/documents/${doc.id}/download`}
-                            className="px-3 py-1.5 text-[12px] font-semibold text-zinc-400 bg-zinc-800/40 rounded-lg hover:bg-zinc-800 transition-colors"
+                            title="Tải xuống"
+                            aria-label="Tải xuống"
+                            className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-400 bg-zinc-800/40 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
                           >
-                            Tải xuống
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                            </svg>
                           </a>
+                          {canDelete(doc) && (
+                            <button
+                              onClick={() => handleDeleteClick(doc)}
+                              disabled={deletingId === doc.id}
+                              title="Xoá"
+                              aria-label="Xoá"
+                              className="w-9 h-9 flex items-center justify-center rounded-lg text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {deletingId === doc.id ? (
+                                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" d="M12 4v4m0 8v4m8-8h-4M4 12H0" />
+                                </svg>
+                              ) : (
+                                <TrashIcon className="w-[18px] h-[18px]" />
+                              )}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -326,6 +419,25 @@ export default function DocumentsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        tone="danger"
+        icon="delete"
+        title="Xoá tài liệu này?"
+        description={
+          <>
+            Tài liệu <span className="font-semibold text-foreground">"{deleteTarget?.filename}"</span> sẽ được chuyển vào thùng rác và tự động xoá vĩnh viễn sau <span className="font-semibold text-foreground">30 ngày</span>.
+            <br />
+            Bạn có thể khôi phục lại từ thùng rác trong thời gian này.
+          </>
+        }
+        confirmLabel={deletingId ? "Đang xoá..." : "Xoá tài liệu"}
+        cancelLabel="Huỷ"
+        loading={!!deletingId}
+        onCancel={() => !deletingId && setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }
