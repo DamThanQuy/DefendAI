@@ -297,6 +297,7 @@ export default function WorkspaceDetailPage() {
   const [selDocId, setSelDocId] = useState<number | null>(null);
   const [selMember, setSelMember] = useState<string | null>(null);
   const [zipMembers, setZipMembers] = useState<Record<number, Member[]>>({});
+  const [zipErrors, setZipErrors] = useState<Record<number, string>>({});
   const [zipExpanded, setZipExpanded] = useState<Set<number>>(new Set());
   const { open: filesOpen, toggle: toggleFilesSidebar } = useCollapsedSidebar("files_sidebar");
 
@@ -380,16 +381,27 @@ export default function WorkspaceDetailPage() {
       setZipExpanded((prev) => new Set(prev).add(docId));
       return;
     }
+
+    setZipErrors((prev) => ({ ...prev, [docId]: "" }));
+    setZipExpanded((prev) => new Set(prev).add(docId));
+
     try {
       const r = await fetch(`/api/documents/${docId}/contents`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (r.ok) {
-        const data = await r.json();
-        setZipMembers((prev) => ({ ...prev, [docId]: data.items ?? [] }));
-        setZipExpanded((prev) => new Set(prev).add(docId));
+      if (!r.ok) {
+        const payload = await r.json().catch(() => ({}));
+        throw new Error(payload?.detail || "Không thể tải danh sách file trong ZIP");
       }
-    } catch { /* ignore */ }
+      const data = await r.json();
+      setZipMembers((prev) => ({ ...prev, [docId]: data.items ?? [] }));
+      setZipErrors((prev) => ({ ...prev, [docId]: "" }));
+    } catch (e: any) {
+      setZipErrors((prev) => ({
+        ...prev,
+        [docId]: e?.message || "Không thể mở file nén. Vui lòng thử lại.",
+      }));
+    }
   };
 
   const loadDeliverableCheck = async () => {
@@ -720,7 +732,9 @@ export default function WorkspaceDetailPage() {
                       </button>
                       {isZipF && expanded && (
                         <div className="ml-4 border-l border-zinc-800 pl-1">
-                          {(zipMembers[f.document_id] ?? []).length === 0 ? (
+                          {zipErrors[f.document_id] ? (
+                            <p className="text-red-300 text-[12px] p-2">{zipErrors[f.document_id]}</p>
+                          ) : (zipMembers[f.document_id] ?? []).length === 0 ? (
                             <p className="text-zinc-500 text-[12px] p-2">Đang tải...</p>
                           ) : (
                             <FileTree
