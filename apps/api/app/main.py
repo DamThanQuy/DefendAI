@@ -3,6 +3,8 @@ Entry point cho FastAPI backend.
 Đây là file khởi động chính của API server.
 """
 
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
