@@ -39,22 +39,21 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
 
-  // Session check: nếu token đã hết hạn → refresh; refresh thất bại → về /login.
-  // Chạy lại mỗi 60s để bắt session sắp hết hạn mà không cần chờ request 401.
+  // Refresh mọi session đang tồn tại, kể cả các route không nằm trong danh sách
+  // protected cũ như admin/subscriptions. Refresh trước 5 phút để tránh rớt
+  // phiên giữa lúc người dùng đang thao tác.
   useEffect(() => {
     const check = async () => {
-      if (!isProtected) return;
-      if (!localStorage.getItem("access_token")) {
-        router.replace("/login");
+      const accessToken = localStorage.getItem("access_token");
+      if (!accessToken) {
+        if (isProtected) router.replace("/login");
         return;
       }
       const exp = getTokenExpiry();
-      // Không đọc được exp (token cũ không có) → giữ nguyên hành vi cũ (chỉ check tồn tại)
+      // Token cũ không có exp thì để API interceptor xử lý khi request thực tế.
       if (exp === null) return;
       const now = Date.now();
-      // Refresh sớm 5 phút trước khi hết hạn, hoặc nếu đã hết hạn
       if (now >= exp - 5 * 60 * 1000) {
-        // Dùng chung single-flight queue với api.ts — tránh race rotate token
         const ok = await refreshAccessToken();
         if (!ok) {
           clearSession();
@@ -64,7 +63,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     };
     check();
     const timer = setInterval(check, 60_000);
-    return () => clearInterval(timer);
+    window.addEventListener("focus", check);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", check);
+    };
   }, [isProtected, router]);
 
   useEffect(() => {

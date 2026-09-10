@@ -15,6 +15,7 @@ import {
   AlertCircle,
   Crown,
   Zap,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,12 +26,9 @@ import {
   formatVND,
   type PaymentMethodId,
 } from "./payment-data";
+import { fetchPlans } from "@/app/pricing/pricing-api";
 
-function getPlanFromId(id: string): { id: "premium" | "vip"; name: string; monthly: number; yearly: number } | null {
-  if (id === "premium") return { id: "premium", name: "Premium", monthly: 99000, yearly: 990000 };
-  if (id === "vip") return { id: "vip", name: "VIP", monthly: 199000, yearly: 1990000 };
-  return null;
-}
+type CheckoutPlan = { id: string; name: string; monthly: number; yearly: number };
 
 export default function CheckoutClient() {
   const searchParams = useSearchParams();
@@ -39,13 +37,25 @@ export default function CheckoutClient() {
   const planId = searchParams.get("plan") || "premium";
   const cycle = (searchParams.get("cycle") || "monthly") as "monthly" | "yearly";
 
-  const plan = getPlanFromId(planId);
+  const [plan, setPlan] = useState<CheckoutPlan | null>(null);
   const [step, setStep] = useState<"payment" | "processing" | "done">("payment");
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethodId>("momo");
   const [showBankList, setShowBankList] = useState(false);
   const [selectedBank, setSelectedBank] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [orderCode] = useState(() => `DEFEND${Date.now().toString().slice(-8)}`);
+
+  useEffect(() => {
+    fetchPlans()
+      .then((plans) => {
+        const selected = plans.find((item) => item.id === planId);
+        if (selected) {
+          setPlan({ id: selected.id, name: selected.name, monthly: selected.monthly, yearly: selected.yearly });
+        }
+      })
+      .catch(() => setErrorMsg("Không tải được thông tin gói. Vui lòng thử lại."));
+  }, [planId]);
 
   // Redirect if no plan
   useEffect(() => {
@@ -54,7 +64,7 @@ export default function CheckoutClient() {
     }
   }, [plan, router]);
 
-  if (!plan) return null;
+  if (!plan) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Đang tải thông tin gói...</div>;
 
   const order = getOrderSummary(plan, cycle);
 
@@ -88,6 +98,9 @@ export default function CheckoutClient() {
     if (id === "bank_transfer") return "bg-amber-500 text-white";
     return "bg-indigo-500 text-white";
   };
+
+  const qrContent = `${selectedMethod.toUpperCase()}|${orderCode}|${order.total}|${plan.name}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrContent)}`;
 
   return (
     <div className="min-h-screen bg-background">
@@ -204,6 +217,26 @@ export default function CheckoutClient() {
                     </div>
                   </Card>
                 )}
+
+                <Card className="p-6 border-primary/30 bg-primary/5">
+                  <h3 className="text-sm font-semibold mb-4">Thông tin thanh toán sandbox</h3>
+                  <div className="flex flex-col sm:flex-row items-center gap-5">
+                    <img src={qrUrl} alt="QR thanh toán sandbox" className="w-44 h-44 rounded-lg bg-white p-2" />
+                    <div className="text-sm space-y-2 w-full">
+                      <p className="text-muted-foreground">Phương thức: <strong className="text-foreground">{PAYMENT_METHODS.find((method) => method.id === selectedMethod)?.name}</strong></p>
+                      <p className="text-muted-foreground">Số tiền: <strong className="text-primary">{formatVND(order.total)}</strong></p>
+                      <p className="text-muted-foreground">Nội dung: <strong className="text-foreground">{orderCode}</strong></p>
+                      {selectedMethod === "bank_transfer" && (
+                        <div className="pt-2 border-t border-border/60">
+                          <p>Ngân hàng: <strong>Vietcombank</strong></p>
+                          <p>STK: <strong>0123456789</strong> <button type="button" aria-label="Sao chép số tài khoản" title="Sao chép số tài khoản" onClick={() => navigator.clipboard?.writeText("0123456789")}><Copy className="inline w-3.5 h-3.5 text-primary" /></button></p>
+                          <p>Chủ TK: <strong>DEFENDAI SANDBOX</strong></p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs text-amber-500 mt-4">Đây là môi trường sandbox. Giao dịch chỉ mô phỏng, không trừ tiền thật.</p>
+                </Card>
 
                 {/* Error message */}
                 {errorMsg && (

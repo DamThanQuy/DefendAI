@@ -28,6 +28,7 @@ from app.schemas.user import (
     RefreshTokenRequest,
     RegisterRequest,
     UserResponse,
+    UserProfileUpdate,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
@@ -185,6 +186,23 @@ async def google_login(req: GoogleLoginRequest, db: AsyncSession = Depends(get_d
 
 @router.get("/me", response_model=UserResponse, summary="Thông tin user hiện tại")
 async def me(user: User = Depends(get_current_user)):
+    return UserResponse.from_user(user)
+
+
+@router.put("/me", response_model=UserResponse, summary="Cập nhật hồ sơ cá nhân")
+async def update_me(
+    req: UserProfileUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if req.full_name is not None:
+        name = req.full_name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Họ và tên không được để trống")
+        user.full_name = name
+    user.profile_data = req.profile_data
+    await db.commit()
+    await db.refresh(user, ["roles"])
     return UserResponse.from_user(user)
 
 

@@ -55,7 +55,7 @@ const SIDEBAR_LINKS: SidebarLink[] = [
   { href: "/bookings", label: "Đặt lịch", icon: CalendarClock, roles: ["student", "admin"] },
   { href: "/mock-room", label: "Mock Room", icon: MonitorPlay, roles: ["student", "admin"] },
   { href: "/report", label: "Báo cáo", icon: BarChart3, roles: ["student", "admin"] },
-  { href: "/pricing", label: "Đăng ký Member", icon: Crown, roles: ["student", "admin"] },
+  { href: "/pricing", label: "Đăng ký Member", icon: Crown, roles: ["student"] },
   // --- Mentor ---
   { href: "/mentor/dashboard", label: "Tổng quan Mentor", icon: LayoutDashboard, roles: ["mentor", "admin"] },
   { href: "/mentor/calendar", label: "Lịch rảnh", icon: CalendarDays, roles: ["mentor", "admin"] },
@@ -73,6 +73,7 @@ const SIDEBAR_LINKS: SidebarLink[] = [
   { href: "/admin/settings", label: "Cấu hình hệ thống", icon: Settings, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/moderation", label: "Kiểm duyệt nội dung", icon: ShieldCheck, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/ai-monitor", label: "Giám sát AI", icon: Bot, roles: ["admin"], section: "Quản trị" },
+  { href: "/admin/subscriptions", label: "Quản lý gói", icon: Crown, roles: ["admin"], section: "Quản trị" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -93,6 +94,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
 
   const isAdmin = hasRole("admin");
+  const isStudentOnly = hasRole("student") && !hasRole("admin") && !hasRole("mentor");
   const visibleLinks = SIDEBAR_LINKS.filter((l) =>
     isAdmin
       ? l.roles?.length === 1 && l.roles[0] === "admin"
@@ -173,19 +175,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* User footer — just the upgrade CTA, avatar moved to top bar */}
-        <div className="border-t border-border p-3 shrink-0 bg-background/40">
-          <Link
-            href="/pricing"
-            className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-primary/10 via-secondary/5 to-accent/10 border border-primary/20 hover:border-primary/40 transition-colors"
-          >
-            <Crown className="w-5 h-5 text-accent shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-bold text-foreground">Nâng cấp Member</p>
-              <p className="text-[10px] text-muted-foreground">Mở khóa tính năng VIP</p>
-            </div>
-            <span className="text-primary text-xs">→</span>
-          </Link>
-        </div>
+        {isStudentOnly && (
+          <div className="border-t border-border p-3 shrink-0 bg-background/40">
+            <Link
+              href="/pricing"
+              className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-primary/10 via-secondary/5 to-accent/10 border border-primary/20 hover:border-primary/40 transition-colors"
+            >
+              <Crown className="w-5 h-5 text-accent shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-bold text-foreground">Nâng cấp Member</p>
+                <p className="text-[10px] text-muted-foreground">Mở khóa tính năng VIP</p>
+              </div>
+              <span className="text-primary text-xs">→</span>
+            </Link>
+          </div>
+        )}
       </aside>
 
       {/* Main column */}

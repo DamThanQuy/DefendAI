@@ -29,6 +29,7 @@ class UserResponse(BaseModel):
     full_name: Optional[str] = None
     is_active: bool
     roles: List[str] = []
+    profile_data: dict = {}
 
     @classmethod
     def from_user(cls, user) -> "UserResponse":
@@ -38,7 +39,13 @@ class UserResponse(BaseModel):
             full_name=user.full_name,
             is_active=bool(user.is_active),
             roles=[r.name for r in user.roles],
+            profile_data=user.profile_data or {},
         )
+
+
+class UserProfileUpdate(BaseModel):
+    full_name: Optional[str] = Field(None, max_length=255)
+    profile_data: dict = Field(default_factory=dict)
 
 
 class AuthResponse(BaseModel):
