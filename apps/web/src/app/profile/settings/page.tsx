@@ -7,19 +7,42 @@ import { useAuth } from "@/hooks/useAuth";
 
 export default function ProfileSettingsPage() {
   const { user } = useAuth();
+  const profile = user?.profile_data ?? {};
   const [fullName, setFullName] = useState(user?.full_name ?? "");
-  const [school, setSchool] = useState("FPT University");
-  const [emailNotif, setEmailNotif] = useState(true);
-  const [mockReminder, setMockReminder] = useState(true);
-  const [saved, setSaved] = useState(false);
+  const [school, setSchool] = useState(String(profile.school ?? "FPT University"));
+  const [emailNotif, setEmailNotif] = useState(profile.emailNotif !== false);
+  const [mockReminder, setMockReminder] = useState(profile.mockReminder !== false);
+  const [status, setStatus] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (user?.full_name) setFullName(user.full_name);
-  }, [user?.full_name]);
+    if (user) {
+      setFullName(user.full_name ?? "");
+      setSchool(String(user.profile_data?.school ?? "FPT University"));
+      setEmailNotif(user.profile_data?.emailNotif !== false);
+      setMockReminder(user.profile_data?.mockReminder !== false);
+    }
+  }, [user]);
 
-  function handleSave() {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  async function handleSave() {
+    setSaving(true);
+    setStatus(null);
+    try {
+      const res = await fetch("/api/auth/me", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("access_token") ?? ""}` },
+        body: JSON.stringify({ full_name: fullName, profile_data: { ...user?.profile_data, school, emailNotif, mockReminder } }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || data.error || `Lưu thất bại (HTTP ${res.status})`);
+      localStorage.setItem("user", JSON.stringify({ ...user, ...data, profile_data: data.profile_data ?? {} }));
+      window.dispatchEvent(new Event("storage"));
+      setStatus({ type: "ok", text: "Đã lưu thay đổi." });
+    } catch (error) {
+      setStatus({ type: "err", text: error instanceof Error ? error.message : "Không thể lưu thay đổi." });
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -42,12 +65,14 @@ export default function ProfileSettingsPage() {
         </div>
         <button
           onClick={handleSave}
+          disabled={saving}
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-full text-sm font-bold shadow-[0_0_15px_hsl(var(--primary)/0.4)] hover:brightness-110 transition-all"
         >
           <Save className="w-4 h-4" />
-          {saved ? "Đã lưu!" : "Lưu thay đổi"}
+          {saving ? "Đang lưu..." : "Lưu thay đổi"}
         </button>
       </div>
+      {status && <p className={status.type === "ok" ? "text-sm text-teal-400" : "text-sm text-red-400"}>{status.text}</p>}
 
       {/* Thông tin cá nhân */}
       <div className="dark-card rounded-2xl p-6">

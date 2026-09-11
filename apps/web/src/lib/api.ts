@@ -253,6 +253,7 @@ export interface MeResponse {
   full_name: string | null;
   is_active: boolean;
   roles: string[];
+  profile_data?: any;
 }
 export function getMe() {
   return api.get<MeResponse>("/api/auth/me");

@@ -3,13 +3,14 @@ import { Crown, Sparkles, Zap } from "lucide-react";
 export type BillingCycle = "monthly" | "yearly";
 
 export type Plan = {
-  id: "free" | "premium" | "vip";
+  id: string;
   name: string;
   tagline: string;
   icon: "sparkles" | "zap" | "crown";
   monthly: number;
   yearly: number;
   featured?: boolean;
+  special?: boolean;
   badge?: string;
   features: { label: string; included: boolean; highlight?: boolean }[];
   cta: string;
