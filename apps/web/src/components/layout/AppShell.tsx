@@ -56,7 +56,6 @@ const SIDEBAR_LINKS: SidebarLink[] = [
   { href: "/code-review", label: "Code Review", icon: Code2, roles: ["student", "admin"] },
   { href: "/bookings", label: "Đặt lịch", icon: CalendarClock, roles: ["student", "admin"] },
   { href: "/mock-room", label: "Mock Room", icon: MonitorPlay, roles: ["student", "admin"] },
-  { href: "/ai-mentor", label: "Phòng Mentor AI", icon: Bot, roles: ["student", "admin"] },
   { href: "/report", label: "Báo cáo", icon: BarChart3, roles: ["student", "admin"] },
   { href: "/pricing", label: "Đăng ký Member", icon: Crown, roles: ["student", "admin"] },
   // --- Mentor ---

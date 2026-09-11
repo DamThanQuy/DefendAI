@@ -5,7 +5,7 @@ import Link from "next/link";
 import { CreditCard, Crown, Zap, Sparkles, ArrowRight, ArrowLeft, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { getMembershipPlan, type MembershipPlan } from "@/app/ai-mentor/mentor-data";
+import { getMembershipPlan, type MembershipPlan } from "@/lib/mock-ai-data";
 
 const PLAN_INFO: Record<MembershipPlan, { name: string; color: string; icon: React.ReactNode; nextPlan: "premium" | "vip" }> = {
   free: { name: "Free", color: "text-muted-foreground", icon: <Sparkles className="w-5 h-5" />, nextPlan: "premium" },
@@ -58,7 +58,7 @@ export default function BillingPage() {
             </h2>
             <p className="text-muted-foreground text-sm max-w-md">
               {isVip
-                ? "Bạn đang dùng gói VIP Cao cấp. Tận hưởng Phòng Mentor AI 24/7 và toàn bộ tính năng cao cấp."
+                ? "Bạn đang dùng gói VIP Cao cấp. Tận hưởng Phòng Mock AI 24/7 và toàn bộ tính năng cao cấp."
                 : "Nâng cấp để mở khóa tính năng cao cấp và luyện tập không giới hạn."}
             </p>
           </div>
@@ -89,7 +89,7 @@ export default function BillingPage() {
             "Tạo câu hỏi phản biện không giới hạn",
             "Hỗ trợ ưu tiên 24/7",
             ...(isVip
-              ? ["Phòng Mentor AI trực tuyến 24/7", "3 mentor AI chuyên biệt"]
+              ? ["Phòng Mock AI trực tuyến 24/7", "Hội đồng AI 3 chuyên gia"]
               : []),
           ].map((b) => (
             <li
