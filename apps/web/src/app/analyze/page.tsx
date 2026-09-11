@@ -57,7 +57,9 @@ export default function AnalyzePage() {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:8000/api/ai/critique-code", {
+      // Dùng relative URL qua Next.js proxy — hoạt động cả trong docker (BACKEND_URL)
+      // lẫn local dev, tránh hardcode localhost:8000 gây lỗi khi deploy.
+      const response = await fetch("/api/ai/critique-code", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

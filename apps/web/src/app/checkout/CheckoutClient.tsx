@@ -290,7 +290,7 @@ export default function CheckoutClient() {
                   <p className="text-muted-foreground mb-6">
                     Cảm ơn bạn đã đăng ký gói {order.planName}. Đang chuyển hướng...
                   </p>
-                  <Link href="/payment-success">
+                  <Link href={`/payment-success?plan=${plan.id}&cycle=${cycle}`}>
                     <Button className="rounded-full px-8">
                       Xem chi tiết đăng ký
                     </Button>

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { createVipMentorRoom } from "@/app/ai-mentor/mentor-data";
 
 function getPlanInfo(planId: string) {
   if (planId === "vip") return { name: "VIP", color: "amber", icon: "crown" };
@@ -34,6 +35,14 @@ export default function PaymentSuccessPage() {
 
   // Auto-redirect to dashboard after 10s
   useEffect(() => {
+    // Set cờ membership vào localStorage để VipGate đọc được
+    if (planId === "vip") {
+      try {
+        localStorage.setItem("membership_plan", "vip");
+        // Tự động tạo phòng AI Mentor cho user VIP
+        createVipMentorRoom();
+      } catch {}
+    }
     const t = setTimeout(() => {
       window.location.href = "/profile/billing";
     }, 10000);
@@ -160,6 +169,9 @@ export default function PaymentSuccessPage() {
                 "Phân tích tài liệu AI nâng cao",
                 "Báo cáo PDF chi tiết + biểu đồ",
                 "Hỗ trợ ưu tiên 24/7",
+                ...(planId === "vip"
+                  ? ["Phòng Mentor AI trực tuyến 24/7", "3 mentor AI chuyên biệt"]
+                  : []),
               ].map((b) => (
                 <li key={b} className="flex items-center gap-2 text-foreground">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />

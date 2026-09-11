@@ -10,6 +10,7 @@ import {
   inviteStudent,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   Loader2,
   MonitorPlay,
@@ -21,6 +22,8 @@ import {
   ArrowRight,
   UserPlus,
   Users,
+  Bot,
+  Crown,
 } from "lucide-react";
 
 const STATUS_META: Record<
@@ -58,6 +61,25 @@ export default function MockRoomLandingPage() {
   const [inviteError, setInviteError] = useState<Record<number, string>>({});
 
   const isStudent = hasRole("student") || (!hasRole("mentor") && !hasRole("admin"));
+
+  // Kiểm tra quyền VIP để truy cập Phòng Mock AI
+  const isVip = (() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem("membership_plan") === "vip";
+    } catch {
+      return false;
+    }
+  })();
+
+  const handleEnterMockAI = () => {
+    if (!isVip) {
+      alert("Phòng Mock AI chỉ dành cho thành viên VIP. Hãy nâng cấp để sử dụng!");
+      router.push("/checkout?plan=vip&cycle=monthly");
+      return;
+    }
+    router.push("/mock-room-ai");
+  };
 
   async function load() {
     setLoading(true);
@@ -163,6 +185,34 @@ export default function MockRoomLandingPage() {
       <p className="text-sm text-muted-foreground mb-6">
         Chọn mentor bạn đã đặt lịch để tham gia phòng bảo vệ giả định. Phòng chỉ mở khi lịch đã được mentor xác nhận.
       </p>
+
+      {/* Phòng Mock AI — dành cho gói VIP */}
+      <div className="mb-6">
+        <Card
+          className="border-2 border-dashed border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5 hover:border-primary/40 transition-all cursor-pointer group"
+          onClick={handleEnterMockAI}
+        >
+          <div className="p-6 flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-[0_0_20px_hsl(var(--primary)/0.3)] shrink-0">
+              <Bot className="w-7 h-7 text-white" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-lg font-serif font-bold text-foreground">
+                  Phòng Mock AI
+                </h3>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-accent to-orange-500 text-white">
+                  <Crown className="w-3 h-3" /> VIP
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Luyện mock defense với AI mentor — 3 giai đoạn (Thuyết trình / Chất vấn / Nhận xét), không cần đặt lịch.
+              </p>
+            </div>
+            <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+          </div>
+        </Card>
+      </div>
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">

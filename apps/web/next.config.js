@@ -1,5 +1,12 @@
 /** @type {import('next').NextConfig} */
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Rewrite chạy SERVER-SIDE (trong container web) → phải dùng BACKEND_URL
+// (http://api:8000 — docker network). NEXT_PUBLIC_API_URL (localhost:8000) chỉ
+// dành cho browser; dùng nó trong rewrite gây ECONNREFUSED trong container.
+// Fallback cho local dev (npm run dev ngoài docker) và Vercel (public API URL).
+const PROXY_URL =
+  process.env.BACKEND_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:8000";
 
 const nextConfig = {
   // output: "standalone" chỉ dùng cho Docker/Node server.
@@ -13,7 +20,7 @@ const nextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: `${API_URL}/api/:path*`,
+        destination: `${PROXY_URL}/api/:path*`,
       },
     ];
   },
