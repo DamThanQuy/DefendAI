@@ -117,9 +117,12 @@ export default function AdminPage() {
     question_gen: "Sinh câu hỏi phản biện",
     classify: "Phân loại deliverable",
     feedback: "Feedback sau mock",
+    embedding: "Embedding (RAG)",
+    vision: "Vision reader (Gemini)",
   };
   const [featureConfig, setFeatureConfig] = useState<Record<string, { provider_name: string; model_id: string | null } | null>>({});
   const [featureDraft, setFeatureDraft] = useState<Record<string, { provider_name: string; model_id: string }>>({});
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; detail: string }>>({});
 
   const authHeaders = () => {
     const token = localStorage.getItem("access_token");
@@ -446,6 +449,26 @@ export default function AdminPage() {
       await loadAIConfig();
     } catch {
       setAiMsg({ type: "err", text: "Không kết nối được máy chủ" });
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  const testFeature = async (feature: string) => {
+    setAiBusy(`test-${feature}`);
+    setTestResults((s) => ({ ...s, [feature]: null }));
+    try {
+      const res = await fetch(`/api/admin/feature-ai-config/${feature}/test`, {
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setTestResults((s) => ({ ...s, [feature]: { ok: false, detail: data.detail || data.error || "Test failed" } }));
+        return;
+      }
+      setTestResults((s) => ({ ...s, [feature]: { ok: data.ok, detail: data.detail } }));
+    } catch {
+      setTestResults((s) => ({ ...s, [feature]: { ok: false, detail: "Không kết nối được máy chủ" } }));
     } finally {
       setAiBusy(null);
     }
@@ -783,6 +806,20 @@ export default function AdminPage() {
                           >
                             {aiBusy === `feat-${feature}` ? "..." : "Lưu"}
                           </button>
+                          {(feature === "embedding" || feature === "vision") && (
+                            <button
+                              onClick={() => testFeature(feature)}
+                              disabled={aiBusy === `test-${feature}`}
+                              className="px-3 py-1 text-[12px] font-semibold text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-lg hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                            >
+                              {aiBusy === `test-${feature}` ? "Đang test..." : "Test"}
+                            </button>
+                          )}
+                          {testResults[feature] && (
+                            <span className={`text-[11px] font-medium ${testResults[feature].ok ? "text-teal-400" : "text-red-400"}`}>
+                              {testResults[feature].detail}
+                            </span>
+                          )}
                         </div>
                       );
                     })}

@@ -163,6 +163,12 @@ class AIGateway:
                 logger.warning("✗ DB provider '%s' init failed: %s", name, e)
 
         self.db_models = db_models
+        # Invalidate embedding + vision config cache — provider thay đổi có nghĩa
+        # là config DB mới cho embedding/vision có thể đã thay đổi (admin mutation).
+        from app.services.embedder import invalidate_cache as _inv_emb
+        from app.services.vision_read import invalidate_vision_cache as _inv_vis
+        _inv_emb()
+        _inv_vis()
         logger.info("reconfigure_from_db done: providers=%s", sorted(self.providers.keys()))
 
     @staticmethod

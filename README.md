@@ -2,6 +2,14 @@
 
 Hệ thống hỗ trợ sinh viên chuẩn bị bảo vệ đồ án tốt nghiệp bằng AI.
 
+## Liên kết nhanh
+
+| Môi trường | URL | Ghi chú |
+|------------|-----|---------|
+| **Production (FE)** | https://defend-ai.vercel.app | Frontend deploy trên Vercel |
+| **Server nội bộ (Radmin VPN)** | http://26.161.35.68:3000 | Full stack (FE + API :8000) trên máy chủ `tkm1` |
+| **Local dev** | http://localhost:3000 | Sau `docker compose up` |
+
 ## Cấu trúc dự án (Monorepo)
 
 ```
@@ -116,6 +124,7 @@ docker compose exec api python scripts/seed.py
 | **Frontend** | http://localhost:3000 |
 | **API Docs (Swagger)** | http://localhost:8000/docs |
 | **Database** | localhost:5433 (user: postgres, pass: postgres) |
+| **Production (FE)** | https://defend-ai.vercel.app |
 
 ### Docker commands thường dùng
 
