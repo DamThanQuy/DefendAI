@@ -559,7 +559,7 @@ async def test_vision_connection(db=None) -> dict:
             if has_response:
                 return {
                     "ok": True,
-                    "detail": f"OK — vision model responded",
+                    "detail": "OK — vision model responded",
                     "provider": cfg["provider"],
                     "model": cfg["model"],
                     "truncated": False,
