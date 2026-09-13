@@ -145,11 +145,18 @@ async function putChunk(
         : url;
       const useProxy = !!uploadId;
 
+      const headers: Record<string, string> = {};
+      if (useProxy) {
+        // Proxy (BFF → FastAPI) yêu cầu JWT; presigned MinIO URL thì không cần.
+        const token = await apiGetToken();
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const res = await fetch(proxyUrl, {
         method: "PUT",
-        body: useProxy ? body : body,
+        body,
         signal,
-        ...(useProxy ? {} : {}), // no extra headers needed for either path
+        ...(Object.keys(headers).length > 0 ? { headers } : {}),
       });
       if (!res.ok) {
         throw new Error(
