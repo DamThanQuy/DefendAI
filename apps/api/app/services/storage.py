@@ -584,6 +584,35 @@ async def abort_multipart_upload(
     logger.info("Multipart aborted: bucket=%s key=%s upload_id=%s", bucket, key, upload_id)
 
 
+async def upload_part_bytes(
+    bucket: str,
+    key: str,
+    upload_id: str,
+    part_number: int,
+    data: bytes,
+) -> str:
+    """Upload part bytes directly to MinIO (server-side proxy).
+
+    Used when browser cannot reach MinIO directly (e.g. no public endpoint).
+    Returns ETag of the uploaded part.
+
+    Args:
+        data: raw bytes of this part (max 5GB per S3 spec).
+    """
+    session = _get_session()
+    async with session.client("s3", **_client_kwargs()) as s3:
+        resp = await s3.upload_part(
+            Bucket=bucket,
+            Key=key,
+            PartNumber=part_number,
+            UploadId=upload_id,
+            Body=data,
+        )
+    etag = resp["ETag"].strip('"')
+    logger.debug("Uploaded part %d for %s/%s (etag=%s)", part_number, bucket, key, etag)
+    return etag
+
+
 async def list_uploaded_parts(
     bucket: str,
     key: str,

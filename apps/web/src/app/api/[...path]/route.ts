@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readUpstream, upstreamFailure } from '@/lib/upstream';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,11 +28,17 @@ async function proxy(request: NextRequest, { params }: { params: any }) {
   try {
     const res = await fetch(url, init);
     if (res.status === 204) return new Response(null, { status: 204 });
-    const text = await res.text();
-    const data = text ? JSON.parse(text) : null;
-    return NextResponse.json(data, { status: res.status });
+
+    const upstream = await readUpstream(res);
+    if (upstream.nonJson) {
+      // Upstream trả về không phải JSON (HTML 502/504, body lỗi...) → lộ nguyên nhân.
+      console.error('catch-all non-JSON upstream:', url, upstream);
+      return upstreamFailure('API proxy', { url, status: upstream.status, upstream });
+    }
+    return NextResponse.json(upstream.data, { status: upstream.status });
   } catch (error: any) {
-    return NextResponse.json({ error: 'API proxy failed', message: error.message }, { status: 500 });
+    console.error('catch-all proxy error:', url, error);
+    return upstreamFailure('API proxy', { url, status: 502, cause: error });
   }
 }
 
