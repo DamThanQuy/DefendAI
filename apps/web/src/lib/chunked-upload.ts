@@ -128,6 +128,7 @@ async function putChunk(
   body: Blob,
   partNumber: number,
   signal: AbortSignal,
+  uploadId?: string,
 ): Promise<string> {
   let lastError: unknown;
 
@@ -136,21 +137,40 @@ async function putChunk(
       throw new DOMException("Upload aborted", "AbortError");
     }
     try {
-      const res = await fetch(url, {
+      // Ưu tiên upload qua backend proxy (BFF) nếu có uploadId.
+      // Proxy URL: /api/documents/multipart/{uploadId}/part/{partNumber}
+      // Fallback: direct PUT lên MinIO presigned URL (khi MinIO có public IP).
+      const proxyUrl = uploadId
+        ? `/api/documents/multipart/${uploadId}/part/${partNumber}`
+        : url;
+      const useProxy = !!uploadId;
+
+      const res = await fetch(proxyUrl, {
         method: "PUT",
-        body,
+        body: useProxy ? body : body,
         signal,
+        ...(useProxy ? {} : {}), // no extra headers needed for either path
       });
       if (!res.ok) {
         throw new Error(
           `PUT part ${partNumber} failed: ${res.status} ${res.statusText}`,
         );
       }
-      // ETag trả về trong header (có/không có dấu nháy đều OK)
+
+      if (useProxy) {
+        // Proxy returns JSON { part_number, etag }
+        const data = await res.json();
+        const etag = data?.etag ?? "";
+        if (!etag) {
+          throw new Error(`No ETag in proxy response for part ${partNumber}`);
+        }
+        return etag;
+      }
+
+      // Direct MinIO: ETag trong header
       const etag = res.headers.get("ETag") ?? res.headers.get("etag") ?? "";
       const cleanEtag = etag.replace(/"/g, "");
       if (!cleanEtag) {
-        // Một số trường hợp MinIO có thể trả etag trong body — fallback
         throw new Error(`No ETag in response for part ${partNumber}`);
       }
       return cleanEtag;
@@ -255,7 +275,7 @@ export class ChunkedUploader {
         const end = Math.min(start + part.chunk_size, this.file.size);
         const blob = this.file.slice(start, end);
 
-        const etag = await putChunk(part.url, blob, part.part_number, signal);
+        const etag = await putChunk(part.url, blob, part.part_number, signal, this.uploadId);
         this.etags.set(part.part_number, etag);
         this.bytesUploaded += end - start;
         this.options.onProgress(this.bytesUploaded, this.file.size);

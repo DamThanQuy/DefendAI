@@ -21,7 +21,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete as sa_delete, select
@@ -57,6 +57,7 @@ from app.services.storage import (
     delete,
     create_multipart_upload,
     generate_part_upload_url,
+    upload_part_bytes,
     complete_multipart_upload,
     abort_multipart_upload,
     list_uploaded_parts,
@@ -878,6 +879,45 @@ async def multipart_complete(
         filename=sess.filename,
         size=sess.size,
     )
+
+
+@router.put("/multipart/{upload_id}/part/{part_number}")
+async def multipart_upload_part(
+    upload_id: str,
+    part_number: int,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Proxy: receive chunk bytes from browser and upload to MinIO.
+
+    Used when browser cannot reach MinIO directly (no public IP/port forwarding).
+    Browser sends raw bytes as request body -> BE uploads to MinIO -> returns ETag.
+    """
+    sess = await db.get(UploadSession, upload_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail="Upload session not found")
+    if sess.user_id != user.id and not _is_privileged(user):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if sess.status != "pending":
+        raise HTTPException(status_code=409, detail=f"Session is {sess.status}")
+    if part_number < 1 or part_number > sess.parts_expected:
+        raise HTTPException(status_code=400, detail=f"Invalid part number: {part_number}")
+
+    data = await request.body()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty body")
+
+    try:
+        etag = await upload_part_bytes(
+            settings.minio.bucket, sess.storage_key, sess.s3_upload_id, part_number, data
+        )
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).exception("Proxy upload part %d failed", part_number)
+        raise HTTPException(status_code=502, detail=f"Upload part failed: {exc}")
+
+    return {"part_number": part_number, "etag": etag}
 
 
 @router.delete("/multipart/{upload_id}/abort", status_code=204)
