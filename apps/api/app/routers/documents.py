@@ -62,6 +62,7 @@ from app.services.storage import (
     abort_multipart_upload,
     list_uploaded_parts,
     get_range,
+    get_object_size,
 )
 from app.services.archive_service import list_archive_members, read_archive_member, ArchiveError
 
@@ -194,6 +195,22 @@ async def _verify_uploaded_object_integrity(
 
     ext = Path(filename).suffix.lower()
     expected_magic = MAGIC_BYTES.get(ext)
+
+    # 0. So sánh kích thước object thực tế trên MinIO với expected_size.
+    # Nếu lệch → có part bị cụt/thừa bytes khi ghép (rớt mạng giữa chừng PUT).
+    # Bắt sớm ở đây cho mọi loại file (không chỉ ZIP), với message rõ ràng.
+    try:
+        actual_size = await get_object_size(storage_key, settings.minio.bucket)
+    except Exception as exc:  # noqa: BLE001
+        log.error("Integrity check: cannot HEAD %s: %s", storage_key, exc)
+        return False
+    if actual_size != expected_size:
+        log.error(
+            "Integrity check FAIL: %s size mismatch actual=%d expected=%d "
+            "(a part was likely truncated/duplicated during upload)",
+            storage_key, actual_size, expected_size,
+        )
+        return False
 
     # 1. Check 4 bytes đầu (magic).
     try:
@@ -908,12 +925,34 @@ async def multipart_upload_part(
     if not data:
         raise HTTPException(status_code=400, detail="Empty body")
 
+    # Kiểm tra độ dài part khớp kích thước dự kiến — chống trường hợp request
+    # body bị cắt giữa chừng (rớt mạng lúc PUT) mà vẫn được MinIO nhận + trả
+    # ETag hợp lệ cho part cụt. Part cụt làm object ghép ngắn hơn expected_size
+    # → EOCD rơi ra ngoài cửa sổ kiểm tra → file hỏng nhưng "complete 200".
+    # Từ chối (400) để client tự retry đúng part này.
+    chunk = _init_session_chunk_size(sess.size)
+    if part_number < sess.parts_expected:
+        expected_len = chunk
+    else:
+        expected_len = sess.size - (sess.parts_expected - 1) * chunk
+    if len(data) != expected_len:
+        logging.getLogger(__name__).warning(
+            "Part %d length mismatch: got %d bytes, expected %d (session %s)",
+            part_number, len(data), expected_len, upload_id,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Part {part_number} has wrong size: got {len(data)} bytes, "
+                f"expected {expected_len}. Please retry this part."
+            ),
+        )
+
     try:
         etag = await upload_part_bytes(
             settings.minio.bucket, sess.storage_key, sess.s3_upload_id, part_number, data
         )
     except Exception as exc:
-        import logging
         logging.getLogger(__name__).exception("Proxy upload part %d failed", part_number)
         raise HTTPException(status_code=502, detail=f"Upload part failed: {exc}")
 

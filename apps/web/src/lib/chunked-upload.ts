@@ -448,10 +448,14 @@ export class ChunkedUploader {
     );
 
     // Nạp ETag của các part đã có trên MinIO → đánh dấu đã upload.
+    // CHỈ chấp nhận part có Size khớp đúng kích thước dự kiến — nếu part bị
+    // cụt/thừa bytes (rớt mạng giữa PUT trước khi backend check độ dài có hiệu
+    // lực), coi như chưa upload để gửi lại, tránh resume mang theo part hỏng.
     let recoveredBytes = 0;
     for (const p of status.uploaded_parts) {
       const part = this.parts.find((x) => x.part_number === p.PartNumber);
       if (!part) continue;
+      if (typeof p.Size === "number" && p.Size !== part.chunk_size) continue;
       this.etags.set(p.PartNumber, (p.ETag || "").replace(/"/g, ""));
       recoveredBytes += part.chunk_size;
     }
