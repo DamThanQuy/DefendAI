@@ -7,6 +7,12 @@
  * Next.js BFF chỉ proxy JSON (rất nhẹ), không upload bytes → tránh giới hạn 1MB.
  */
 import { NextResponse } from "next/server";
+import {
+  authOnlyHeaders,
+  backendUrl,
+  readUpstream,
+  upstreamFailure,
+} from "@/lib/upstream";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,41 +25,53 @@ interface InitBody {
 }
 
 export async function POST(request: Request) {
+  const url = `${backendUrl()}/api/documents/multipart/init`;
+
+  let body: InitBody;
   try {
-    const body: InitBody = await request.json();
-    if (!body.filename || !body.size) {
-      return NextResponse.json(
-        { error: "filename and size are required" },
-        { status: 400 },
-      );
-    }
-
-    const backendUrl = process.env.BACKEND_URL || "http://127.0.0.1:8000";
-    const authHeader = request.headers.get("authorization") || "";
-
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (authHeader) headers["Authorization"] = authHeader;
-
-    const backendRes = await fetch(`${backendUrl}/api/documents/multipart/init`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
-
-    const data = await backendRes.json();
-
-    if (!backendRes.ok) {
-      return NextResponse.json(data, { status: backendRes.status });
-    }
-
-    return NextResponse.json(data, { status: backendRes.status });
-  } catch (error: any) {
-    console.error("multipart/init proxy error:", error);
+    body = await request.json();
+  } catch {
     return NextResponse.json(
-      { error: "Multipart init proxy failed", message: error?.message },
-      { status: 500 },
+      { error: "Request body must be valid JSON" },
+      { status: 400 },
     );
   }
+
+  if (!body.filename || !body.size) {
+    return NextResponse.json(
+      { error: "filename and size are required" },
+      { status: 400 },
+    );
+  }
+
+  let upstream;
+  try {
+    const backendRes = await fetch(url, {
+      method: "POST",
+      headers: authOnlyHeaders(request, { "Content-Type": "application/json" }),
+      body: JSON.stringify(body),
+    });
+    upstream = await readUpstream(backendRes);
+  } catch (error) {
+    // Network-level: backend không resolve được / không trả lời.
+    console.error("multipart/init proxy error:", error);
+    return upstreamFailure("Multipart init proxy", {
+      url,
+      status: 502,
+      cause: error,
+    });
+  }
+
+  if (upstream.nonJson) {
+    // Upstream trả về không phải JSON (HTML 502/504, body lỗi...) — lộ nguyên nhân.
+    console.error("multipart/init non-JSON upstream:", upstream);
+    return upstreamFailure("Multipart init proxy", {
+      url,
+      status: upstream.status,
+      upstream,
+    });
+  }
+
+  // JSON (kể cả error JSON từ FastAPI) → forward nguyên trạng + status thật.
+  return NextResponse.json(upstream.data, { status: upstream.status });
 }
