@@ -11,7 +11,10 @@
 
 const DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024; // 8 MB — khớp với BE default
 const DEFAULT_CONCURRENCY = 3;
-const MAX_RETRIES = 3;
+// Retry mỗi part: tăng lên 8 lần với backoff luỹ thừa chặn ở 30s để chịu được
+// các lần rớt mạng/DNS chập chờn ngắn khi upload file lớn (vài GB) kéo dài.
+const MAX_RETRIES = 8;
+const MAX_BACKOFF_MS = 30_000;
 
 export interface ChunkedUploadOptions {
   chunkSize?: number;
@@ -119,9 +122,143 @@ async function callAbort(uploadId: string): Promise<void> {
   }
 }
 
+interface StatusResponse {
+  upload_id: string;
+  status: string; // pending | completed | aborted
+  parts_expected: number;
+  parts_received: number;
+  document_id?: number | null;
+  uploaded_parts: { PartNumber: number; ETag: string; Size: number }[];
+}
+
+/**
+ * Metadata của một session upload đã khởi tạo, lưu ở localStorage để có thể
+ * resume (tiếp tục) sau khi rớt mạng / reload trang mà không phải upload lại
+ * từ đầu. Khoá tra theo danh tính file (tên + kích thước + sửa đổi lần cuối).
+ */
+interface ResumeState {
+  uploadId: string;
+  chunkSize: number;
+  partsExpected: number;
+}
+
+const RESUME_STORAGE_PREFIX = "defendai:chunked-upload:";
+
+function resumeKeyFor(file: File): string {
+  return `${RESUME_STORAGE_PREFIX}${file.name}:${file.size}:${file.lastModified}`;
+}
+
+function loadResumeState(file: File): ResumeState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(resumeKeyFor(file));
+    return raw ? (JSON.parse(raw) as ResumeState) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveResumeState(file: File, state: ResumeState): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(resumeKeyFor(file), JSON.stringify(state));
+  } catch {
+    /* best-effort */
+  }
+}
+
+function clearResumeState(file: File): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(resumeKeyFor(file));
+  } catch {
+    /* best-effort */
+  }
+}
+
+/**
+ * Dựng lại mảng mô tả các part (part_number, chunk_size) cho một file đã biết
+ * size + chunkSize + partsExpected — khớp đúng logic backend `multipart_init`.
+ * `url` để trống vì đường upload proxy (BFF) không cần presigned URL.
+ */
+function buildPartsArray(
+  size: number,
+  chunkSize: number,
+  partsExpected: number,
+): { part_number: number; url: string; chunk_size: number }[] {
+  const parts: { part_number: number; url: string; chunk_size: number }[] = [];
+  for (let n = 1; n <= partsExpected; n++) {
+    const actual =
+      n === partsExpected ? size - (partsExpected - 1) * chunkSize : chunkSize;
+    parts.push({ part_number: n, url: "", chunk_size: actual });
+  }
+  return parts;
+}
+
+/**
+ * Kiểm tra trạng thái session trên server — dùng để resume sau khi rớt mạng.
+ * Trả về null nếu session không còn tồn tại / lỗi (khi đó client sẽ init mới).
+ */
+async function callStatus(uploadId: string): Promise<StatusResponse | null> {
+  const token = await apiGetToken();
+  try {
+    const res = await fetch(
+      `/api/documents/multipart/status?upload_id=${encodeURIComponent(uploadId)}`,
+      {
+        method: "GET",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      },
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as StatusResponse;
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // PUT 1 chunk lên presigned URL — có retry
 // ---------------------------------------------------------------------------
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) return resolve();
+    const t = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(t);
+      resolve();
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+/**
+ * Nếu trình duyệt báo offline (navigator.onLine === false — rớt mạng/DNS),
+ * chờ cho tới khi trực tuyến trở lại hoặc hết budget (mặc định 5 phút).
+ * Khi online thì trả về ngay. Không ném lỗi — để vòng retry tự quyết định.
+ */
+async function waitForOnline(
+  signal: AbortSignal,
+  maxWaitMs = 5 * 60 * 1000,
+): Promise<void> {
+  if (typeof navigator === "undefined" || navigator.onLine) return;
+  const start = Date.now();
+  await new Promise<void>((resolve) => {
+    const check = () => {
+      if (signal.aborted || navigator.onLine || Date.now() - start > maxWaitMs) {
+        window.removeEventListener("online", check);
+        clearInterval(poll);
+        resolve();
+      }
+    };
+    const poll = setInterval(check, 1000);
+    window.addEventListener("online", check);
+    signal.addEventListener("abort", check, { once: true });
+  });
+}
 
 async function putChunk(
   url: string,
@@ -185,8 +322,16 @@ async function putChunk(
       if ((err as any)?.name === "AbortError") throw err;
       lastError = err;
       if (attempt < MAX_RETRIES) {
-        // Backoff: 1s, 2s, 4s
-        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+        // Backoff luỹ thừa (1s, 2s, 4s, 8s, 16s, 30s...) chặn ở MAX_BACKOFF_MS.
+        // Nếu trình duyệt báo đang offline (rớt mạng/DNS), chờ cho tới khi
+        // trực tuyến trở lại (hoặc hết budget chờ) rồi mới retry — tránh đốt
+        // hết số lần thử trong vài giây khi mạng chưa hồi.
+        await waitForOnline(signal);
+        const delay = Math.min(
+          MAX_BACKOFF_MS,
+          1000 * Math.pow(2, attempt - 1),
+        );
+        await sleep(delay, signal);
       }
     }
   }
@@ -223,23 +368,35 @@ export class ChunkedUploader {
   /**
    * Bắt đầu (hoặc tiếp tục) upload.
    * Trả về CompleteResponse khi file đã được ghép trên MinIO + Document đã tạo.
+   *
+   * Nếu có session cũ cho đúng file này (lưu ở localStorage) và server xác
+   * nhận vẫn `pending`, sẽ resume: bỏ qua các part đã có trên MinIO, chỉ upload
+   * phần còn thiếu. Nếu không resume được (session hết hạn/mất), init mới.
    */
   async start(): Promise<ChunkedUploadResult> {
     const { file, options } = this;
     const signal = options.signal ?? new AbortController().signal;
 
-    // 1. Init
-    const init = await callInit(
-      file.name,
-      file.size,
-      file.type || "application/octet-stream",
-      "student_project",
-    );
-    this.uploadId = init.upload_id;
-    this.parts = init.parts;
-    options.onProgress(0, file.size);
+    // 1. Thử resume session cũ trước khi init mới.
+    const resumed = await this.tryResume(file, signal);
+    if (!resumed) {
+      const init = await callInit(
+        file.name,
+        file.size,
+        file.type || "application/octet-stream",
+        "student_project",
+      );
+      this.uploadId = init.upload_id;
+      this.parts = init.parts;
+      saveResumeState(file, {
+        uploadId: init.upload_id,
+        chunkSize: init.chunk_size,
+        partsExpected: init.parts_expected,
+      });
+      options.onProgress(0, file.size);
+    }
 
-    // 2. Upload từng chunk (parallel với concurrency)
+    // 2. Upload từng chunk còn thiếu (parallel với concurrency)
     await this.uploadAllParts(signal);
 
     // 3. Complete
@@ -254,8 +411,53 @@ export class ChunkedUploader {
     }
 
     const result = await callComplete(this.uploadId!, partsList);
+    // Thành công → xoá khoá resume để lần sau upload lại từ đầu.
+    clearResumeState(file);
     options.onProgress(file.size, file.size);
     return result;
+  }
+
+  /**
+   * Nếu tồn tại session cũ cho file này và server vẫn `pending`, nạp các part
+   * đã upload (ETag từ MinIO) và dựng lại mảng parts → trả về true (đã resume).
+   * Trả về false nếu cần init mới.
+   */
+  private async tryResume(file: File, _signal: AbortSignal): Promise<boolean> {
+    const saved = loadResumeState(file);
+    if (!saved?.uploadId) return false;
+
+    const status = await callStatus(saved.uploadId);
+    if (!status || status.status !== "pending") {
+      clearResumeState(file);
+      return false;
+    }
+    // Session phải khớp đúng kích thước file + số part đã lưu.
+    if (
+      status.parts_expected !== saved.partsExpected ||
+      saved.chunkSize <= 0
+    ) {
+      clearResumeState(file);
+      return false;
+    }
+
+    this.uploadId = saved.uploadId;
+    this.parts = buildPartsArray(
+      file.size,
+      saved.chunkSize,
+      saved.partsExpected,
+    );
+
+    // Nạp ETag của các part đã có trên MinIO → đánh dấu đã upload.
+    let recoveredBytes = 0;
+    for (const p of status.uploaded_parts) {
+      const part = this.parts.find((x) => x.part_number === p.PartNumber);
+      if (!part) continue;
+      this.etags.set(p.PartNumber, (p.ETag || "").replace(/"/g, ""));
+      recoveredBytes += part.chunk_size;
+    }
+    this.bytesUploaded = recoveredBytes;
+    this.options.onProgress(recoveredBytes, file.size);
+    return true;
   }
 
   /**
@@ -265,6 +467,7 @@ export class ChunkedUploader {
   async abort(): Promise<void> {
     if (this.uploadId) {
       await callAbort(this.uploadId);
+      clearResumeState(this.file);
     }
   }
 
@@ -278,6 +481,10 @@ export class ChunkedUploader {
         if (signal.aborted) return;
         const myIndex = partIndex++;
         const part = this.parts[myIndex];
+
+        // Part đã có ETag (từ lần upload trước / resume) → bỏ qua, không gửi lại.
+        if (this.etags.has(part.part_number)) continue;
+
         const start = (part.part_number - 1) * part.chunk_size;
         const end = Math.min(start + part.chunk_size, this.file.size);
         const blob = this.file.slice(start, end);
