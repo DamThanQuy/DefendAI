@@ -6,7 +6,9 @@ const BACKEND = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 
 async function proxy(request: NextRequest) {
   try {
-    const url = `${BACKEND}/api/workspaces`;
+    // NOTE: thêm slash cuối — FastAPI khai báo route "/api/workspaces/" (redirect_slashes).
+    // Gọi không slash → 307 redirect → fetch rớt Authorization khi follow → 401.
+    const url = `${BACKEND}/api/workspaces/`;
     const authHeader = request.headers.get('authorization') || '';
 
     const headers: Record<string, string> = {};
