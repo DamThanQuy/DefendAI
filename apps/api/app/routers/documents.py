@@ -14,6 +14,7 @@ Endpoints (large file - multipart upload, resumable):
 - POST /api/documents/multipart/{id}/complete → ghép các parts → tạo Document
 - DELETE /api/documents/multipart/{id}/abort → hủy session + cleanup MinIO
 """
+import hashlib
 import logging
 import math
 import os
@@ -947,6 +948,26 @@ async def multipart_upload_part(
                 f"expected {expected_len}. Please retry this part."
             ),
         )
+
+    # Verify per-part SHA-256 (client sends X-Part-Sha256). Catches silent
+    # content corruption that a correct byte-length would not — e.g. a part
+    # that arrives full-length but with flipped/shifted bytes on a flaky
+    # network, which corrupts the assembled archive (missing EOCD) even though
+    # every part returned 200 and had the right size. Reject -> client retries.
+    expected_sha = request.headers.get("x-part-sha256")
+    if expected_sha:
+        actual_sha = hashlib.sha256(data).hexdigest()
+        if actual_sha != expected_sha.lower():
+            logging.getLogger(__name__).warning(
+                "Part %d checksum mismatch: got %s, expected %s (session %s)",
+                part_number, actual_sha, expected_sha.lower(), upload_id,
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Part {part_number} failed checksum. Please retry this part."
+                ),
+            )
 
     try:
         etag = await upload_part_bytes(
