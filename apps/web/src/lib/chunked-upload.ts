@@ -276,6 +276,52 @@ async function waitForOnline(
   });
 }
 
+/**
+ * Kiểm tra xem presigned URL có phải là public endpoint (MinIO funnel) hay không.
+ * Nếu có → browser có thể PUT trực tiếp, bypass Vercel BFF proxy → nhanh hơn.
+ * Chỉ áp dụng cho HTTPS URL từ taildec640.ts.net (Tailscale funnel).
+ */
+function isPublicMinioUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && u.hostname.includes("taildec640.ts.net");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * PUT trực tiếp lên MinIO presigned URL (không qua proxy).
+ * QUAN TRỌNG: KHÔNG gửi Content-Type — MinIO SigV2 presign không bao gồm
+ * Content-Type, nếu browser tự thêm sẽ bị 403 SignatureDoesNotMatch.
+ * Cũng không gửi Authorization hay X-Part-Sha256 (chỉ cần cho proxy path).
+ */
+async function putDirectMinio(
+  url: string,
+  body: Blob,
+  partNumber: number,
+  signal: AbortSignal,
+): Promise<string> {
+  const res = await fetch(url, {
+    method: "PUT",
+    body,
+    signal,
+    // KHÔNG set headers — browser sẽ không thêm Content-Type nếu ta không
+    // chỉ định, và MinIO SigV2 sẽ match signature.
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Direct PUT part ${partNumber} failed: ${res.status} ${res.statusText}`,
+    );
+  }
+  const etag = res.headers.get("ETag") ?? res.headers.get("etag") ?? "";
+  const cleanEtag = etag.replace(/"/g, "");
+  if (!cleanEtag) {
+    throw new Error(`No ETag in direct response for part ${partNumber}`);
+  }
+  return cleanEtag;
+}
+
 async function putChunk(
   url: string,
   body: Blob,
@@ -290,16 +336,32 @@ async function putChunk(
       throw new DOMException("Upload aborted", "AbortError");
     }
     try {
-      // Ưu tiên upload qua backend proxy (BFF) nếu có uploadId.
-      // Proxy URL: /api/documents/multipart/{uploadId}/part/{partNumber}
-      // Fallback: direct PUT lên MinIO presigned URL (khi MinIO có public IP).
+      // ── Strategy ──
+      // Nếu presigned URL là public MinIO funnel (HTTPS taildec640.ts.net),
+      // thử PUT trực tiếp TRƯỚC — bypass Vercel BFF proxy, nhanh hơn nhiều.
+      // Nếu lỗi (network, CORS, v.v.) → fallback về proxy path như cũ.
+      // Nếu presigned URL không public → luôn dùng proxy.
+      const canTryDirect = uploadId && isPublicMinioUrl(url);
+
+      if (canTryDirect) {
+        try {
+          return await putDirectMinio(url, body, partNumber, signal);
+        } catch (directErr) {
+          // Direct PUT thất bại — log và fallback về proxy bên dưới.
+          console.warn(
+            `Direct PUT part ${partNumber} failed, falling back to proxy:`,
+            directErr,
+          );
+        }
+      }
+
+      // ── Proxy path (BFF → FastAPI → MinIO) ──
       const proxyUrl = uploadId
         ? `/api/documents/multipart/${uploadId}/part/${partNumber}`
         : url;
-      const useProxy = !!uploadId;
 
       const headers: Record<string, string> = {};
-      if (useProxy) {
+      if (uploadId) {
         // Proxy (BFF → FastAPI) yêu cầu JWT; presigned MinIO URL thì không cần.
         const token = await apiGetToken();
         if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -322,7 +384,7 @@ async function putChunk(
         );
       }
 
-      if (useProxy) {
+      if (uploadId) {
         // Proxy returns JSON { part_number, etag }
         const data = await res.json();
         const etag = data?.etag ?? "";
@@ -332,7 +394,7 @@ async function putChunk(
         return etag;
       }
 
-      // Direct MinIO: ETag trong header
+      // Direct MinIO (non-public): ETag trong header
       const etag = res.headers.get("ETag") ?? res.headers.get("etag") ?? "";
       const cleanEtag = etag.replace(/"/g, "");
       if (!cleanEtag) {
