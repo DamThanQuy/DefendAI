@@ -248,8 +248,9 @@ async def _verify_uploaded_object_integrity(
         # EOCD: PK\x05\x06, Zip64 EOCD: PK\x06\x06, Zip64 EOCD locator: PK\x06\x07
         if not any(sig in tail for sig in (b"PK\x05\x06", b"PK\x06\x06", b"PK\x06\x07")):
             log.error(
-                "Integrity check FAIL: %s missing EOCD/Zip64 EOCD in last 64 bytes",
-                storage_key,
+                "Integrity check FAIL: %s missing EOCD/Zip64 EOCD in last 64 bytes "
+                "(actual_size=%d expected=%d tail_hex=%s)",
+                storage_key, actual_size, expected_size, tail.hex(),
             )
             return False
 
@@ -955,6 +956,16 @@ async def multipart_upload_part(
     # network, which corrupts the assembled archive (missing EOCD) even though
     # every part returned 200 and had the right size. Reject -> client retries.
     expected_sha = request.headers.get("x-part-sha256")
+    if not expected_sha:
+        # Mandatory checksum: a part without X-Part-Sha256 cannot be verified
+        # for content integrity (only length is checked above, which a
+        # full-length-but-corrupted part would pass). Reject so the client
+        # re-sends with a digest — closes the silent-skip hole where a client
+        # crypto hiccup would otherwise let an unverified part through.
+        raise HTTPException(
+            status_code=400,
+            detail=f"Part {part_number} missing X-Part-Sha256 header.",
+        )
     if expected_sha:
         actual_sha = hashlib.sha256(data).hexdigest()
         if actual_sha != expected_sha.lower():
