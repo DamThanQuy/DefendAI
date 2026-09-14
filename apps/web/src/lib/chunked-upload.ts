@@ -337,11 +337,11 @@ async function putChunk(
     }
     try {
       // ── Strategy ──
-      // Nếu presigned URL là public MinIO funnel (HTTPS taildec640.ts.net),
-      // thử PUT trực tiếp TRƯỚC — bypass Vercel BFF proxy, nhanh hơn nhiều.
-      // Nếu lỗi (network, CORS, v.v.) → fallback về proxy path như cũ.
-      // Nếu presigned URL không public → luôn dùng proxy.
-      const canTryDirect = uploadId && isPublicMinioUrl(url);
+      // Tailscale funnel có read timeout ~30s — part 8MB bị abort liên tục.
+      // Tạm thời LUÔN dùng proxy path (qua Vercel BFF → FastAPI → MinIO)
+      // cho đến khi có tunnel ổn định hơn (Cloudflare tunnel / direct IP).
+      // const canTryDirect = uploadId && isPublicMinioUrl(url);
+      const canTryDirect = false; // disabled: Tailscale funnel timeout issue
 
       if (canTryDirect) {
         try {
