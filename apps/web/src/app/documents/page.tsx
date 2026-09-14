@@ -3,11 +3,11 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { UploadModal } from "@/components/features/assessment/UploadModal";
-import { ArchiveBrowser } from "@/components/features/assessment/ArchiveBrowser";
 import { TrashIcon } from "@/components/icons/TrashIcon";
 import { PlusIcon } from "@/components/icons/PlusIcon";
 import { useAuth } from "@/hooks/useAuth";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { DocumentDetailSidebar } from "@/components/features/assessment/DocumentDetailSidebar";
 
 interface DocumentItem {
   id: number;
@@ -273,7 +273,7 @@ export default function DocumentsPage() {
                 </thead>
                 <tbody>
                   {docs.map((doc) => (
-                    <tr key={doc.id} className="border-b border-zinc-800/60 hover:bg-zinc-800/40 transition-colors">
+                    <tr key={doc.id} className="border-b border-zinc-800/60 hover:bg-zinc-800/40 transition-colors cursor-pointer" onClick={() => setBrowseDoc(doc)}>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-lg bg-teal-500/10 flex items-center justify-center shrink-0">
@@ -294,16 +294,14 @@ export default function DocumentsPage() {
                       <td className="px-5 py-4 text-[13px] text-zinc-500">{formatDate(doc.created_at)}</td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {doc.doc_type === "zip" && (
-                            <button
-                              onClick={() => setBrowseDoc(doc)}
-                              className="px-3 py-1.5 text-[12px] font-semibold text-zinc-300 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
-                            >
-                              Xem nội dung
-                            </button>
-                          )}
                           <button
-                            onClick={() => openWsModal(doc)}
+                            onClick={(e) => { e.stopPropagation(); setBrowseDoc(doc); }}
+                            className="px-3 py-1.5 text-[12px] font-semibold text-zinc-300 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
+                          >
+                            Chi tiết
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openWsModal(doc); }}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-emerald-400 bg-emerald-500/10 rounded-lg hover:bg-emerald-500/20 transition-colors"
                           >
                             <PlusIcon className="w-4 h-4" />
@@ -313,6 +311,7 @@ export default function DocumentsPage() {
                             href={`/api/documents/${doc.id}/download`}
                             title="Tải xuống"
                             aria-label="Tải xuống"
+                            onClick={(e) => e.stopPropagation()}
                             className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-400 bg-zinc-800/40 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -321,7 +320,7 @@ export default function DocumentsPage() {
                           </a>
                           {canDelete(doc) && (
                             <button
-                              onClick={() => handleDeleteClick(doc)}
+                              onClick={(e) => { e.stopPropagation(); handleDeleteClick(doc); }}
                               disabled={deletingId === doc.id}
                               title="Xoá"
                               aria-label="Xoá"
@@ -349,28 +348,12 @@ export default function DocumentsPage() {
 
       <UploadModal open={showUpload} onClose={() => { setShowUpload(false); fetchDocs(); }} />
 
-      {/* Archive browser modal */}
-      {browseDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setBrowseDoc(null)}>
-          <div
-            className="bg-card rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-zinc-800/60"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/60">
-              <h3 className="text-[16px] font-bold text-foreground">Nội dung file</h3>
-              <button
-                onClick={() => setBrowseDoc(null)}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-zinc-800 text-zinc-500"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <ArchiveBrowser docId={browseDoc.id} filename={browseDoc.filename} />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Document detail sidebar */}
+      <DocumentDetailSidebar
+        doc={browseDoc}
+        onClose={() => setBrowseDoc(null)}
+        onDelete={(doc) => { setBrowseDoc(null); handleDeleteClick(doc); }}
+      />
 
       {/* Add to workspace modal */}
       {wsTargetDoc && (
