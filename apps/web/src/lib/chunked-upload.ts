@@ -374,6 +374,10 @@ export class ChunkedUploader {
   private parts: { part_number: number; url: string; chunk_size: number }[] = [];
   private etags: Map<number, string> = new Map();
   private bytesUploaded = 0;
+  // Kích thước chunk CHUẨN (mọi part trừ part cuối). Part cuối có chunk_size =
+  // phần dư, nên KHÔNG được dùng nó làm stride khi tính offset — nếu không part
+  // cuối sẽ đọc sai vùng byte (đúng độ dài nhưng sai nội dung → EOCD missing).
+  private chunkSize = DEFAULT_CHUNK_SIZE;
 
   constructor(file: File, options: ChunkedUploadOptions = {}) {
     this.file = file;
@@ -409,6 +413,7 @@ export class ChunkedUploader {
       );
       this.uploadId = init.upload_id;
       this.parts = init.parts;
+      this.chunkSize = init.chunk_size;
       saveResumeState(file, {
         uploadId: init.upload_id,
         chunkSize: init.chunk_size,
@@ -471,6 +476,7 @@ export class ChunkedUploader {
     }
 
     this.uploadId = saved.uploadId;
+    this.chunkSize = saved.chunkSize;
     this.parts = buildPartsArray(
       file.size,
       saved.chunkSize,
@@ -519,7 +525,10 @@ export class ChunkedUploader {
         // Part đã có ETag (từ lần upload trước / resume) → bỏ qua, không gửi lại.
         if (this.etags.has(part.part_number)) continue;
 
-        const start = (part.part_number - 1) * part.chunk_size;
+        // Stride by the STANDARD chunk size (this.chunkSize), NOT part.chunk_size
+        // (which is the remainder for the last part). Otherwise the last part
+        // reads from the wrong byte region — correct length, wrong content.
+        const start = (part.part_number - 1) * this.chunkSize;
         const end = Math.min(start + part.chunk_size, this.file.size);
         const blob = this.file.slice(start, end);
 
