@@ -41,11 +41,16 @@ export async function PUT(
 
   let upstream;
   try {
+    // Forward per-part SHA-256 (if present) so FastAPI can verify content.
+    const extra: Record<string, string> = {
+      "Content-Type": "application/octet-stream",
+    };
+    const sha = request.headers.get("x-part-sha256");
+    if (sha) extra["X-Part-Sha256"] = sha;
+
     const backendRes = await fetch(url, {
       method: "PUT",
-      headers: authOnlyHeaders(request, {
-        "Content-Type": "application/octet-stream",
-      }),
+      headers: authOnlyHeaders(request, extra),
       body,
     });
     upstream = await readUpstream(backendRes);

@@ -140,6 +140,10 @@ interface ResumeState {
   uploadId: string;
   chunkSize: number;
   partsExpected: number;
+  /** true nếu session được tạo bởi client có gửi SHA-256 per part.
+   *  Chỉ resume các session này — part cũ (không verify được nội dung) sẽ
+   *  bị loại, tránh mang theo part hỏng đúng-độ-dài-sai-byte vào file ghép. */
+  checksummed?: boolean;
 }
 
 const RESUME_STORAGE_PREFIX = "defendai:chunked-upload:";
@@ -236,6 +240,18 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 }
 
 /**
+ * Tính SHA-256 (hex) của một Blob bằng Web Crypto. Backend dùng để phát hiện
+ * part bị hỏng NỘI DUNG (đúng độ dài nhưng sai byte) khi truyền qua proxy.
+ */
+async function sha256Hex(blob: Blob): Promise<string> {
+  const buf = await blob.arrayBuffer();
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
  * Nếu trình duyệt báo offline (navigator.onLine === false — rớt mạng/DNS),
  * chờ cho tới khi trực tuyến trở lại hoặc hết budget (mặc định 5 phút).
  * Khi online thì trả về ngay. Không ném lỗi — để vòng retry tự quyết định.
@@ -266,6 +282,7 @@ async function putChunk(
   partNumber: number,
   signal: AbortSignal,
   uploadId?: string,
+  sha256?: string,
 ): Promise<string> {
   let lastError: unknown;
 
@@ -287,6 +304,9 @@ async function putChunk(
         // Proxy (BFF → FastAPI) yêu cầu JWT; presigned MinIO URL thì không cần.
         const token = await apiGetToken();
         if (token) headers["Authorization"] = `Bearer ${token}`;
+        // Gửi SHA-256 của chunk để backend verify nội dung (chống part đúng
+        // độ dài nhưng sai byte khi truyền qua proxy) → 400 → retry part đó.
+        if (sha256) headers["X-Part-Sha256"] = sha256;
       }
 
       const res = await fetch(proxyUrl, {
@@ -392,6 +412,7 @@ export class ChunkedUploader {
         uploadId: init.upload_id,
         chunkSize: init.chunk_size,
         partsExpected: init.parts_expected,
+        checksummed: true,
       });
       options.onProgress(0, file.size);
     }
@@ -425,6 +446,14 @@ export class ChunkedUploader {
   private async tryResume(file: File, _signal: AbortSignal): Promise<boolean> {
     const saved = loadResumeState(file);
     if (!saved?.uploadId) return false;
+
+    // Không resume session cũ do client CHƯA gửi checksum tạo ra: các part
+    // đó không xác minh được nội dung → có thể hỏng đúng-độ-dài-sai-byte.
+    // Bỏ qua (init mới) để mọi part đều được verify SHA-256.
+    if (!saved.checksummed) {
+      clearResumeState(file);
+      return false;
+    }
 
     const status = await callStatus(saved.uploadId);
     if (!status || status.status !== "pending") {
@@ -493,7 +522,15 @@ export class ChunkedUploader {
         const end = Math.min(start + part.chunk_size, this.file.size);
         const blob = this.file.slice(start, end);
 
-        const etag = await putChunk(part.url, blob, part.part_number, signal, this.uploadId);
+        // Tính SHA-256 một lần cho chunk (dùng lại qua mọi lần retry).
+        let sha: string | undefined;
+        try {
+          sha = await sha256Hex(blob);
+        } catch {
+          sha = undefined; // crypto không khả dụng -> bỏ qua verify, vẫn upload
+        }
+
+        const etag = await putChunk(part.url, blob, part.part_number, signal, this.uploadId, sha);
         this.etags.set(part.part_number, etag);
         this.bytesUploaded += end - start;
         this.options.onProgress(this.bytesUploaded, this.file.size);
