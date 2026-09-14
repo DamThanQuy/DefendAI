@@ -20,11 +20,21 @@ export function backendUrl(): string {
   return process.env.BACKEND_URL || DEFAULT_BACKEND_URL;
 }
 
+/**
+ * Extra headers needed when BACKEND_URL is an ngrok tunnel (free tier
+ * shows a browser-warning page unless this header is present).
+ */
+export function ngrokHeaders(): Record<string, string> {
+  const url = backendUrl();
+  if (url.includes("ngrok")) return { "ngrok-skip-browser-warning": "true" };
+  return {};
+}
+
 export function authOnlyHeaders(
   request: Request,
   extra: Record<string, string> = {},
 ): Record<string, string> {
-  const headers: Record<string, string> = { ...extra };
+  const headers: Record<string, string> = { ...ngrokHeaders(), ...extra };
   const authHeader = request.headers.get("authorization");
   if (authHeader) headers["Authorization"] = authHeader;
   return headers;

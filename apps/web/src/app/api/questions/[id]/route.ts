@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ngrokHeaders } from '@/lib/upstream';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,7 +8,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
     const authHeader = request.headers.get('authorization') || '';
 
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...ngrokHeaders() };
     if (authHeader) headers['Authorization'] = authHeader;
 
     const res = await fetch(`${backendUrl}/api/questions/${params.id}`, { headers });

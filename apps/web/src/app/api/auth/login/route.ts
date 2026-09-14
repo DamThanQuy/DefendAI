@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
+import { backendUrl, ngrokHeaders } from '@/lib/upstream';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+    const baseUrl = backendUrl();
 
-    const res = await fetch(`${backendUrl}/api/auth/login`, {
+    const res = await fetch(`${baseUrl}/api/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...ngrokHeaders() },
       body: JSON.stringify(body),
     });
 
