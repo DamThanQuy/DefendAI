@@ -291,6 +291,20 @@ function isPublicMinioUrl(url: string): boolean {
 }
 
 /**
+ * Lấy backend URL trực tiếp (ngrok tunnel) để upload chunks bypass BFF.
+ * Trả về null nếu BACKEND_URL không được expose qua env (dev mode).
+ */
+function getDirectBackendUrl(): string | null {
+  // Next.js public env: NEXT_PUBLIC_BACKEND_URL cho client-side access
+  // Fallback: không có → dùng BFF proxy (dev mode)
+  if (typeof window === "undefined") return null;
+  // Đọc từ meta tag hoặc env variable
+  const meta = document.querySelector('meta[name="backend-url"]');
+  if (meta) return meta.getAttribute("content");
+  return null;
+}
+
+/**
  * PUT trực tiếp lên MinIO presigned URL (không qua proxy).
  * QUAN TRỌNG: KHÔNG gửi Content-Type — MinIO SigV2 presign không bao gồm
  * Content-Type, nếu browser tự thêm sẽ bị 403 SignatureDoesNotMatch.
@@ -322,6 +336,47 @@ async function putDirectMinio(
   return cleanEtag;
 }
 
+/**
+ * PUT chunk trực tiếp đến FastAPI backend (qua ngrok tunnel), bypass Vercel BFF.
+ * Nhanh hơn proxy path vì không bị Vercel function timeout (10s) và không phải
+ * transfer bytes qua 2 hops (browser → Vercel → FastAPI → MinIO).
+ */
+async function putChunkViaBackend(
+  backendUrl: string,
+  uploadId: string,
+  body: Blob,
+  partNumber: number,
+  signal: AbortSignal,
+): Promise<string> {
+  const token = await apiGetToken();
+  const sha = await sha256Hex(body);
+  const url = `${backendUrl}/api/documents/multipart/${uploadId}/part/${partNumber}`;
+
+  const headers: Record<string, string> = {
+    "X-Part-Sha256": sha,
+    "ngrok-skip-browser-warning": "true",
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(url, {
+    method: "PUT",
+    body,
+    signal,
+    headers,
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Backend PUT part ${partNumber} failed: ${res.status} ${res.statusText}`,
+    );
+  }
+  const data = await res.json();
+  const etag = data?.etag ?? "";
+  if (!etag) {
+    throw new Error(`No ETag in backend response for part ${partNumber}`);
+  }
+  return etag;
+}
+
 async function putChunk(
   url: string,
   body: Blob,
@@ -336,18 +391,32 @@ async function putChunk(
       throw new DOMException("Upload aborted", "AbortError");
     }
     try {
-      // ── Strategy ──
-      // Tailscale funnel có read timeout ~30s — part 8MB bị abort liên tục.
-      // Tạm thời LUÔN dùng proxy path (qua Vercel BFF → FastAPI → MinIO)
-      // cho đến khi có tunnel ổn định hơn (Cloudflare tunnel / direct IP).
-      // const canTryDirect = uploadId && isPublicMinioUrl(url);
-      const canTryDirect = false; // disabled: Tailscale funnel timeout issue
+      // ── Strategy 1: Direct backend (ngrok tunnel) ──
+      // Bypass Vercel BFF proxy — upload chunks trực tiếp đến FastAPI qua
+      // ngrok tunnel. Nhanh hơn nhiều vì không bị Vercel function timeout.
+      if (uploadId) {
+        const backendUrl = getDirectBackendUrl();
+        if (backendUrl) {
+          try {
+            return await putChunkViaBackend(
+              backendUrl, uploadId, body, partNumber, signal,
+            );
+          } catch (backendErr) {
+            console.warn(
+              `Direct backend PUT part ${partNumber} failed, falling back to proxy:`,
+              backendErr,
+            );
+          }
+        }
+      }
+
+      // ── Strategy 2: Direct MinIO (public presigned URL) ──
+      const canTryDirect = uploadId && isPublicMinioUrl(url);
 
       if (canTryDirect) {
         try {
           return await putDirectMinio(url, body, partNumber, signal);
         } catch (directErr) {
-          // Direct PUT thất bại — log và fallback về proxy bên dưới.
           console.warn(
             `Direct PUT part ${partNumber} failed, falling back to proxy:`,
             directErr,
@@ -355,7 +424,7 @@ async function putChunk(
         }
       }
 
-      // ── Proxy path (BFF → FastAPI → MinIO) ──
+      // ── Strategy 3: Proxy path (BFF → FastAPI → MinIO) ──
       const proxyUrl = uploadId
         ? `/api/documents/multipart/${uploadId}/part/${partNumber}`
         : url;
