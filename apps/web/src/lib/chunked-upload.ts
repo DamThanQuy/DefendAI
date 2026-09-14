@@ -282,7 +282,6 @@ async function putChunk(
   partNumber: number,
   signal: AbortSignal,
   uploadId?: string,
-  sha256?: string,
 ): Promise<string> {
   let lastError: unknown;
 
@@ -304,9 +303,11 @@ async function putChunk(
         // Proxy (BFF → FastAPI) yêu cầu JWT; presigned MinIO URL thì không cần.
         const token = await apiGetToken();
         if (token) headers["Authorization"] = `Bearer ${token}`;
-        // Gửi SHA-256 của chunk để backend verify nội dung (chống part đúng
-        // độ dài nhưng sai byte khi truyền qua proxy) → 400 → retry part đó.
-        if (sha256) headers["X-Part-Sha256"] = sha256;
+        // Tính SHA-256 của chunk NGAY TRONG vòng retry và gửi kèm để backend
+        // verify nội dung (chống part đúng độ dài nhưng sai byte khi truyền qua
+        // proxy). Backend BẮT BUỘC header này → nếu crypto hiccup thì exception
+        // ở đây sẽ được retry (không bao giờ gửi part không verify được).
+        headers["X-Part-Sha256"] = await sha256Hex(body);
       }
 
       const res = await fetch(proxyUrl, {
@@ -522,15 +523,7 @@ export class ChunkedUploader {
         const end = Math.min(start + part.chunk_size, this.file.size);
         const blob = this.file.slice(start, end);
 
-        // Tính SHA-256 một lần cho chunk (dùng lại qua mọi lần retry).
-        let sha: string | undefined;
-        try {
-          sha = await sha256Hex(blob);
-        } catch {
-          sha = undefined; // crypto không khả dụng -> bỏ qua verify, vẫn upload
-        }
-
-        const etag = await putChunk(part.url, blob, part.part_number, signal, this.uploadId, sha);
+        const etag = await putChunk(part.url, blob, part.part_number, signal, this.uploadId);
         this.etags.set(part.part_number, etag);
         this.bytesUploaded += end - start;
         this.options.onProgress(this.bytesUploaded, this.file.size);
