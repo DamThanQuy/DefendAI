@@ -848,7 +848,14 @@ async def get_document(
     """Lấy metadata của 1 document theo ID."""
     doc = await _get_active_doc(db, doc_id)
     _assert_doc_access(doc, user)
-    return doc
+    # Lấy dung lượng file từ MinIO
+    resp = DocumentResponse.model_validate(doc)
+    try:
+        from app.services.storage import get_object_size
+        resp.size = await get_object_size(doc.storage_key)
+    except Exception:
+        resp.size = None
+    return resp
 
 
 @router.get("/", response_model=DocumentListResponse)
@@ -868,7 +875,19 @@ async def list_documents(
         query = query.where(Document.uploaded_by == user.id)
     result = await db.execute(query)
     docs = list(result.scalars().all())
-    return DocumentListResponse(total=len(docs), items=docs)
+
+    # Lấy dung lượng file từ MinIO cho tất cả documents
+    from app.services.storage import get_object_size
+    items: list[DocumentResponse] = []
+    for doc in docs:
+        resp = DocumentResponse.model_validate(doc)
+        try:
+            resp.size = await get_object_size(doc.storage_key)
+        except Exception:
+            resp.size = None
+        items.append(resp)
+
+    return DocumentListResponse(total=len(items), items=items)
 
 
 @router.get("/{doc_id}/download")

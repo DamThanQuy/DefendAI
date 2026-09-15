@@ -18,6 +18,7 @@ interface DocumentItem {
   purpose: string;
   created_at: string;
   uploaded_by?: number | null;
+  size?: number | null;
 }
 
 interface DocumentsResponse {
@@ -38,6 +39,14 @@ const docTypeLabel: Record<string, string> = {
   zip: "ZIP",
   rar: "RAR",
 };
+
+function formatFileSize(bytes?: number | null): string {
+  if (bytes == null || bytes === 0) return "—";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
 
 function getToken(): string | null {
   return localStorage.getItem("access_token");
@@ -267,6 +276,7 @@ export default function DocumentsPage() {
                   <tr className="border-b border-zinc-800/60 bg-zinc-800/40">
                     <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Tên file</th>
                     <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Loại</th>
+                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Dung lượng</th>
                     <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Ngày tải lên</th>
                     <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider text-right">Thao tác</th>
                   </tr>
@@ -290,6 +300,9 @@ export default function DocumentsPage() {
                         <span className="text-[12px] font-bold text-zinc-400 bg-zinc-800 px-2 py-1 rounded">
                           {doc.file_type === ".rar" ? "RAR" : docTypeLabel[doc.doc_type] ?? doc.file_type}
                         </span>
+                      </td>
+                      <td className="px-5 py-4 text-[13px] text-zinc-400 font-medium">
+                        {formatFileSize(doc.size)}
                       </td>
                       <td className="px-5 py-4 text-[13px] text-zinc-500">{formatDate(doc.created_at)}</td>
                       <td className="px-5 py-4 text-right">

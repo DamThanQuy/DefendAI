@@ -24,6 +24,7 @@ interface DocumentItem {
   purpose: string;
   created_at: string;
   uploaded_by?: number | null;
+  size?: number | null;
 }
 
 interface Member {
@@ -203,6 +204,11 @@ export function DocumentDetailSidebar({ doc, onClose, onDelete }: DocumentDetail
                 icon={<HardDrive className="w-4 h-4" />}
                 label="Loại file"
                 value={typeLabel}
+              />
+              <DetailRow
+                icon={<HardDrive className="w-4 h-4" />}
+                label="Dung lượng"
+                value={formatFileSize(doc.size)}
               />
               <DetailRow
                 icon={<Tag className="w-4 h-4" />}
