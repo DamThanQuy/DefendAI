@@ -244,11 +244,24 @@ export interface MeResponse {
   id: number;
   email: string;
   full_name: string | null;
+  school: string | null;
+  about: string | null;
+  created_at: string | null;
   is_active: boolean;
   roles: string[];
 }
 export function getMe() {
   return api.get<MeResponse>("/api/auth/me");
+}
+
+export interface UpdateMePayload {
+  full_name?: string;
+  school?: string;
+  about?: string;
+}
+// Sửa hồ sơ cá nhân (tên hiển thị, trường, giới thiệu)
+export function updateMe(payload: UpdateMePayload) {
+  return api.put<MeResponse>("/api/auth/me", payload);
 }
 
 // ---------------------------------------------------------------------------

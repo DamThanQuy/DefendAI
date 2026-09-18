@@ -1,26 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { Settings, User, Bell, Lock, ArrowLeft, Save, GraduationCap } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { Settings, Bell, Lock, ArrowLeft, UserCog } from "lucide-react";
 
 export default function ProfileSettingsPage() {
-  const { user } = useAuth();
-  const [fullName, setFullName] = useState(user?.full_name ?? "");
-  const [school, setSchool] = useState("FPT University");
   const [emailNotif, setEmailNotif] = useState(true);
   const [mockReminder, setMockReminder] = useState(true);
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    if (user?.full_name) setFullName(user.full_name);
-  }, [user?.full_name]);
-
-  function handleSave() {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }
 
   return (
     <div className="space-y-6">
@@ -31,74 +17,33 @@ export default function ProfileSettingsPage() {
           Cài đặt tài khoản
         </span>
       </div>
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl md:text-4xl font-serif font-black text-foreground mb-1">
-            Cài đặt
-          </h1>
-          <p className="text-muted-foreground">
-            Quản lý thông tin cá nhân, thông báo và bảo mật.
-          </p>
-        </div>
-        <button
-          onClick={handleSave}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-full text-sm font-bold shadow-[0_0_15px_hsl(var(--primary)/0.4)] hover:brightness-110 transition-all"
-        >
-          <Save className="w-4 h-4" />
-          {saved ? "Đã lưu!" : "Lưu thay đổi"}
-        </button>
+      <div>
+        <h1 className="text-3xl md:text-4xl font-serif font-black text-foreground mb-1">
+          Cài đặt
+        </h1>
+        <p className="text-muted-foreground">
+          Quản lý thông báo và bảo mật.
+        </p>
       </div>
 
-      {/* Thông tin cá nhân */}
-      <div className="dark-card rounded-2xl p-6">
-        <div className="flex items-start gap-4 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <User className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="font-bold mb-1">Thông tin cá nhân</h3>
-            <p className="text-xs text-muted-foreground">
-              Tên hiển thị và trường đang theo học.
-            </p>
-          </div>
+      {/* Liên kết tới trang sửa hồ sơ */}
+      <Link
+        href="/profile/edit"
+        className="dark-card rounded-2xl p-6 flex items-center gap-4 hover:border-primary/50 transition-colors group"
+      >
+        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+          <UserCog className="w-5 h-5" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-              Họ và tên
-            </label>
-            <input
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              className="w-full px-3 py-2.5 bg-muted/30 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-              Email
-            </label>
-            <input
-              type="email"
-              value={user?.email ?? ""}
-              disabled
-              className="w-full px-3 py-2.5 bg-muted/30 border border-border rounded-lg text-sm text-muted-foreground cursor-not-allowed"
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
-              <GraduationCap className="w-3.5 h-3.5" />
-              Trường đang theo học
-            </label>
-            <input
-              type="text"
-              value={school}
-              onChange={(e) => setSchool(e.target.value)}
-              className="w-full px-3 py-2.5 bg-muted/30 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
-            />
-          </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-bold mb-1">Hồ sơ cá nhân</h3>
+          <p className="text-xs text-muted-foreground">
+            Sửa tên hiển thị, trường học và giới thiệu về bạn.
+          </p>
         </div>
-      </div>
+        <span className="text-xs font-semibold text-primary group-hover:translate-x-0.5 transition-transform">
+          Mở →
+        </span>
+      </Link>
 
       {/* Thông báo */}
       <div className="dark-card rounded-2xl p-6">

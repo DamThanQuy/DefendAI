@@ -22,6 +22,7 @@ Tham khảo:
     python-pptx:  https://python-pptx.readthedocs.io
 """
 from io import BytesIO
+from pathlib import Path
 
 import logging
 import zipfile
@@ -150,21 +151,65 @@ NESTED_ARCHIVE_EXTENSIONS = {".zip", ".rar"}
 MAX_ARCHIVE_MEMBERS = 500
 MAX_ARCHIVE_TOTAL_TEXT = 200 * 1024 * 1024  # 200MB text tổng
 
+# Folder/file rác trong source-code ZIP — bỏ qua để không vượt MAX_ARCHIVE_MEMBERS
+JUNK_PATH_PATTERNS = (
+    "node_modules/", ".git/", "__pycache__/", ".venv/", "venv/", "env/",
+    ".next/", "dist/", "build/", "out/", "target/", ".idea/", ".vscode/",
+    ".cache/", "coverage/", ".pytest_cache/", ".mypy_cache/", ".ruff_cache/",
+    "vendor/", "bower_components/", ".terraform/", "site-packages/",
+)
+JUNK_FILE_NAMES = {
+    ".ds_store", "thumbs.db", "desktop.ini", ".gitignore", ".gitattributes",
+    ".env.example", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+    "composer.lock", "poetry.lock", "pipfile.lock",
+}
+
+
+def _is_junk_member(name: str) -> bool:
+    """True nếu member trong archive là file/folder rác (node_modules, .git...)."""
+    lowered = name.lower()
+    if any(lowered.startswith(p) or f"/{p}" in lowered for p in JUNK_PATH_PATTERNS):
+        return True
+    return Path(lowered).name in JUNK_FILE_NAMES
+
+
+def _member_priority(name: str) -> int:
+    """Độ ưu tiên đọc member: số nhỏ hơn đọc trước (README/docs/config trước source)."""
+    lowered = name.lower()
+    base = Path(lowered).name
+    if base in {"readme.md", "readme", "readme.txt", "readme.rst"}:
+        return 0
+    if base.startswith("readme") or "readme" in base:
+        return 1
+    if lowered.endswith((".md", ".markdown", ".rst", ".txt")):
+        return 2
+    if base in {"dockerfile", "makefile", "package.json", "requirements.txt",
+                "pyproject.toml", "docker-compose.yml", "docker-compose.yaml"}:
+        return 3
+    if lowered.endswith((".yml", ".yaml", ".toml", ".ini", ".cfg", ".json", ".sql", ".env")):
+        return 4
+    return 5  # source code & còn lại
+
 
 def _extract_zip(src) -> str:
     """Trích xuất text từ ZIP: đọc mọi file text/code/office bên trong rồi ghép lại.
 
-    Mỗi member được đánh dấu bằng header "### <path>" để AI biết nội dung từ đâu.
+    Mỗi member được đánh dấu header "### <path>" để AI biết nội dung từ đâu.
     Nhận str path, bytes hoặc file-like object (như các extractor khác).
+
+    Với ZIP source-code lớn: lọc file rác (node_modules, .git...) và sắp
+    xếp theo độ ưu tiên (README/docs trước) để không vượt MAX_ARCHIVE_MEMBERS.
     """
     data = src if isinstance(src, bytes) else src.read()
     try:
         with zipfile.ZipFile(BytesIO(data)) as archive:
             infos = [i for i in archive.infolist() if not i.is_dir()]
+            # Lọc junk trước khi đếm giới hạn
+            infos = [i for i in infos if not _is_junk_member(i.filename)]
+            # Sắp theo priority để file quan trọng được đọc trước khi cắt giới hạn
+            infos.sort(key=lambda i: (_member_priority(i.filename), i.filename))
             if len(infos) > MAX_ARCHIVE_MEMBERS:
-                raise DocumentParserError(
-                    f"ZIP chứa quá nhiều file ({len(infos)} > {MAX_ARCHIVE_MEMBERS})"
-                )
+                infos = infos[:MAX_ARCHIVE_MEMBERS]  # cắt, không raise
             parts: List[str] = []
             total = 0
             for info in infos:

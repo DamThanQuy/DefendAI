@@ -37,29 +37,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { MarkdownMessage } from "@/components/features/workspace/MarkdownMessage";
-import {
-  COMMITTEE_PERSONAS,
-  type CommitteePersona,
-  type MockMessage,
-  mockCommitteeQuestion,
-  mockSuggestions,
-  mockMockReport,
-  type MockReport,
-} from "@/lib/mock-ai-data";
+import { type MockMessage, extractContextSummary } from "@/lib/mock-ai-data";
 
 /**
  * ─────────────────────────────────────────────────────────────
- *  MockRoomAI — Phòng mock defense do AI mentor dẫn dắt
+ *  MockRoomAI — Phòng chất vấn với Giám khảo AI
  *
- *  Workflow 4 bước:
- *  1. Context Ingestion — upload file → AI đọc hiểu nội dung
- *  2. AI Committee Setup — chọn 2-3 persona hội đồng
- *  3. Voice Interaction — STT → AI xử lý → TTS phản hồi
- *  4. AI Analytics — báo cáo điểm số, rubric, gợi ý câu trả lời
+ *  AI vào vai MỘT GIÁM KHẢO trong hội đồng bảo vệ: chủ động đặt câu hỏi,
+ *  truy xét và phản biện về CHÍNH đồ án của sinh viên ( bám vào tài liệu
+ *  được chọn làm ngữ cảnh), như một buổi bảo vệ thật. Hình thức trả lời
+ *  vẫn là chat tự do (markdown, như ChatGPT / Gemini) — KHÔNG rubric,
+ *  KHÔNG tiêu chí CLO, KHÔNG điểm số, KHÔNG JSON hay form cố định.
  *
- *  UI: giống mock-room bình thường (video grid, stepper, sidebar tabs,
- *  bottom toolbar, live captions, CLO coverage) nhưng thay mentor con người
- *  bằng AI mentor.
+ *  UI: giữ khung phòng (video grid, toolbar, sidebar chat) nhưng loại bỏ
+ *  các yếu tố "hội đồng/hình thức chấm điểm" (nhiều persona giám khảo,
+ *  phủ CLO, thẻ câu hỏi cố định, gợi ý soạn sẵn, báo cáo rubric mock).
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -95,6 +87,26 @@ function fmtPhase(s: number) {
 // Participants type (giống mock-room)
 type Participant = { user_id: number; name: string; role: string };
 
+// Tài liệu đã upload của student (từ /api/documents/)
+type StudentDoc = {
+  id: number;
+  filename: string;
+  file_type: string;
+  doc_type: string;
+  status: string;
+  purpose: string;
+  created_at: string;
+};
+
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem("access_token");
+  } catch {
+    return null;
+  }
+}
+
 export default function MockRoomAI() {
   const router = useRouter();
   // ── State ──────────────────────────────────────────────
@@ -103,12 +115,18 @@ export default function MockRoomAI() {
   const [isRunning, setIsRunning] = useState(false);
   const [phaseIdx, setPhaseIdx] = useState(0);
 
-  // Workflow steps
-  const [step, setStep] = useState<"upload" | "committee" | "room">("upload");
+  // Workflow steps — "upload" (tuỳ chọn) → "room" (chất vấn với Giám khảo AI)
+  const [step, setStep] = useState<"upload" | "room">("upload");
   const [projectContext, setProjectContext] = useState("");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [selectedCommittee, setSelectedCommittee] = useState<string[]>(["technical", "business"]);
-  const [activeCommittee, setActiveCommittee] = useState<CommitteePersona>(COMMITTEE_PERSONAS[0]);
+
+  // Tài liệu đã upload của student (từ server) — ngữ cảnh TUỲ CHỌN cho AI
+  const [studentDocs, setStudentDocs] = useState<StudentDoc[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [docsError, setDocsError] = useState("");
+  const [selectedDocId, setSelectedDocId] = useState<number | null>(null);
+  const [contextLoading, setContextLoading] = useState(false);
+  const [contextError, setContextError] = useState("");
 
   // Chat state
   const [messages, setMessages] = useState<MockMessage[]>([]);
@@ -125,20 +143,8 @@ export default function MockRoomAI() {
   const [handRaised, setHandRaised] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState<"chat" | "people" | "qa">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "people">("chat");
   const [expandedTile, setExpandedTile] = useState<boolean>(false);
-
-  // CLO coverage (giống mock-room)
-  const [coverage, setCoverage] = useState<Record<string, number>>({});
-
-  // Current question (giống mock-room)
-  const [currentQuestion, setCurrentQuestion] = useState<{
-    question_id: string;
-    question: string;
-    clo: string;
-    type: string;
-    difficulty: string;
-  } | null>(null);
 
   // Participants (giống mock-room)
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -147,10 +153,6 @@ export default function MockRoomAI() {
   const [elapsed, setElapsed] = useState(0);
   const joinedAtRef = useRef<number>(Date.now());
 
-  // Report state
-  const [showReport, setShowReport] = useState(false);
-  const [report, setReport] = useState<MockReport | null>(null);
-
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -158,6 +160,12 @@ export default function MockRoomAI() {
   const phaseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recognitionRef = useRef<any>(null);
   const isIntentionalStopRef = useRef(false);
+  // Context mới nhất cho các callback (STT/timer) — tránh closure cũ
+  const stateRef = useRef<{ messages: MockMessage[]; context: string }>({
+    messages: [],
+    context: "",
+  });
+  stateRef.current = { messages, context: projectContext };
 
   // ── Timer ──────────────────────────────────────────────
   useEffect(() => {
@@ -172,9 +180,13 @@ export default function MockRoomAI() {
             setTimeLeft(PHASES[nextIdx].minutes * 60);
           } else {
             setIsRunning(false);
-            const r = mockMockReport(projectContext);
-            setReport(r);
-            setShowReport(true);
+            // Hết thời gian → Giám khảo AI chốt lại buổi chất vấn (không rubric)
+            void askMentorRef.current(
+              "Thời gian buổi bảo vệ đã kết thúc. Với vai giám khảo, hãy chốt lại buổi chất vấn hôm nay: " +
+                "những vấn đề em đã trả lời tốt, những điểm em còn trả lời chưa thuyết phục " +
+                "và gợi ý em cần chuẩn bị thêm gì. Viết tự nhiên như nhận xét của giám khảo, KHÔNG dùng " +
+                "điểm số hay rubric."
+            );
           }
           return 0;
         }
@@ -184,7 +196,7 @@ export default function MockRoomAI() {
     return () => {
       if (phaseTimerRef.current) clearInterval(phaseTimerRef.current);
     };
-  }, [isRunning, timeLeft, phaseIdx, projectContext]);
+  }, [isRunning, timeLeft, phaseIdx]);
 
   // ── Elapsed time ───────────────────────────────────────
   useEffect(() => {
@@ -204,47 +216,232 @@ export default function MockRoomAI() {
     scrollToBottom();
   }, [messages, isTyping, scrollToBottom]);
 
-  // ── File upload handler ────────────────────────────────
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ── Load danh sách tài liệu student đã upload ─────────
+  const fetchStudentDocs = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    setDocsLoading(true);
+    setDocsError("");
+    try {
+      const r = await fetch("/api/documents/", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error("Không tải được danh sách tài liệu");
+      const data = await r.json();
+      const items: StudentDoc[] = (data.items ?? []).filter(
+        (d: StudentDoc) => d.purpose !== "staff_reference"
+      );
+      setStudentDocs(items);
+      // Auto chọn tài liệu mới nhất nếu chưa chọn
+      if (items.length > 0 && selectedDocId === null) {
+        setSelectedDocId(items[0].id);
+      }
+    } catch (e: any) {
+      setDocsError(e.message || "Lỗi khi tải danh sách tài liệu");
+    } finally {
+      setDocsLoading(false);
+    }
+  }, [selectedDocId]);
+
+  useEffect(() => {
+    fetchStudentDocs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Lấy nội dung text đã trích xuất của tài liệu được chọn ──
+  const loadDocContext = useCallback(async (docId: number): Promise<string> => {
+    const token = getToken();
+    if (!token) return "";
+    const r = await fetch(`/api/documents/${docId}/text?max_chars=20000`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const raw = await r.json();
+    if (!r.ok) {
+      throw new Error(raw.detail || raw.error || "Không thể đọc nội dung tài liệu");
+    }
+    return (raw.text ?? "").trim();
+  }, []);
+
+  // ── File upload handler (upload lên server qua API) ────
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setUploadedFile(file);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const text = ev.target?.result as string;
-        setProjectContext(text || file.name);
-      };
-      reader.readAsText(file);
+    if (!file) return;
+    const token = getToken();
+    if (!token) {
+      alert("Vui lòng đăng nhập để tải lên tài liệu.");
+      return;
+    }
+    setUploadedFile(file);
+    setDocsError("");
+    setContextLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("purpose", "student_project");
+      const res = await fetch("/api/documents/upload", {
+        method: "POST",
+        body: formData,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || data.error || "Tải lên thất bại");
+      }
+      // Upload xong → refresh danh sách + chọn tài liệu mới
+      await fetchStudentDocs();
+      setSelectedDocId(data.id);
+      setProjectContext("");
+    } catch (err: any) {
+      setDocsError(err.message || "Tải lên thất bại");
+      setUploadedFile(null);
+    } finally {
+      setContextLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
-  // ── Chuyển sang phòng chat ─────────────────────────────
-  const startMockRoom = () => {
-    if (!projectContext.trim()) {
-      alert("Vui lòng tải lên file đồ án trước khi bắt đầu!");
-      return;
+  // ── Vào phòng chat (tài liệu là TUỲ CHỌN, không bắt buộc) ──
+  const enterRoom = useCallback(async (useDoc: boolean) => {
+    let context = "";
+    if (useDoc && selectedDocId) {
+      setContextLoading(true);
+      setContextError("");
+      try {
+        context = await loadDocContext(selectedDocId);
+      } catch (e: any) {
+        setContextError(e.message || "Không thể đọc nội dung tài liệu");
+        context = "";
+      } finally {
+        setContextLoading(false);
+      }
     }
-    setStep("room");
-    const firstPersona = COMMITTEE_PERSONAS.find((p) => p.key === selectedCommittee[0]) || COMMITTEE_PERSONAS[0];
-    setActiveCommittee(firstPersona);
-    // Build participants list (bạn + AI committee)
-    const participantList: Participant[] = [
+    setProjectContext(context);
+
+    const docName = context
+      ? studentDocs.find((d) => d.id === selectedDocId)?.filename ||
+        uploadedFile?.name ||
+        "đồ án"
+      : null;
+
+    setParticipants([
       { user_id: 1, name: "Bạn (Sinh viên)", role: "student" },
-      ...selectedCommittee.map((key, idx) => {
-        const p = COMMITTEE_PERSONAS.find((c) => c.key === key);
-        return { user_id: 100 + idx, name: p?.name || "AI", role: "mentor" };
-      }),
-    ];
-    setParticipants(participantList);
-    const welcomeMsg: MockMessage = {
+      { user_id: 100, name: "Giám khảo AI", role: "mentor" },
+    ]);
+    setStep("room");
+
+    const intro = context
+      ? `Chào em. Tôi là **giám khảo** phụ trách buổi bảo vệ hôm nay. Tôi đã xem tài liệu "${docName}" của em:\n\n> ${extractContextSummary(context)}\n\nBuổi chất vấn bắt đầu ngay — em hãy sẵn sàng trả lời câu hỏi đầu tiên.`
+      : `Chào em. Tôi là **giám khảo** phụ trách buổi bảo vệ hôm nay.\n\nEm hãy giới thiệu ngắn về đồ án của mình — tôi sẽ chất vấn trực tiếp về dự án.`;
+
+    const introMsg: MockMessage = {
       id: Date.now(),
       role: "mentor",
-      content: firstPersona.greeting,
+      content: intro,
       time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
-      suggestions: ["Bắt đầu thuyết trình", "Giải thích kiến trúc", "Trình bày kết quả"],
     };
-    setMessages([welcomeMsg]);
-  };
+    setMessages([introMsg]);
+    // Đồng bộ stateRef NGAY — askMentor bên dưới đọc từ đây, còn setState mới
+    // có hiệu lực sau lần render kế tiếp.
+    stateRef.current = { messages: [introMsg], context };
+
+    // Giám khảo tự mở lời bằng câu hỏi chất vấn đầu tiên (lượt mồi ẩn,
+    // không hiển thị bong bóng tin nhắn của sinh viên).
+    void askMentorRef.current(
+      context
+        ? "(Buổi bảo vệ bắt đầu. Em vừa ngồi xuống và sẵn sàng. Hãy mở đầu với đúng vai giám khảo: chào ngắn, vào thẳng vấn đề và đặt CÂU HỎI CHẤT VẤN ĐẦU TIÊN về đồ án trong tài liệu — cụ thể, không chung chung, kết thúc bằng câu hỏi.)"
+        : "(Buổi bảo vệ bắt đầu, chưa có tài liệu đính kèm. Hãy mở đầu với đúng vai giám khảo: yêu cầu sinh viên giới thiệu đồ án trong 2 phút, rồi đặt ngay câu hỏi chất vấn đầu tiên.)",
+      { hidden: true }
+    );
+  }, [selectedDocId, studentDocs, uploadedFile, loadDocContext]);
+
+  // ── Gọi Mentor AI (backend /api/mock-qa/chat) ──────────
+  // Nhận thêm một lượt của sinh viên → gửi toàn bộ history + context tài liệu
+  // lên backend → nhận câu trả lời tự do (markdown).
+  const askMentor = useCallback(
+    async (extraTurn?: string, opts?: { hidden?: boolean }) => {
+      setIsTyping(true);
+      // hidden: gửi extraTurn xuống backend nhưng không hiển thị bong bóng sinh viên
+      const showTurn = !!extraTurn && !opts?.hidden;
+      const token = getToken();
+      if (!token) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            role: "mentor",
+            content: "⚠️ Bạn chưa đăng nhập nên Giám khảo AI không thể trả lời. Vui lòng đăng nhập lại.",
+            time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+          },
+        ]);
+        setIsTyping(false);
+        return;
+      }
+
+      const history = stateRef.current.messages.map((m) => ({
+        role: m.role === "user" ? ("user" as const) : ("assistant" as const),
+        content: m.content,
+      }));
+      const msgs = extraTurn ? [...history, { role: "user" as const, content: extraTurn }] : history;
+
+      try {
+        const res = await fetch("/api/mock-qa/chat", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ messages: msgs, context: stateRef.current.context }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || data.message || data.error || "AI không phản hồi");
+        }
+        setMessages((prev) => {
+          const next = [...prev];
+          if (showTurn) {
+            next.push({
+              id: Date.now(),
+              role: "user",
+              content: extraTurn!,
+              time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+            });
+          }
+          next.push({
+            id: Date.now() + 1,
+            role: "mentor",
+            content: data.reply || "(AI trả lời rỗng)",
+            time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+          });
+          return next;
+        });
+      } catch (err: any) {
+        setMessages((prev) => {
+          const next = [...prev];
+          if (showTurn) {
+            next.push({
+              id: Date.now(),
+              role: "user",
+              content: extraTurn!,
+              time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+            });
+          }
+          next.push({
+            id: Date.now() + 1,
+            role: "mentor",
+            content: `⚠️ **Không thể kết nối Giám khảo AI**\n\n${err?.message || "Lỗi không xác định"}. Vui lòng thử lại.`,
+            time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+          });
+          return next;
+        });
+      } finally {
+        setIsTyping(false);
+      }
+    },
+    []
+  );
+  // Ref để timer/STT callback luôn gọi được bản mới nhất
+  const askMentorRef = useRef(askMentor);
+  askMentorRef.current = askMentor;
 
   // ── Gửi tin nhắn ───────────────────────────────────────
   const sendMessage = useCallback(() => {
@@ -257,23 +454,16 @@ export default function MockRoomAI() {
       content: trimmed,
       time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
     };
-    setMessages((prev) => [...prev, userMsg]);
+    // Cập nhật stateRef ngay để askMentor đọc được history đầy đủ
+    setMessages((prev) => {
+      const next = [...prev, userMsg];
+      stateRef.current = { ...stateRef.current, messages: next };
+      return next;
+    });
     setInput("");
     setIsTyping(true);
-
-    setTimeout(() => {
-      const reply = mockCommitteeQuestion(activeCommittee.key, projectContext, phase);
-      const mentorMsg: MockMessage = {
-        id: Date.now() + 1,
-        role: "mentor",
-        content: reply,
-        time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
-        suggestions: mockSuggestions(activeCommittee.key),
-      };
-      setMessages((prev) => [...prev, mentorMsg]);
-      setIsTyping(false);
-    }, 800);
-  }, [input, isTyping, activeCommittee, projectContext, phase]);
+    void askMentor();
+  }, [input, isTyping, askMentor]);
 
   // ── Quick action ───────────────────────────────────────
   const handleQuickAction = (prompt: string) => {
@@ -304,8 +494,6 @@ export default function MockRoomAI() {
     setTimeLeft(PHASES[0].minutes * 60);
     setIsRunning(false);
     setMessages([]);
-    setShowReport(false);
-    setReport(null);
   };
 
   // ── STT ────────────────────────────────────────────────
@@ -348,21 +536,13 @@ export default function MockRoomAI() {
             content: transcript,
             time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
           };
-          setMessages((prev) => [...prev, userMsg]);
+          setMessages((prev) => {
+            const next = [...prev, userMsg];
+            stateRef.current = { ...stateRef.current, messages: next };
+            return next;
+          });
           setIsTyping(true);
-
-          setTimeout(() => {
-            const reply = mockCommitteeQuestion(activeCommittee.key, projectContext, phase);
-            const mentorMsg: MockMessage = {
-              id: Date.now() + 1,
-              role: "mentor",
-              content: reply,
-              time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
-              suggestions: mockSuggestions(activeCommittee.key),
-            };
-            setMessages((prev) => [...prev, mentorMsg]);
-            setIsTyping(false);
-          }, 800);
+          void askMentorRef.current();
         }
       };
 
@@ -390,7 +570,7 @@ export default function MockRoomAI() {
         recognitionRef.current.stop();
       }
     };
-  }, [activeCommittee, projectContext, phase]);
+  }, []);
 
   // ── Render ─────────────────────────────────────────────
   return (
@@ -400,44 +580,107 @@ export default function MockRoomAI() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="flex-1 flex items-center justify-center p-8"
+          className="flex-1 flex items-center justify-center p-8 overflow-y-auto"
         >
           <Card className="max-w-2xl w-full p-8 text-center">
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_hsl(var(--primary)/0.2)]">
               <Upload className="w-10 h-10 text-white" />
             </div>
             <h2 className="text-2xl font-serif font-black mb-3">
-              Tải lên tài liệu đồ án
+              Vào phòng chất vấn — Giám khảo AI
             </h2>
             <p className="text-muted-foreground mb-6">
-              Tải lên file PDF/Word của đồ án để AI hội đồng phân tích nội dung và đặt câu hỏi chuyên sâu.
+              Giám khảo AI vào vai thành viên hội đồng, truy vấn và phản biện về đồ án của bạn như một buổi bảo vệ thật — không chấm điểm, không form cố định.
+              Bạn có thể chọn tài liệu đồ án để giám khảo bám sát nội dung (khuyên dùng), hoặc vào phòng chất vấn ngay.
             </p>
 
+            {/* Danh sách tài liệu student đã upload */}
+            <div className="mb-6 text-left">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-foreground">Tài liệu đã tải lên</span>
+                <button
+                  onClick={fetchStudentDocs}
+                  className="text-xs text-primary hover:underline font-medium"
+                >
+                  ↻ Làm mới
+                </button>
+              </div>
+
+              {docsLoading && (
+                <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Đang tải danh sách tài liệu...
+                </div>
+              )}
+
+              {!docsLoading && docsError && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{docsError}</span>
+                </div>
+              )}
+
+              {!docsLoading && !docsError && studentDocs.length === 0 && (
+                <div className="text-sm text-muted-foreground py-4 text-center border border-dashed border-border rounded-xl">
+                  Bạn chưa có tài liệu nào. Hãy tải lên file đầu tiên bên dưới.
+                </div>
+              )}
+
+              {!docsLoading && studentDocs.length > 0 && (
+                <div className="max-h-64 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                  {studentDocs.map((doc) => {
+                    const isSelected = selectedDocId === doc.id;
+                    return (
+                      <button
+                        key={doc.id}
+                        onClick={() => setSelectedDocId(doc.id)}
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${
+                          isSelected
+                            ? "border-primary bg-primary/10"
+                            : "border-border hover:border-primary/30 bg-muted/10"
+                        }`}
+                      >
+                        <FileText className={`w-5 h-5 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{doc.filename}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {doc.doc_type.toUpperCase()} · {new Date(doc.created_at).toLocaleString("vi-VN")}
+                          </p>
+                        </div>
+                        {isSelected && <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Upload file mới */}
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-border rounded-xl p-8 cursor-pointer hover:border-primary/40 hover:bg-muted/20 transition-all mb-6"
+              className="border-2 border-dashed border-border rounded-xl p-6 cursor-pointer hover:border-primary/40 hover:bg-muted/20 transition-all mb-4"
             >
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.docx,.pptx"
+                accept=".pdf,.docx,.pptx,.zip,.rar,.md"
                 onChange={handleFileUpload}
                 className="hidden"
               />
-              <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+              <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
               <p className="text-sm font-medium">
-                {uploadedFile ? uploadedFile.name : "Click để chọn file"}
+                {contextLoading ? "Đang tải lên..." : "Hoặc tải lên tài liệu mới"}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Hỗ trợ: PDF, Word, PowerPoint (tối đa 10MB)
+                Hỗ trợ: PDF, Word, PowerPoint, ZIP, RAR (tối đa 10MB)
               </p>
             </div>
 
-            {uploadedFile && (
+            {uploadedFile && !contextLoading && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-6 p-4 bg-muted/30 rounded-xl"
+                className="mb-4 p-4 bg-muted/30 rounded-xl"
               >
                 <div className="flex items-center gap-3">
                   <FileText className="w-5 h-5 text-primary" />
@@ -451,88 +694,45 @@ export default function MockRoomAI() {
               </motion.div>
             )}
 
-            <Button
-              onClick={() => setStep("committee")}
-              disabled={!uploadedFile}
-              className="w-full h-12 text-lg font-bold rounded-xl"
-            >
-              Tiếp tục chọn Hội đồng AI
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
-          </Card>
-        </motion.div>
-      )}
+            {contextError && (
+              <div className="mb-4 flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-left">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{contextError}</span>
+              </div>
+            )}
 
-      {/* ── Step 2: Committee Setup ── */}
-      {step === "committee" && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex-1 flex items-center justify-center p-8"
-        >
-          <Card className="max-w-3xl w-full p-8">
-            <h2 className="text-2xl font-serif font-black mb-2 text-center">
-              Chọn Hội đồng AI
-            </h2>
-            <p className="text-muted-foreground text-center mb-6">
-              Chọn 2-3 persona hội đồng để đánh giá đồ án của bạn.
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              {COMMITTEE_PERSONAS.map((p) => {
-                const Icon = p.icon;
-                const isSelected = selectedCommittee.includes(p.key);
-                return (
-                  <button
-                    key={p.key}
-                    onClick={() => {
-                      if (isSelected) {
-                        setSelectedCommittee((prev) => prev.filter((k) => k !== p.key));
-                      } else if (selectedCommittee.length < 3) {
-                        setSelectedCommittee((prev) => [...prev, p.key]);
-                      }
-                    }}
-                    className={`p-4 rounded-xl border-2 transition-all text-left ${
-                      isSelected
-                        ? "border-primary bg-primary/10"
-                        : "border-border hover:border-primary/30"
-                    }`}
-                  >
-                    <div
-                      className={`w-12 h-12 rounded-full bg-gradient-to-br ${p.color} flex items-center justify-center mb-3`}
-                    >
-                      <Icon className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="font-bold text-lg">{p.name}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {p.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {p.description}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex justify-center gap-3">
-              <Button variant="outline" onClick={() => setStep("upload")}>
-                Quay lại
+            <div className="flex flex-col gap-3">
+              <Button
+                onClick={() => enterRoom(true)}
+                disabled={!selectedDocId || contextLoading}
+                className="w-full h-12 text-lg font-bold rounded-xl"
+              >
+                {contextLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Đang đọc tài liệu...
+                  </>
+                ) : (
+                  <>
+                    Dùng tài liệu đã chọn & vào phòng
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </>
+                )}
               </Button>
               <Button
-                onClick={startMockRoom}
-                disabled={selectedCommittee.length === 0}
-                className="px-6"
+                variant="outline"
+                onClick={() => enterRoom(false)}
+                disabled={contextLoading}
+                className="w-full h-11 rounded-xl"
               >
-                Bắt đầu phòng
-                <ArrowRight className="w-4 h-4 ml-2" />
+                Vào phòng hỏi tự do (không cần tài liệu)
               </Button>
             </div>
           </Card>
         </motion.div>
       )}
 
-      {/* ── Step 3: Mock Room ── */}
+      {/* ── Step 2: Phòng chat với Mentor AI ── */}
       {step === "room" && (
         <>
           {/* Sub-Header (giống mock-room) */}
@@ -666,7 +866,7 @@ export default function MockRoomAI() {
                     {/* Card 2: Remote peer (đối phương) */}
                     <div className="bg-[#121212] rounded-2xl border border-purple-900/30 relative overflow-hidden flex flex-col items-center justify-center group">
                       <div
-                        className={`w-32 h-32 rounded-full bg-gradient-to-br ${activeCommittee.color} flex items-center justify-center relative shadow-[0_0_50px_rgba(168,85,247,0.15)]`}
+                        className="w-32 h-32 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center relative shadow-[0_0_50px_rgba(168,85,247,0.15)]"
                       >
                         <Bot className="w-10 h-10 text-white" />
                       </div>
@@ -686,7 +886,7 @@ export default function MockRoomAI() {
                   participants.map((p) => {
                     const isMe = p.user_id === 1;
                     const displayName = p.name;
-                    const roleLabel = p.role === "mentor" ? "Mentor" : "Sinh viên";
+                    const roleLabel = p.role === "mentor" ? "Giám khảo" : "Sinh viên";
                     const isMentor = p.role === "mentor";
                     const isExpanded = expandedTile === (p.user_id === 1);
                     return (
@@ -739,10 +939,10 @@ export default function MockRoomAI() {
                   >
                     <div className="text-center">
                       <Bot className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                      <p className="text-muted-foreground">AI Committee — {activeCommittee.name}</p>
+                      <p className="text-muted-foreground">Giám khảo AI</p>
                     </div>
                     <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50">
-                      AI COMMITTEE
+                      GIÁM KHẢO AI
                     </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); setExpandedTile(false); }}
@@ -755,19 +955,20 @@ export default function MockRoomAI() {
                 )}
               </div>
 
-              {/* Live Captions (giống mock-room) */}
+              {/* Live Captions — nội dung Mentor AI nói gần nhất */}
               <div className="absolute bottom-4 left-0 right-0 px-4">
                 <div className="bg-[#0f1513] border border-teal-900/50 rounded-xl p-4 shadow-xl backdrop-blur-md">
                   <div className="flex items-center gap-2 mb-2">
                     <div className="bg-teal-900/60 p-1 rounded text-teal-400">
                       <MessageSquare className="w-3 h-3" />
                     </div>
-                    <span className="text-[10px] font-bold text-teal-500 tracking-wider uppercase">PHỤ ĐỀ TRỰC TIẾP — AI HỘI ĐỒNG</span>
+                    <span className="text-[10px] font-bold text-teal-500 tracking-wider uppercase">PHỤ ĐỀ TRỰC TIẾP — GIÁM KHẢO</span>
                   </div>
-                  <p className="text-gray-200 text-sm font-medium leading-relaxed">
-                    {currentQuestion
-                      ? `🤖 ${currentQuestion.question}`
-                      : "Phòng họp đã sẵn sàng. Bắt đầu trò chuyện với hội đồng AI hoặc chia sẻ màn hình để bảo vệ đồ án."}
+                  <p className="text-gray-200 text-sm font-medium leading-relaxed line-clamp-3">
+                    {isTyping
+                      ? "🤖 Giám khảo đang đặt câu hỏi..."
+                      : [...messages].reverse().find((m) => m.role === "mentor")?.content?.replace(/\s+/g, " ").slice(0, 280) ||
+                        "Phòng họp đã sẵn sàng. Giám khảo sẽ bắt đầu chất vấn về đồ án của bạn."}
                   </p>
                 </div>
               </div>
@@ -864,17 +1065,6 @@ export default function MockRoomAI() {
                 <Users className="w-4 h-4" />
                 MỌI NGƯỜI ({participants.length})
               </button>
-              <button
-                onClick={() => setActiveTab("qa")}
-                className={`flex-1 py-4 text-xs font-bold flex items-center justify-center gap-2 transition-colors ${
-                  activeTab === "qa"
-                    ? "text-teal-400 border-b-2 border-teal-500"
-                    : "text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                <span className="w-4 h-4">❓</span>
-                HỎI & ĐÁP
-              </button>
             </div>
 
             {/* Tab content */}
@@ -882,43 +1072,28 @@ export default function MockRoomAI() {
               <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
                 <div className="flex items-center gap-4">
                   <div className="h-px bg-gray-800 flex-1"></div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Phiên Mock Room</span>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Phiên chất vấn — Giám khảo AI</span>
                   <div className="h-px bg-gray-800 flex-1"></div>
                 </div>
 
-                {/* Current Question Display (giống mock-room) */}
-                {currentQuestion && (
-                  <div className="bg-teal-900/20 border border-teal-800/50 rounded-xl p-4">
+                {/* Uploaded Document Summary (mentor AI đã đọc) */}
+                {selectedDocId && projectContext && (
+                  <div className="bg-gray-900/50 border border-gray-800/50 rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-bold text-teal-400 px-2 py-0.5 rounded bg-teal-900/30">
-                        {currentQuestion.clo}
-                      </span>
-                      <span className="text-xs text-gray-500 px-2 py-0.5 rounded bg-gray-800/50">
-                        {currentQuestion.type} • {currentQuestion.difficulty}
-                      </span>
+                      <FileText className="w-4 h-4 text-teal-400" />
+                      <span className="text-xs font-bold text-teal-400">TÀI LIỆU ĐÃ TẢI LÊN</span>
                     </div>
-                    <p className="text-gray-200 font-medium">{currentQuestion.question}</p>
+                    <p className="text-xs text-gray-400 mb-2">
+                      {studentDocs.find((d) => d.id === selectedDocId)?.filename || uploadedFile?.name || "Tài liệu"}
+                    </p>
+                    <p className="text-xs text-gray-500 line-clamp-3">
+                      {extractContextSummary(projectContext)}
+                    </p>
+                    <div className="mt-2 text-[10px] text-gray-600">
+                      Giám khảo AI đã đọc tài liệu và sẽ bám vào đó khi chất vấn
+                    </div>
                   </div>
                 )}
-
-                {/* CLO Coverage (giống mock-room) */}
-                <div className="bg-gray-900/50 border border-gray-800/50 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">PHỦ TIÊU CHÍ (CLO)</span>
-                  </div>
-                  <div className="mb-3">
-                    <div className="flex flex-wrap gap-1">
-                      {Object.entries(coverage).map(([clo, count]) => (
-                        <span key={clo} className="bg-teal-900/30 border border-teal-800/50 rounded-full px-2 py-1 text-xs text-teal-300">
-                          {clo}: {count}/2
-                        </span>
-                      ))}
-                      {Object.keys(coverage).length === 0 && (
-                        <span className="text-xs text-gray-500">Chưa có tiêu chí nào được phủ</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
 
                 {/* Messages (giống mock-room) */}
                 <div className="space-y-4">
@@ -936,7 +1111,7 @@ export default function MockRoomAI() {
                         </div>
                         <div className={`flex-1 ${isMine ? "text-right" : ""}`}>
                           <div className={`flex items-baseline gap-2 mb-1 ${isMine ? "flex-row-reverse" : ""}`}>
-                            <span className="text-sm font-semibold text-gray-200">{isMine ? "Bạn" : "AI Committee"}</span>
+                            <span className="text-sm font-semibold text-gray-200">{isMine ? "Bạn" : "Giám khảo AI"}</span>
                             {msg.time && (
                               <span className="text-xs text-gray-500">
                                 {msg.time}
@@ -969,7 +1144,7 @@ export default function MockRoomAI() {
                       className="flex gap-3"
                     >
                       <div
-                        className={`w-8 h-8 rounded-full bg-gradient-to-br ${activeCommittee.color} flex items-center justify-center`}
+                        className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center"
                       >
                         <Bot className="w-4 h-4 text-white" />
                       </div>
@@ -1012,39 +1187,13 @@ export default function MockRoomAI() {
                       <div className="flex-1">
                         <div className="text-sm font-semibold text-gray-200">{p.name}</div>
                         <div className={`text-xs ${isMentor ? "text-purple-400" : "text-teal-400"}`}>
-                          {isMentor ? "Mentor" : "Sinh viên"}
+                          {isMentor ? "Giám khảo" : "Sinh viên"}
                         </div>
                       </div>
                       <span className="w-2 h-2 rounded-full bg-green-500"></span>
                     </div>
                   );
                 })}
-              </div>
-            )}
-
-            {/* Q&A tab (giống mock-room) */}
-            {activeTab === "qa" && (
-              <div className="flex-1 flex flex-col">
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                  <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                    Câu hỏi từ Mentor (giai đoạn chất vấn)
-                  </div>
-                  <div className="text-sm text-gray-500 text-center py-8">
-                    Chưa có câu hỏi nào từ Mentor.
-                  </div>
-                </div>
-                <div className="p-4 border-t border-gray-800/60">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Đặt câu hỏi cho sinh viên..."
-                      className="w-full bg-[#1A1A1A] border border-gray-700/50 rounded-full py-3 pl-4 pr-12 text-sm text-gray-200 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:text-gray-600"
-                    />
-                    <button className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-purple-600 hover:bg-purple-500 flex items-center justify-center text-white transition-colors">
-                      <Send className="w-4 h-4 ml-0.5" />
-                    </button>
-                  </div>
-                </div>
               </div>
             )}
 
@@ -1124,22 +1273,6 @@ export default function MockRoomAI() {
                       ))}
                     </div>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Chọn Hội đồng AI</label>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedCommittee.map((key) => {
-                        const persona = COMMITTEE_PERSONAS.find((p) => p.key === key);
-                        return persona ? (
-                          <span
-                            key={key}
-                            className="text-xs px-2.5 py-1 rounded-full bg-muted/30 border border-border"
-                          >
-                            {persona.name}
-                          </span>
-                        ) : null;
-                      })}
-                    </div>
-                  </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Bật STT</span>
                     <button
@@ -1207,143 +1340,6 @@ export default function MockRoomAI() {
                   Xác nhận rời
                 </Button>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Report Modal ── */}
-      <AnimatePresence>
-        {showReport && report && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-4xl max-h-[80vh] overflow-y-auto"
-            >
-              <Card className="p-8">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-serif font-black">
-                    Báo cáo Mock Defense AI
-                  </h2>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowReport(false)}
-                    className="h-8 w-8 p-0"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {/* Score */}
-                <div className="text-center mb-8">
-                  <div className="text-6xl font-black text-gradient mb-2">
-                    {report.score}/100
-                  </div>
-                  <p className="text-muted-foreground">Điểm tổng kết</p>
-                </div>
-
-                {/* Rubric scores */}
-                <div className="mb-6">
-                  <h3 className="text-lg font-serif font-bold mb-3">Điểm theo Rubric</h3>
-                  <div className="space-y-3">
-                    {report.rubricScores.map((r) => (
-                      <div key={r.criterion} className="flex items-center gap-4">
-                        <span className="text-sm font-medium w-48">{r.criterion}</span>
-                        <div className="flex-1 h-2 bg-muted/30 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-primary to-secondary rounded-full"
-                            style={{ width: `${(r.score / r.max) * 100}%` }}
-                          />
-                        </div>
-                        <span className="text-sm font-bold w-12 text-right">
-                          {r.score}/{r.max}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Strengths & Weaknesses */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                  <div>
-                    <h3 className="text-lg font-serif font-bold mb-3 flex items-center gap-2 text-emerald-400">
-                      <CheckCircle2 className="w-5 h-5" />
-                      Điểm mạnh
-                    </h3>
-                    <ul className="space-y-2">
-                      {report.strengths.map((s, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                          <span>{s}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-serif font-bold mb-3 flex items-center gap-2 text-red-400">
-                      <AlertCircle className="w-5 h-5" />
-                      Cần cải thiện
-                    </h3>
-                    <ul className="space-y-2">
-                      {report.weaknesses.map((w, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm">
-                          <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                          <span>{w}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-
-                {/* Action items */}
-                <div className="mb-6">
-                  <h3 className="text-lg font-serif font-bold mb-3">Hành động tiếp theo</h3>
-                  <ul className="space-y-2">
-                    {report.actionItems.map((a, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm">
-                        <span className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 mt-0.5">
-                          {i + 1}
-                        </span>
-                        <span>{a}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-3 pt-6 border-t border-border">
-                  <Button
-                    onClick={() => setShowReport(false)}
-                    className="flex-1"
-                  >
-                    Quay lại phòng
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = "mock-report.json";
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }}
-                  >
-                    <Download className="w-4 h-4 mr-1" />
-                    Tải báo cáo
-                  </Button>
-                </div>
-              </Card>
             </motion.div>
           </motion.div>
         )}

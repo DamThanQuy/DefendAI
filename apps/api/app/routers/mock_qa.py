@@ -24,10 +24,11 @@ Server -> Client:
 import json
 import logging
 import uuid
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -69,6 +70,166 @@ async def get_session_manager():
         from app.services.mock_qa_state import MockQASessionManager
         _session_manager = MockQASessionManager()
     return _session_manager
+
+
+# ============================================================================
+# Mentor AI — chat tự do (KHÔNG rubric / CLO / form cố định)
+# ============================================================================
+#
+# Yêu cầu: mentor AI ở phòng Mock Room AI phải trả lời mọi câu hỏi của sinh
+# viên như một trợ lý AI thông thường (ChatGPT / Gemini ...), không bị ràng
+# buộc bởi tiêu chí chấm điểm hay khung câu hỏi cố định.
+#
+# Endpoint: POST /api/mock-qa/chat
+#   body: { "messages": [{role: "user"|"assistant", content: str}, ...],
+#           "context": str (tuỳ chọn — nội dung tài liệu đồ án) }
+#   resp: { "reply": str, "provider": str, "model": str }
+#
+# History do client giữ (frontend đã có mảng `messages`), server chỉ nối
+# system prompt + context tài liệu rồi gọi thẳng AI gateway.
+
+_CHAT_MAX_MESSAGES = 20          # số lượt gần nhất gửi lên model
+_CHAT_MAX_CONTEXT_CHARS = 8000   # giới hạn nội dung tài liệu nhét vào prompt
+_CHAT_MAX_HISTORY_CHARS = 12000  # giới hạn tổng độ dài history text
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class MockChatRequest(BaseModel):
+    messages: List[ChatMessage]
+    context: str = ""
+
+
+class MockChatResponse(BaseModel):
+    reply: str
+    provider: Optional[str] = None
+    model: Optional[str] = None
+
+
+MENTOR_CHAT_SYSTEM_PROMPT = """Bạn là MỘT GIÁM KHẢO trong hội đồng bảo vệ đồ án, đang làm việc trực tiếp
+với sinh viên trong phòng bảo vệ ảo. Vai của bạn là CHẤT VẤN — truy xét, đào sâu và
+phản biện về CHÍNH dự án/đồ án của sinh viên, giống một giám khảo thật trên bục bảo vệ.
+
+PHONG CÁCH CHẤT VẤN (đây là hành vi chủ đạo):
+- CHỦ ĐỘNG đặt câu hỏi. Đừng chỉ trả lời thụ động — sau mỗi lượt, hãy dẫn dắt bằng
+  một câu hỏi tiếp theo để "truy bài" sinh viên tới cùng.
+- ĐÀO SÂU câu trả lời: nếu sinh viên trả lời chung chung, chưa thuyết phục hoặc có
+  lỗ hổng, hãy phản biện, hỏi "tại sao / bằng chứng nào / nếu X thì sao / em đo ở
+  đâu", yêu cầu làm rõ, chỉ ra điểm mâu thuẫn. Giữ thái độ nghiêm khắc nhưng công bằng.
+- Bám vào ĐỒ ÁN THỰC của sinh viên (xem phần NGỮ CẢNH TÀI LIỆU bên dưới) để hỏi các
+  câu CỤ THỂ về kiến trúc, công nghệ đã chọn, nghiệp vụ, số liệu, kết quả, trade-off,
+  rủi ro, kiểm thử... — không hỏi chung chung ngoài ngữ cảnh dự án.
+- Có thể nêu giả thuyết/tình huống khó (edge case, tải lớn, bảo mật, dữ liệu thiếu)
+  để thử thách khả năng lập luận và làm chủ kiến thức của sinh viên.
+- Khi sinh viên trả lời tốt, ghi nhận ngắn gọn rồi hỏi tiếp câu khó hơn; khi trả lời
+  yếu, chỉ rõ còn thiếu gì và hỏi đào sâu thêm.
+
+NGOÀI LỀ (vẫn được phép, vì là hội thoại tự do):
+- Nếu sinh viên hỏi lại bạn điều gì (giải thích khái niệm, xin gợi ý, hỏi cách trình
+  bày...), hãy trả lời hữu ích như một giám khảo/mentor am hiểu, rồi kéo về chất vấn.
+- KHÔNG bị giới hạn bởi rubric, tiêu chí chấm điểm cứng, hay khung câu hỏi cố định.
+- KHÔNG chấm điểm số, KHÔNG gán nhãn CLO, KHÔNG trả về JSON hay văn bản theo template.
+
+ĐỊNH DẠNG TRẢ LỜI:
+- Văn nói tự nhiên của giám khảo, tiếng Việt (theo ngôn ngữ sinh viên đang dùng).
+- Dùng markdown khi cần (đoạn code, danh sách) để dễ đọc.
+- Ngắn gọn, sắc sảo, đi thẳng vào vấn đề; mỗi lượt nên kết bằng 1 câu hỏi để tiếp tục
+  cuộc chất vấn.
+- Nếu tài liệu đồ án trống hoặc không có thông tin liên quan, vẫn chất vấn dựa trên
+  những gì sinh viên đã trình bày và kiến thức chung, nhưng nói rõ bạn đang suy đoán."""
+
+
+def _build_mentor_prompt(messages: List[ChatMessage], context: str) -> str:
+    """Gộp lịch sử hội thoại + context tài liệu thành 1 user prompt duy nhất.
+
+    AI gateway hiện chỉ nhận (system_prompt, prompt) — không có mảng messages —
+    nên lịch sử được render dạng text vào prompt.
+    """
+    recent = [m for m in messages if (m.content or "").strip()][-_CHAT_MAX_MESSAGES:]
+
+    lines: List[str] = []
+    ctx = (context or "").strip()
+    if ctx:
+        if len(ctx) > _CHAT_MAX_CONTEXT_CHARS:
+            ctx = ctx[:_CHAT_MAX_CONTEXT_CHARS] + "\n... (tài liệu dài, đã cắt bớt)"
+        lines.append("NGỮ CẢNH TÀI LIỆU ĐỒ ÁN CỦA SINH VIÊN:\n" + ctx)
+        lines.append("")
+
+    lines.append("LỊCH SỬ TRÒ CHUYỆN:")
+    for m in recent[:-1]:
+        who = "Sinh viên" if m.role == "user" else "Bạn (mentor AI)"
+        lines.append(f"{who}: {m.content.strip()}")
+    lines.append("")
+    lines.append("LƯỢT HIỆN TẠI CỦA SINH VIÊN:")
+    lines.append(recent[-1].content.strip() if recent else "(trống)")
+    lines.append("")
+    lines.append(
+        "Hãy trả lời lượt hiện tại của sinh viên một cách tự nhiên, đầy đủ và hữu ích. "
+        "KHÔNG trả về JSON, KHÔNG theo template hay tiêu chí cố định nào."
+    )
+
+    prompt = "\n".join(lines)
+    if len(prompt) > _CHAT_MAX_HISTORY_CHARS + _CHAT_MAX_CONTEXT_CHARS + 2000:
+        prompt = prompt[: _CHAT_MAX_HISTORY_CHARS + _CHAT_MAX_CONTEXT_CHARS + 2000]
+    return prompt
+
+
+@router.post(
+    "/chat",
+    response_model=MockChatResponse,
+    summary="Mentor AI chat tự do (không rubric / form cố định)",
+)
+async def mentor_chat(
+    payload: MockChatRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Trả lời mọi câu hỏi của sinh viên như trợ lý AI thông thường.
+
+    Không sinh câu hỏi theo CLO, không chấm tiêu chí, không trả JSON cấu trúc —
+    chỉ trả về text markdown tự do.
+    """
+    if not payload.messages or not any((m.content or "").strip() for m in payload.messages):
+        raise HTTPException(status_code=400, detail="messages rỗng")
+
+    from app.services.ai_client import ai_gateway
+    from app.services.feature_ai import resolve_feature_ai
+
+    provider, model = await resolve_feature_ai(db, "mock_qa")
+    prompt = _build_mentor_prompt(payload.messages, payload.context)
+
+    try:
+        result = await ai_gateway.generate(
+            prompt=prompt,
+            system_prompt=MENTOR_CHAT_SYSTEM_PROMPT,
+            provider=provider,
+            model=model,
+            temperature=0.7,
+            max_tokens=1600,
+        )
+    except RuntimeError as e:
+        # Provider chưa cấu hình / không khả dụng
+        logger.warning("mentor_chat: provider unavailable: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail="Chưa cấu hình model AI cho Mentor chat. Vào trang Admin → AI để bật provider.",
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.exception("mentor_chat: AI call failed")
+        raise HTTPException(status_code=502, detail=f"Gọi AI thất bại: {type(e).__name__}: {e}")
+
+    reply = (result.get("content") or "").strip()
+    if not reply:
+        raise HTTPException(status_code=502, detail="AI trả về nội dung rỗng")
+
+    return MockChatResponse(
+        reply=reply,
+        provider=result.get("provider"),
+        model=result.get("model"),
+    )
 
 
 @router.websocket("/{meeting_id}/ws")

@@ -7,6 +7,7 @@ Endpoints:
 - GET  /api/documents/{id}/download → download file gốc từ MinIO
 - GET  /api/documents/{id}/assessments → lấy danh sách assessment của document
 - GET  /api/documents/{id}/contents → liệt kê nội dung file nén (ZIP/RAR)
+- GET  /api/documents/{id}/text → lấy nội dung text đã trích xuất của document
 """
 import os
 import uuid
@@ -23,6 +24,7 @@ from app.models.entities import Document, DocType, DocumentStatus, DocumentPurpo
 from app.schemas.document import DocumentResponse, DocumentListResponse
 from app.services.storage import save_doc, get_doc
 from app.services.archive_service import list_archive_members, read_archive_member, ArchiveError
+from app.services.document_parser import DocumentParserError, extract_text
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
@@ -318,3 +320,82 @@ async def get_document_member_content(
             "Content-Length": str(len(data)),
         },
     )
+
+
+@router.get("/{doc_id}/text")
+async def get_document_text(
+    doc_id: int,
+    max_chars: int = 20000,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Lấy nội dung text đã trích xuất của document (cho AI mentor đọc).
+
+    Ưu tiên đọc từ document_chunks (đã index RAG). Nếu chưa có chunk
+    (chưa chạy assessment), parse trực tiếp từ file bằng native extractor
+    (không gọi AI vision — nhanh và không tốn token).
+    """
+    result = await db.execute(select(Document).where(Document.id == doc_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+    _assert_doc_access(doc, user)
+
+    # 1) Ưu tiên chunks đã index (RAG) — nối theo chunk_index
+    from app.models.entities import DocumentChunk
+    chunk_rows = (
+        await db.execute(
+            select(DocumentChunk.content, DocumentChunk.chunk_index)
+            .where(DocumentChunk.document_id == doc_id)
+            .order_by(DocumentChunk.chunk_index)
+        )
+    ).all()
+    if chunk_rows:
+        text = "\n\n".join(row[0] for row in chunk_rows if row[0])
+        source = "chunks"
+    else:
+        # 2) Fallback: parse trực tiếp từ MinIO bằng NATIVE extractor.
+        # Không dùng extract_text() vì với pdf/docx/pptx nó gọi Gemini
+        # vision reader (chậm, tốn token) — ở đây chỉ cần text thuần.
+        from app.services.document_parser import _EXTRACTORS
+        from app.services.storage import get_doc as _get_doc
+        import io as _io
+
+        try:
+            data = await _get_doc(doc.storage_key)
+        except Exception:
+            raise HTTPException(status_code=500, detail="Lỗi khi đọc tài liệu từ storage")
+
+        if doc.storage_key.lower().endswith(".md"):
+            text = data.decode("utf-8", errors="replace").strip()
+        else:
+            extractor = _EXTRACTORS.get(doc.doc_type)
+            if extractor is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Không hỗ trợ trích xuất text cho doc_type: {doc.doc_type}",
+                )
+            try:
+                text = extractor(_io.BytesIO(data)) or ""
+            except Exception:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Không thể trích xuất nội dung tài liệu (file lỗi hoặc format không đọc được)",
+                )
+        source = "parsed"
+
+    text = (text or "").strip()
+    truncated = False
+    if len(text) > max_chars:
+        text = text[:max_chars]
+        truncated = True
+
+    return {
+        "document_id": doc_id,
+        "filename": doc.filename,
+        "doc_type": doc.doc_type.value,
+        "source": source,
+        "truncated": truncated,
+        "chars": len(text),
+        "text": text,
+    }

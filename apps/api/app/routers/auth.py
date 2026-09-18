@@ -27,6 +27,7 @@ from app.schemas.user import (
     LoginRequest,
     RefreshTokenRequest,
     RegisterRequest,
+    UpdateMeRequest,
     UserResponse,
 )
 
@@ -185,6 +186,29 @@ async def google_login(req: GoogleLoginRequest, db: AsyncSession = Depends(get_d
 
 @router.get("/me", response_model=UserResponse, summary="Thông tin user hiện tại")
 async def me(user: User = Depends(get_current_user)):
+    return UserResponse.from_user(user)
+
+
+@router.put("/me", response_model=UserResponse, summary="Cập nhật hồ sơ cá nhân")
+async def update_me(
+    req: UpdateMeRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sửa hồ sơ cá nhân (tên hiển thị, trường, giới thiệu). Email không đổi được."""
+    data = req.model_dump(exclude_unset=True)
+    if not data:
+        raise HTTPException(status_code=400, detail="Không có trường nào để cập nhật")
+
+    for field in ("full_name", "school", "about"):
+        if field in data:
+            val = (data[field] or "").strip()
+            if field == "full_name" and not val:
+                raise HTTPException(status_code=400, detail="Họ và tên không được để trống")
+            setattr(user, field, val or None)
+
+    await db.commit()
+    await db.refresh(user)
     return UserResponse.from_user(user)
 
 

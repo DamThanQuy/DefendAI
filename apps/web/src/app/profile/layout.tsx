@@ -7,7 +7,7 @@ import {
   LayoutDashboard,
   History,
   Trophy,
-  Users,
+  UserCog,
   CreditCard,
   Settings,
   GraduationCap,
@@ -25,7 +25,7 @@ const SUB_LINKS: SubLink[] = [
   { href: "/profile", label: "Tổng quan", icon: LayoutDashboard, section: "Khu vực của tôi" },
   { href: "/profile/history", label: "Lịch sử & Hiệu suất", icon: History, section: "Khu vực của tôi" },
   { href: "/profile/achievements", label: "Thành tích & Xếp hạng", icon: Trophy, section: "Khu vực của tôi" },
-  { href: "/profile/peers", label: "Bạn học", icon: Users, section: "Khu vực của tôi" },
+  { href: "/profile/edit", label: "Sửa hồ sơ cá nhân", icon: UserCog, section: "Khu vực của tôi" },
   { href: "/profile/billing", label: "Gói & Giao dịch", icon: CreditCard, section: "Khu vực của tôi" },
   { href: "/profile/settings", label: "Cài đặt", icon: Settings, section: "Tài khoản" },
 ];

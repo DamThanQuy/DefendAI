@@ -18,6 +18,8 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False)
     hashed_password = Column(String(255), nullable=True)
     full_name = Column(String(255), nullable=True)
+    school = Column(String(255), nullable=True)
+    about = Column(String(500), nullable=True)
     is_active = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
