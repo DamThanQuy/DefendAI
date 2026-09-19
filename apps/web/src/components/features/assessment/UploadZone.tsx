@@ -11,6 +11,16 @@ const CHUNKED_THRESHOLD = 4 * 1024 * 1024; // 4 MB
 type Props = {
   onFileSelected?: (file: File) => void;
   onDone?: () => void;
+  onProgress?: (state: {
+    file: File | null;
+    progress: number;
+    loaded: number;
+    total: number;
+    speed: number;
+    eta: number | null;
+    status: "idle" | "uploading" | "success" | "error";
+    error?: string;
+  }) => void;
   title?: string;
   description?: string;
   accept?: string;
@@ -20,6 +30,7 @@ type Props = {
 export function UploadZone({
   onFileSelected,
   onDone,
+  onProgress,
   title = "Kéo thả hoặc chọn tệp",
   description = "Hỗ trợ định dạng PDF, DOCX, ZIP, RAR (Tối đa 100MB)",
   accept = ".pdf,.docx,.zip,.rar",
@@ -34,11 +45,24 @@ export function UploadZone({
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
-  // Tốc độ upload (MB/s) + ETA — tính từ lịch sử onProgress
-  const [speed, setSpeed] = useState(0); // bytes/sec
-  const [eta, setEta] = useState<number | null>(null); // seconds remaining
+  const [speed, setSpeed] = useState(0);
+  const [eta, setEta] = useState<number | null>(null);
   const lastSampleRef = useRef<{ ts: number; loaded: number } | null>(null);
   const speedSamplesRef = useRef<number[]>([]);
+
+  const emitProgress = (next: Partial<Parameters<NonNullable<Props["onProgress"]>>[0]>) => {
+    onProgress?.({
+      file,
+      progress,
+      loaded: 0,
+      total: file?.size ?? 0,
+      speed,
+      eta,
+      status: "idle",
+      error,
+      ...next,
+    });
+  };
 
   const updateProgress = (loaded: number, total: number) => {
     const now = Date.now();
@@ -64,6 +88,7 @@ export function UploadZone({
     setStatusText(
       `Đang tải tài liệu lên... ${(loaded / 1024 / 1024).toFixed(1)}/${(total / 1024 / 1024).toFixed(1)} MB`,
     );
+    emitProgress({ progress: pct, loaded, total, speed, eta, status: "uploading" });
   };
 
   const resetProgressTracking = () => {
@@ -143,8 +168,11 @@ export function UploadZone({
         const result = await uploader.start();
         if (result?.document_id) {
           setUploaded(true);
+          emitProgress({ progress: 100, loaded: file.size, total: file.size, speed: 0, eta: 0, status: "success" });
         } else {
-          setError("Tải lên thất bại: không nhận được document_id");
+          const msg = "Tải lên thất bại: không nhận được document_id";
+          setError(msg);
+          emitProgress({ progress, loaded: 0, total: file.size, speed: 0, eta: null, status: "error", error: msg });
         }
       } else {
         // File nhỏ → FormData truyền thống (nhanh, ít overhead).
@@ -163,11 +191,13 @@ export function UploadZone({
               const data = JSON.parse(xhr.responseText || "{}");
               if (xhr.status >= 200 && xhr.status < 300 && data.success) {
                 setUploaded(true);
+                emitProgress({ progress: 100, loaded: file.size, total: file.size, speed: 0, eta: 0, status: "success" });
                 resolve();
               } else {
                 const msg =
                   data.error || data.detail?.detail || data.message || `HTTP ${xhr.status}`;
                 setError(msg);
+                emitProgress({ progress, loaded: 0, total: file.size, speed: 0, eta: null, status: "error", error: msg });
                 reject(new Error(msg));
               }
             } catch (e) {
@@ -185,15 +215,17 @@ export function UploadZone({
       }
     } catch (error: any) {
       if (error?.name === "AbortError") {
-        // Hủy thì cleanup parts trên MinIO (nếu chunked)
         if (uploader) await uploader.abort();
+        const msg = error?.message ?? "Đã hủy tải lên";
+        setError(msg);
+        emitProgress({ progress, loaded: 0, total: file?.size ?? 0, speed: 0, eta: null, status: "error", error: msg });
         handleCancel();
         return;
       }
       console.error(error);
-      setError(
-        error?.message ?? "Không thể kết nối đến máy chủ phân tích",
-      );
+      const msg = error?.message ?? "Không thể kết nối đến máy chủ phân tích";
+      setError(msg);
+      emitProgress({ progress, loaded: 0, total: file?.size ?? 0, speed: 0, eta: null, status: "error", error: msg });
     } finally {
       setIsProcessing(false);
       setAbortController(null);
