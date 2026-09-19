@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { UploadModal } from "@/components/features/assessment/UploadModal";
+import { ActiveUploadCard } from "@/components/features/assessment/ActiveUploadCard";
 import { TrashIcon } from "@/components/icons/TrashIcon";
 import { PlusIcon } from "@/components/icons/PlusIcon";
 import { useAuth } from "@/hooks/useAuth";
@@ -32,6 +33,20 @@ interface WorkspaceItem {
   document_count: number;
 }
 
+type ActiveUploadStatus = "uploading" | "success" | "error";
+
+interface ActiveUpload {
+  id: string;
+  filename: string;
+  progress: number;
+  loaded: number;
+  total: number;
+  speed: number;
+  eta: number | null;
+  status: ActiveUploadStatus;
+  error?: string;
+}
+
 const docTypeLabel: Record<string, string> = {
   pdf: "PDF",
   docx: "DOCX",
@@ -58,6 +73,7 @@ export default function DocumentsPage() {
   const [error, setError] = useState("");
   const [showUpload, setShowUpload] = useState(false);
   const [browseDoc, setBrowseDoc] = useState<DocumentItem | null>(null);
+  const [activeUploads, setActiveUploads] = useState<ActiveUpload[]>([]);
 
   // Thêm vào workspace
   const [wsTargetDoc, setWsTargetDoc] = useState<DocumentItem | null>(null);
@@ -198,6 +214,47 @@ export default function DocumentsPage() {
 
   const token = typeof window !== "undefined" ? getToken() : null;
 
+  const upsertActiveUpload = (next: ActiveUpload) =>
+    setActiveUploads((prev) => {
+      const exists = prev.find((u) => u.id === next.id);
+      const nextList = exists ? prev.map((u) => (u.id === next.id ? next : u)) : [...prev, next];
+      return nextList.filter((u) => u.status !== "success" || Date.now() - 0 < 1000);
+    });
+
+  const handleUploadProgress = (state: {
+    file: File | null;
+    progress: number;
+    loaded: number;
+    total: number;
+    speed: number;
+    eta: number | null;
+    status: "idle" | "uploading" | "success" | "error";
+    error?: string;
+  }) => {
+    const id = state.file ? `${state.file.name}:${state.file.size}:${state.file.lastModified}` : `upload-${Date.now()}`;
+    const filename = state.file?.name ?? "Đang tải lên";
+    upsertActiveUpload({
+      id,
+      filename,
+      progress: state.progress,
+      loaded: state.loaded,
+      total: state.total,
+      speed: state.speed,
+      eta: state.eta,
+      status: state.status === "idle" ? "uploading" : state.status,
+      error: state.error,
+    });
+  };
+
+  const dismissUpload = (id: string) => setActiveUploads((prev) => prev.filter((u) => u.id !== id));
+  const cancelUpload = (id: string) => {
+    setActiveUploads((prev) => prev.filter((u) => u.id !== id));
+  };
+  const retryUpload = (id: string) => {
+    setActiveUploads((prev) => prev.filter((u) => u.id !== id));
+    setShowUpload(true);
+  };
+
   if (!token) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -318,7 +375,7 @@ export default function DocumentsPage() {
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-emerald-400 bg-emerald-500/10 rounded-lg hover:bg-emerald-500/20 transition-colors"
                           >
                             <PlusIcon className="w-4 h-4" />
-                            Workspace
+                            Thêm vào workspace
                           </button>
                           <a
                             href={`/api/documents/${doc.id}/download`}
@@ -359,7 +416,19 @@ export default function DocumentsPage() {
         )}
       </div>
 
-      <UploadModal open={showUpload} onClose={() => { setShowUpload(false); fetchDocs(); }} />
+      <ActiveUploadCard
+        uploads={activeUploads}
+        onDismiss={dismissUpload}
+        onCancel={cancelUpload}
+        onRetry={retryUpload}
+      />
+
+      <UploadModal
+        open={showUpload}
+        onClose={() => { setShowUpload(false); fetchDocs(); }}
+        onMinimize={() => setShowUpload(false)}
+        onProgress={handleUploadProgress}
+      />
 
       {/* Document detail sidebar */}
       <DocumentDetailSidebar
