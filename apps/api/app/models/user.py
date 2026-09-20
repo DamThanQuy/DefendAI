@@ -22,6 +22,8 @@ class User(Base):
     about = Column(String(500), nullable=True)
     is_active = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    avatar = Column(String(500), nullable=True)
+    wallpaper = Column(String(500), nullable=True)
 
     # Auth: email (mật khẩu) hoặc google (OAuth)
     auth_provider = Column(String(20), default="email", nullable=False)

@@ -26,6 +26,9 @@ from app.routers import workspace_messages as workspace_messages_router
 from app.routers import rubrics as rubrics_router
 from app.routers import mock_qa as mock_qa_router
 from app.routers import signaling as signaling_router
+from app.routers import user as user_router
+from app.routers import reports as reports_router
+from app.routers import mock_ai as mock_ai_router
 # Khởi tạo AI gateway ngay khi import (sẽ log providers nào đã ready)
 from app.services.ai_client import ai_gateway
 
@@ -81,6 +84,12 @@ app.include_router(rubrics_router.router)
 app.include_router(mock_qa_router.router)
 # WebRTC signaling (voice chat + screen share) cho Mock Room
 app.include_router(signaling_router.router)
+# User endpoints (avatar, wallpaper, profile)
+app.include_router(user_router.router)
+# Reports (student: xem báo cáo khi dự án đủ 2 điều kiện)
+app.include_router(reports_router.router)
+# Mock AI endpoints (kết thúc buổi, tạo đánh giá)
+app.include_router(mock_ai_router.router)
 
 @app.on_event("startup")
 async def _ensure_storage() -> None:

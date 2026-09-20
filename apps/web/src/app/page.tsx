@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import {
@@ -21,6 +22,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const STATS = [
   { value: "8.019+", label: "Câu hỏi phản biện", icon: FileText },
@@ -76,6 +78,10 @@ export default function LandingPage() {
 
   return (
     <div className="flex flex-col min-h-screen relative overflow-hidden">
+      {/* Background wallpaper */}
+      <div className="absolute inset-0 bg-[url('/wallpaper.jpg')] bg-cover bg-center opacity-20" />
+      <div className="absolute inset-0 bg-gradient-to-br from-background/90 via-background/80 to-background" />
+
       {/* Background glows */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-primary/10 blur-[120px] rounded-full -z-10" />
       <div className="absolute top-[60%] right-0 w-[500px] h-[500px] bg-secondary/10 blur-[100px] rounded-full -z-10" />

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { GraduationCap } from "lucide-react";
 import { isPublicPath } from "@/lib/shell";
@@ -34,8 +35,14 @@ export function Footer() {
           {/* Brand column */}
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center gap-3 group">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-[0_0_20px_hsl(var(--primary)/0.3)]">
-                <GraduationCap className="w-5 h-5 text-primary-foreground" strokeWidth={2.5} />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-[0_0_20px_hsl(var(--primary)/0.3)] overflow-hidden">
+                <Image
+                  src="/avatar.jpg"
+                  alt="GraduAI Avatar"
+                  width={40}
+                  height={40}
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div className="flex flex-col leading-none">
                 <span className="text-lg font-extrabold tracking-tight">

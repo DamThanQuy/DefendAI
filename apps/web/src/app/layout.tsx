@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, EB_Garamond } from "next/font/google";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import "./globals.css";
-import { Navbar } from "@/components/layout/Navbar";
+import { Navbar } from "@/components/layout/NavbarNew";
 import { Footer } from "@/components/layout/Footer";
 import { AppShell } from "@/components/layout/AppShell";
 import { AuthGate } from "@/components/auth/AuthGate";

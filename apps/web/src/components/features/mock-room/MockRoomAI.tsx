@@ -25,7 +25,6 @@ import {
   Download,
   Maximize2,
   Minimize2,
-  X,
   ArrowRight,
   Hand,
   MoreHorizontal,
@@ -494,6 +493,36 @@ export default function MockRoomAI() {
     setTimeLeft(PHASES[0].minutes * 60);
     setIsRunning(false);
     setMessages([]);
+  };
+
+  // ── Kết thúc buổi Mock AI ───────────────────────────────
+  const handleEndSession = async () => {
+    if (!confirm("Bạn có chắc chắn muốn kết thúc buổi Mock AI? Sau khi kết thúc, buổi sẽ được đánh giá và báo cáo sẽ được tạo.")) {
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      alert("Vui lòng đăng nhập để kết thúc buổi.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/mock-ai/end-session", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || data.error || "Kết thúc buổi thất bại");
+      }
+
+      alert("Kết thúc buổi Mock AI thành công! Báo cáo đã được tạo.");
+      router.push("/report");
+    } catch (err: any) {
+      alert(`Lỗi: ${err.message || "Không thể kết thúc buổi"}`);
+    }
   };
 
   // ── STT ────────────────────────────────────────────────
@@ -1027,7 +1056,15 @@ export default function MockRoomAI() {
                 </button>
               </div>
 
-              <div className="flex items-center justify-end w-32">
+              <div className="flex items-center justify-end gap-3 w-32">
+                <Button
+                  onClick={handleEndSession}
+                  disabled={isRunning}
+                  className="bg-gradient-to-r from-primary to-secondary hover:from-primary/80 hover:to-secondary/80 text-white rounded-full px-6 h-10 font-semibold shadow-lg shadow-teal-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  Kết thúc buổi
+                </Button>
                 <Button
                   onClick={() => setShowLeaveConfirm(true)}
                   className="bg-[#EF4444] hover:bg-[#DC2626] text-white rounded-full px-6 h-10 font-semibold shadow-lg shadow-red-900/20"
