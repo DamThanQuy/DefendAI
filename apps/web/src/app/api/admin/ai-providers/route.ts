@@ -41,6 +41,31 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  try {
+    const auth = request.headers.get("authorization") || "";
+    const url = new URL(request.url);
+    const body = await request.json();
+    const name = url.searchParams.get("name") || body.name;
+    if (!name) {
+      return NextResponse.json({ error: "Missing provider name" }, { status: 400 });
+    }
+    const res = await fetch(`${backendUrl()}/api/admin/ai-providers/${encodeURIComponent(name)}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...ngrokHeaders(),
+        ...(auth ? { Authorization: auth } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
+  } catch (e: any) {
+    return NextResponse.json({ error: "AI providers proxy failed", message: e.message }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const auth = request.headers.get("authorization") || "";
@@ -62,3 +87,4 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "AI providers proxy failed", message: e.message }, { status: 500 });
   }
 }
+
