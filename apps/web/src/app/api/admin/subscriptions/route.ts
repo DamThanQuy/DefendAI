@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
+import { backendUrl, ngrokHeaders } from "@/lib/upstream";
 
 export const dynamic = "force-dynamic";
-const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 
 export async function GET(request: Request) {
-  return proxy(request, `${BACKEND_URL}/api/admin/subscriptions`);
+  return proxy(request, `${backendUrl()}/api/admin/subscriptions`);
 }
 
 export async function POST(request: Request) {
-  return proxy(request, `${BACKEND_URL}/api/admin/subscriptions`, "POST");
+  return proxy(request, `${backendUrl()}/api/admin/subscriptions`, "POST");
 }
 
 async function proxy(request: Request, url: string, method = "GET") {
   try {
     const auth = request.headers.get("authorization") || "";
-    const headers: HeadersInit = { ...(auth ? { Authorization: auth } : {}) };
+    const headers: HeadersInit = { ...ngrokHeaders(), ...(auth ? { Authorization: auth } : {}) };
     if (method === "POST") headers["Content-Type"] = "application/json";
     const res = await fetch(url, {
       method,

@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
+import { backendUrl, ngrokHeaders } from "@/lib/upstream";
 
-const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
+export const dynamic = 'force-dynamic';
 
 // Proxy AI provider/model/feature config — admin quản provider & model qua UI.
 
 export async function GET(request: Request) {
   try {
     const auth = request.headers.get("authorization") || "";
-    const res = await fetch(`${BACKEND_URL}/api/admin/ai-providers`, {
-      headers: auth ? { Authorization: auth } : {},
+    const res = await fetch(`${backendUrl()}/api/admin/ai-providers`, {
+      headers: {
+        ...ngrokHeaders(),
+        ...(auth ? { Authorization: auth } : {}),
+      },
     });
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
@@ -21,10 +25,11 @@ export async function POST(request: Request) {
   try {
     const auth = request.headers.get("authorization") || "";
     const body = await request.json();
-    const res = await fetch(`${BACKEND_URL}/api/admin/ai-providers`, {
+    const res = await fetch(`${backendUrl()}/api/admin/ai-providers`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...ngrokHeaders(),
         ...(auth ? { Authorization: auth } : {}),
       },
       body: JSON.stringify(body),
@@ -44,9 +49,12 @@ export async function DELETE(request: Request) {
     if (!name) {
       return NextResponse.json({ error: "Missing provider name" }, { status: 400 });
     }
-    const res = await fetch(`${BACKEND_URL}/api/admin/ai-providers/${encodeURIComponent(name)}`, {
+    const res = await fetch(`${backendUrl()}/api/admin/ai-providers/${encodeURIComponent(name)}`, {
       method: "DELETE",
-      headers: auth ? { Authorization: auth } : {},
+      headers: {
+        ...ngrokHeaders(),
+        ...(auth ? { Authorization: auth } : {}),
+      },
     });
     const data = await res.json().catch(() => ({}));
     return NextResponse.json(data, { status: res.status });

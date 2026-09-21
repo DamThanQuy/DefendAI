@@ -17,7 +17,12 @@ export const DEFAULT_BACKEND_URL = "http://127.0.0.1:8000";
 const SNIPPET_LIMIT = 300;
 
 export function backendUrl(): string {
-  return process.env.BACKEND_URL || DEFAULT_BACKEND_URL;
+  return (
+    process.env.BACKEND_URL ||
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    DEFAULT_BACKEND_URL
+  );
 }
 
 /**
@@ -26,7 +31,10 @@ export function backendUrl(): string {
  */
 export function ngrokHeaders(): Record<string, string> {
   const url = backendUrl();
-  if (url.includes("ngrok")) return { "ngrok-skip-browser-warning": "true" };
+  const nextPublicUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "";
+  if (url.includes("ngrok") || nextPublicUrl.includes("ngrok")) {
+    return { "ngrok-skip-browser-warning": "true" };
+  }
   return {};
 }
 
