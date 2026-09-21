@@ -346,7 +346,12 @@ export default function WorkspaceDetailPage() {
     if (!wsId) return;
     const token = getToken();
     if (!token) return;
-    fetch(`/api/workspaces/${wsId}`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`/api/workspaces/${wsId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "ngrok-skip-browser-warning": "true",
+      },
+    })
       .then(async (r) => {
         if (!r.ok) {
           const errData = await r.json().catch(() => null);
