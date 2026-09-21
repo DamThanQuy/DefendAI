@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { backendUrl, ngrokHeaders, readUpstream, upstreamFailure } from '@/lib/upstream';
 
 export const dynamic = 'force-dynamic';
 
-const BACKEND = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
-
 async function proxy(request: NextRequest) {
+  const url = `${backendUrl()}/api/workspaces/`;
   try {
     // NOTE: thêm slash cuối — FastAPI khai báo route "/api/workspaces/" (redirect_slashes).
     // Gọi không slash → 307 redirect → fetch rớt Authorization khi follow → 401.
-    const url = `${BACKEND}/api/workspaces/`;
     const authHeader = request.headers.get('authorization') || '';
 
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...ngrokHeaders() };
     if (authHeader) headers['Authorization'] = authHeader;
 
     const init: RequestInit = { method: request.method, headers };
@@ -24,12 +23,18 @@ async function proxy(request: NextRequest) {
     }
 
     const res = await fetch(url, init);
-    const text = await res.text();
-    const data = text ? JSON.parse(text) : null;
+    if (res.status === 204) {
+      return new Response(null, { status: 204 });
+    }
 
-    return NextResponse.json(data, { status: res.status });
+    const upstream = await readUpstream(res);
+    if (upstream.nonJson) {
+      return upstreamFailure('Workspace proxy', { url, status: upstream.status, upstream });
+    }
+
+    return NextResponse.json(upstream.data, { status: upstream.status });
   } catch (error: any) {
-    return NextResponse.json({ error: 'Workspace proxy failed', message: error.message }, { status: 500 });
+    return upstreamFailure('Workspace proxy', { url, status: 500, cause: error });
   }
 }
 

@@ -348,7 +348,10 @@ export default function WorkspaceDetailPage() {
     if (!token) return;
     fetch(`/api/workspaces/${wsId}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(async (r) => {
-        if (!r.ok) throw new Error("Không thể tải workspace");
+        if (!r.ok) {
+          const errData = await r.json().catch(() => null);
+          throw new Error(errData?.detail || errData?.message || errData?.error || "Không thể tải workspace");
+        }
         return r.json();
       })
       .then((data: Workspace) => {

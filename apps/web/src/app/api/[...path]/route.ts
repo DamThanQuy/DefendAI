@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readUpstream, upstreamFailure } from '@/lib/upstream';
+import { backendUrl, ngrokHeaders, readUpstream, upstreamFailure } from '@/lib/upstream';
 
 export const dynamic = 'force-dynamic';
-
-const BACKEND = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 
 // Generic catch-all proxy: forwards /api/{path...} → BACKEND/api/{path...}.
 // Lets the browser-only axios client (lib/api.ts, baseURL="") reach the backend
@@ -11,9 +9,9 @@ const BACKEND = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 // (auth/*, workspaces/[...], questions/*, documents/*, ...) take precedence.
 async function proxy(request: NextRequest, { params }: { params: any }) {
   const sub = (params.path || []).join('/');
-  const url = `${BACKEND}/api/${sub}`;
+  const url = `${backendUrl()}/api/${sub}`;
   const authHeader = request.headers.get('authorization') || '';
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...ngrokHeaders() };
   if (authHeader) headers['Authorization'] = authHeader;
 
   const init: RequestInit = { method: request.method, headers };
