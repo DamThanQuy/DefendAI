@@ -139,11 +139,16 @@ def build_project_manifest(extraction: ExtractionResult) -> dict:
         size = entry.expanded_size
         total_size += size
         if path in selected_paths:
-            sha = next(
-                (ef.local_path for ef in extraction.selected_files if ef.path == path),
+            ef_match = next(
+                (ef for ef in extraction.selected_files if ef.path == path),
                 None,
             )
-            sha_hex = _file_hash(sha) if sha else None
+            if ef_match and ef_match.sha256:
+                sha_hex = ef_match.sha256
+            elif ef_match and ef_match.local_path:
+                sha_hex = _file_hash(ef_match.local_path)
+            else:
+                sha_hex = None
             files.append(ManifestFile(
                 path=path,
                 extension=Path(path).suffix.lower(),
