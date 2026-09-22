@@ -54,9 +54,21 @@ def _run_health_server() -> None:
     server.serve_forever()
 
 
+async def _init_ai_config() -> None:
+    from app.core.database import async_session_maker
+    from app.services.ai_client import ai_gateway
+    try:
+        async with async_session_maker() as db:
+            await ai_gateway.reconfigure_from_db(db)
+            logger.info("Worker: AI gateway configured from DB with providers: %s", list(ai_gateway.providers.keys()))
+    except Exception as exc:
+        logger.warning("Worker: load AI config from DB failed: %s", exc)
+
+
 async def main() -> None:
     logger.info("DefendAI Worker starting...")
     threading.Thread(target=_run_health_server, daemon=True).start()
+    await _init_ai_config()
     await worker_loop()
 
 

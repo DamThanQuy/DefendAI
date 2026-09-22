@@ -58,8 +58,20 @@ def _run_health_server() -> None:
     server.serve_forever()
 
 
+async def _run_worker_async() -> None:
+    from app.core.database import async_session_maker
+    from app.services.ai_client import ai_gateway
+    try:
+        async with async_session_maker() as db:
+            await ai_gateway.reconfigure_from_db(db)
+            logger.info("WorkerMulti: AI gateway configured from DB with providers: %s", list(ai_gateway.providers.keys()))
+    except Exception as exc:
+        logger.warning("WorkerMulti: load AI config from DB failed: %s", exc)
+    await worker_loop()
+
+
 def _run_worker() -> None:
-    asyncio.run(worker_loop())
+    asyncio.run(_run_worker_async())
 
 
 def main() -> None:
