@@ -41,6 +41,8 @@ from app.services.mock_qa_rag import MockQARAGService
 from app.services.rag_service import RAGService
 from app.models.booking import MockBooking, BookingStatus
 from app.models.meeting import Meeting
+from app.models.mock_chat import MockChatMessage
+from sqlalchemy import delete, select
 
 logger = logging.getLogger(__name__)
 
@@ -239,6 +241,96 @@ async def mentor_chat(
         provider=result.get("provider"),
         model=result.get("model"),
     )
+
+# ============================================================================
+# Lịch sử chat Mock Room AI — lưu theo user để không mất khi rời phòng
+# ============================================================================
+#
+# Frontend giữ toàn bộ mảng `messages` và đồng bộ lên server:
+#   GET    /api/mock-qa/history           → lấy lịch sử đã lưu
+#   PUT    /api/mock-qa/history           → ghi đè lịch sử (toàn bộ mảng)
+#   DELETE /api/mock-qa/history           → xoá lịch sử (bắt đầu phiên mới)
+#
+# PUT ghi đè (replace-all) vì client là nguồn giữ mảng đầy đủ — không cần
+# logic merge/dedup từng tin, tránh trùng lặp khi reconnect.
+
+_HISTORY_MAX_MESSAGES = 500  # giới hạn số tin lưu/lấy mỗi lần
+
+class HistoryMessage(BaseModel):
+    role: str
+    content: str
+    time: Optional[str] = None  # "HH:MM" hiển thị trên UI
+
+class HistorySaveRequest(BaseModel):
+    messages: List[HistoryMessage]
+    document_id: Optional[int] = None
+
+class HistoryResponse(BaseModel):
+    messages: List[HistoryMessage]
+    document_id: Optional[int] = None
+
+@router.get("/history", response_model=HistoryResponse, summary="Lấy lịch sử chat Mock Room AI")
+async def get_chat_history(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Trả về toàn bộ tin nhắn đã lưu của user (cũ → mới)."""
+    stmt = (
+        select(MockChatMessage)
+        .where(MockChatMessage.user_id == user.id)
+        .order_by(MockChatMessage.id.desc())
+        .limit(_HISTORY_MAX_MESSAGES)
+    )
+    rows = (await db.execute(stmt)).scalars().all()
+    rows = list(reversed(rows))  # cũ → mới cho UI
+
+    document_id = next(
+        (r.document_id for r in reversed(rows) if r.document_id is not None), None
+    )
+    return HistoryResponse(
+        messages=[
+            HistoryMessage(role=r.role, content=r.content, time=r.time_label)
+            for r in rows
+        ],
+        document_id=document_id,
+    )
+
+@router.put("/history", summary="Lưu lịch sử chat Mock Room AI (ghi đè)")
+async def save_chat_history(
+    payload: HistorySaveRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ghi đè lịch sử chat của user bằng mảng tin nhắn hiện tại từ client."""
+    msgs = payload.messages[-_HISTORY_MAX_MESSAGES:]
+
+    await db.execute(delete(MockChatMessage).where(MockChatMessage.user_id == user.id))
+    for m in msgs:
+        if not (m.content or "").strip():
+            continue
+        if m.role not in ("user", "mentor", "assistant"):
+            continue
+        db.add(
+            MockChatMessage(
+                user_id=user.id,
+                role=m.role,
+                content=m.content,
+                time_label=m.time,
+                document_id=payload.document_id,
+            )
+        )
+    await db.commit()
+    return {"saved": True, "count": len(msgs)}
+
+@router.delete("/history", summary="Xoá lịch sử chat Mock Room AI")
+async def delete_chat_history(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Xoá toàn bộ lịch sử chat — dùng khi bắt đầu phiên mới."""
+    await db.execute(delete(MockChatMessage).where(MockChatMessage.user_id == user.id))
+    await db.commit()
+    return {"deleted": True}
 
 
 @router.websocket("/{meeting_id}/ws")

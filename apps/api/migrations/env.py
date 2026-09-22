@@ -44,6 +44,7 @@ from app.models.entities import (
     MeetingMember,
     Evaluation,
     Report,
+    MockChatMessage,
 )
 from app.models.session import Session
 from app.models.workspace import Workspace, WorkspaceFile

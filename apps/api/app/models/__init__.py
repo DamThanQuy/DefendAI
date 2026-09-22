@@ -30,6 +30,7 @@ from app.models.message import Message  # noqa: F401
 from app.models.workspace import Workspace  # noqa: F401
 from app.models.workspace_question import WorkspaceQuestion  # noqa: F401
 from app.models.workspace_chat import WorkspaceChat  # noqa: F401
+from app.models.mock_chat import MockChatMessage  # noqa: F401
 
 __all__ = [
     "User",
@@ -64,4 +65,5 @@ __all__ = [
     "Message",
     "WorkspaceQuestion",
     "WorkspaceChat",
+    "MockChatMessage",
 ]

@@ -28,6 +28,7 @@ from app.models.refresh_token import RefreshToken
 from app.models.workspace import Workspace, WorkspaceFile
 from app.models.workspace_chat import WorkspaceChat
 from app.models.workspace_question import WorkspaceQuestion
+from app.models.mock_chat import MockChatMessage
 
 __all__ = [
     "User",
@@ -52,4 +53,5 @@ __all__ = [
     "Workspace", "WorkspaceFile",
     "WorkspaceChat",
     "WorkspaceQuestion",
+    "MockChatMessage",
 ]

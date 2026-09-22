@@ -206,7 +206,7 @@ export default function MockRoomLandingPage() {
                 </span>
               </div>
               <p className="text-sm text-muted-foreground">
-                Luyện mock defense với AI mentor — 3 giai đoạn (Thuyết trình / Chất vấn / Nhận xét), không cần đặt lịch.
+                Luyện phòng chat với AI mentor — trò chuyện chất vấn tự do, không cần đặt lịch.
               </p>
             </div>
             <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />

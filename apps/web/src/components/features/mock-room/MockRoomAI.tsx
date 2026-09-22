@@ -6,15 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send,
   Loader2,
-  Bot,
-  Clock,
-  MessageSquare,
-  Play,
-  Pause,
-  RotateCcw,
   CheckCircle2,
   AlertCircle,
-  Users,
   FileText,
   Copy,
   Check,
@@ -32,6 +25,7 @@ import {
   ScreenShare,
   ScreenShareOff,
   PhoneOff,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -40,51 +34,13 @@ import { type MockMessage, extractContextSummary } from "@/lib/mock-ai-data";
 
 /**
  * ─────────────────────────────────────────────────────────────
- *  MockRoomAI — Phòng chất vấn với Giám khảo AI
+ *  MockRoomAI — Phòng chat với AI (Giám khảo AI)
  *
- *  AI vào vai MỘT GIÁM KHẢO trong hội đồng bảo vệ: chủ động đặt câu hỏi,
- *  truy xét và phản biện về CHÍNH đồ án của sinh viên ( bám vào tài liệu
- *  được chọn làm ngữ cảnh), như một buổi bảo vệ thật. Hình thức trả lời
- *  vẫn là chat tự do (markdown, như ChatGPT / Gemini) — KHÔNG rubric,
- *  KHÔNG tiêu chí CLO, KHÔNG điểm số, KHÔNG JSON hay form cố định.
- *
- *  UI: giữ khung phòng (video grid, toolbar, sidebar chat) nhưng loại bỏ
- *  các yếu tố "hội đồng/hình thức chấm điểm" (nhiều persona giám khảo,
- *  phủ CLO, thẻ câu hỏi cố định, gợi ý soạn sẵn, báo cáo rubric mock).
+ *  AI vào vai Giám khảo AI: chủ động đặt câu hỏi, truy vấn và phản biện
+ *  về đồ án của sinh viên (bám vào tài liệu được chọn làm ngữ cảnh).
+ *  Hình thức trả lời là chat tự do (markdown, như ChatGPT / Gemini).
  * ─────────────────────────────────────────────────────────────
  */
-
-type Phase = "presentation" | "defense" | "feedback";
-
-const PHASES: { key: Phase; label: string; minutes: number; desc: string }[] = [
-  { key: "presentation", label: "Thuyết trình", minutes: 15, desc: "Trình bày đồ án của bạn" },
-  { key: "defense", label: "Chất vấn", minutes: 10, desc: "Hội đồng AI sẽ hỏi bạn" },
-  { key: "feedback", label: "Nhận xét", minutes: 5, desc: "Nhận đánh giá chi tiết" },
-];
-
-function formatTime(sec: number) {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-}
-
-function fmtElapsed(s: number) {
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return h > 0 ? `${pad(h)}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
-}
-
-function fmtPhase(s: number) {
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(m)}:${pad(sec)}`;
-}
-
-// Participants type (giống mock-room)
-type Participant = { user_id: number; name: string; role: string };
 
 // Tài liệu đã upload của student (từ /api/documents/)
 type StudentDoc = {
@@ -109,11 +65,6 @@ function getToken(): string | null {
 export default function MockRoomAI() {
   const router = useRouter();
   // ── State ──────────────────────────────────────────────
-  const [phase, setPhase] = useState<Phase>("presentation");
-  const [timeLeft, setTimeLeft] = useState(PHASES[0].minutes * 60);
-  const [isRunning, setIsRunning] = useState(false);
-  const [phaseIdx, setPhaseIdx] = useState(0);
-
   // Workflow steps — "upload" (tuỳ chọn) → "room" (chất vấn với Giám khảo AI)
   const [step, setStep] = useState<"upload" | "room">("upload");
   const [projectContext, setProjectContext] = useState("");
@@ -127,6 +78,12 @@ export default function MockRoomAI() {
   const [contextLoading, setContextLoading] = useState(false);
   const [contextError, setContextError] = useState("");
 
+  // Lịch sử chat đã lưu trên server — khôi phục khi vào lại phòng
+  const [savedHistory, setSavedHistory] = useState<{
+    messages: MockMessage[];
+    document_id: number | null;
+  } | null>(null);
+
   // Chat state
   const [messages, setMessages] = useState<MockMessage[]>([]);
   const [input, setInput] = useState("");
@@ -137,74 +94,24 @@ export default function MockRoomAI() {
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  // Room controls (giống mock-room)
-  const [sharing, setSharing] = useState(false);
-  const [handRaised, setHandRaised] = useState(false);
+  // Room controls
   const [showSettings, setShowSettings] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState<"chat" | "people">("chat");
-  const [expandedTile, setExpandedTile] = useState<boolean>(false);
-
-  // Participants (giống mock-room)
-  const [participants, setParticipants] = useState<Participant[]>([]);
-
-  // Elapsed time (giống mock-room)
-  const [elapsed, setElapsed] = useState(0);
-  const joinedAtRef = useRef<number>(Date.now());
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const phaseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recognitionRef = useRef<any>(null);
   const isIntentionalStopRef = useRef(false);
-  // Context mới nhất cho các callback (STT/timer) — tránh closure cũ
+  // Timer debounce lưu lịch sử chat lên server
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Context mới nhất cho callback STT — tránh closure cũ
   const stateRef = useRef<{ messages: MockMessage[]; context: string }>({
     messages: [],
     context: "",
   });
   stateRef.current = { messages, context: projectContext };
-
-  // ── Timer ──────────────────────────────────────────────
-  useEffect(() => {
-    if (!isRunning || timeLeft <= 0) return;
-    phaseTimerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          const nextIdx = phaseIdx + 1;
-          if (nextIdx < PHASES.length) {
-            setPhaseIdx(nextIdx);
-            setPhase(PHASES[nextIdx].key);
-            setTimeLeft(PHASES[nextIdx].minutes * 60);
-          } else {
-            setIsRunning(false);
-            // Hết thời gian → Giám khảo AI chốt lại buổi chất vấn (không rubric)
-            void askMentorRef.current(
-              "Thời gian buổi bảo vệ đã kết thúc. Với vai giám khảo, hãy chốt lại buổi chất vấn hôm nay: " +
-                "những vấn đề em đã trả lời tốt, những điểm em còn trả lời chưa thuyết phục " +
-                "và gợi ý em cần chuẩn bị thêm gì. Viết tự nhiên như nhận xét của giám khảo, KHÔNG dùng " +
-                "điểm số hay rubric."
-            );
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => {
-      if (phaseTimerRef.current) clearInterval(phaseTimerRef.current);
-    };
-  }, [isRunning, timeLeft, phaseIdx]);
-
-  // ── Elapsed time ───────────────────────────────────────
-  useEffect(() => {
-    joinedAtRef.current = Date.now();
-    const t = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - joinedAtRef.current) / 1000));
-    }, 1000);
-    return () => clearInterval(t);
-  }, []);
 
   // ── Auto-scroll ────────────────────────────────────────
   const scrollToBottom = useCallback(() => {
@@ -245,6 +152,80 @@ export default function MockRoomAI() {
   useEffect(() => {
     fetchStudentDocs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Tải lịch sử chat đã lưu trên server (khi mở trang) ──
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    fetch("/api/mock-qa/history", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        const restored: MockMessage[] = (data.messages ?? []).map(
+          (m: { role: string; content: string; time?: string }, i: number) => ({
+            id: Date.now() + i,
+            role: m.role === "user" ? ("user" as const) : ("mentor" as const),
+            content: m.content,
+            time: m.time || "",
+          })
+        );
+        if (restored.length > 0) {
+          setSavedHistory({
+            messages: restored,
+            document_id: data.document_id ?? null,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // ── Tự lưu lịch sử chat lên server (debounce 800ms sau mỗi tin) ──
+  useEffect(() => {
+    if (step !== "room" || messages.length === 0) return;
+    const token = getToken();
+    if (!token) return;
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      fetch("/api/mock-qa/history", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: messages.map((m) => ({
+            role: m.role,
+            content: m.content,
+            time: m.time,
+          })),
+          document_id: projectContext ? selectedDocId : null,
+        }),
+      }).catch(() => {}); // lưu thất bại không chặn chat — thử lại ở lần tin sau
+    }, 800);
+
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [messages, step, projectContext, selectedDocId]);
+
+  // ── Bắt đầu phiên mới — xoá lịch sử chat đã lưu ────────
+  const clearHistory = useCallback(async () => {
+    const token = getToken();
+    if (token) {
+      try {
+        await fetch("/api/mock-qa/history", {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch {}
+    }
+    setSavedHistory(null);
+    setMessages([]);
+    stateRef.current = { messages: [], context: "" };
   }, []);
 
   // ── Lấy nội dung text đã trích xuất của tài liệu được chọn ──
@@ -301,6 +282,30 @@ export default function MockRoomAI() {
 
   // ── Vào phòng chat (tài liệu là TUỲ CHỌN, không bắt buộc) ──
   const enterRoom = useCallback(async (useDoc: boolean) => {
+    // ── Khôi phục lịch sử chat đã lưu: tiếp tục phiên trước ──
+    if (savedHistory && savedHistory.messages.length > 0) {
+      let context = "";
+      const histDocId = savedHistory.document_id;
+      if (histDocId) {
+        setContextLoading(true);
+        setContextError("");
+        try {
+          context = await loadDocContext(histDocId);
+          setSelectedDocId(histDocId);
+        } catch {
+          context = ""; // tài liệu cũ có thể đã bị xoá — vẫn khôi phục chat
+        } finally {
+          setContextLoading(false);
+        }
+      }
+      setProjectContext(context);
+      setStep("room");
+      setMessages(savedHistory.messages);
+      // Đồng bộ stateRef NGAY để askMentor đọc đúng history vừa khôi phục
+      stateRef.current = { messages: savedHistory.messages, context };
+      return;
+    }
+
     let context = "";
     if (useDoc && selectedDocId) {
       setContextLoading(true);
@@ -322,10 +327,6 @@ export default function MockRoomAI() {
         "đồ án"
       : null;
 
-    setParticipants([
-      { user_id: 1, name: "Bạn (Sinh viên)", role: "student" },
-      { user_id: 100, name: "Giám khảo AI", role: "mentor" },
-    ]);
     setStep("room");
 
     const intro = context
@@ -351,7 +352,7 @@ export default function MockRoomAI() {
         : "(Buổi bảo vệ bắt đầu, chưa có tài liệu đính kèm. Hãy mở đầu với đúng vai giám khảo: yêu cầu sinh viên giới thiệu đồ án trong 2 phút, rồi đặt ngay câu hỏi chất vấn đầu tiên.)",
       { hidden: true }
     );
-  }, [selectedDocId, studentDocs, uploadedFile, loadDocContext]);
+  }, [selectedDocId, studentDocs, uploadedFile, loadDocContext, savedHistory]);
 
   // ── Gọi Mentor AI (backend /api/mock-qa/chat) ──────────
   // Nhận thêm một lượt của sinh viên → gửi toàn bộ history + context tài liệu
@@ -453,12 +454,13 @@ export default function MockRoomAI() {
       content: trimmed,
       time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
     };
-    // Cập nhật stateRef ngay để askMentor đọc được history đầy đủ
-    setMessages((prev) => {
-      const next = [...prev, userMsg];
-      stateRef.current = { ...stateRef.current, messages: next };
-      return next;
-    });
+    // Cập nhật stateRef NGAY (đồng bộ) trước khi gọi askMentor
+    // vì setMessages updater chạy lazily khi React render, không phải ngay
+    stateRef.current = {
+      ...stateRef.current,
+      messages: [...stateRef.current.messages, userMsg],
+    };
+    setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsTyping(true);
     void askMentor();
@@ -475,24 +477,6 @@ export default function MockRoomAI() {
     navigator.clipboard.writeText(content);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  // ── Chuyển phase ───────────────────────────────────────
-  const goToPhase = (target: Phase) => {
-    const idx = PHASES.findIndex((p) => p.key === target);
-    setPhase(target);
-    setPhaseIdx(idx);
-    setTimeLeft(PHASES[idx].minutes * 60);
-    setIsRunning(false);
-  };
-
-  // ── Reset ──────────────────────────────────────────────
-  const handleReset = () => {
-    setPhase("presentation");
-    setPhaseIdx(0);
-    setTimeLeft(PHASES[0].minutes * 60);
-    setIsRunning(false);
-    setMessages([]);
   };
 
   // ── Kết thúc buổi Mock AI ───────────────────────────────
@@ -616,11 +600,11 @@ export default function MockRoomAI() {
               <Upload className="w-10 h-10 text-white" />
             </div>
             <h2 className="text-2xl font-serif font-black mb-3">
-              Vào phòng chất vấn — Giám khảo AI
+              Vào phòng chat với Giám khảo AI
             </h2>
             <p className="text-muted-foreground mb-6">
-              Giám khảo AI vào vai thành viên hội đồng, truy vấn và phản biện về đồ án của bạn như một buổi bảo vệ thật — không chấm điểm, không form cố định.
-              Bạn có thể chọn tài liệu đồ án để giám khảo bám sát nội dung (khuyên dùng), hoặc vào phòng chất vấn ngay.
+              AI vào vai Giám khảo, truy vấn và phản biện về đồ án của bạn như một buổi bảo vệ thật — không chấm điểm, không form cố định.
+              Bạn có thể chọn tài liệu đồ án để AI bám sát nội dung (khuyên dùng), hoặc vào phòng chat ngay.
             </p>
 
             {/* Danh sách tài liệu student đã upload */}
@@ -730,6 +714,36 @@ export default function MockRoomAI() {
               </div>
             )}
 
+            {/* Lịch sử chat đã lưu — tiếp tục phiên trước */}
+            {savedHistory && savedHistory.messages.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6 p-4 bg-teal-500/10 border border-teal-500/30 rounded-xl text-left"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <FileText className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-teal-300">
+                        Có {savedHistory.messages.length} tin nhắn từ phiên trước
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Vào phòng sẽ tiếp tục đúng đoạn chat cũ — tài liệu được lưu kèm.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={clearHistory}
+                    className="text-xs text-gray-400 hover:text-red-400 underline shrink-0 transition-colors"
+                    title="Xoá lịch sử và bắt đầu phiên chat mới"
+                  >
+                    Phiên mới
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
             <div className="flex flex-col gap-3">
               <Button
                 onClick={() => enterRoom(true)}
@@ -764,349 +778,27 @@ export default function MockRoomAI() {
       {/* ── Step 2: Phòng chat với Mentor AI ── */}
       {step === "room" && (
         <>
-          {/* Sub-Header (giống mock-room) */}
+          {/* Header phòng chat + nút Thoát */}
           <div className="flex items-center justify-between px-6 py-3 border-b border-gray-800/60 bg-[#0f0f0f]">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)] bg-green-500`}></span>
-                <span className="text-xs font-bold tracking-wider text-gray-300">LIVE</span>
-              </div>
-              <div className="flex flex-col">
-                <h2 className="text-sm font-semibold text-gray-100">Phòng bảo vệ đồ án — AI Mock Defense</h2>
-                <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5">
-                  <span className="flex items-center gap-1" title="Thời gian đã tham gia phòng">
-                    <span className="inline-block w-3 h-3 rounded-full border border-gray-500 flex items-center justify-center text-[8px]">⏱</span>
-                    {fmtElapsed(elapsed)}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Users className="w-3 h-3" />
-                    Chờ người tham gia...
-                  </span>
-                </div>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.7)]"></span>
+              <h2 className="text-sm font-semibold text-gray-100">Phòng chat với Giám khảo AI</h2>
             </div>
-
-            {/* Phase countdown + controls (giống mock-room) */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 bg-[#1A1A1A] px-3 py-1.5 rounded-full border border-gray-800">
-                <Users className="w-4 h-4 text-teal-400" />
-                <span className="text-xs font-medium text-gray-300">{Math.max(participants.length, 1)} người trong phòng</span>
-              </div>
-
-              {/* Role badge */}
-              <span
-                className={`text-[11px] font-bold px-2.5 py-1 rounded-full border bg-teal-900/40 text-teal-300 border-teal-700/50`}
-                title="Vai trò của bạn trong phòng"
-              >
-                🎓 Sinh viên
-              </span>
-
-              {/* Phase indicator */}
-              <div className="flex items-center gap-2 bg-[#1A1A1A] px-3 py-1.5 rounded-full border border-gray-800">
-                <Clock className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-semibold text-amber-300">{PHASES[phaseIdx].label}</span>
-                <span className="text-sm font-bold text-white tabular-nums">{fmtPhase(timeLeft)}</span>
-              </div>
-
-              {/* Phase controls */}
-              <div className="flex items-center gap-1">
-                {isRunning ? (
-                  <button onClick={() => setIsRunning(false)} className="w-8 h-8 rounded-full bg-amber-500/20 hover:bg-amber-500/30 flex items-center justify-center text-amber-400 transition-colors" title="Tạm dừng">
-                    <Pause className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <button onClick={() => setIsRunning(true)} className="w-8 h-8 rounded-full bg-green-500/20 hover:bg-green-500/30 flex items-center justify-center text-green-400 transition-colors" title="Bắt đầu đếm ngược">
-                    <Play className="w-4 h-4" />
-                  </button>
-                )}
-                <button onClick={handleReset} className="w-8 h-8 rounded-full bg-[#202020] hover:bg-[#2A2A2A] flex items-center justify-center text-gray-300 transition-colors" title="Reset về giai đoạn 1">
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-              </div>
-
-              <button className="p-2 rounded-full hover:bg-gray-800 text-gray-400 transition-colors">
-                <Settings className="w-5 h-5" />
-              </button>
-            </div>
+            <button
+              onClick={() => setShowLeaveConfirm(true)}
+              className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-bold transition-colors"
+              title="Thoát khỏi phòng chat"
+            >
+              <PhoneOff className="w-3.5 h-3.5" />
+              Thoát
+            </button>
           </div>
 
-          {/* Main Workspace */}
+          {/* Main Workspace — chat thuần, không meeting UI */}
           <div className="flex flex-1 overflow-hidden relative h-full">
-            {/* Left Column (Video Grid + Captions + Bottom Toolbar) */}
-            <div className="flex-1 flex flex-col p-4 relative h-full">
-              {/* Phase stepper (giống mock-room) */}
-              <div className="flex items-center gap-2 mb-4">
-                {PHASES.map((p, i) => {
-                  const active = i === phaseIdx;
-                  const done = i < phaseIdx;
-                  return (
-                    <div key={p.key} className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setPhaseIdx(i);
-                          setTimeLeft(PHASES[i].minutes * 60);
-                          setIsRunning(false);
-                          setPhase(p.key);
-                        }}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors ${
-                          active
-                            ? "bg-amber-500/20 border-amber-500 text-amber-300"
-                            : done
-                              ? "bg-teal-900/30 border-teal-800 text-teal-400"
-                              : "bg-[#1A1A1A] border-gray-800 text-gray-400 hover:bg-[#202020]"
-                        }`}
-                        title={`Chuyển sang giai đoạn: ${p.label} (${p.minutes} phút)`}
-                      >
-                        <span
-                          className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${
-                            done ? "bg-teal-500 text-white" : active ? "bg-amber-500 text-black" : "bg-gray-700 text-gray-300"
-                          }`}
-                        >
-                          {done ? "✓" : i + 1}
-                        </span>
-                        {p.label}
-                      </button>
-                      {i < PHASES.length - 1 && <span className="text-gray-600">→</span>}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Video Grid — render động theo participants */}
-              <div className="flex-1 grid grid-cols-2 gap-4 pb-24 relative">
-                {participants.length === 0 ? (
-                  // Fallback: 2 thẻ mặc định (giống mock-room)
-                  <>
-                    {/* Card 1: Local (bạn) — mic / screen share */}
-                    <div className="bg-[#121212] rounded-2xl border border-teal-900/40 relative overflow-hidden flex flex-col items-center justify-center group">
-                      <div className="w-32 h-32 rounded-full bg-gradient-to-br from-teal-400 to-blue-600 flex items-center justify-center relative shadow-[0_0_50px_rgba(45,212,191,0.2)]">
-                        <span className="text-5xl text-white opacity-90 drop-shadow-lg">🎓</span>
-                      </div>
-                      <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50">
-                        YOU
-                      </div>
-                      <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/5">
-                        <Mic className={`w-3.5 h-3.5 ${isRecording ? "text-red-400 animate-pulse" : "text-gray-500"}`} />
-                        <span className="text-xs text-gray-300 font-medium">
-                          {isRecording ? "Đang nghe..." : "Bạn"}
-                        </span>
-                      </div>
-                    </div>
-                    {/* Card 2: Remote peer (đối phương) */}
-                    <div className="bg-[#121212] rounded-2xl border border-purple-900/30 relative overflow-hidden flex flex-col items-center justify-center group">
-                      <div
-                        className="w-32 h-32 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center relative shadow-[0_0_50px_rgba(168,85,247,0.15)]"
-                      >
-                        <Bot className="w-10 h-10 text-white" />
-                      </div>
-                      <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50">
-                        PEER
-                      </div>
-                      <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/5">
-                        <Volume2 className="w-3.5 h-3.5 text-purple-400" />
-                        <span className="text-xs text-gray-300 font-medium">
-                          {isSpeaking ? "Đang trả lời..." : "Chờ đối phương..."}
-                        </span>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  // Có presence → render 1 ô cho mỗi người
-                  participants.map((p) => {
-                    const isMe = p.user_id === 1;
-                    const displayName = p.name;
-                    const roleLabel = p.role === "mentor" ? "Giám khảo" : "Sinh viên";
-                    const isMentor = p.role === "mentor";
-                    const isExpanded = expandedTile === (p.user_id === 1);
-                    return (
-                      <div
-                        key={p.user_id}
-                        onClick={() => setExpandedTile(p.user_id === 1)}
-                        className={`bg-[#121212] rounded-2xl border relative overflow-hidden flex flex-col items-center justify-center group ${
-                          isMentor ? "border-purple-900/30" : "border-teal-900/40"
-                        } ${p.user_id === 1 ? "cursor-pointer hover:ring-2 hover:ring-teal-500/50 transition-all" : ""} ${
-                          isExpanded ? "hidden" : ""
-                        }`}
-                      >
-                        {/* Avatar placeholder */}
-                        <div className={`w-32 h-32 rounded-full flex items-center justify-center relative shadow-lg ${
-                          isMentor
-                            ? "bg-gradient-to-br from-purple-500 to-blue-500 shadow-[0_0_50px_rgba(168,85,247,0.15)]"
-                            : "bg-gradient-to-br from-teal-400 to-blue-600 shadow-[0_0_50px_rgba(45,212,191,0.2)]"
-                        }`}>
-                          {isMe ? (
-                            <span className="text-5xl text-white opacity-90 drop-shadow-lg">🎓</span>
-                          ) : (
-                            <Bot className="w-10 h-10 text-white" />
-                          )}
-                        </div>
-                        <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50">
-                          {isMe ? "YOU" : "PEER"}
-                        </div>
-                        <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/5">
-                          <Mic className={`w-3.5 h-3.5 ${isMe ? (isRecording ? "text-red-400 animate-pulse" : "text-gray-500") : "text-purple-400"}`} />
-                          <span className="text-xs text-gray-300 font-medium">
-                            {isMe
-                              ? (isRecording ? "Đang nghe..." : "Bạn")
-                              : `${displayName} (${roleLabel})`}
-                          </span>
-                        </div>
-                        {/* Maximize button */}
-                        <div className="absolute top-4 left-4 bg-black/50 hover:bg-black/70 text-white/80 hover:text-white p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Maximize2 className="w-4 h-4" />
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-
-                {/* Overlay phóng to */}
-                {expandedTile && (
-                  <div
-                    className="col-span-2 row-span-2 bg-[#0A0A0A] rounded-2xl border border-teal-500/30 relative overflow-hidden flex flex-col items-center justify-center"
-                    onClick={() => setExpandedTile(false)}
-                  >
-                    <div className="text-center">
-                      <Bot className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                      <p className="text-muted-foreground">Giám khảo AI</p>
-                    </div>
-                    <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50">
-                      GIÁM KHẢO AI
-                    </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setExpandedTile(false); }}
-                      className="absolute top-4 left-4 bg-black/60 hover:bg-black/80 text-white p-2 rounded-lg transition-colors"
-                      title="Thu nhỏ"
-                    >
-                      <Minimize2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Live Captions — nội dung Mentor AI nói gần nhất */}
-              <div className="absolute bottom-4 left-0 right-0 px-4">
-                <div className="bg-[#0f1513] border border-teal-900/50 rounded-xl p-4 shadow-xl backdrop-blur-md">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="bg-teal-900/60 p-1 rounded text-teal-400">
-                      <MessageSquare className="w-3 h-3" />
-                    </div>
-                    <span className="text-[10px] font-bold text-teal-500 tracking-wider uppercase">PHỤ ĐỀ TRỰC TIẾP — GIÁM KHẢO</span>
-                  </div>
-                  <p className="text-gray-200 text-sm font-medium leading-relaxed line-clamp-3">
-                    {isTyping
-                      ? "🤖 Giám khảo đang đặt câu hỏi..."
-                      : [...messages].reverse().find((m) => m.role === "mentor")?.content?.replace(/\s+/g, " ").slice(0, 280) ||
-                        "Phòng họp đã sẵn sàng. Giám khảo sẽ bắt đầu chất vấn về đồ án của bạn."}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Toolbar (giống mock-room) */}
-            <div className="absolute bottom-0 left-0 right-0 h-20 bg-[#0A0A0A] border-t border-gray-800/40 flex items-center justify-between px-6 z-20">
-              <div className="w-32"></div> {/* Spacer */}
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    if (isRecording) stopSTT();
-                    else startSTT();
-                  }}
-                  className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
-                    isRecording
-                      ? "bg-teal-500/20 border border-teal-500 text-teal-400 animate-pulse"
-                      : "bg-[#202020] hover:bg-[#2A2A2A] text-gray-300"
-                  }`}
-                  title={isRecording ? "Tắt mic & nhận dạng giọng nói" : "Bật mic & nhận dạng giọng nói (STT)"}
-                >
-                  {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                </button>
-                <button
-                  onClick={() => setSharing(!sharing)}
-                  className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
-                    sharing
-                      ? "bg-blue-500/20 border border-blue-500 text-blue-400"
-                      : "bg-[#202020] hover:bg-[#2A2A2A] text-gray-300"
-                  }`}
-                  title={sharing ? "Dừng chia sẻ" : "Chia sẻ màn hình"}
-                >
-                  {sharing ? <ScreenShareOff className="w-5 h-5" /> : <ScreenShare className="w-5 h-5" />}
-                </button>
-                <button
-                  onClick={() => setHandRaised(!handRaised)}
-                  className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
-                    handRaised
-                      ? "bg-amber-500/20 border border-amber-500 text-amber-400"
-                      : "bg-[#202020] hover:bg-[#2A2A2A] text-gray-300"
-                  }`}
-                  title="Báo hỏi"
-                >
-                  <Hand className="w-5 h-5" />
-                </button>
-                <button className="w-11 h-11 rounded-full bg-[#202020] hover:bg-[#2A2A2A] flex items-center justify-center text-gray-300 transition-colors">
-                  <MoreHorizontal className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => setActiveTab("chat")}
-                  className="w-11 h-11 rounded-xl bg-teal-900/30 border border-teal-800/50 hover:bg-teal-900/50 flex items-center justify-center text-teal-400 transition-colors ml-2"
-                  title="Mở trò chuyện"
-                >
-                  <MessageSquare className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 w-32">
-                <Button
-                  onClick={handleEndSession}
-                  disabled={isRunning}
-                  className="bg-gradient-to-r from-primary to-secondary hover:from-primary/80 hover:to-secondary/80 text-white rounded-full px-6 h-10 font-semibold shadow-lg shadow-teal-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Kết thúc buổi
-                </Button>
-                <Button
-                  onClick={() => setShowLeaveConfirm(true)}
-                  className="bg-[#EF4444] hover:bg-[#DC2626] text-white rounded-full px-6 h-10 font-semibold shadow-lg shadow-red-900/20"
-                >
-                  <PhoneOff className="w-4 h-4 mr-2" />
-                  Rời phòng
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Sidebar (Chat + Q&A) — giống mock-room */}
-          <div className="w-[380px] bg-[#0A0A0A] border-l border-gray-800/60 flex flex-col h-full">
-            {/* Tabs (giống mock-room) */}
-            <div className="flex border-b border-gray-800/60">
-              <button
-                onClick={() => setActiveTab("chat")}
-                className={`flex-1 py-4 text-xs font-bold flex items-center justify-center gap-2 transition-colors ${
-                  activeTab === "chat"
-                    ? "text-teal-400 border-b-2 border-teal-500"
-                    : "text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                <MessageSquare className="w-4 h-4" />
-                TRÒ CHUYỆN
-              </button>
-              <button
-                onClick={() => setActiveTab("people")}
-                className={`flex-1 py-4 text-xs font-bold flex items-center justify-center gap-2 transition-colors ${
-                  activeTab === "people"
-                    ? "text-teal-400 border-b-2 border-teal-500"
-                    : "text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                MỌI NGƯỜI ({participants.length})
-              </button>
-            </div>
-
-            {/* Tab content */}
-            {activeTab === "chat" && (
-              <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
+          {/* Right Sidebar (Chat) */}
+          <div className="flex-1 bg-[#0A0A0A] border-l border-gray-800/60 flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
                 <div className="flex items-center gap-4">
                   <div className="h-px bg-gray-800 flex-1"></div>
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Phiên chất vấn — Giám khảo AI</span>
@@ -1144,7 +836,7 @@ export default function MockRoomAI() {
                     return (
                       <div key={msg.id || index} className={`flex gap-3 ${isMine ? "flex-row-reverse" : ""}`}>
                         <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-sm mt-1 border ${avatarColor}`}>
-                          {isMine ? "Bạn" : <Bot className="w-4 h-4 text-white" />}
+                          {isMine ? "Bạn" : "Giám khảo AI"}
                         </div>
                         <div className={`flex-1 ${isMine ? "text-right" : ""}`}>
                           <div className={`flex items-baseline gap-2 mb-1 ${isMine ? "flex-row-reverse" : ""}`}>
@@ -1181,9 +873,9 @@ export default function MockRoomAI() {
                       className="flex gap-3"
                     >
                       <div
-                        className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center"
+                        className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold"
                       >
-                        <Bot className="w-4 h-4 text-white" />
+                        AI
                       </div>
                       <div className="bg-gray-800/60 border border-gray-700/50 p-3 rounded-2xl">
                         <div className="flex items-center gap-1">
@@ -1198,45 +890,9 @@ export default function MockRoomAI() {
 
                 <div ref={messagesEndRef} />
               </div>
-            )}
 
-            {/* People tab (giống mock-room) */}
-            {activeTab === "people" && (
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                  Người có mặt trong phòng ({participants.length})
-                </div>
-                {participants.length === 0 && (
-                  <div className="text-sm text-gray-500 text-center py-8">
-                    Đang chờ mọi người tham gia...
-                  </div>
-                )}
-                {participants.map((p) => {
-                  const isMentor = p.role === "mentor";
-                  const initials = p.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
-                  return (
-                    <div key={p.user_id} className="flex items-center gap-3 bg-gray-900/50 border border-gray-800/50 rounded-xl p-3">
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold border ${
-                        isMentor ? "bg-purple-900/40 text-purple-300 border-purple-700/50" : "bg-teal-900/40 text-teal-300 border-teal-700/50"
-                      }`}>
-                        {isMentor ? <Bot className="w-4 h-4 text-white" /> : initials}
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-sm font-semibold text-gray-200">{p.name}</div>
-                        <div className={`text-xs ${isMentor ? "text-purple-400" : "text-teal-400"}`}>
-                          {isMentor ? "Giám khảo" : "Sinh viên"}
-                        </div>
-                      </div>
-                      <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Chat Input (giống mock-room) */}
-            {activeTab === "chat" && (
-              <div className="p-4 border-t border-gray-800/60">
+            {/* Chat Input */}
+            <div className="p-4 border-t border-gray-800/60">
                 {isRecording && (
                   <div className="flex items-center gap-2 mb-2 text-xs text-red-400">
                     <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
@@ -1248,7 +904,7 @@ export default function MockRoomAI() {
                     ref={inputRef}
                     type="text"
                     placeholder="Gửi câu trả lời hoặc tin nhắn..."
-                    className="w-full bg-[#1A1A1A] border border-gray-700/50 rounded-full py-3 pl-4 pr-12 text-sm text-gray-200 focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 transition-all placeholder:text-gray-600"
+                    className="w-full bg-[#1A1A1A] border border-gray-700/50 rounded-full py-3 pl-4 pr-12 text-sm text-gray-200 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:text-gray-600"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -1261,7 +917,7 @@ export default function MockRoomAI() {
                   <button
                     onClick={sendMessage}
                     disabled={!input.trim() || isTyping}
-                    className="absolute right-1.5 top-1.5 w-9 h-9 rounded-full bg-teal-600 hover:bg-teal-500 flex items-center justify-center text-white transition-colors"
+                    className="absolute right-1.5 top-1.5 w-9 h-9 rounded-full bg-purple-600 hover:bg-purple-500 flex items-center justify-center text-white transition-colors"
                   >
                     {isTyping ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -1271,7 +927,7 @@ export default function MockRoomAI() {
                   </button>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </>
       )}
@@ -1299,17 +955,6 @@ export default function MockRoomAI() {
                   </Button>
                 </div>
                 <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Thời gian mỗi giai đoạn</label>
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      {PHASES.map((p, i) => (
-                        <div key={p.key} className="text-center">
-                          <div className="text-xs text-muted-foreground">{p.label}</div>
-                          <div className="text-lg font-bold">{p.minutes}m</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Bật STT</span>
                     <button
