@@ -158,12 +158,15 @@ async def _run_pipeline(
         # Read selected files into memory only for the indexer (Step 1 quota).
         files_for_indexer: list[tuple[str, str]] = []
         for ef in extraction.selected_files:
-            try:
-                text = ef.local_path.read_text(encoding="utf-8", errors="ignore")
-            except OSError as exc:
-                logger.warning("Cannot read %s: %s", ef.path, exc)
-                continue
-            files_for_indexer.append((ef.path, text))
+            if ef.content is not None:
+                files_for_indexer.append((ef.path, ef.content))
+            elif ef.local_path is not None:
+                try:
+                    text = ef.local_path.read_text(encoding="utf-8", errors="ignore")
+                    files_for_indexer.append((ef.path, text))
+                except OSError as exc:
+                    logger.warning("Cannot read %s: %s", ef.path, exc)
+                    continue
 
         snippets: list[EvidenceSnippet] = index_source_files(files_for_indexer)
         total_snippets = len(snippets)
