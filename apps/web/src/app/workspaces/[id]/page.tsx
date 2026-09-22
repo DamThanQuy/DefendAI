@@ -409,7 +409,10 @@ export default function WorkspaceDetailPage() {
       const r = await fetch(`/api/workspaces/${wsId}/deliverables-check`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!r.ok) throw new Error("Không thể tải kết quả kiểm tra file nộp");
+      if (!r.ok) {
+        const errJson = await r.json().catch(() => null);
+        throw new Error(errJson?.detail || "Không thể tải kết quả kiểm tra file nộp");
+      }
       const data: DeliverableCheck = await r.json();
       setDlvCheck(data);
     } catch (e: any) {
