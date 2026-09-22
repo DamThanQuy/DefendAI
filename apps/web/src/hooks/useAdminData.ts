@@ -182,8 +182,8 @@ export function useAdminAI() {
   const loadData = useCallback(async () => {
     try {
       const [pRes, fRes] = await Promise.all([
-        fetch("/api/admin/ai-providers", { headers: authHeaders() }),
-        fetch("/api/admin/feature-ai-config", { headers: authHeaders() }),
+        fetch(`/api/admin/ai-providers?_t=${Date.now()}`, { headers: authHeaders(), cache: "no-store" }),
+        fetch(`/api/admin/feature-ai-config?_t=${Date.now()}`, { headers: authHeaders(), cache: "no-store" }),
       ]);
       const pData = await pRes.json();
       const fData = await fRes.json();
@@ -403,6 +403,14 @@ export function useAdminAI() {
         return false;
       }
       setMsg({ type: "ok", text: `Đã lưu cấu hình cho "${FEATURE_CATALOG.find((f) => f.key === feature)?.label || feature}".` });
+      setFeatureConfig((prev) => ({
+        ...prev,
+        [feature]: { provider_name: targetProvider, model_id: targetModel },
+      }));
+      setFeatureDraft((prev) => ({
+        ...prev,
+        [feature]: { provider_name: targetProvider, model_id: targetModel },
+      }));
       await loadData();
       return true;
     } catch {

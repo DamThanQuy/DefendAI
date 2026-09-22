@@ -9,13 +9,17 @@ export async function GET(request: Request) {
   try {
     const auth = request.headers.get("authorization") || "";
     const res = await fetch(`${backendUrl()}/api/admin/feature-ai-config`, {
+      cache: "no-store",
       headers: {
         ...ngrokHeaders(),
         ...(auth ? { Authorization: auth } : {}),
       },
     });
     const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
+    return NextResponse.json(data, {
+      status: res.status,
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+    });
   } catch (e: any) {
     return NextResponse.json({ error: "Feature AI config proxy failed", message: e.message }, { status: 500 });
   }
