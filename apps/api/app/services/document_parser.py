@@ -283,6 +283,24 @@ def _extract_zip_sync(data: bytes) -> str:
         raise DocumentParserError("File ZIP bị lỗi hoặc không thể giải nén") from exc
 
 
+_IGNORE_ARCHIVE_DIRS = {
+    "node_modules", ".git", ".next", "dist", "build", "coverage",
+    "__pycache__", "venv", ".venv", ".pytest_cache", ".ruff_cache",
+    ".serena", "data", "uploads", ".idea", ".vscode", "target", "bin", "obj"
+}
+
+
+def _is_meaningful_zip_member(path: str, size: int = 0) -> bool:
+    """Filter out build artifacts, dependencies, large binary caches."""
+    parts = path.replace("\\", "/").split("/")
+    if any(part.lower() in _IGNORE_ARCHIVE_DIRS for part in parts[:-1]):
+        return False
+    # Skip individual files > 2MB (thường là minified bundle hoặc binary)
+    if size > 2 * 1024 * 1024:
+        return False
+    return True
+
+
 async def _extract_zip_streaming(storage_key: str) -> str:
     """Stream-extract text from a ZIP stored in MinIO without loading it all into RAM.
 
@@ -296,6 +314,7 @@ async def _extract_zip_streaming(storage_key: str) -> str:
         async for name, raw in iter_zip_members(
             bucket=settings.minio.bucket,
             key=storage_key,
+            safe_filter=_is_meaningful_zip_member,
         ):
             ext = name.split(".")[-1].lower() if "." in name else ""
             ext = f".{ext}"

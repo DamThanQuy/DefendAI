@@ -307,8 +307,11 @@ async def iter_zip_members(
 
     tmp_path: str | None = None
     try:
-        # Tạo temp file, download toàn bộ ZIP vào đó (không tốn RAM)
-        fd, tmp_path = _tempfile.mkstemp(suffix=".zip", prefix="minio_zip_")
+        # Tạo temp file trên disk thật (tránh RAM-disk /tmp bị giới hạn 1GB khi tải file 2-3GB)
+        spill_dir = "/app/.tmp" if _os.path.exists("/app") and _os.path.isdir("/app") else None
+        if spill_dir:
+            _os.makedirs(spill_dir, exist_ok=True)
+        fd, tmp_path = _tempfile.mkstemp(suffix=".zip", prefix="minio_zip_", dir=spill_dir)
         _os.close(fd)
         total_bytes = 0
         with open(tmp_path, "wb") as f:
