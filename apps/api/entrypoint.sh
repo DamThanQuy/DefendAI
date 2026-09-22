@@ -7,6 +7,9 @@ alembic upgrade heads
 echo "Seeding demo users..."
 python seed_users.py
 
+echo "Seeding rubrics..."
+python seed_rubrics.py
+
 echo "Starting uvicorn..."
 # Docker không dùng --reload: watchfiles có thể crash do giới hạn memory/inotify.
 # Bật DEV_RELOAD=true nếu thật sự cần hot reload khi phát triển local.
