@@ -1057,15 +1057,7 @@ export default function WorkspaceDetailPage() {
               )}
 
               {rightTab === "chat" && (
-                <WorkspaceChat
-                  workspaceId={wsId}
-                  documents={ws.files.map((f) => ({
-                    id: f.document_id,
-                    filename: f.filename,
-                    doc_type: f.doc_type,
-                    status: "completed",
-                  }))}
-                />
+                <WorkspaceChat workspaceId={wsId} />
               )}
 
               {rightTab === "history" && (

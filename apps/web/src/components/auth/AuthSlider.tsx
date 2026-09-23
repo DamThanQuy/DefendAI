@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { GoogleLogin } from "@react-oauth/google";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   GraduationCap,
   Sparkles,
@@ -16,6 +18,7 @@ import {
   CheckCircle2,
   FileSearch,
   MessagesSquare,
+  Search,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AuthField, AuthPasswordField } from "@/components/auth/AuthField";
@@ -24,8 +27,14 @@ import { AuthField, AuthPasswordField } from "@/components/auth/AuthField";
 function PromoArt() {
   return (
     <div className="relative mb-10 flex items-center justify-center">
-      <div className="relative flex h-40 w-40 items-center justify-center rounded-3xl bg-white/15 backdrop-blur-sm ring-1 ring-white/30 shadow-2xl">
-        <GraduationCap className="h-24 w-24 text-white/90" strokeWidth={1.4} />
+      <div className="relative flex h-40 w-40 items-center justify-center rounded-3xl bg-gradient-to-br from-primary/20 to-secondary/20 backdrop-blur-sm ring-1 ring-white/30 shadow-2xl overflow-hidden">
+        <Image
+          src="/avatar.jpg"
+          alt="GraduAI"
+          width={160}
+          height={160}
+          className="w-full h-full object-cover"
+        />
       </div>
       <motion.div
         animate={{ y: [0, -8, 0] }}
@@ -65,35 +74,41 @@ function LoginForm(props: {
   return (
     <>
       <div className="mb-8 flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-600 text-white shadow-lg shadow-violet-600/30">
-          <GraduationCap className="h-6 w-6" />
-        </span>
-        <span className="text-2xl font-extrabold tracking-tight text-zinc-900">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/30">
+          <Image
+            src="/avatar.jpg"
+            alt="GraduAI"
+            width={48}
+            height={48}
+            className="w-full h-full object-cover rounded-2xl"
+          />
+        </div>
+        <span className="text-2xl font-extrabold tracking-tight text-foreground">
           GraduAI
         </span>
       </div>
 
       <div className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
           Đăng nhập
         </p>
-        <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-zinc-900">
+        <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-foreground">
           Chào mừng trở lại
         </h1>
-        <p className="mt-2 text-sm text-zinc-500">
+        <p className="mt-2 text-sm text-muted-foreground">
           Đăng nhập để tiếp tục luyện tập bảo vệ đồ án của bạn.
         </p>
       </div>
 
       <form onSubmit={props.onSubmit} className="space-y-5">
         {props.error && (
-          <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600 ring-1 ring-red-200">
+          <div className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-500 border border-red-500/20">
             {props.error}
           </div>
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="email" className="text-zinc-700">Địa chỉ email</Label>
+          <Label htmlFor="email" className="text-foreground">Địa chỉ email</Label>
           <AuthField
             id="email"
             type="email"
@@ -107,10 +122,10 @@ function LoginForm(props: {
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password" className="text-zinc-700">Mật khẩu</Label>
+            <Label htmlFor="password" className="text-foreground">Mật khẩu</Label>
             <Link
               href="/forgot-password"
-              className="text-sm font-medium text-violet-600 hover:underline"
+              className="text-sm font-medium text-primary hover:underline"
             >
               Quên mật khẩu?
             </Link>
@@ -126,12 +141,12 @@ function LoginForm(props: {
         </div>
 
         <div className="flex items-center justify-between">
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-600">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
             <input
               type="checkbox"
               checked={props.remember}
               onChange={(e) => props.setRemember(e.target.checked)}
-              className="h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-violet-500"
+              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
             />
             Ghi nhớ đăng nhập
           </label>
@@ -140,7 +155,7 @@ function LoginForm(props: {
         <Button
           type="submit"
           disabled={props.loading}
-          className="h-12 w-full rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-base font-semibold text-white shadow-lg shadow-violet-600/30 transition-all hover:from-violet-500 hover:to-purple-500 hover:shadow-xl disabled:opacity-50"
+          className="h-12 w-full rounded-xl bg-gradient-to-r from-primary to-secondary text-base font-semibold text-white shadow-lg shadow-primary/30 transition-all hover:from-primary/90 hover:to-secondary/90 hover:shadow-xl disabled:opacity-50"
         >
           {props.loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
           Đăng nhập
@@ -148,10 +163,10 @@ function LoginForm(props: {
 
         <div className="relative py-2">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-zinc-200" />
+            <span className="w-full border-t border-border" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-white px-3 text-zinc-400">hoặc tiếp tục với</span>
+            <span className="bg-background px-3 text-muted-foreground">hoặc tiếp tục với</span>
           </div>
         </div>
 
@@ -166,12 +181,12 @@ function LoginForm(props: {
       </form>
 
       {/* Mobile-only switch (desktop uses the sliding panel) */}
-      <p className="mt-6 text-center text-sm text-zinc-500 lg:hidden">
+      <p className="mt-6 text-center text-sm text-muted-foreground lg:hidden">
         Chưa có tài khoản?{" "}
         <button
           type="button"
           onClick={props.onSwitch}
-          className="font-semibold text-violet-600 hover:underline"
+          className="font-semibold text-primary hover:underline"
         >
           Tạo tài khoản
         </button>
@@ -190,61 +205,67 @@ function RegisterForm(props: {
   return (
     <>
       <div className="mb-8 flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-600 text-white shadow-lg shadow-violet-600/30">
-          <GraduationCap className="h-6 w-6" />
-        </span>
-        <span className="text-2xl font-extrabold tracking-tight text-zinc-900">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/30">
+          <Image
+            src="/avatar.jpg"
+            alt="GraduAI"
+            width={48}
+            height={48}
+            className="w-full h-full object-cover rounded-2xl"
+          />
+        </div>
+        <span className="text-2xl font-extrabold tracking-tight text-foreground">
           GraduAI
         </span>
       </div>
 
       <div className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
           Bắt đầu ngay
         </p>
-        <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-zinc-900">
+        <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-foreground">
           Tạo tài khoản của bạn
         </h1>
-        <p className="mt-2 text-sm text-zinc-500">
+        <p className="mt-2 text-sm text-muted-foreground">
           Đăng ký để trải nghiệm luyện tập bảo vệ với hội đồng AI.
         </p>
       </div>
 
       <div className="space-y-5">
         {props.error && (
-          <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600 ring-1 ring-red-200">
+          <div className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-500 border border-red-500/20">
             {props.error}
           </div>
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="name" className="text-zinc-700">Họ và tên</Label>
+          <Label htmlFor="name" className="text-foreground">Họ và tên</Label>
           <AuthField id="name" type="text" icon={User} placeholder="Nguyễn Văn A" />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="email" className="text-zinc-700">Địa chỉ email</Label>
+          <Label htmlFor="email" className="text-foreground">Địa chỉ email</Label>
           <AuthField id="email" type="email" icon={Mail} placeholder="you@company.com" />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="password" className="text-zinc-700">Mật khẩu</Label>
+          <Label htmlFor="password" className="text-foreground">Mật khẩu</Label>
           <AuthPasswordField id="password" icon={Lock} placeholder="Nhập mật khẩu" />
         </div>
 
         <Button
           type="button"
-          className="h-12 w-full rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-base font-semibold text-white shadow-lg shadow-violet-600/30 transition-all hover:from-violet-500 hover:to-purple-500 hover:shadow-xl"
+          className="h-12 w-full rounded-xl bg-gradient-to-r from-primary to-secondary text-base font-semibold text-white shadow-lg shadow-primary/30 transition-all hover:from-primary/90 hover:to-secondary/90 hover:shadow-xl"
         >
           Tạo tài khoản
         </Button>
 
         <div className="relative py-2">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-zinc-200" />
+            <span className="w-full border-t border-border" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-white px-3 text-zinc-400">hoặc tiếp tục với</span>
+            <span className="bg-background px-3 text-muted-foreground">hoặc tiếp tục với</span>
           </div>
         </div>
 
@@ -259,12 +280,12 @@ function RegisterForm(props: {
       </div>
 
       {/* Mobile-only switch (desktop uses the sliding panel) */}
-      <p className="mt-6 text-center text-sm text-zinc-500 lg:hidden">
+      <p className="mt-6 text-center text-sm text-muted-foreground lg:hidden">
         Đã có tài khoản?{" "}
         <button
           type="button"
           onClick={props.onSwitch}
-          className="font-semibold text-violet-600 hover:underline"
+          className="font-semibold text-primary hover:underline"
         >
           Đăng nhập
         </button>
@@ -328,12 +349,15 @@ export function AuthSlider({
       return;
     }
     try {
+      console.log("Google login - credential received:", r.credential);
       const res = await fetch("/api/auth/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id_token: r.credential }),
       });
       const data = await res.json();
+      console.log("Google login - response status:", res.status);
+      console.log("Google login - response data:", data);
       if (!res.ok) {
         setError(data.detail || "Đăng nhập Google thất bại");
         return;
@@ -343,12 +367,14 @@ export function AuthSlider({
       localStorage.setItem("user", JSON.stringify(data.user));
       window.dispatchEvent(new Event("storage"));
       const roles: string[] = data.user?.roles ?? [];
+      console.log("Google login - user roles:", roles);
       if (roles.includes("mentor") || roles.includes("admin")) {
         router.push("/mentor/dashboard");
       } else {
         router.push("/documents");
       }
-    } catch {
+    } catch (error) {
+      console.error("Google login - error:", error);
       setError("Không thể kết nối server");
     }
   }
@@ -392,15 +418,15 @@ export function AuthSlider({
         />
       </div>
 
-      {/* Sliding purple panel — contained inside the box, desktop only */}
+      {/* Sliding panel — contained inside the box, desktop only */}
       <motion.div
         initial={false}
         animate={{ x: isRegister ? "0%" : "100%" }}
         transition={{ type: "spring", stiffness: 55, damping: 20 }}
-        className="absolute inset-y-0 left-0 z-20 hidden w-1/2 flex-col justify-center overflow-hidden bg-gradient-to-br from-violet-600 via-purple-600 to-emerald-500 px-10 py-10 lg:flex"
+        className="absolute inset-y-0 left-0 z-20 hidden w-1/2 flex-col justify-center overflow-hidden bg-gradient-to-br from-primary via-secondary to-accent px-10 py-10 lg:flex"
       >
         <div className="pointer-events-none absolute -left-10 -top-10 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-16 -right-10 h-72 w-72 rounded-full bg-emerald-300/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-16 -right-10 h-72 w-72 rounded-full bg-accent/20 blur-3xl" />
 
         <AnimatePresence mode="wait">
           <motion.div
@@ -427,7 +453,7 @@ export function AuthSlider({
                 <button
                   type="button"
                   onClick={() => setMode("login")}
-                  className="group mt-8 inline-flex items-center gap-2 rounded-xl border border-white/70 px-6 py-3 text-base font-semibold text-white transition-all hover:bg-white hover:text-purple-700"
+                  className="group mt-8 inline-flex items-center gap-2 rounded-xl border border-white/70 px-6 py-3 text-base font-semibold text-white transition-all hover:bg-white hover:text-primary"
                 >
                   Đăng nhập
                 </button>
@@ -446,7 +472,7 @@ export function AuthSlider({
                 <button
                   type="button"
                   onClick={() => setMode("register")}
-                  className="group mt-8 inline-flex items-center gap-2 rounded-xl border border-white/70 px-6 py-3 text-base font-semibold text-white transition-all hover:bg-white hover:text-purple-700"
+                  className="group mt-8 inline-flex items-center gap-2 rounded-xl border border-white/70 px-6 py-3 text-base font-semibold text-white transition-all hover:bg-white hover:text-primary"
                 >
                   Tạo tài khoản
                 </button>

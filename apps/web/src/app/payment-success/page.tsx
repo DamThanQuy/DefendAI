@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { setMembershipPlan } from "@/lib/mock-ai-data";
 
 function getPlanInfo(planId: string) {
   if (planId === "vip") return { name: "VIP", color: "amber", icon: "crown" };
@@ -34,6 +35,12 @@ export default function PaymentSuccessPage() {
 
   // Auto-redirect to dashboard after 10s
   useEffect(() => {
+    // Set cờ membership vào localStorage để các tính năng VIP đọc được
+    if (planId === "vip") {
+      try {
+        setMembershipPlan("vip");
+      } catch {}
+    }
     const t = setTimeout(() => {
       window.location.href = "/profile/billing";
     }, 10000);
@@ -160,6 +167,9 @@ export default function PaymentSuccessPage() {
                 "Phân tích tài liệu AI nâng cao",
                 "Báo cáo PDF chi tiết + biểu đồ",
                 "Hỗ trợ ưu tiên 24/7",
+                ...(planId === "vip"
+                  ? ["Phòng Mock AI trực tuyến 24/7", "Hội đồng AI 3 chuyên gia"]
+                  : []),
               ].map((b) => (
                 <li key={b} className="flex items-center gap-2 text-foreground">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />

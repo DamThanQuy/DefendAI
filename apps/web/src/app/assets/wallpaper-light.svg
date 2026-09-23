@@ -1,0 +1,18 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="wallpaperGradientLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f8fafc;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#e2e8f0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f8fafc;stop-opacity:1" />
+    </linearGradient>
+    <filter id="blurFilterLight">
+      <feGaussianBlur stdDeviation="100"/>
+    </filter>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#wallpaperGradientLight)"/>
+  <circle cx="300" cy="300" r="400" fill="#14B8A6" opacity="0.05" filter="url(#blurFilterLight)"/>
+  <circle cx="1600" cy="800" r="500" fill="#06B6D4" opacity="0.05" filter="url(#blurFilterLight)"/>
+  <circle cx="960" cy="540" r="300" fill="#14B8A6" opacity="0.03" filter="url(#blurFilterLight)"/>
+  <path d="M0 1080L960 540L1920 1080" stroke="#14B8A6" stroke-width="2" opacity="0.05"/>
+  <path d="M0 0L960 540L1920 0" stroke="#06B6D4" stroke-width="2" opacity="0.05"/>
+</svg>

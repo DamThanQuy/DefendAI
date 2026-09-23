@@ -48,6 +48,14 @@ class UserProfileUpdate(BaseModel):
     profile_data: dict = Field(default_factory=dict)
 
 
+class UpdateMeRequest(BaseModel):
+    full_name: Optional[str] = None
+    avatar: Optional[str] = None
+    wallpaper: Optional[str] = None
+    school: Optional[str] = None
+    about: Optional[str] = None
+
+
 class AuthResponse(BaseModel):
     success: bool
     token: str

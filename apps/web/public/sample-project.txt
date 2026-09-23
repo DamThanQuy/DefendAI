@@ -1,0 +1,26 @@
+ĐỒ ÁN: HỆ THỐNG QUẢN LÝ PHÒNG TRẬT AUTO BẰNG AI
+
+TÓM TẮT:
+Đồ án này xây dựng một hệ thống quản lý phòng trọ tự động sử dụng công nghệ FastAPI và PostgreSQL. Hệ thống hỗ trợ người dùng đăng ký, tìm kiếm phòng trọ, đặt lịch xem phòng, và đánh giá chất lượng dịch vụ.
+
+CÔNG NGHỆ SỬ DỤNG:
+- Backend: FastAPI, Python 3.10
+- Database: PostgreSQL với pgvector
+- Frontend: React.js, Tailwind CSS
+- Container: Docker, Docker Compose
+- Cache: Redis
+- API: RESTful API
+
+BÀI TOÁN GIẢI QUYẾT:
+- Quản lý phòng trọ: cho phép chủ trọ đăng tin, quản lý thông tin phòng trọ
+- Đặt lịch xem phòng: người dùng có thể đặt lịch để xem phòng trước
+- Đánh giá dịch vụ: người dùng đánh giá chất lượng dịch vụ của chủ trọ
+- Tìm kiếm thông minh: hỗ trợ tìm kiếm phòng trọ theo vị trí, giá cả
+
+KIẾN TRÚC HỆ THỐNG:
+- Microservices: tách thành các service độc lập (user-service, room-service, booking-service)
+- WebSocket: hỗ trợ real-time notification
+- Redis: cache dữ liệu phòng trọ phổ biến
+
+KẾT LUẬN:
+Hệ thống giúp tối ưu quá trình quản lý phòng trọ, giảm thiểu thời gian tìm kiếm, và nâng cao trải nghiệm người dùng.

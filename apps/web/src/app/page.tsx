@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import {
@@ -21,6 +22,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const STATS = [
   { value: "8.019+", label: "Câu hỏi phản biện", icon: FileText },
@@ -53,8 +55,8 @@ const STEPS = [
 const FEATURES = [
   {
     icon: Code2,
-    title: "Phân tích BR ↔ Code",
-    desc: "Đối chiếu Business Rules trong tài liệu với source code thực tế, phát hiện requirement chưa được cài đặt.",
+    title: "Phân tích code chuyên sâu",
+    desc: "Tự động review code, phát hiện bug, anti-pattern và đề xuất cải thiện theo chuẩn ngành.",
   },
   {
     icon: GitBranch,
@@ -76,6 +78,10 @@ export default function LandingPage() {
 
   return (
     <div className="flex flex-col min-h-screen relative overflow-hidden">
+      {/* Background wallpaper */}
+      <div className="absolute inset-0 bg-[url('/wallpaper.jpg')] bg-cover bg-center opacity-20" />
+      <div className="absolute inset-0 bg-gradient-to-br from-background/90 via-background/80 to-background" />
+
       {/* Background glows */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-primary/10 blur-[120px] rounded-full -z-10" />
       <div className="absolute top-[60%] right-0 w-[500px] h-[500px] bg-secondary/10 blur-[100px] rounded-full -z-10" />
@@ -323,10 +329,10 @@ export default function LandingPage() {
                 <div className="dark-card p-5">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="w-2 h-2 rounded-full bg-accent" />
-                    <p className="text-sm font-semibold text-accent">Đồng bộ BR ↔ Code</p>
+                    <p className="text-sm font-semibold text-accent">Code Review</p>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    BR-07 "chặn vượt 21 tín chỉ" — chưa tìm thấy validation trong code.
+                    Thiếu null-check tại analyzer.ts:12 — có thể gây crash runtime.
                   </p>
                 </div>
               </div>

@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import signal
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -17,11 +18,6 @@ from app.handlers import (  # noqa: F401
     handle_code_scan,
     handle_code_scan_module,
     handle_generate_questions,
-    handle_selective_extraction,
-    handle_analysis_pipeline,
-    handle_matching_pipeline,
-    handle_explanation_pipeline,
-    handle_workspace_questions,
 )
 from app.services.job_queue import worker_loop
 
@@ -66,11 +62,21 @@ async def _init_ai_config() -> None:
 
 
 async def main() -> None:
-    logger.info("DefendAI Worker starting...")
+    # Health server cho docker healthcheck (port 9091, trùng worker_multi)
     threading.Thread(target=_run_health_server, daemon=True).start()
     await _init_ai_config()
+    logger.info("DefendAI Worker starting...")
     await worker_loop()
 
 
+def _terminate(*_args) -> None:
+    raise SystemExit(0)
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    signal.signal(signal.SIGINT, _terminate)
+    signal.signal(signal.SIGTERM, _terminate)
+    try:
+        asyncio.run(main())
+    except SystemExit:
+        logger.info("Worker stopped.")
