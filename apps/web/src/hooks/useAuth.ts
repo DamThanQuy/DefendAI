@@ -13,6 +13,8 @@ export interface AuthUser {
   created_at?: string | null;
   roles: string[];
   profile_data?: Record<string, unknown>;
+  avatar?: string | null;
+  wallpaper?: string | null;
 }
 
 // Hiển thị sidebar TỨC THÌ từ localStorage cache (tránh flash trống menu sau
@@ -43,6 +45,9 @@ function readCachedUser(): AuthUser | null {
       about: u.about ?? null,
       created_at: u.created_at ?? null,
       roles: u.roles ?? [],
+      profile_data: u.profile_data,
+      avatar: u.avatar ?? null,
+      wallpaper: u.wallpaper ?? null,
     };
   } catch {
     return null;

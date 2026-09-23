@@ -9,12 +9,9 @@ Endpoints:
 - GET  /api/documents/{id}/contents → liệt kê nội dung file nén (ZIP/RAR)
 - GET  /api/documents/{id}/text → lấy nội dung text đã trích xuất của document
 """
-<<<<<<< HEAD
-=======
 import hashlib
 import logging
 import math
->>>>>>> origin/master
 import os
 import uuid
 from pathlib import Path
@@ -25,12 +22,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-<<<<<<< HEAD
-from app.core.deps import get_current_user
-from app.models.entities import Document, DocType, DocumentStatus, DocumentPurpose, Assessment, User
-from app.schemas.document import DocumentResponse, DocumentListResponse
-from app.services.storage import save_doc, get_doc
-=======
 from app.core.deps import get_current_user, require_role
 from app.models.entities import (
     Document,
@@ -66,7 +57,6 @@ from app.services.storage import (
     get_range,
     get_object_size,
 )
->>>>>>> origin/master
 from app.services.archive_service import list_archive_members, read_archive_member, ArchiveError
 from app.services.document_parser import DocumentParserError, extract_text
 
@@ -161,8 +151,6 @@ def _validate_magic_bytes(content: bytes, expected_ext: str) -> None:
         )
 
 
-<<<<<<< HEAD
-=======
 # ===== Multipart upload integrity check =====
 # Multipart complete trên MinIO có thể "thành công" (HTTP 200) dù FE gửi
 # ETag list sai thứ tự — parts bị lắp ráp sai vị trí trong object, file
@@ -260,7 +248,6 @@ async def _delete_object_best_effort(bucket: str, key: str) -> None:
         )
 
 
->>>>>>> origin/master
 # ===== Endpoints =====
 
 
@@ -312,8 +299,6 @@ async def upload_document(
     return doc
 
 
-<<<<<<< HEAD
-=======
 # ===========================================================================
 # Multipart upload — for large files (GB), similar to Google Drive Resumable.
 # ===========================================================================
