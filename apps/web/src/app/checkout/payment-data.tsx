@@ -62,7 +62,7 @@ export const BANK_LIST = [
 ];
 
 export interface OrderSummary {
-  planId: "free" | "premium" | "vip";
+  planId: string;
   planName: string;
   cycle: "monthly" | "yearly";
   basePrice: number;
@@ -78,7 +78,7 @@ export function formatVND(value: number) {
 }
 
 export function getOrderSummary(
-  plan: { id: "free" | "premium" | "vip"; name: string; monthly: number; yearly: number },
+  plan: { id: string; name: string; monthly: number; yearly: number },
   cycle: "monthly" | "yearly"
 ): OrderSummary {
   const basePrice = cycle === "monthly" ? plan.monthly : plan.yearly;

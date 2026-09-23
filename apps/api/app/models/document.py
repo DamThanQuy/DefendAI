@@ -5,6 +5,7 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum as SQ
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.models.code_module_hash import CodeModuleHash  # noqa: F401
 
 
 class DocType(str, Enum):
@@ -41,6 +42,12 @@ class Document(Base):
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+    deleted_at = Column(DateTime, nullable=True, index=True)
+    deleted_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
     assessments = relationship("Assessment", back_populates="document", cascade="all, delete-orphan")
     code_analyses = relationship("CodeAnalysis", back_populates="document", cascade="all, delete-orphan")
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
+    code_module_hashes = relationship("CodeModuleHash", back_populates="document", cascade="all, delete-orphan")
+
+    deleter = relationship("User", foreign_keys=[deleted_by])

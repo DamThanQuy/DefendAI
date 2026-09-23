@@ -26,6 +26,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi" className={`${inter.variable} ${jetbrainsMono.variable} ${garamond.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Expose backend URL for direct chunk upload (bypass BFF proxy) */}
+        {process.env.NEXT_PUBLIC_BACKEND_URL && (
+          <meta name="backend-url" content={process.env.NEXT_PUBLIC_BACKEND_URL} />
+        )}
+      </head>
       <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}>
         <body className="font-sans min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           <ThemeProvider defaultTheme="dark" storageKey="defendai-theme">

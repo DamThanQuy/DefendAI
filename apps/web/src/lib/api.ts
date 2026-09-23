@@ -6,7 +6,10 @@ import { refreshAccessToken, handleSessionExpired } from "./auth";
 export const api = axios.create({
   baseURL: "",
   timeout: 300000,
-  headers: { "Content-Type": "application/json" },
+  headers: {
+    "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
+  },
 });
 
 // ---------------------------------------------------------------------------
@@ -15,6 +18,7 @@ export const api = axios.create({
 
 api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
+    config.headers["ngrok-skip-browser-warning"] = "true";
     const token = localStorage.getItem("access_token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -249,6 +253,7 @@ export interface MeResponse {
   created_at: string | null;
   is_active: boolean;
   roles: string[];
+  profile_data?: any;
 }
 export function getMe() {
   return api.get<MeResponse>("/api/auth/me");

@@ -289,7 +289,86 @@ def _extract_archive(src) -> str:
     data = src if isinstance(src, bytes) else src.read()
     if data[:8].startswith(b"Rar!\x1a\x07"):
         return _extract_rar(data)
-    return _extract_zip(data)
+    return _extract_zip_sync(data)
+
+
+def _extract_zip_sync(data: bytes) -> str:
+    """Sync implementation of ZIP extraction (runs in thread)."""
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as archive:
+            infos = [i for i in archive.infolist() if not i.is_dir()]
+            if len(infos) > MAX_ARCHIVE_MEMBERS:
+                raise DocumentParserError(
+                    f"ZIP chứa quá nhiều file ({len(infos)} > {MAX_ARCHIVE_MEMBERS})"
+                )
+            parts: List[str] = []
+            total = 0
+            for info in infos:
+                name = info.filename
+                ext = name.split(".")[-1].lower() if "." in name else ""
+                ext = f".{ext}"
+                total += info.file_size
+                if total > MAX_ARCHIVE_TOTAL_TEXT:
+                    break
+                try:
+                    raw = archive.read(info)
+                except Exception:
+                    continue
+                text = _extract_member_text(raw, name, ext)
+                if text:
+                    parts.append(f"### {name}\n{text}")
+            return "\n\n".join(parts).strip()
+    except zipfile.BadZipFile as exc:
+        raise DocumentParserError("File ZIP bị lỗi hoặc không thể giải nén") from exc
+
+
+_IGNORE_ARCHIVE_DIRS = {
+    "node_modules", ".git", ".next", "dist", "build", "coverage",
+    "__pycache__", "venv", ".venv", ".pytest_cache", ".ruff_cache",
+    ".serena", "data", "uploads", ".idea", ".vscode", "target", "bin", "obj"
+}
+
+
+def _is_meaningful_zip_member(path: str, size: int = 0) -> bool:
+    """Filter out build artifacts, dependencies, large binary caches."""
+    parts = path.replace("\\", "/").split("/")
+    if any(part.lower() in _IGNORE_ARCHIVE_DIRS for part in parts[:-1]):
+        return False
+    # Skip individual files > 2MB (thường là minified bundle hoặc binary)
+    if size > 2 * 1024 * 1024:
+        return False
+    return True
+
+
+async def _extract_zip_streaming(storage_key: str) -> str:
+    """Stream-extract text from a ZIP stored in MinIO without loading it all into RAM.
+
+    This avoids the OOM path that occurs when a large ZIP is downloaded in full
+    via `get_doc()` and then parsed in-memory. Instead, it uses `iter_zip_members`
+    to stream members one-by-one from MinIO.
+    """
+    parts: List[str] = []
+    total = 0
+    try:
+        async for name, raw in iter_zip_members(
+            bucket=settings.minio.bucket,
+            key=storage_key,
+            safe_filter=_is_meaningful_zip_member,
+        ):
+            ext = name.split(".")[-1].lower() if "." in name else ""
+            ext = f".{ext}"
+            total += len(raw)
+            if total > MAX_ARCHIVE_TOTAL_TEXT:
+                break
+            text = _extract_member_text(raw, name, ext)
+            if text:
+                parts.append(f"### {name}\n{text}")
+        return "\n\n".join(parts).strip()
+    except zipfile.BadZipFile as exc:
+        raise DocumentParserError("File ZIP bị lỗi hoặc không thể giải nén") from exc
+    except Exception as exc:
+        logger.exception("Stream ZIP extraction failed for %s", storage_key)
+        raise DocumentParserError(f"Extract failed for {storage_key}: {exc}") from exc
 
 
 def _extract_xlsx(src) -> str:

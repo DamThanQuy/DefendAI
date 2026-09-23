@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ngrokHeaders } from '@/lib/upstream';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -9,7 +10,7 @@ export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get('authorization') || '';
     const res = await fetch(`${backendUrl}/api/code/analyses`, {
-      headers: authHeader ? { Authorization: authHeader } : {},
+      headers: { ...ngrokHeaders(), ...(authHeader ? { Authorization: authHeader } : {}) },
       cache: 'no-store',
     });
     if (!res.ok) {

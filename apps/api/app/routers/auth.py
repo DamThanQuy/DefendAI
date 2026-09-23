@@ -29,6 +29,7 @@ from app.schemas.user import (
     RegisterRequest,
     UpdateMeRequest,
     UserResponse,
+    UserProfileUpdate,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
@@ -195,7 +196,7 @@ async def update_me(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Sửa hồ sơ cá nhân (tên hiển thị, trường, giới thiệu). Email không đổi được."""
+    """Sửa hồ sơ cá nhân (tên hiển thị, trường, giới thiệu, profile_data). Email không đổi được."""
     data = req.model_dump(exclude_unset=True)
     if not data:
         raise HTTPException(status_code=400, detail="Không có trường nào để cập nhật")
@@ -207,8 +208,11 @@ async def update_me(
                 raise HTTPException(status_code=400, detail="Họ và tên không được để trống")
             setattr(user, field, val or None)
 
+    if "profile_data" in data and data["profile_data"] is not None:
+        user.profile_data = data["profile_data"]
+
     await db.commit()
-    await db.refresh(user)
+    await db.refresh(user, ["roles"])
     return UserResponse.from_user(user)
 
 

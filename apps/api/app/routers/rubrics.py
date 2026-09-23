@@ -95,3 +95,23 @@ async def update_rubric(
         "is_active": rubric.is_active,
         "config": rubric.config,
     }
+
+
+@router.post(
+    "/seed",
+    summary="Nạp lại các rubric mặc định (admin)",
+    description="Tự động seed các rubric chuẩn (defense_sep490, code_review) nếu chưa có trong DB.",
+)
+async def seed_default_rubrics_endpoint(
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_role("admin")),
+) -> dict:
+    from seed_rubrics import RUBRICS
+    seeded = []
+    for r in RUBRICS:
+        existing = (await db.execute(select(Rubric).where(Rubric.key == r["key"]))).scalar_one_or_none()
+        if not existing:
+            db.add(Rubric(**r))
+            seeded.append(r["key"])
+    await db.commit()
+    return {"status": "ok", "seeded": seeded}

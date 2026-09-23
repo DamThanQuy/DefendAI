@@ -33,6 +33,7 @@ class UserResponse(BaseModel):
     created_at: Optional[datetime] = None
     is_active: bool
     roles: List[str] = []
+    profile_data: dict = {}
 
     @classmethod
     def from_user(cls, user) -> "UserResponse":
@@ -45,6 +46,7 @@ class UserResponse(BaseModel):
             created_at=user.created_at,
             is_active=bool(user.is_active),
             roles=[r.name for r in user.roles],
+            profile_data=user.profile_data or {},
         )
 
 
@@ -53,6 +55,14 @@ class UpdateMeRequest(BaseModel):
     full_name: Optional[str] = Field(None, max_length=255)
     school: Optional[str] = Field(None, max_length=255)
     about: Optional[str] = Field(None, max_length=500)
+    profile_data: Optional[dict] = None
+
+
+class UserProfileUpdate(BaseModel):
+    full_name: Optional[str] = Field(None, max_length=255)
+    school: Optional[str] = Field(None, max_length=255)
+    about: Optional[str] = Field(None, max_length=500)
+    profile_data: dict = Field(default_factory=dict)
 
 
 class AuthResponse(BaseModel):

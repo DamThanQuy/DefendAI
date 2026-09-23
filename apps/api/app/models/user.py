@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, JSON
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -20,6 +20,7 @@ class User(Base):
     full_name = Column(String(255), nullable=True)
     school = Column(String(255), nullable=True)
     about = Column(String(500), nullable=True)
+    profile_data = Column(JSON, nullable=False, default=dict)
     is_active = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     avatar = Column(String(500), nullable=True)

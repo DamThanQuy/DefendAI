@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { backendUrl, ngrokHeaders } from "@/lib/upstream";
 
 export const dynamic = "force-dynamic";
 
@@ -17,15 +18,13 @@ export async function POST(request: NextRequest) {
 
 async function handleCallback(request: NextRequest) {
   try {
-    const BACKEND = process.env.BACKEND_URL || "http://127.0.0.1:8000";
-
     // Forward the callback to backend for processing
     const searchParams = request.nextUrl.searchParams;
     const body = request.method === "POST" ? await request.json() : Object.fromEntries(searchParams);
 
-    const res = await fetch(`${BACKEND}/api/payment/callback`, {
+    const res = await fetch(`${backendUrl()}/api/payment/callback`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...ngrokHeaders() },
       body: JSON.stringify(body),
     });
 

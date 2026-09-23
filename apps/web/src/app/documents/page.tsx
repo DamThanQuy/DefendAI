@@ -3,7 +3,12 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { UploadModal } from "@/components/features/assessment/UploadModal";
-import { ArchiveBrowser } from "@/components/features/assessment/ArchiveBrowser";
+import { ActiveUploadCard } from "@/components/features/assessment/ActiveUploadCard";
+import { TrashIcon } from "@/components/icons/TrashIcon";
+import { PlusIcon } from "@/components/icons/PlusIcon";
+import { useAuth } from "@/hooks/useAuth";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { DocumentDetailSidebar } from "@/components/features/assessment/DocumentDetailSidebar";
 
 interface DocumentItem {
   id: number;
@@ -13,6 +18,8 @@ interface DocumentItem {
   status: string;
   purpose: string;
   created_at: string;
+  uploaded_by?: number | null;
+  size?: number | null;
 }
 
 interface DocumentsResponse {
@@ -26,6 +33,20 @@ interface WorkspaceItem {
   document_count: number;
 }
 
+type ActiveUploadStatus = "uploading" | "success" | "error";
+
+interface ActiveUpload {
+  id: string;
+  filename: string;
+  progress: number;
+  loaded: number;
+  total: number;
+  speed: number;
+  eta: number | null;
+  status: ActiveUploadStatus;
+  error?: string;
+}
+
 const docTypeLabel: Record<string, string> = {
   pdf: "PDF",
   docx: "DOCX",
@@ -33,6 +54,14 @@ const docTypeLabel: Record<string, string> = {
   zip: "ZIP",
   rar: "RAR",
 };
+
+function formatFileSize(bytes?: number | null): string {
+  if (bytes == null || bytes === 0) return "—";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
 
 function getToken(): string | null {
   return localStorage.getItem("access_token");
@@ -44,10 +73,19 @@ export default function DocumentsPage() {
   const [error, setError] = useState("");
   const [showUpload, setShowUpload] = useState(false);
   const [browseDoc, setBrowseDoc] = useState<DocumentItem | null>(null);
+  const [activeUploads, setActiveUploads] = useState<ActiveUpload[]>([]);
 
   // Thêm vào workspace
   const [wsTargetDoc, setWsTargetDoc] = useState<DocumentItem | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
+
+  // Xoá tài liệu (soft delete — chuyển vào thùng rác 30 ngày)
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DocumentItem | null>(null);
+
+  const { user } = useAuth();
+  const currentUserId = user?.id != null ? Number(user.id) : null;
+  const isAdminOrMentor = (user?.roles ?? []).some((r) => r === "admin" || r === "mentor");
 
   useEffect(() => {
     fetchDocs();
@@ -62,7 +100,7 @@ export default function DocumentsPage() {
       return;
     }
     try {
-      const r = await fetch("/api/documents/", {
+      const r = await fetch("/api/documents", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!r.ok) throw new Error("Failed to fetch");
@@ -123,7 +161,99 @@ export default function DocumentsPage() {
     }
   };
 
+  // Soft delete: chuyển vào thùng rác 30 ngày rồi auto-purge.
+  const handleDeleteClick = (doc: DocumentItem) => setDeleteTarget(doc);
+  const confirmDelete = async () => {
+    const doc = deleteTarget;
+    if (!doc) return;
+    const token = getToken();
+    if (!token) return;
+    setDeletingId(doc.id);
+    try {
+      const r = await fetch(`/api/documents/${doc.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (r.status === 204) {
+        setDeleteTarget(null);
+        await fetchDocs();
+        return;
+      }
+      // Đọc message từ backend để hiển thị đúng nguyên nhân
+      let backendMsg = "";
+      try {
+        const data = await r.json();
+        backendMsg = data?.detail || "";
+      } catch {
+        // response không phải JSON, dùng status text
+      }
+      if (r.status === 400 && backendMsg.includes("thùng rác")) {
+        // File đã được xoá từ trước (double-click) — coi như thành công
+        setDeleteTarget(null);
+        await fetchDocs();
+        return;
+      }
+      if (r.status === 409) {
+        setError("Tài liệu đã có đánh giá hoàn thành, không thể xoá. Liên hệ mentor.");
+      } else if (r.status === 403) {
+        setError("Bạn không có quyền xoá tài liệu này.");
+      } else {
+        setError(backendMsg || `Xoá thất bại: HTTP ${r.status}`);
+      }
+      setDeleteTarget(null);
+    } catch (e: any) {
+      setError(`Xoá thất bại: ${e.message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Có thể xoá: admin/mentor xoá mọi file; student chỉ xoá file mình upload.
+  const canDelete = (doc: DocumentItem) =>
+    isAdminOrMentor || (currentUserId != null && doc.uploaded_by === currentUserId);
+
   const token = typeof window !== "undefined" ? getToken() : null;
+
+  const upsertActiveUpload = (next: ActiveUpload) =>
+    setActiveUploads((prev) => {
+      const exists = prev.find((u) => u.id === next.id);
+      const nextList = exists ? prev.map((u) => (u.id === next.id ? next : u)) : [...prev, next];
+      return nextList.filter((u) => u.status !== "success" || Date.now() - 0 < 1000);
+    });
+
+  const handleUploadProgress = (state: {
+    file: File | null;
+    progress: number;
+    loaded: number;
+    total: number;
+    speed: number;
+    eta: number | null;
+    status: "idle" | "uploading" | "success" | "error";
+    error?: string;
+  }) => {
+    const id = state.file ? `${state.file.name}:${state.file.size}:${state.file.lastModified}` : `upload-${Date.now()}`;
+    const filename = state.file?.name ?? "Đang tải lên";
+    upsertActiveUpload({
+      id,
+      filename,
+      progress: state.progress,
+      loaded: state.loaded,
+      total: state.total,
+      speed: state.speed,
+      eta: state.eta,
+      status: state.status === "idle" ? "uploading" : state.status,
+      error: state.error,
+    });
+  };
+
+  const dismissUpload = (id: string) => setActiveUploads((prev) => prev.filter((u) => u.id !== id));
+  const cancelUpload = (id: string) => {
+    setActiveUploads((prev) => prev.filter((u) => u.id !== id));
+  };
+  const retryUpload = (id: string) => {
+    setActiveUploads((prev) => prev.filter((u) => u.id !== id));
+    setShowUpload(true);
+  };
 
   if (!token) {
     return (
@@ -158,6 +288,13 @@ export default function DocumentsPage() {
           >
             + Tải lên tài liệu mới
           </button>
+          <Link
+            href="/documents/trash"
+            className="px-4 py-2.5 rounded-lg border border-zinc-700 text-zinc-300 text-[13px] font-medium hover:bg-zinc-800 hover:text-foreground transition-colors shrink-0 inline-flex items-center gap-1.5"
+          >
+            <TrashIcon className="w-4 h-4" />
+            Thùng rác
+          </Link>
         </div>
 
         {loading && (
@@ -196,13 +333,14 @@ export default function DocumentsPage() {
                   <tr className="border-b border-zinc-800/60 bg-zinc-800/40">
                     <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Tên file</th>
                     <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Loại</th>
+                    <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Dung lượng</th>
                     <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Ngày tải lên</th>
                     <th className="px-5 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   {docs.map((doc) => (
-                    <tr key={doc.id} className="border-b border-zinc-800/60 hover:bg-zinc-800/40 transition-colors">
+                    <tr key={doc.id} className="border-b border-zinc-800/60 hover:bg-zinc-800/40 transition-colors cursor-pointer" onClick={() => setBrowseDoc(doc)}>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-lg bg-teal-500/10 flex items-center justify-center shrink-0">
@@ -220,33 +358,53 @@ export default function DocumentsPage() {
                           {doc.file_type === ".rar" ? "RAR" : docTypeLabel[doc.doc_type] ?? doc.file_type}
                         </span>
                       </td>
+                      <td className="px-5 py-4 text-[13px] text-zinc-400 font-medium">
+                        {formatFileSize(doc.size)}
+                      </td>
                       <td className="px-5 py-4 text-[13px] text-zinc-500">{formatDate(doc.created_at)}</td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {doc.doc_type === "zip" && (
-                            <button
-                              onClick={() => setBrowseDoc(doc)}
-                              className="px-3 py-1.5 text-[12px] font-semibold text-zinc-300 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
-                            >
-                              Xem nội dung
-                            </button>
-                          )}
                           <button
-                            onClick={() => openWsModal(doc)}
-                            className="px-3 py-1.5 text-[12px] font-semibold text-emerald-400 bg-emerald-500/10 rounded-lg hover:bg-emerald-500/20 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); setBrowseDoc(doc); }}
+                            className="px-3 py-1.5 text-[12px] font-semibold text-zinc-300 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
                           >
-                            ➕ Workspace
+                            Chi tiết
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openWsModal(doc); }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-emerald-400 bg-emerald-500/10 rounded-lg hover:bg-emerald-500/20 transition-colors"
+                          >
+                            <PlusIcon className="w-4 h-4" />
+                            Thêm vào workspace
                           </button>
                           <a
                             href={`/api/documents/${doc.id}/download`}
                             title="Tải xuống"
                             aria-label="Tải xuống"
+                            onClick={(e) => e.stopPropagation()}
                             className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-400 bg-zinc-800/40 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                             </svg>
                           </a>
+                          {canDelete(doc) && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteClick(doc); }}
+                              disabled={deletingId === doc.id}
+                              title="Xoá"
+                              aria-label="Xoá"
+                              className="w-9 h-9 flex items-center justify-center rounded-lg text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {deletingId === doc.id ? (
+                                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" d="M12 4v4m0 8v4m8-8h-4M4 12H0" />
+                                </svg>
+                              ) : (
+                                <TrashIcon className="w-[18px] h-[18px]" />
+                              )}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -258,30 +416,26 @@ export default function DocumentsPage() {
         )}
       </div>
 
-      <UploadModal open={showUpload} onClose={() => { setShowUpload(false); fetchDocs(); }} />
+      <ActiveUploadCard
+        uploads={activeUploads}
+        onDismiss={dismissUpload}
+        onCancel={cancelUpload}
+        onRetry={retryUpload}
+      />
 
-      {/* Archive browser modal */}
-      {browseDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setBrowseDoc(null)}>
-          <div
-            className="bg-card rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-zinc-800/60"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/60">
-              <h3 className="text-[16px] font-bold text-foreground">Nội dung file</h3>
-              <button
-                onClick={() => setBrowseDoc(null)}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-zinc-800 text-zinc-500"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <ArchiveBrowser docId={browseDoc.id} filename={browseDoc.filename} />
-            </div>
-          </div>
-        </div>
-      )}
+      <UploadModal
+        open={showUpload}
+        onClose={() => { setShowUpload(false); fetchDocs(); }}
+        onMinimize={() => setShowUpload(false)}
+        onProgress={handleUploadProgress}
+      />
+
+      {/* Document detail sidebar */}
+      <DocumentDetailSidebar
+        doc={browseDoc}
+        onClose={() => setBrowseDoc(null)}
+        onDelete={(doc) => { setBrowseDoc(null); handleDeleteClick(doc); }}
+      />
 
       {/* Add to workspace modal */}
       {wsTargetDoc && (
@@ -330,6 +484,25 @@ export default function DocumentsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        tone="danger"
+        icon="delete"
+        title="Xoá tài liệu này?"
+        description={
+          <>
+            Tài liệu <span className="font-semibold text-foreground">"{deleteTarget?.filename}"</span> sẽ được chuyển vào thùng rác và tự động xoá vĩnh viễn sau <span className="font-semibold text-foreground">30 ngày</span>.
+            <br />
+            Bạn có thể khôi phục lại từ thùng rác trong thời gian này.
+          </>
+        }
+        confirmLabel={deletingId ? "Đang xoá..." : "Xoá tài liệu"}
+        cancelLabel="Huỷ"
+        loading={!!deletingId}
+        onCancel={() => !deletingId && setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

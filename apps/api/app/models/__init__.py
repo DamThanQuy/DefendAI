@@ -25,9 +25,13 @@ from app.models.assessment import (  # noqa: F401
 )
 from app.models.app_setting import AppSetting  # noqa: F401
 from app.models.ai_config import AIProvider, AIModel, FeatureAIConfig  # noqa: F401
+from app.models.subscription_plan import SubscriptionPlan  # noqa: F401
 from app.models.session import Session  # noqa: F401
 from app.models.message import Message  # noqa: F401
-from app.models.workspace import Workspace  # noqa: F401
+from app.models.code_module_hash import CodeModuleHash  # noqa: F401
+from app.models.upload_session import UploadSession  # noqa: F401
+from app.models.workspace_conversation import WorkspaceConversation  # noqa: F401
+from app.models.workspace import Workspace, WorkspaceFile  # noqa: F401
 from app.models.workspace_question import WorkspaceQuestion  # noqa: F401
 from app.models.workspace_chat import WorkspaceChat  # noqa: F401
 from app.models.mock_chat import MockChatMessage  # noqa: F401
@@ -60,8 +64,13 @@ __all__ = [
     "AIProvider",
     "AIModel",
     "FeatureAIConfig",
+    "SubscriptionPlan",
     "Session",
+    "CodeModuleHash",
+    "UploadSession",
+    "WorkspaceConversation",
     "Workspace",
+    "WorkspaceFile",
     "Message",
     "WorkspaceQuestion",
     "WorkspaceChat",

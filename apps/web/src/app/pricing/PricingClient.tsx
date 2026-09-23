@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Check,
@@ -9,7 +10,6 @@ import {
   ShieldCheck,
   ArrowRight,
   BadgeCheck,
-  Star,
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,10 +22,33 @@ import {
   formatVND,
   planIcon,
 } from "./pricing-data";
+import { useAuth } from "@/hooks/useAuth";
+import { fetchPlans } from "./pricing-api";
 
 export default function PricingClient() {
+  const router = useRouter();
+  const { roles, isAuthed, loading } = useAuth();
+  const [plans, setPlans] = useState<Plan[]>(PLANS);
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+
+  useEffect(() => {
+    fetchPlans().then(setPlans).catch(() => {
+      // Keep the bundled plans available if the API is temporarily unavailable.
+    });
+  }, []);
+
+  const isStudentOnly = roles.includes("student") && !roles.includes("admin") && !roles.includes("mentor");
+
+  useEffect(() => {
+    if (!loading && isAuthed && !isStudentOnly) {
+      router.replace("/");
+    }
+  }, [isAuthed, isStudentOnly, loading, router]);
+
+  if (loading || (isAuthed && !isStudentOnly)) {
+    return null;
+  }
 
   return (
     <div className="relative overflow-hidden">
@@ -90,7 +113,7 @@ export default function PricingClient() {
 
         {/* Plans */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 mt-14 max-w-6xl mx-auto">
-          {PLANS.map((plan, idx) => (
+          {plans.map((plan, idx) => (
             <PlanCard key={plan.id} plan={plan} cycle={cycle} idx={idx} />
           ))}
         </div>
@@ -236,17 +259,11 @@ function PlanCard({
       whileHover={{ y: -8 }}
       className="relative"
     >
-      {plan.featured && (
-        <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-10">
-          <div className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider shadow-lg shadow-primary/30">
-            <Star className="w-3.5 h-3.5 fill-current" />
-            {plan.badge}
-          </div>
-        </div>
-      )}
       <Card
         className={`h-full p-8 flex flex-col ${
-          plan.featured
+          plan.special
+            ? "border-2 border-cyan-400 bg-gradient-to-b from-cyan-400/10 via-card to-card shadow-2xl shadow-cyan-400/20"
+            : plan.featured
             ? "border-2 border-primary bg-gradient-to-b from-primary/5 via-card to-card shadow-2xl shadow-primary/20"
             : "bg-card/60 backdrop-blur-sm"
         }`}
@@ -255,7 +272,9 @@ function PlanCard({
         <div className="flex items-center gap-3 mb-1">
           <div
             className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-              plan.featured
+              plan.special
+                ? "bg-cyan-400 text-slate-950"
+                : plan.featured
                 ? "bg-primary text-primary-foreground"
                 : plan.id === "vip"
                   ? "bg-amber-500/20 text-amber-500"
@@ -307,13 +326,15 @@ function PlanCard({
         <Link href={`/checkout?plan=${plan.id}&cycle=${cycle}`} className="w-full">
           <Button
             className={`w-full rounded-full h-12 font-semibold ${
-              plan.featured
+              plan.special
+                ? "bg-cyan-400 text-slate-950 shadow-[0_0_20px_rgba(34,211,238,0.4)] hover:brightness-110"
+                : plan.featured
                 ? "bg-primary text-primary-foreground shadow-[0_0_20px_hsl(var(--primary)/0.4)] hover:brightness-110"
                 : plan.id === "vip"
                   ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:brightness-110"
                   : ""
             }`}
-            variant={plan.featured || plan.id === "vip" ? "default" : "outline"}
+            variant={plan.special || plan.featured || plan.id === "vip" ? "default" : "outline"}
           >
             {plan.cta}
             <ArrowRight className="w-4 h-4 ml-2" />
