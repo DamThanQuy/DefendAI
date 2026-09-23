@@ -23,7 +23,9 @@ from typing import List
 from sqlalchemy import delete
 
 from app.core.database import async_session_maker
+from app.models.document import DocType
 from app.models.document_chunk import DocumentChunk
+from app.services.document_parser import MAX_ZIP_EMBED_CHUNKS
 from app.services.embedder import embed
 
 logger = logging.getLogger(__name__)
@@ -81,11 +83,25 @@ async def index_chunks(document, chunks: List[str], diagrams: List[str] | None =
 
     all_texts = list(chunks) + diagram_texts
 
+    # (a) Giới hạn số chunk embed từ ZIP để tránh 429 rate limit.
+    #     Giữ nguyên toàn bộ text — RAG vẫn retrieve đủ, chỉ embed bản đại diện.
+    is_zip = getattr(document, "doc_type", None) == DocType.ZIP
+    if is_zip and len(all_texts) > MAX_ZIP_EMBED_CHUNKS:
+        logger.info(
+            "Chunk indexing: doc %s ZIP %d chunks → cap %d for embed",
+            document.id, len(all_texts), MAX_ZIP_EMBED_CHUNKS,
+        )
+        all_texts = all_texts[:MAX_ZIP_EMBED_CHUNKS]
+
     try:
         vectors = await embed(all_texts)
     except Exception as exc:
         logger.warning("Chunk indexing: embed failed for doc %s: %s", document.id, exc)
         return 0
+
+    # ZIP chunks có thể chứa byte NUL (0x00) — PostgreSQL từ chối lưu vào TEXT
+    # (CharacterNotInRepertoireError), strip trước khi persist.
+    all_texts = [t.replace("\x00", "") for t in all_texts]
 
     doc_type = getattr(document.doc_type, "value", str(document.doc_type))
     has_diagrams = bool(diagrams) or bool(diagram_texts)

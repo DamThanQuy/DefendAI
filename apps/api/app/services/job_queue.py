@@ -137,6 +137,7 @@ def register_handler(job_type: str):
 
 async def process_job(job_id: str) -> None:
     """Xử lý một job: đọc params, gọi handler, ghi kết quả."""
+    logger.info("process_job entered for job %s", job_id)
     job = await get_job(job_id)
     if not job:
         logger.error("Job %s not found in Redis", job_id)
@@ -150,6 +151,7 @@ async def process_job(job_id: str) -> None:
         return
 
     try:
+        logger.info("Job %s: starting handler %s", job_id, job_type)
         await update_job(job_id, status="processing")
         params_raw = job.get("params") or {}
         params = params_raw if isinstance(params_raw, dict) else {}
@@ -168,7 +170,9 @@ async def worker_loop() -> None:
     while True:
         try:
             r = await get_redis()
+            logger.info("Worker waiting for job on queue=%s", JOB_QUEUE_KEY)
             _, job_id = await r.blpop(JOB_QUEUE_KEY, timeout=0)
+            logger.info("Worker picked job %s from queue", job_id)
             await process_job(job_id)
         except (ConnectionError, TimeoutError, OSError) as exc:
             logger.warning("Redis connection lost, reconnecting in 3s... %s", exc)

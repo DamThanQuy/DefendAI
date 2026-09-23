@@ -1,5 +1,4 @@
 """Pydantic schemas cho Auth / User endpoints."""
-from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
@@ -28,9 +27,6 @@ class UserResponse(BaseModel):
     id: int
     email: str
     full_name: Optional[str] = None
-    school: Optional[str] = None
-    about: Optional[str] = None
-    created_at: Optional[datetime] = None
     is_active: bool
     roles: List[str] = []
     profile_data: dict = {}
@@ -41,28 +37,23 @@ class UserResponse(BaseModel):
             id=user.id,
             email=user.email,
             full_name=user.full_name,
-            school=getattr(user, "school", None),
-            about=getattr(user, "about", None),
-            created_at=user.created_at,
             is_active=bool(user.is_active),
             roles=[r.name for r in user.roles],
             profile_data=user.profile_data or {},
         )
 
 
-class UpdateMeRequest(BaseModel):
-    """Cập nhật hồ sơ cá nhân — chỉ các field được gửi lên (exclude_unset)."""
-    full_name: Optional[str] = Field(None, max_length=255)
-    school: Optional[str] = Field(None, max_length=255)
-    about: Optional[str] = Field(None, max_length=500)
-    profile_data: Optional[dict] = None
-
-
 class UserProfileUpdate(BaseModel):
     full_name: Optional[str] = Field(None, max_length=255)
-    school: Optional[str] = Field(None, max_length=255)
-    about: Optional[str] = Field(None, max_length=500)
     profile_data: dict = Field(default_factory=dict)
+
+
+class UpdateMeRequest(BaseModel):
+    full_name: Optional[str] = None
+    avatar: Optional[str] = None
+    wallpaper: Optional[str] = None
+    school: Optional[str] = None
+    about: Optional[str] = None
 
 
 class AuthResponse(BaseModel):

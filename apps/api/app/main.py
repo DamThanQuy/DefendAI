@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.routers import ai as ai_router
 from app.routers import admin as admin_router
 from app.routers import admin_reference as admin_reference_router
+from app.routers import admin_documents as admin_documents_router
 from app.routers import auth as auth_router
 from app.routers import code_scan as code_scan_router
 from app.routers import documents as documents_router
@@ -26,13 +27,17 @@ from app.routers import workspace_chats as workspace_chats_router
 from app.routers import workspace_questions as workspace_questions_router
 from app.routers import workspace_messages as workspace_messages_router
 from app.routers import rubrics as rubrics_router
+from app.routers import scoring as scoring_router
+from app.routers import rules as rules_router
+from app.routers import use_cases as use_cases_router
+from app.routers import defects as defects_router
 from app.routers import mock_qa as mock_qa_router
 from app.routers import signaling as signaling_router
+from app.routers import analysis as analysis_router
+from app.routers import subscriptions as subscriptions_router
 from app.routers import user as user_router
 from app.routers import reports as reports_router
 from app.routers import mock_ai as mock_ai_router
-from app.routers import analysis as analysis_router
-from app.routers import subscriptions as subscriptions_router
 # Khởi tạo AI gateway ngay khi import (sẽ log providers nào đã ready)
 from app.services.ai_client import ai_gateway
 
@@ -58,6 +63,8 @@ app.include_router(ai_router.router)
 app.include_router(admin_router.router)
 # Admin: tài liệu chuẩn (R9) — upload/index reference_chunks
 app.include_router(admin_reference_router.router)
+# Admin: hard-purge documents (xoá cứng row + MinIO)
+app.include_router(admin_documents_router.router)
 # Auth endpoints (login, register)
 app.include_router(auth_router.router)
 # Document upload endpoints (upload, get, list)
@@ -84,20 +91,25 @@ app.include_router(workspace_chats_router.router)
 app.include_router(workspace_messages_router.router)
 # Rubrics (tiêu chí chuẩn — thước đo AI)
 app.include_router(rubrics_router.router)
+# Scoring (BR-A1): form chấm DB-driven theo rubric OGA/TDA
+app.include_router(scoring_router.router)
+# Rules (BR-B1): bảng rule check, hội đồng tick confirm/reject
+app.include_router(rules_router.router)
+# Use Cases (BR-B2): AI trích UC từ SRS + cam kết + completed/omitted
+app.include_router(use_cases_router.router)
+# Defects (BR-B3): thống kê n_logic/n_showstopper + override severity
+app.include_router(defects_router.router)
 # Mock Room AI Q&A WebSocket
 app.include_router(mock_qa_router.router)
 # WebRTC signaling (voice chat + screen share) cho Mock Room
 app.include_router(signaling_router.router)
-# User endpoints (avatar, wallpaper, profile)
-app.include_router(user_router.router)
-# Reports (student: xem báo cáo khi dự án đủ 2 điều kiện)
-app.include_router(reports_router.router)
-# Mock AI endpoints (kết thúc buổi, tạo đánh giá)
-app.include_router(mock_ai_router.router)
 # ZIP / BR consistency analysis (Step 2+)
 app.include_router(analysis_router.router)
 app.include_router(subscriptions_router.router)
 app.include_router(subscriptions_router.admin_router)
+app.include_router(user_router.router)
+app.include_router(reports_router.router)
+app.include_router(mock_ai_router.router)
 
 @app.on_event("startup")
 async def _ensure_storage() -> None:
@@ -171,6 +183,8 @@ async def _stop_trash_purger() -> None:
     if _trash_purger is not None:
         await _trash_purger.stop()
         _trash_purger = None
+
+
 @app.get("/")
 async def root():
     # Dev convenience: root → Swagger UI. ponytail: trên prod nên tắt (docs_url=None) hoặc trả info JSON thay vì redirect lộ API.

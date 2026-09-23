@@ -27,7 +27,6 @@ from app.schemas.user import (
     LoginRequest,
     RefreshTokenRequest,
     RegisterRequest,
-    UpdateMeRequest,
     UserResponse,
     UserProfileUpdate,
 )
@@ -192,25 +191,16 @@ async def me(user: User = Depends(get_current_user)):
 
 @router.put("/me", response_model=UserResponse, summary="Cập nhật hồ sơ cá nhân")
 async def update_me(
-    req: UpdateMeRequest,
+    req: UserProfileUpdate,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Sửa hồ sơ cá nhân (tên hiển thị, trường, giới thiệu, profile_data). Email không đổi được."""
-    data = req.model_dump(exclude_unset=True)
-    if not data:
-        raise HTTPException(status_code=400, detail="Không có trường nào để cập nhật")
-
-    for field in ("full_name", "school", "about"):
-        if field in data:
-            val = (data[field] or "").strip()
-            if field == "full_name" and not val:
-                raise HTTPException(status_code=400, detail="Họ và tên không được để trống")
-            setattr(user, field, val or None)
-
-    if "profile_data" in data and data["profile_data"] is not None:
-        user.profile_data = data["profile_data"]
-
+    if req.full_name is not None:
+        name = req.full_name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Họ và tên không được để trống")
+        user.full_name = name
+    user.profile_data = req.profile_data
     await db.commit()
     await db.refresh(user, ["roles"])
     return UserResponse.from_user(user)

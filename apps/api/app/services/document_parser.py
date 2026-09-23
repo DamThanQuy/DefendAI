@@ -21,8 +21,8 @@ Tham khảo:
     python-docx:  https://python-docx.readthedocs.io
     python-pptx:  https://python-pptx.readthedocs.io
 """
+import asyncio
 from io import BytesIO
-from pathlib import Path
 
 import logging
 import zipfile
@@ -36,10 +36,10 @@ from pptx import Presentation
 from app.services.vision_read import ImagePart, ReadResult
 from app.services.figure_inventory import FigureInventory, build_figure_inventory, load_media_bytes
 
-from app.core.config import settings
 from app.models.document import DocType, Document
 from app.services.storage import get_doc, iter_zip_members
 from app.services.vision_read import read_file as vision_read_file
+from app.core.config import settings
 
 try:
     import rarfile
@@ -152,65 +152,25 @@ NESTED_ARCHIVE_EXTENSIONS = {".zip", ".rar"}
 MAX_ARCHIVE_MEMBERS = 500
 MAX_ARCHIVE_TOTAL_TEXT = 200 * 1024 * 1024  # 200MB text tổng
 
-# Folder/file rác trong source-code ZIP — bỏ qua để không vượt MAX_ARCHIVE_MEMBERS
-JUNK_PATH_PATTERNS = (
-    "node_modules/", ".git/", "__pycache__/", ".venv/", "venv/", "env/",
-    ".next/", "dist/", "build/", "out/", "target/", ".idea/", ".vscode/",
-    ".cache/", "coverage/", ".pytest_cache/", ".mypy_cache/", ".ruff_cache/",
-    "vendor/", "bower_components/", ".terraform/", "site-packages/",
-)
-JUNK_FILE_NAMES = {
-    ".ds_store", "thumbs.db", "desktop.ini", ".gitignore", ".gitattributes",
-    ".env.example", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
-    "composer.lock", "poetry.lock", "pipfile.lock",
-}
-
-
-def _is_junk_member(name: str) -> bool:
-    """True nếu member trong archive là file/folder rác (node_modules, .git...)."""
-    lowered = name.lower()
-    if any(lowered.startswith(p) or f"/{p}" in lowered for p in JUNK_PATH_PATTERNS):
-        return True
-    return Path(lowered).name in JUNK_FILE_NAMES
-
-
-def _member_priority(name: str) -> int:
-    """Độ ưu tiên đọc member: số nhỏ hơn đọc trước (README/docs/config trước source)."""
-    lowered = name.lower()
-    base = Path(lowered).name
-    if base in {"readme.md", "readme", "readme.txt", "readme.rst"}:
-        return 0
-    if base.startswith("readme") or "readme" in base:
-        return 1
-    if lowered.endswith((".md", ".markdown", ".rst", ".txt")):
-        return 2
-    if base in {"dockerfile", "makefile", "package.json", "requirements.txt",
-                "pyproject.toml", "docker-compose.yml", "docker-compose.yaml"}:
-        return 3
-    if lowered.endswith((".yml", ".yaml", ".toml", ".ini", ".cfg", ".json", ".sql", ".env")):
-        return 4
-    return 5  # source code & còn lại
+# Giới hạn chunk embed từ ZIP để tránh 429 rate limit (free tier ~100 req/phút)
+# 500 chunks ÷ 32 batch = ~16 request — an toàn trong 1 lần chạy
+MAX_ZIP_EMBED_CHUNKS = 500
 
 
 def _extract_zip(src) -> str:
     """Trích xuất text từ ZIP: đọc mọi file text/code/office bên trong rồi ghép lại.
 
-    Mỗi member được đánh dấu header "### <path>" để AI biết nội dung từ đâu.
+    Mỗi member được đánh dấu bằng header "### <path>" để AI biết nội dung từ đâu.
     Nhận str path, bytes hoặc file-like object (như các extractor khác).
-
-    Với ZIP source-code lớn: lọc file rác (node_modules, .git...) và sắp
-    xếp theo độ ưu tiên (README/docs trước) để không vượt MAX_ARCHIVE_MEMBERS.
     """
     data = src if isinstance(src, bytes) else src.read()
     try:
         with zipfile.ZipFile(BytesIO(data)) as archive:
             infos = [i for i in archive.infolist() if not i.is_dir()]
-            # Lọc junk trước khi đếm giới hạn
-            infos = [i for i in infos if not _is_junk_member(i.filename)]
-            # Sắp theo priority để file quan trọng được đọc trước khi cắt giới hạn
-            infos.sort(key=lambda i: (_member_priority(i.filename), i.filename))
             if len(infos) > MAX_ARCHIVE_MEMBERS:
-                infos = infos[:MAX_ARCHIVE_MEMBERS]  # cắt, không raise
+                raise DocumentParserError(
+                    f"ZIP chứa quá nhiều file ({len(infos)} > {MAX_ARCHIVE_MEMBERS})"
+                )
             parts: List[str] = []
             total = 0
             for info in infos:
@@ -285,12 +245,12 @@ def _extract_member_text(raw: bytes, name: str, ext: str) -> str:
     return ""
 
 
-def _extract_archive(src) -> str:
+async def _extract_archive(src) -> str:
     """Nhận ZIP hoặc RAR, tự detect theo magic bytes và dispatch."""
     data = src if isinstance(src, bytes) else src.read()
     if data[:8].startswith(b"Rar!\x1a\x07"):
-        return _extract_rar(data)
-    return _extract_zip_sync(data)
+        return await asyncio.to_thread(_extract_rar, data)
+    return await asyncio.to_thread(_extract_zip_sync, data)
 
 
 def _extract_zip_sync(data: bytes) -> str:
@@ -373,7 +333,6 @@ async def _extract_zip_streaming(storage_key: str) -> str:
 
 
 def _extract_xlsx(src) -> str:
-    """Trích xuất text từ XLSX (openpyxl nếu có, không thì bỏ qua)."""
     try:
         from openpyxl import load_workbook
         wb = load_workbook(BytesIO(src.read()) if isinstance(src, BytesIO) else src, read_only=True, data_only=True)
@@ -434,6 +393,18 @@ async def extract_text(document) -> ParseResult:
     if not storage_key:
         raise DocumentParserError(f"Document {document.id} has no storage key")
 
+    # ZIP: stream members from MinIO without loading the whole archive into RAM.
+    # This avoids OOM-killing the worker on multi-GB submissions.
+    if document.doc_type == DocType.ZIP:
+        text = await _extract_zip_streaming(storage_key)
+        if len(text) < MIN_TEXT_LENGTH_WARN:
+            logger.warning(
+                "Extracted text is suspiciously short (%s chars) from %s "
+                "(file có thể là scan, ảnh, hoặc rỗng).",
+                len(text), storage_key,
+            )
+        return ParseResult(text=text, diagrams=[])
+
     try:
         data = await get_doc(storage_key)
     except Exception as exc:
@@ -442,7 +413,10 @@ async def extract_text(document) -> ParseResult:
 
     # Markdown / plain text: decode directly, no vision needed.
     if storage_key.lower().endswith(".md"):
-        text = data.decode("utf-8", errors="replace").strip()
+        # Normalize CRLF/CR → LF so chunk_text() (split on "\n\n") sees real paragraph
+        # breaks. Without this, files saved with Windows line endings collapse to one
+        # giant paragraph and chunks end up as a single line of text.
+        text = data.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n").strip()
         if len(text) < MIN_TEXT_LENGTH_WARN:
             logger.warning("Extracted text is suspiciously short (%s chars) from %s", len(text), storage_key)
         return ParseResult(text=text, diagrams=[])

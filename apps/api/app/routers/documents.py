@@ -1,26 +1,31 @@
 """Document router — Upload API.
 
-Endpoints:
+Endpoints (small file - simple upload):
 - POST /api/documents/upload  → upload file (multipart), validate type + size
 - GET  /api/documents/{id}   → lấy metadata 1 file
 - GET  /api/documents         → list tất cả files
 - GET  /api/documents/{id}/download → download file gốc từ MinIO
 - GET  /api/documents/{id}/assessments → lấy danh sách assessment của document
 - GET  /api/documents/{id}/contents → liệt kê nội dung file nén (ZIP/RAR)
-- GET  /api/documents/{id}/text → lấy nội dung text đã trích xuất của document
+
+Endpoints (large file - multipart upload, resumable):
+- POST /api/documents/multipart/init   → tạo session + presigned URLs cho từng chunk
+- GET  /api/documents/multipart/{id}/status → check progress (dùng để resume)
+- POST /api/documents/multipart/{id}/complete → ghép các parts → tạo Document
+- DELETE /api/documents/multipart/{id}/abort → hủy session + cleanup MinIO
 """
-from datetime import datetime
 import hashlib
 import logging
 import math
 import os
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete as sa_delete
+from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
@@ -61,7 +66,6 @@ from app.services.storage import (
     get_object_size,
 )
 from app.services.archive_service import list_archive_members, read_archive_member, ArchiveError
-from app.services.document_parser import DocumentParserError, extract_text
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
@@ -124,6 +128,20 @@ def _assert_doc_access(doc: Document, user: User) -> None:
         return
     if doc.uploaded_by is None or doc.uploaded_by != user.id:
         raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập tài liệu này")
+
+
+async def _get_active_doc(db: AsyncSession, doc_id: int) -> Document:
+    """Lấy document theo id; 404 nếu không tồn tại HOẶC đã bị soft-delete.
+
+    Dùng cho mọi endpoint read/scan thường — file trong thùng rác không truy cập được.
+    """
+    result = await db.execute(select(Document).where(Document.id == doc_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+    if doc.deleted_at is not None:
+        raise HTTPException(status_code=410, detail="Tài liệu đã bị xoá, vào thùng rác để khôi phục")
+    return doc
 
 
 MAGIC_BYTES = {
@@ -828,10 +846,7 @@ async def get_document(
     user: User = Depends(get_current_user),
 ):
     """Lấy metadata của 1 document theo ID."""
-    result = await db.execute(select(Document).where(Document.id == doc_id))
-    doc = result.scalar_one_or_none()
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+    doc = await _get_active_doc(db, doc_id)
     _assert_doc_access(doc, user)
     # Lấy dung lượng file từ MinIO
     resp = DocumentResponse.model_validate(doc)
@@ -848,8 +863,14 @@ async def list_documents(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """List documents. User thường chỉ thấy file mình upload; admin/mentor thấy tất cả."""
-    query = select(Document).order_by(Document.created_at.desc())
+    """List documents. User thường chỉ thấy file mình upload; admin/mentor thấy tất cả.
+    Mặc định BỎ QUA file đã xoá mềm — xem `/trash` để thấy thùng rác.
+    """
+    query = (
+        select(Document)
+        .where(Document.deleted_at.is_(None))
+        .order_by(Document.created_at.desc())
+    )
     if not _is_privileged(user):
         query = query.where(Document.uploaded_by == user.id)
     result = await db.execute(query)
@@ -876,10 +897,7 @@ async def download_document(
     user: User = Depends(get_current_user),
 ):
     """Download file gốc từ MinIO."""
-    result = await db.execute(select(Document).where(Document.id == doc_id))
-    doc = result.scalar_one_or_none()
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+    doc = await _get_active_doc(db, doc_id)
     _assert_doc_access(doc, user)
 
     try:
@@ -932,10 +950,7 @@ async def list_document_contents(
     user: User = Depends(get_current_user),
 ):
     """Liệt kê toàn bộ file/folder trong ZIP/RAR như cây thư mục."""
-    result = await db.execute(select(Document).where(Document.id == doc_id))
-    doc = result.scalar_one_or_none()
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+    doc = await _get_active_doc(db, doc_id)
     _assert_doc_access(doc, user)
 
     if doc.doc_type != DocType.ZIP:
@@ -965,10 +980,7 @@ async def get_document_member_content(
     user: User = Depends(get_current_user),
 ):
     """Đọc nội dung 1 file bên trong ZIP/RAR (bytes gốc, kèm content-type)."""
-    result = await db.execute(select(Document).where(Document.id == doc_id))
-    doc = result.scalar_one_or_none()
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+    doc = await _get_active_doc(db, doc_id)
     _assert_doc_access(doc, user)
 
     try:
@@ -992,80 +1004,3 @@ async def get_document_member_content(
             "Content-Length": str(len(data)),
         },
     )
-@router.get("/{doc_id}/text")
-async def get_document_text(
-    doc_id: int,
-    max_chars: int = 20000,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    """Lấy nội dung text đã trích xuất của document (cho AI mentor đọc).
-
-    Ưu tiên đọc từ document_chunks (đã index RAG). Nếu chưa có chunk
-    (chưa chạy assessment), parse trực tiếp từ file bằng native extractor
-    (không gọi AI vision — nhanh và không tốn token).
-    """
-    result = await db.execute(select(Document).where(Document.id == doc_id))
-    doc = result.scalar_one_or_none()
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
-    _assert_doc_access(doc, user)
-
-    # 1) Ưu tiên chunks đã index (RAG) — nối theo chunk_index
-    from app.models.entities import DocumentChunk
-    chunk_rows = (
-        await db.execute(
-            select(DocumentChunk.content, DocumentChunk.chunk_index)
-            .where(DocumentChunk.document_id == doc_id)
-            .order_by(DocumentChunk.chunk_index)
-        )
-    ).all()
-    if chunk_rows:
-        text = "\n\n".join(row[0] for row in chunk_rows if row[0])
-        source = "chunks"
-    else:
-        # 2) Fallback: parse trực tiếp từ MinIO bằng NATIVE extractor.
-        # Không dùng extract_text() vì với pdf/docx/pptx nó gọi Gemini
-        # vision reader (chậm, tốn token) — ở đây chỉ cần text thuần.
-        from app.services.document_parser import _EXTRACTORS
-        from app.services.storage import get_doc as _get_doc
-        import io as _io
-
-        try:
-            data = await _get_doc(doc.storage_key)
-        except Exception:
-            raise HTTPException(status_code=500, detail="Lỗi khi đọc tài liệu từ storage")
-
-        if doc.storage_key.lower().endswith(".md"):
-            text = data.decode("utf-8", errors="replace").strip()
-        else:
-            extractor = _EXTRACTORS.get(doc.doc_type)
-            if extractor is None:
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"Không hỗ trợ trích xuất text cho doc_type: {doc.doc_type}",
-                )
-            try:
-                text = extractor(_io.BytesIO(data)) or ""
-            except Exception:
-                raise HTTPException(
-                    status_code=422,
-                    detail="Không thể trích xuất nội dung tài liệu (file lỗi hoặc format không đọc được)",
-                )
-        source = "parsed"
-
-    text = (text or "").strip()
-    truncated = False
-    if len(text) > max_chars:
-        text = text[:max_chars]
-        truncated = True
-
-    return {
-        "document_id": doc_id,
-        "filename": doc.filename,
-        "doc_type": doc.doc_type.value,
-        "source": source,
-        "truncated": truncated,
-        "chars": len(text),
-        "text": text,
-    }

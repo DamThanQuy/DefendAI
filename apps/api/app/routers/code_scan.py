@@ -86,9 +86,12 @@ async def get_analysis(analysis_id: int, db: AsyncSession = Depends(get_db)) -> 
         raise HTTPException(status_code=404, detail=f"Analysis {analysis_id} not found")
 
     issues_out: list[CodeAnalysisIssueOut] = []
-    if analysis.status == CodeAnalysisStatus.completed:
+    # Đề xuất 5: stream heuristic issues sớm khi status=processing → FE render ngay
+    if analysis.status in (CodeAnalysisStatus.processing, CodeAnalysisStatus.completed):
         res = await db.execute(
-            select(CodeAnalysisIssue).where(CodeAnalysisIssue.analysis_id == analysis_id)
+            select(CodeAnalysisIssue)
+            .where(CodeAnalysisIssue.analysis_id == analysis_id)
+            .order_by(CodeAnalysisIssue.id)
         )
         issues_out = [
             CodeAnalysisIssueOut(
