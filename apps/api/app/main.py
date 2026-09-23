@@ -27,6 +27,7 @@ from app.routers import workspace_questions as workspace_questions_router
 from app.routers import workspace_messages as workspace_messages_router
 from app.routers import rubrics as rubrics_router
 from app.routers import mock_qa as mock_qa_router
+from app.routers import signaling as signaling_router
 from app.routers import user as user_router
 from app.routers import reports as reports_router
 from app.routers import mock_ai as mock_ai_router

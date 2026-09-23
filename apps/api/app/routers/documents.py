@@ -9,6 +9,7 @@ Endpoints:
 - GET  /api/documents/{id}/contents → liệt kê nội dung file nén (ZIP/RAR)
 - GET  /api/documents/{id}/text → lấy nội dung text đã trích xuất của document
 """
+from datetime import datetime
 import hashlib
 import logging
 import math
@@ -19,8 +20,10 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete as sa_delete
+from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.entities import (

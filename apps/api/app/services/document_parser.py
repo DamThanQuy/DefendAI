@@ -36,8 +36,9 @@ from pptx import Presentation
 from app.services.vision_read import ImagePart, ReadResult
 from app.services.figure_inventory import FigureInventory, build_figure_inventory, load_media_bytes
 
+from app.core.config import settings
 from app.models.document import DocType, Document
-from app.services.storage import get_doc
+from app.services.storage import get_doc, iter_zip_members
 from app.services.vision_read import read_file as vision_read_file
 
 try:
