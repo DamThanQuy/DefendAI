@@ -391,12 +391,6 @@ export default function WorkspacesPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <Link
-                          href={`/documents/${f.document_id}`}
-                          className="px-3 py-1.5 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors"
-                        >
-                          Tạo câu hỏi
-                        </Link>
                         <button
                           onClick={() => handleRemoveFile(ws, f.document_id)}
                           className="w-7 h-7 flex items-center justify-center text-muted-foreground hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
