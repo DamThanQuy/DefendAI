@@ -285,7 +285,7 @@ export default function WorkspacesPage() {
               Workspace của tôi
             </h1>
             <p className="text-muted-foreground text-[14px]">
-              Gom nhiều tài liệu vào 1 đề tài, xem lịch sử phiên hỏi đáp &amp; code review.
+              Gom nhiều tài liệu vào 1 đề tài, xem lịch sử phiên hỏi đáp &amp; luyện phản biện.
             </p>
           </div>
           <button
@@ -391,14 +391,6 @@ export default function WorkspacesPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {f.doc_type === "zip" && (
-                          <Link
-                            href={`/code-review?doc=${f.document_id}`}
-                            className="px-3 py-1.5 text-[12px] font-semibold text-foreground bg-muted rounded-lg hover:bg-muted/70 transition-colors"
-                          >
-                            🔍 Code Review
-                          </Link>
-                        )}
                         <Link
                           href={`/documents/${f.document_id}`}
                           className="px-3 py-1.5 text-[12px] font-semibold text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors"
