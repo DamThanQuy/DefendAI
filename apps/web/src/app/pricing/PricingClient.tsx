@@ -31,12 +31,19 @@ export default function PricingClient() {
   const [plans, setPlans] = useState<Plan[]>(PLANS);
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [activePlanId, setActivePlanId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPlans().then(setPlans).catch(() => {
       // Keep the bundled plans available if the API is temporarily unavailable.
     });
-  }, []);
+    if (isAuthed) {
+      fetch("/api/payment/account", { headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` }, cache: "no-store" })
+        .then((response) => response.ok ? response.json() : null)
+        .then((data) => setActivePlanId(data?.subscription?.plan_id || null))
+        .catch(() => undefined);
+    }
+  }, [isAuthed]);
 
   const isStudentOnly = roles.includes("student") && !roles.includes("admin") && !roles.includes("mentor");
 
@@ -114,7 +121,7 @@ export default function PricingClient() {
         {/* Plans */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 mt-14 max-w-6xl mx-auto">
           {plans.map((plan, idx) => (
-            <PlanCard key={plan.id} plan={plan} cycle={cycle} idx={idx} />
+            <PlanCard key={plan.id} plan={plan} cycle={cycle} idx={idx} activePlanId={activePlanId} />
           ))}
         </div>
 
@@ -243,13 +250,17 @@ function PlanCard({
   plan,
   cycle,
   idx,
+  activePlanId,
 }: {
   plan: Plan;
   cycle: BillingCycle;
   idx: number;
+  activePlanId: string | null;
 }) {
   const price = cycle === "monthly" ? plan.monthly : plan.yearly;
   const perMonth = cycle === "yearly" ? Math.round(plan.yearly / 12) : plan.monthly;
+  const isActive = activePlanId === plan.id;
+  const checkoutHref = plan.monthly === 0 ? "/profile" : `/checkout?plan=${encodeURIComponent(plan.id)}&cycle=${cycle}`;
 
   return (
     <motion.div
@@ -261,6 +272,7 @@ function PlanCard({
     >
       <Card
         className={`h-full p-8 flex flex-col ${
+          isActive ? "opacity-60 border-emerald-500/60" :
           plan.special
             ? "border-2 border-cyan-400 bg-gradient-to-b from-cyan-400/10 via-card to-card shadow-2xl shadow-cyan-400/20"
             : plan.featured
@@ -323,7 +335,7 @@ function PlanCard({
         </div>
 
         {/* CTA */}
-        <Link href={`/checkout?plan=${plan.id}&cycle=${cycle}`} className="w-full">
+        <Link href={isActive ? "/profile/billing" : checkoutHref} className="w-full">
           <Button
             className={`w-full rounded-full h-12 font-semibold ${
               plan.special
@@ -336,8 +348,8 @@ function PlanCard({
             }`}
             variant={plan.special || plan.featured || plan.id === "vip" ? "default" : "outline"}
           >
-            {plan.cta}
-            <ArrowRight className="w-4 h-4 ml-2" />
+            {isActive ? "Đang sử dụng" : plan.cta}
+            {!isActive && <ArrowRight className="w-4 h-4 ml-2" />}
           </Button>
         </Link>
 

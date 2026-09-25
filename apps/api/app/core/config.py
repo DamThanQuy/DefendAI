@@ -170,6 +170,13 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 7
     google_client_id: str = ""
 
+    # PayOS
+    payos_client_id: str = ""
+    payos_api_key: str = ""
+    payos_checksum_key: str = ""
+    payos_return_url: str = "http://localhost:3000/payment-success"
+    payos_cancel_url: str = "http://localhost:3000/payment-cancel"
+
     # Sub-configs - will be loaded in model_post_init
     nvidia: Optional[NVIDIAConfig] = None
     local: Optional[LocalConfig] = None

@@ -27,6 +27,7 @@ import {
   HelpCircle,
   Bell,
   Search,
+  CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isPublicPath } from "@/lib/shell";
@@ -74,6 +75,7 @@ const SIDEBAR_LINKS: SidebarLink[] = [
   { href: "/admin/moderation", label: "Kiểm duyệt nội dung", icon: ShieldCheck, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/ai-monitor", label: "Giám sát AI", icon: Bot, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/subscriptions", label: "Quản lý gói", icon: Crown, roles: ["admin"], section: "Quản trị" },
+  { href: "/admin/payments", label: "Duyệt thanh toán", icon: CreditCard, roles: ["admin"], section: "Quản trị" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

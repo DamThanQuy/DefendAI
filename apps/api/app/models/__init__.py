@@ -41,6 +41,7 @@ from app.models.defect_severity import (  # noqa: F401
 from app.models.app_setting import AppSetting  # noqa: F401
 from app.models.ai_config import AIProvider, AIModel, FeatureAIConfig  # noqa: F401
 from app.models.subscription_plan import SubscriptionPlan  # noqa: F401
+from app.models.payment import PaymentOrder, Subscription, Wallet, WalletTransaction  # noqa: F401
 from app.models.session import Session  # noqa: F401
 from app.models.message import Message  # noqa: F401
 from app.models.workspace import Workspace, WorkspaceFile  # noqa: F401
@@ -93,6 +94,10 @@ __all__ = [
     "AIModel",
     "FeatureAIConfig",
     "SubscriptionPlan",
+    "PaymentOrder",
+    "Subscription",
+    "Wallet",
+    "WalletTransaction",
     "Session",
     "Workspace",
     "WorkspaceFile",
