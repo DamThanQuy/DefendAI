@@ -6,7 +6,10 @@ import { refreshAccessToken, handleSessionExpired } from "./auth";
 export const api = axios.create({
   baseURL: "",
   timeout: 300000,
-  headers: { "Content-Type": "application/json" },
+  headers: {
+    "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
+  },
 });
 
 // ---------------------------------------------------------------------------
@@ -15,6 +18,7 @@ export const api = axios.create({
 
 api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
+    config.headers["ngrok-skip-browser-warning"] = "true";
     const token = localStorage.getItem("access_token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -251,6 +255,9 @@ export interface MeResponse {
   id: number;
   email: string;
   full_name: string | null;
+  school: string | null;
+  about: string | null;
+  created_at: string | null;
   is_active: boolean;
   roles: string[];
   profile_data?: any;
@@ -259,6 +266,15 @@ export function getMe() {
   return api.get<MeResponse>("/api/auth/me");
 }
 
+export interface UpdateMePayload {
+  full_name?: string;
+  school?: string;
+  about?: string;
+}
+// Sửa hồ sơ cá nhân (tên hiển thị, trường, giới thiệu)
+export function updateMe(payload: UpdateMePayload) {
+  return api.put<MeResponse>("/api/auth/me", payload);
+}
 
 // ---------------------------------------------------------------------------
 // Availability (lịch rảnh của mentor)

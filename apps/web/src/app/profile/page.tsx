@@ -15,7 +15,7 @@ import {
   Flame,
   History as HistoryIcon,
   Award,
-  Users,
+  UserCog,
   TrendingUp,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -223,7 +223,9 @@ export default function ProfileOverviewPage() {
                     Tham gia
                   </div>
                   <div className="font-semibold text-foreground text-[13px] mt-0.5">
-                    {new Date().toLocaleDateString("vi-VN")}
+                    {user?.created_at
+                      ? new Date(user.created_at).toLocaleDateString("vi-VN")
+                      : "—"}
                   </div>
                 </div>
               </div>
@@ -234,14 +236,14 @@ export default function ProfileOverviewPage() {
                     Trường
                   </div>
                   <div className="font-semibold text-foreground text-[13px] mt-0.5">
-                    FPT University
+                    {user?.school || "Chưa cập nhật"}
                   </div>
                 </div>
               </div>
             </div>
           </div>
           <Link
-            href="/profile/settings"
+            href="/profile/edit"
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-full text-sm font-semibold shadow-[0_0_18px_hsl(var(--primary)/0.4)] hover:brightness-110 transition-all shrink-0"
           >
             <Edit3 className="w-4 h-4" />
@@ -350,10 +352,10 @@ export default function ProfileOverviewPage() {
             iconBg="bg-accent/10"
           />
           <QuickLink
-            href="/profile/peers"
-            icon={Users}
-            title="Bạn học"
-            desc="Kết nối với sinh viên cùng ngành, theo dõi tiến trình."
+            href="/profile/edit"
+            icon={UserCog}
+            title="Sửa hồ sơ cá nhân"
+            desc="Cập nhật tên hiển thị, trường học và giới thiệu về bạn."
             color="text-secondary"
             iconBg="bg-secondary/10"
           />

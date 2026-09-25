@@ -7,6 +7,7 @@ import { clearSession } from "@/lib/auth";
 import {
   FileText,
   FolderKanban,
+  Code2,
   MonitorPlay,
   BarChart3,
   ShieldCheck,

@@ -7,6 +7,8 @@ import shutil
 import tempfile
 import time
 import zipfile
+import hashlib
+import io
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,8 +27,10 @@ from app.services.archive_validator import (
 @dataclass(frozen=True, slots=True)
 class ExtractedFile:
     path: str
-    local_path: Path
+    local_path: Path | None
     size: int
+    content: str | None = None
+    sha256: str | None = None
 
 
 @dataclass(slots=True)
@@ -34,6 +38,24 @@ class ExtractionResult:
     validation: ArchiveValidationResult
     root_dir: Path
     selected_files: list[ExtractedFile] = field(default_factory=list)
+
+
+async def download_archive_to_memory(
+    *,
+    bucket: str,
+    key: str,
+    max_bytes: int,
+) -> io.BytesIO:
+    """Stream an archive from MinIO directly into an in-memory buffer."""
+    buffer = io.BytesIO()
+    downloaded = 0
+    async for chunk in iter_object_chunks(bucket, key):
+        downloaded += len(chunk)
+        if downloaded > max_bytes:
+            raise ArchiveValidationError("Compressed archive exceeds the configured size limit")
+        buffer.write(chunk)
+    buffer.seek(0)
+    return buffer
 
 
 async def download_archive_to_temp(
@@ -73,14 +95,33 @@ async def extract_selected_zip_from_minio(
     limits: ArchiveLimits | None = None,
     timeout_seconds: int = 600,
     cleanup: bool = True,
+    in_memory: bool = True,
+    max_in_memory_bytes: int = 150 * 1024 * 1024,
 ) -> ExtractionResult:
-    """Download, validate and extract a ZIP without retaining the archive.
-
-    When ``cleanup`` is ``False`` the extraction root is left on disk so the
-    caller can keep reading files (e.g. the indexer). The caller is then
-    responsible for removing ``ExtractionResult.root_dir``.
+    """Download, validate and extract a ZIP.
+    
+    When ``in_memory`` is ``True``, the archive is streamed into RAM without disk I/O.
+    If the archive exceeds ``max_in_memory_bytes``, it falls back gracefully to disk.
     """
     limits = limits or ArchiveLimits()
+    
+    if in_memory:
+        try:
+            mem_buf = await download_archive_to_memory(
+                bucket=bucket,
+                key=key,
+                max_bytes=min(limits.max_archive_bytes, max_in_memory_bytes),
+            )
+            return await stream_selected_zip_in_memory(
+                mem_buf,
+                job_id=job_id,
+                limits=limits,
+                timeout_seconds=timeout_seconds,
+            )
+        except Exception:
+            # Fall back to disk-based extraction if in-memory fails or exceeds threshold
+            pass
+
     archive_path = await download_archive_to_temp(
         bucket=bucket,
         key=key,
@@ -99,6 +140,58 @@ async def extract_selected_zip_from_minio(
         )
     finally:
         archive_path.unlink(missing_ok=True)
+
+
+async def stream_selected_zip_in_memory(
+    buffer: io.BytesIO | bytes,
+    *,
+    job_id: str,
+    limits: ArchiveLimits | None = None,
+    timeout_seconds: int = 600,
+) -> ExtractionResult:
+    """Extract selected files completely in memory from a ZIP buffer."""
+    limits = limits or ArchiveLimits()
+    buf = io.BytesIO(buffer) if isinstance(buffer, bytes) else buffer
+    archive_bytes = buf.getbuffer().nbytes
+    if archive_bytes > limits.max_archive_bytes:
+        raise ArchiveValidationError("Compressed archive exceeds the configured size limit")
+
+    async def _run() -> ExtractionResult:
+        with zipfile.ZipFile(buf, "r") as archive:
+            validation = validate_zip_metadata(
+                archive,
+                archive_bytes=archive_bytes,
+                limits=limits,
+            )
+            selected_files: list[ExtractedFile] = []
+            written = 0
+            by_path = {entry.path: entry for entry in validation.selected_entries}
+            info_by_path = {info.filename.replace("\\", "/"): info for info in archive.infolist()}
+            for path in by_path:
+                info = info_by_path.get(path)
+                if info is None:
+                    continue
+                with archive.open(info, "r") as source:
+                    raw_bytes = source.read()
+                    written += len(raw_bytes)
+                    if written > limits.max_expanded_bytes:
+                        raise ArchiveValidationError("Extraction exceeded the expanded-size limit")
+                    sha256 = hashlib.sha256(raw_bytes).hexdigest()
+                    text_content = raw_bytes.decode("utf-8", errors="ignore")
+                    selected_files.append(ExtractedFile(
+                        path=path,
+                        local_path=None,
+                        size=len(raw_bytes),
+                        content=text_content,
+                        sha256=sha256,
+                    ))
+            return ExtractionResult(
+                validation=validation,
+                root_dir=Path(tempfile.gettempdir()) / f"in-memory-{job_id}",
+                selected_files=selected_files,
+            )
+
+    return await asyncio.wait_for(_run(), timeout=timeout_seconds)
 
 
 def cleanup_stale_extraction_dirs(

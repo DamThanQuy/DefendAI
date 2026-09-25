@@ -67,3 +67,22 @@ def test_cleanup_stale_directories(tmp_path) -> None:
     os.utime(stale, (old, old))
     assert cleanup_stale_extraction_dirs(tmp_path, older_than_seconds=1) == 1
     assert not stale.exists()
+
+
+def test_in_memory_streaming_extraction() -> None:
+    import io
+    from app.services.archive_extractor import stream_selected_zip_in_memory
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as archive:
+        archive.writestr("src/app.py", b"print('hello stream')")
+        archive.writestr("node_modules/pkg.js", b"ignored")
+        archive.writestr("image.png", b"ignored")
+    buf.seek(0)
+
+    result = asyncio.run(stream_selected_zip_in_memory(buf, job_id="mem-1"))
+    assert len(result.selected_files) == 1
+    assert result.selected_files[0].path == "src/app.py"
+    assert result.selected_files[0].content == "print('hello stream')"
+    assert result.selected_files[0].sha256 is not None
+    assert result.selected_files[0].local_path is None

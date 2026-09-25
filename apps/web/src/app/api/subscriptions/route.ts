@@ -1,13 +1,21 @@
 import { NextResponse } from "next/server";
+import { backendUrl, ngrokHeaders, readUpstream, upstreamFailure } from "@/lib/upstream";
 
 export const dynamic = "force-dynamic";
-const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 
 export async function GET() {
+  const url = `${backendUrl()}/api/subscriptions/plans`;
   try {
-    const res = await fetch(`${BACKEND_URL}/api/subscriptions/plans`, { cache: "no-store" });
-    return NextResponse.json(await res.json(), { status: res.status });
+    const res = await fetch(url, {
+      cache: "no-store",
+      headers: { ...ngrokHeaders() },
+    });
+    const upstream = await readUpstream(res);
+    if (upstream.nonJson) {
+      return upstreamFailure("Subscription proxy", { url, status: upstream.status, upstream });
+    }
+    return NextResponse.json(upstream.data, { status: upstream.status });
   } catch (error) {
-    return NextResponse.json({ error: "Subscription proxy failed", message: String(error) }, { status: 500 });
+    return upstreamFailure("Subscription proxy", { url, status: 500, cause: error });
   }
 }

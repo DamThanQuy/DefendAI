@@ -24,6 +24,7 @@ class DocumentResponse(BaseModel):
     storage_key: str
     content_hash: Optional[str] = None
     uploaded_by: Optional[int] = None
+    size: Optional[int] = Field(None, description="Dung lượng file (bytes), None nếu không xác định được")
     created_at: datetime
 
     class Config:

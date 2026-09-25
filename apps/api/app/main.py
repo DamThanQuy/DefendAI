@@ -36,6 +36,9 @@ from app.routers import signaling as signaling_router
 from app.routers import analysis as analysis_router
 from app.routers import subscriptions as subscriptions_router
 from app.routers import payments as payments_router
+from app.routers import user as user_router
+from app.routers import reports as reports_router
+from app.routers import mock_ai as mock_ai_router
 # Khởi tạo AI gateway ngay khi import (sẽ log providers nào đã ready)
 from app.services.ai_client import ai_gateway
 
@@ -107,6 +110,9 @@ app.include_router(subscriptions_router.router)
 app.include_router(subscriptions_router.admin_router)
 app.include_router(payments_router.router)
 app.include_router(payments_router.admin_router)
+app.include_router(user_router.router)
+app.include_router(reports_router.router)
+app.include_router(mock_ai_router.router)
 
 @app.on_event("startup")
 async def _ensure_storage() -> None:
@@ -138,6 +144,26 @@ async def _load_ai_config_from_db() -> None:
             )
     except Exception as exc:
         logging.getLogger(__name__).warning("startup: load AI config from DB skipped: %s", exc)
+
+
+@app.on_event("startup")
+async def _ensure_default_rubrics() -> None:
+    """Tự động seed rubric chuẩn (defense_sep490, code_review) nếu DB chưa có."""
+    import logging
+    from sqlalchemy import select
+    from app.core.database import async_session_maker
+    from app.models.rubric import Rubric
+    try:
+        from seed_rubrics import RUBRICS
+        async with async_session_maker() as db:
+            for r in RUBRICS:
+                existing = (await db.execute(select(Rubric).where(Rubric.key == r["key"]))).scalar_one_or_none()
+                if not existing:
+                    db.add(Rubric(**r))
+            await db.commit()
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("startup: seed default rubrics skipped: %s", exc)
 
 
 _trash_purger = None

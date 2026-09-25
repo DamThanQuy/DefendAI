@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
-// Ưu tiên BACKEND_URL (server-side, runtime env trong docker-compose cho web
-// service đặt thành "http://api:8000" qua mạng nội bộ Docker). Fallback về
-// NEXT_PUBLIC_API_URL (đã bake vào client bundle lúc build — thường là
-// localhost:8000 cho dev ngoài Docker).
-const API_URL =
+// Rewrite chạy SERVER-SIDE (trong container web) → phải dùng BACKEND_URL
+// (http://api:8000 — docker network). NEXT_PUBLIC_API_URL (localhost:8000) chỉ
+// dành cho browser; dùng nó trong rewrite gây ECONNREFUSED trong container.
+// Fallback cho local dev (npm run dev ngoài docker) và Vercel (public API URL).
+const PROXY_URL =
   process.env.BACKEND_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:8000";
@@ -15,14 +15,12 @@ const nextConfig = {
   // output: "standalone",
 
   // Proxy /api/* → backend (giúp frontend gọi /api/auth/login từ cùng origin,
-  // tránh CORS + cookie issues). LƯU Ý: Next.js rewrites KHÔNG forward custom
-  // headers (Authorization) mặc định. Vì vậy với các route cần auth, dùng
-  // route handler thủ công (xem src/app/api/**\/route.ts).
+  // tránh CORS + cookie issues). Backend thật vẫn chạy ở localhost:8000 (docker).
   async rewrites() {
     return [
       {
         source: "/api/:path*",
-        destination: `${API_URL}/api/:path*`,
+        destination: `${PROXY_URL}/api/:path*`,
       },
     ];
   },

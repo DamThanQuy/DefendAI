@@ -1,22 +1,18 @@
 import { NextResponse } from 'next/server';
+import { backendUrl, ngrokHeaders } from '@/lib/upstream';
 
 export const dynamic = 'force-dynamic';
-
-const API_URL =
-  process.env.BACKEND_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  'http://localhost:8000';
 
 export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get('authorization') || '';
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...ngrokHeaders() };
     if (authHeader) headers['Authorization'] = authHeader;
 
     const url = new URL(request.url);
     const qs = url.search || '';
 
-    const res = await fetch(`${API_URL}/api/documents/${qs}`, {
+    const res = await fetch(`${backendUrl()}/api/documents/${qs}`, {
       headers,
       redirect: 'follow',
       cache: 'no-store',

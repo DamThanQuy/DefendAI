@@ -346,9 +346,17 @@ export default function WorkspaceDetailPage() {
     if (!wsId) return;
     const token = getToken();
     if (!token) return;
-    fetch(`/api/workspaces/${wsId}`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`/api/workspaces/${wsId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "ngrok-skip-browser-warning": "true",
+      },
+    })
       .then(async (r) => {
-        if (!r.ok) throw new Error("Không thể tải workspace");
+        if (!r.ok) {
+          const errData = await r.json().catch(() => null);
+          throw new Error(errData?.detail || errData?.message || errData?.error || "Không thể tải workspace");
+        }
         return r.json();
       })
       .then((data: Workspace) => {
@@ -401,7 +409,10 @@ export default function WorkspaceDetailPage() {
       const r = await fetch(`/api/workspaces/${wsId}/deliverables-check`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!r.ok) throw new Error("Không thể tải kết quả kiểm tra file nộp");
+      if (!r.ok) {
+        const errJson = await r.json().catch(() => null);
+        throw new Error(errJson?.detail || "Không thể tải kết quả kiểm tra file nộp");
+      }
       const data: DeliverableCheck = await r.json();
       setDlvCheck(data);
     } catch (e: any) {
@@ -676,8 +687,8 @@ export default function WorkspaceDetailPage() {
           <div className={`grid grid-cols-1 lg:grid-cols-[auto_1fr] ${filesOpen ? "gap-5" : "lg:gap-0"}`}>
             {/* Left: files sidebar (Windows Explorer style) — thu gọn được */}
             <div
-              className={`bg-card rounded-2xl shadow-sm overflow-hidden lg:h-[calc(100vh-240px)] lg:sticky lg:top-4 flex flex-col transition-[width,opacity] duration-300 ease-in-out ${
-                filesOpen ? "w-full lg:w-[300px] opacity-100 border border-zinc-800/60" : "hidden lg:flex lg:w-0 lg:opacity-0 lg:border-0"
+              className={`bg-card rounded-2xl shadow-sm overflow-hidden min-h-[550px] lg:min-h-[720px] lg:h-[calc(100vh-120px)] lg:sticky lg:top-4 flex flex-col transition-[width,opacity] duration-300 ease-in-out ${
+                filesOpen ? "w-full lg:w-[320px] opacity-100 border border-zinc-800/60" : "hidden lg:flex lg:w-0 lg:opacity-0 lg:border-0"
               }`}
             >
               <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center gap-2">
@@ -692,7 +703,7 @@ export default function WorkspaceDetailPage() {
                 <span className="ml-auto text-[11px] text-zinc-500">{ws.document_count} file</span>
               </div>
               {filesOpen && (
-              <div className="p-2 overflow-y-auto flex-1">
+              <div className="p-2 overflow-y-auto flex-1 custom-scrollbar">
                 {ws.files.map((f) => {
                   const isActive = selDocId === f.document_id;
                   const isZipF = f.doc_type === "zip" || f.doc_type === "rar";
@@ -860,7 +871,7 @@ export default function WorkspaceDetailPage() {
               </div>
 
               {rightTab === "preview" && (
-                <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden h-[calc(100vh-340px)] min-h-[450px] flex flex-col">
+                <div className="bg-card rounded-2xl shadow-sm border border-zinc-800/60 overflow-hidden h-[calc(100vh-220px)] min-h-[550px] flex flex-col">
                   {!selectedFile ? (
                     <div className="h-full flex flex-col items-center justify-center text-zinc-500">
                       <p className="text-[14px]">Chọn một file bên trái để xem nội dung</p>
@@ -1046,15 +1057,7 @@ export default function WorkspaceDetailPage() {
               )}
 
               {rightTab === "chat" && (
-                <WorkspaceChat
-                  workspaceId={wsId}
-                  documents={ws.files.map((f) => ({
-                    id: f.document_id,
-                    filename: f.filename,
-                    doc_type: f.doc_type,
-                    status: "completed",
-                  }))}
-                />
+                <WorkspaceChat workspaceId={wsId} />
               )}
 
               {rightTab === "history" && (

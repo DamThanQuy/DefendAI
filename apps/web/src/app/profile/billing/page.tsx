@@ -2,7 +2,16 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { CreditCard, Crown, ArrowRight, ArrowLeft, Check } from "lucide-react";
+import { CreditCard, Crown, Zap, Sparkles, ArrowRight, ArrowLeft, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { getMembershipPlan, type MembershipPlan } from "@/lib/mock-ai-data";
+
+const PLAN_INFO: Record<MembershipPlan, { name: string; color: string; icon: React.ReactNode; nextPlan: "premium" | "vip" }> = {
+  free: { name: "Free", color: "text-muted-foreground", icon: <Sparkles className="w-5 h-5" />, nextPlan: "premium" },
+  premium: { name: "Premium", color: "text-primary", icon: <Zap className="w-5 h-5 text-primary" />, nextPlan: "vip" },
+  vip: { name: "VIP", color: "text-accent", icon: <Crown className="w-5 h-5 text-accent" />, nextPlan: "vip" },
+};
 
 export default function BillingPage() {
   const [account, setAccount] = useState<{ wallet: { balance: number }; subscription: { plan_name: string; expires_at: string; features: { label: string; included: boolean }[] } | null } | null>(null);
@@ -51,6 +60,16 @@ export default function BillingPage() {
     if (!response.ok) setDepositMessage(data.detail || "Không thể tạo đơn nạp ví.");
     else setDepositOrder(data.order);
   }
+  const [plan, setPlan] = useState<MembershipPlan>("free");
+
+  useEffect(() => {
+    setPlan(getMembershipPlan());
+  }, []);
+
+  const planInfo = PLAN_INFO[plan];
+  const isVip = plan === "vip";
+  const nextPlan = planInfo.nextPlan;
+  const displayPlanName = subscription?.plan_name || planInfo.name;
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -75,23 +94,25 @@ export default function BillingPage() {
         <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <Crown className="w-5 h-5 text-accent" />
+              {planInfo.icon}
               <span className="text-xs font-bold uppercase tracking-wider text-accent">
                 Gói hiện tại
               </span>
             </div>
-            <h2 className="text-4xl font-serif font-black mb-2">{subscription?.plan_name || "Free"}</h2>
+            <h2 className={`text-4xl font-serif font-black mb-2 ${planInfo.color}`}>
+              {displayPlanName}
+            </h2>
             <p className="text-muted-foreground text-sm max-w-md">
               {subscription ? `Đang sử dụng đến ${new Date(subscription.expires_at).toLocaleDateString("vi-VN")}.` : "Bạn đang dùng gói miễn phí. Nâng cấp để mở khóa tính năng cao cấp."}
             </p>
           </div>
-          <Link
-            href="/checkout?plan=100002&cycle=monthly"
+          {!subscription || displayPlanName !== "VIP" ? <Link
+            href={`/checkout?plan=${nextPlan}&cycle=monthly`}
             className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary to-secondary text-primary-foreground rounded-full text-sm font-bold shadow-[0_0_20px_hsl(var(--primary)/0.45)] hover:brightness-110 transition-all shrink-0"
           >
-            Nâng cấp ngay
+            Nâng cấp {nextPlan === "vip" ? "VIP" : "Premium"} ngay
             <ArrowRight className="w-4 h-4" />
-          </Link>
+          </Link> : null}
         </div>
       </div>
 
@@ -115,7 +136,7 @@ export default function BillingPage() {
       <div className="dark-card rounded-2xl p-6">
         <h3 className="text-lg font-serif font-bold mb-4 flex items-center gap-2">
           <Check className="w-5 h-5 text-emerald-500" />
-          Quyền lợi khi nâng cấp Premium/VIP
+          Quyền lợi của gói {displayPlanName}
         </h3>
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
           {(subscription?.features?.filter((feature) => feature.included).map((feature) => feature.label) || [
@@ -125,6 +146,9 @@ export default function BillingPage() {
             "Đánh giá theo rubric chi tiết",
             "Tạo câu hỏi phản biện không giới hạn",
             "Hỗ trợ ưu tiên 24/7",
+            ...(isVip
+              ? ["Phòng Mock AI trực tuyến 24/7", "Hội đồng AI 3 chuyên gia"]
+              : []),
           ]).map((b) => (
             <li
               key={b}

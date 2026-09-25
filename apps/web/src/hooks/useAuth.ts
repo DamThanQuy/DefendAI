@@ -8,8 +8,13 @@ export interface AuthUser {
   id?: number | string;
   email: string;
   full_name?: string | null;
+  school?: string | null;
+  about?: string | null;
+  created_at?: string | null;
   roles: string[];
   profile_data?: Record<string, unknown>;
+  avatar?: string | null;
+  wallpaper?: string | null;
 }
 
 // Hiển thị sidebar TỨC THÌ từ localStorage cache (tránh flash trống menu sau
@@ -36,7 +41,13 @@ function readCachedUser(): AuthUser | null {
       id: u.id,
       email: u.email ?? "",
       full_name: u.full_name ?? null,
+      school: u.school ?? null,
+      about: u.about ?? null,
+      created_at: u.created_at ?? null,
       roles: u.roles ?? [],
+      profile_data: u.profile_data,
+      avatar: u.avatar ?? null,
+      wallpaper: u.wallpaper ?? null,
     };
   } catch {
     return null;
@@ -109,6 +120,9 @@ export function useAuth() {
           id: me.id,
           email: me.email,
           full_name: me.full_name,
+          school: me.school ?? null,
+          about: me.about ?? null,
+          created_at: me.created_at ?? null,
           roles: me.roles ?? [],
           profile_data: me.profile_data ?? {},
         };
@@ -130,10 +144,14 @@ export function useAuth() {
         setLoading(false);
       });
 
-    // Đồng bộ khi user đăng nhập/đăng xuất ở tab khác
+    // Đồng bộ khi user đăng nhập/đăng xuất hoặc sửa hồ sơ ở tab khác
+    // (trang edit dispatch Event("storage") sau khi PUT /auth/me thành công)
     const onStorage = () => {
       if (!localStorage.getItem("access_token")) {
         setUser(null);
+      } else {
+        const fresh = readCachedUser();
+        if (fresh) setUser(fresh);
       }
     };
     window.addEventListener("storage", onStorage);

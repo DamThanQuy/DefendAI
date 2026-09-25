@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { backendUrl, ngrokHeaders } from "@/lib/upstream";
 
 export const dynamic = "force-dynamic";
 
@@ -10,13 +11,13 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const BACKEND = process.env.BACKEND_URL || "http://127.0.0.1:8000";
     const authHeader = request.headers.get("authorization") || "";
 
-    const res = await fetch(`${BACKEND}/api/payment/create-order`, {
+    const res = await fetch(`${backendUrl()}/api/payment/create-order`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...ngrokHeaders(),
         ...(authHeader ? { Authorization: authHeader } : {}),
       },
       body: JSON.stringify(body),

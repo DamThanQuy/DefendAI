@@ -6,12 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ConfirmModal } from "@/components/ui/ConfirmModal";
-
-type AdminDeleteTarget =
-  | { kind: "provider"; name: string }
-  | { kind: "model"; modelId: number; mid: string }
-  | { kind: "ref"; category: string; title: string };
 
 // Cấu hình provider — admin chỉnh qua UI, lưu DB, áp dụng runtime.
 // ponytail: form đơn giản, không dùng react-hook-form — đủ cho 6 field tĩnh.
@@ -105,7 +99,6 @@ export default function AdminPage() {
   const [newProvider, setNewProvider] = useState({ name: "", base_url: "", api_key: "" });
   const [newModel, setNewModel] = useState({ provider_name: "", model_id: "" });
   const [aiBusy, setAiBusy] = useState<string | null>(null);
-  const [adminDeleteTarget, setAdminDeleteTarget] = useState<AdminDeleteTarget | null>(null);
   const [testResult, setTestResult] = useState<Record<string, { ok: boolean; detail: string }>>({});
 
   // Feature → provider/model mapping
@@ -318,11 +311,8 @@ export default function AdminPage() {
     }
   };
 
-  const confirmDeleteProvider = async () => {
-    const t = adminDeleteTarget;
-    if (!t || t.kind !== "provider") return;
-    const name = t.name;
-    setAdminDeleteTarget(null);
+  const deleteProvider = async (name: string) => {
+    if (!confirm(`Xoá provider "${name}"? (cascade: models + cấu hình chức năng trỏ tới)`)) return;
     setAiBusy(`del-${name}`);
     setAiMsg(null);
     try {
@@ -389,14 +379,7 @@ export default function AdminPage() {
   };
 
   const deleteModel = async (modelId: number, mid: string) => {
-    setAdminDeleteTarget({ kind: "model", modelId, mid });
-  };
-
-  const confirmDeleteModel = async () => {
-    const t = adminDeleteTarget;
-    if (!t || t.kind !== "model") return;
-    const { modelId, mid } = t;
-    setAdminDeleteTarget(null);
+    if (!confirm(`Xoá model "${mid}"?`)) return;
     setAiBusy(`del-model-${modelId}`);
     setAiMsg(null);
     try {
@@ -538,15 +521,8 @@ export default function AdminPage() {
   };
 
   const removeRef = async (category: string, title: string) => {
-    setAdminDeleteTarget({ kind: "ref", category, title });
-  };
-
-  const confirmRemoveRef = async () => {
-    const t = adminDeleteTarget;
-    if (!t || t.kind !== "ref") return;
-    const { category, title } = t;
+    if (!confirm(`Xoá tài liệu chuẩn "${title}"? (chunks + file gốc)`)) return;
     const key = refKey(category, title);
-    setAdminDeleteTarget(null);
     setRefDeleting(key);
     setRefMsg(null);
     try {
@@ -677,7 +653,7 @@ export default function AdminPage() {
                               {aiBusy === `test-${p.name}` ? "Đang test..." : "🔌 Test"}
                             </button>
                             <button
-                              onClick={() => setAdminDeleteTarget({ kind: "provider", name: p.name })}
+                              onClick={() => deleteProvider(p.name)}
                               disabled={aiBusy === `del-${p.name}`}
                               className="px-3 py-1 text-[12px] font-semibold text-red-400 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50"
                             >
@@ -696,7 +672,7 @@ export default function AdminPage() {
                               <span key={m.id} className="inline-flex items-center gap-1 px-2 py-1 bg-zinc-800 rounded-lg text-[12px] text-zinc-300">
                                 {m.model_id}
                                 <button
-                                  onClick={() => setAdminDeleteTarget({ kind: "model", modelId: m.id, mid: m.model_id })}
+                                  onClick={() => deleteModel(m.id, m.model_id)}
                                   disabled={aiBusy === `del-model-${m.id}`}
                                   className="text-red-400 hover:text-red-300 disabled:opacity-50"
                                   title="Xoá model"
@@ -1122,60 +1098,6 @@ export default function AdminPage() {
           )}
         </CardContent>
       </Card>
-
-      <ConfirmModal
-        open={!!adminDeleteTarget}
-        tone="danger"
-        icon={
-          !adminDeleteTarget
-            ? "delete"
-            : adminDeleteTarget.kind === "provider"
-            ? "delete"
-            : adminDeleteTarget.kind === "model"
-            ? "delete"
-            : "description"
-        }
-        title={
-          !adminDeleteTarget
-            ? "Xoá mục này?"
-            : adminDeleteTarget.kind === "provider"
-            ? `Xoá provider "${adminDeleteTarget.name}"?`
-            : adminDeleteTarget.kind === "model"
-            ? `Xoá model "${adminDeleteTarget.mid}"?`
-            : `Xoá tài liệu chuẩn "${adminDeleteTarget.title}"?`
-        }
-        description={
-          !adminDeleteTarget ? null : (
-            <>
-              {adminDeleteTarget.kind === "provider" && (
-                <p className="text-[14px] text-muted-foreground">
-                  Hành động này sẽ xoá luôn các model và cấu hình chức năng trỏ tới provider này.
-                </p>
-              )}
-              {adminDeleteTarget.kind === "model" && (
-                <p className="text-[14px] text-muted-foreground">
-                  Bạn có chắc muốn xoá model này khỏi provider?
-                </p>
-              )}
-              {adminDeleteTarget.kind === "ref" && (
-                <p className="text-[14px] text-muted-foreground">
-                  Hành động này sẽ xoá toàn bộ chunks và file gốc.
-                </p>
-              )}
-            </>
-          )
-        }
-        confirmLabel="Xoá"
-        cancelLabel="Huỷ"
-        onCancel={() => setAdminDeleteTarget(null)}
-        onConfirm={async () => {
-          const t = adminDeleteTarget;
-          if (!t) return;
-          if (t.kind === "provider") await confirmDeleteProvider();
-          else if (t.kind === "model") await confirmDeleteModel();
-          else if (t.kind === "ref") await confirmRemoveRef();
-        }}
-      />
     </main>
   );
 }

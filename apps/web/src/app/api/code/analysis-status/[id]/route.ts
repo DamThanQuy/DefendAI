@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ngrokHeaders } from '@/lib/upstream';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,7 @@ export async function GET(
 
   try {
     const res = await fetch(`${backendUrl}/api/code/analyses/${analysisId}`, {
-      headers: authHeader ? { Authorization: authHeader } : {},
+      headers: { ...ngrokHeaders(), ...(authHeader ? { Authorization: authHeader } : {}) },
       cache: 'no-store',
     });
     if (!res.ok) {

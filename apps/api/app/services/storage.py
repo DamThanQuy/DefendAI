@@ -307,8 +307,11 @@ async def iter_zip_members(
 
     tmp_path: str | None = None
     try:
-        # Tạo temp file, download toàn bộ ZIP vào đó (không tốn RAM)
-        fd, tmp_path = _tempfile.mkstemp(suffix=".zip", prefix="minio_zip_")
+        # Tạo temp file trên disk thật (tránh RAM-disk /tmp bị giới hạn 1GB khi tải file 2-3GB)
+        spill_dir = "/app/.tmp" if _os.path.exists("/app") and _os.path.isdir("/app") else None
+        if spill_dir:
+            _os.makedirs(spill_dir, exist_ok=True)
+        fd, tmp_path = _tempfile.mkstemp(suffix=".zip", prefix="minio_zip_", dir=spill_dir)
         _os.close(fd)
         total_bytes = 0
         with open(tmp_path, "wb") as f:
@@ -582,6 +585,35 @@ async def abort_multipart_upload(
             UploadId=upload_id,
         )
     logger.info("Multipart aborted: bucket=%s key=%s upload_id=%s", bucket, key, upload_id)
+
+
+async def upload_part_bytes(
+    bucket: str,
+    key: str,
+    upload_id: str,
+    part_number: int,
+    data: bytes,
+) -> str:
+    """Upload part bytes directly to MinIO (server-side proxy).
+
+    Used when browser cannot reach MinIO directly (e.g. no public endpoint).
+    Returns ETag of the uploaded part.
+
+    Args:
+        data: raw bytes of this part (max 5GB per S3 spec).
+    """
+    session = _get_session()
+    async with session.client("s3", **_client_kwargs()) as s3:
+        resp = await s3.upload_part(
+            Bucket=bucket,
+            Key=key,
+            PartNumber=part_number,
+            UploadId=upload_id,
+            Body=data,
+        )
+    etag = resp["ETag"].strip('"')
+    logger.debug("Uploaded part %d for %s/%s (etag=%s)", part_number, bucket, key, etag)
+    return etag
 
 
 async def list_uploaded_parts(

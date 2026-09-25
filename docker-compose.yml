@@ -1,7 +1,7 @@
-# ===== docker-compose.yml cho DefendAI =====
-# Môi trường dev local - chạy 3 service: db, api, web
-# Sử dụng: docker compose up --build
-# (Docker Compose V2 không cần `version:` nữa)
+# ===== docker-compose.yml cho DefendAI (Server Optimized Backend) =====
+# Frontend: https://defend-ai.vercel.app (Vercel Cloud)
+# Server Backend: db, redis, minio, api, worker, worker_multi
+# Tối ưu: RAM Disk tmpfs /tmp, Postgres in-memory WAL buffer, Redis in-memory queue, no swap
 
 services:
   # ========================================================================
@@ -18,31 +18,22 @@ services:
       - .env
 
     environment:
-      # Database (trỏ về service "db" trong compose network)
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/defense_db
-      # Routing
       DEFAULT_PROVIDER: localhost
-
-      # Auth (cho tuần 2-3)
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
       REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
-
-      # Google OAuth (điền Client ID từ Google Cloud Console)
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-
-      # Redis connection
       REDIS_URL: redis://redis:6379/0
-      # Force correct local model (image has stale LOCAL_MODEL=google)
       LOCAL_MODEL: ${LOCAL_MODEL:-agnes-2.5-flash}
       LOCAL_BASE_URL: ${LOCAL_BASE_URL:-https://apihub.agnes-ai.com/v1}
       LOCAL_API_KEY: ${LOCAL_API_KEY:-sk-x4yIzIz3M26SDmJLrPsjbXSwDUxL8HMrVehmAdrOVWSnqqsX}
     volumes:
-      # Mount code để dev có hot-reload
       - ./apps/api:/app
-      # Exclude __pycache__ để tận dụng Docker layer
       - /app/__pycache__
+    tmpfs:
+      - /tmp:size=1G,uid=1000,gid=1000
     depends_on:
       db:
         condition: service_healthy
@@ -58,47 +49,19 @@ services:
       start_period: 10s
 
   # ========================================================================
-  # Frontend (Next.js)
-  # ========================================================================
-  web:
-    build: ./apps/web
-    container_name: defense-web
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      # Browser chạy trên host → dùng localhost:8000 (host port mapping của api).
-      # "api" chỉ resolve được BẢO trong Docker network, không resolve từ browser.
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      BACKEND_URL: http://api:8000
-      # Google OAuth Client ID (phải trùng với GOOGLE_CLIENT_ID bên api)
-      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      # Bind mount Windows->Linux không phát inotify event, phải poll mới hot reload.
-      # Next 14 dùng watchpack (WATCHPACK_POLLING); CHOKIDAR_* chỉ dành cho CRA.
-      WATCHPACK_POLLING: "true"
-    volumes:
-      - ./apps/web:/app
-      - /app/node_modules
-      - /app/.next
-    depends_on:
-      - api
-    networks:
-      - defense-net
-    command: npm run dev
-
-  # ========================================================================
-  # Database (PostgreSQL 16)
+  # Database (PostgreSQL 16) - Optimized RAM Buffer
   # ========================================================================
   db:
     image: pgvector/pgvector:pg16
     container_name: defense-db
     restart: unless-stopped
+    command: postgres -c synchronous_commit=off -c shared_buffers=256MB -c wal_buffers=16MB -c work_mem=16MB
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: defense_db
     ports:
-      - "5433:5432"  # Host 5433 → Container 5432
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -110,7 +73,7 @@ services:
       retries: 5
 
   # ========================================================================
-  # Object Storage (MinIO) — file uploads thay cho disk local
+  # Object Storage (MinIO)
   # ========================================================================
   minio:
     image: minio/minio
@@ -136,7 +99,7 @@ services:
       start_period: 30s
 
   # ========================================================================
-  # Background worker — processes async jobs from Redis queue (single process)
+  # Background worker (single process) - with RAM Disk tmpfs
   # ========================================================================
   worker:
     build: ./apps/api
@@ -166,7 +129,9 @@ services:
     volumes:
       - ./apps/api:/app
       - /app/__pycache__
-      - analysis_tmp:/var/lib/defendai/analysis-tmp
+    tmpfs:
+      - /tmp:size=1G,uid=1000,gid=1000
+      - /var/lib/defendai/analysis-tmp:size=1G,uid=1000,gid=1000
     depends_on:
       db:
         condition: service_healthy
@@ -182,8 +147,7 @@ services:
       - defense-net
 
   # ========================================================================
-  # Multi-process worker (Cách B) — song song xử lý code_scan_module jobs.
-  # Scale: docker compose up -d --scale worker_multi=N
+  # Multi-process worker (2 processes for HDD stability + RAM Disk)
   # ========================================================================
   worker_multi:
     build: ./apps/api
@@ -200,7 +164,7 @@ services:
       LOCAL_MODEL: ${LOCAL_MODEL:-agnes-2.5-flash}
       LOCAL_BASE_URL: ${LOCAL_BASE_URL:-https://apihub.agnes-ai.com/v1}
       LOCAL_API_KEY: ${LOCAL_API_KEY:-sk-x4yIzIz3M26SDmJLrPsjbXSwDUxL8HMrVehmAdrOVWSnqqsX}
-      WORKER_PROCESSES: 4
+      WORKER_PROCESSES: 2
       EMBED_BATCH_SIZE: "64"
       EMBED_REQUEST_DELAY: "1.5"
       NVIDIA_EMBED_API_KEY: ${NVIDIA_EMBED_API_KEY:-}
@@ -214,7 +178,9 @@ services:
     volumes:
       - ./apps/api:/app
       - /app/__pycache__
-      - analysis_tmp:/var/lib/defendai/analysis-tmp
+    tmpfs:
+      - /tmp:size=1G,uid=1000,gid=1000
+      - /var/lib/defendai/analysis-tmp:size=1G,uid=1000,gid=1000
     depends_on:
       db:
         condition: service_healthy
@@ -230,12 +196,13 @@ services:
       - defense-net
 
   # ========================================================================
-  # Redis — async job queue backbone
+  # Redis - in-memory queue
   # ========================================================================
   redis:
     image: redis:7-alpine
     container_name: defense-redis
     restart: unless-stopped
+    command: redis-server --appendonly no --save 300 1
     ports:
       - "6379:6379"
     volumes:
@@ -258,8 +225,6 @@ volumes:
     name: defense_minio_data
   redis_data:
     name: defense_redis_data
-  analysis_tmp:
-    name: defense_analysis_tmp
 
 # ========================================================================
 # Networks

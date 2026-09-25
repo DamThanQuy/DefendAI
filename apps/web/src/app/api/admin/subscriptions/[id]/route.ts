@@ -1,22 +1,23 @@
 import { NextResponse } from "next/server";
+import { backendUrl, ngrokHeaders } from "@/lib/upstream";
 
 export const dynamic = "force-dynamic";
-const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 
 type Context = { params: { id: string } };
 
 export async function PUT(request: Request, { params }: Context) {
-  return proxy(request, `${BACKEND_URL}/api/admin/subscriptions/${params.id}`, "PUT");
+  return proxy(request, `${backendUrl()}/api/admin/subscriptions/${params.id}`, "PUT");
 }
 
 export async function DELETE(request: Request, { params }: Context) {
-  return proxy(request, `${BACKEND_URL}/api/admin/subscriptions/${params.id}`, "DELETE");
+  return proxy(request, `${backendUrl()}/api/admin/subscriptions/${params.id}`, "DELETE");
 }
 
 async function proxy(request: Request, url: string, method: "PUT" | "DELETE") {
   try {
     const auth = request.headers.get("authorization") || "";
     const headers: HeadersInit = {
+      ...ngrokHeaders(),
       ...(auth ? { Authorization: auth } : {}),
       ...(method === "PUT" ? { "Content-Type": "application/json" } : {}),
     };

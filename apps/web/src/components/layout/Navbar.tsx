@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { clearSession } from "@/lib/auth";
 import { isPublicPath } from "@/lib/shell";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, Bell, Search, Settings } from "lucide-react";
 
 const navLinks: { href: string; label: string; roles?: string[]; public?: boolean }[] = [
   { href: "/", label: "Trang chủ", public: true },
@@ -35,13 +36,19 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/85 backdrop-blur-md transition-all">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 lg:px-8">
-        {/* Logo — Qiz HUB style */}
+        {/* Logo */}
         <Link
           href="/"
           className="flex items-center gap-3 group transition-transform hover:scale-[1.02]"
         >
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-[0_0_20px_hsl(var(--primary)/0.35)]">
-            <GraduationCap className="w-5 h-5 text-primary-foreground" strokeWidth={2.5} />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-[0_0_20px_hsl(var(--primary)/0.35)] overflow-hidden">
+            <Image
+              src="/avatar.jpg"
+              alt="GraduAI Avatar"
+              width={40}
+              height={40}
+              className="w-full h-full object-cover"
+            />
           </div>
           <div className="flex flex-col leading-none">
             <span className="text-xl font-extrabold tracking-tight">

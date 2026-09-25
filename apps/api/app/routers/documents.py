@@ -14,6 +14,7 @@ Endpoints (large file - multipart upload, resumable):
 - POST /api/documents/multipart/{id}/complete → ghép các parts → tạo Document
 - DELETE /api/documents/multipart/{id}/abort → hủy session + cleanup MinIO
 """
+import hashlib
 import logging
 import math
 import os
@@ -21,7 +22,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete as sa_delete, select
@@ -57,10 +58,12 @@ from app.services.storage import (
     delete,
     create_multipart_upload,
     generate_part_upload_url,
+    upload_part_bytes,
     complete_multipart_upload,
     abort_multipart_upload,
     list_uploaded_parts,
     get_range,
+    get_object_size,
 )
 from app.services.archive_service import list_archive_members, read_archive_member, ArchiveError
 
@@ -194,6 +197,22 @@ async def _verify_uploaded_object_integrity(
     ext = Path(filename).suffix.lower()
     expected_magic = MAGIC_BYTES.get(ext)
 
+    # 0. So sánh kích thước object thực tế trên MinIO với expected_size.
+    # Nếu lệch → có part bị cụt/thừa bytes khi ghép (rớt mạng giữa chừng PUT).
+    # Bắt sớm ở đây cho mọi loại file (không chỉ ZIP), với message rõ ràng.
+    try:
+        actual_size = await get_object_size(storage_key, settings.minio.bucket)
+    except Exception as exc:  # noqa: BLE001
+        log.error("Integrity check: cannot HEAD %s: %s", storage_key, exc)
+        return False
+    if actual_size != expected_size:
+        log.error(
+            "Integrity check FAIL: %s size mismatch actual=%d expected=%d "
+            "(a part was likely truncated/duplicated during upload)",
+            storage_key, actual_size, expected_size,
+        )
+        return False
+
     # 1. Check 4 bytes đầu (magic).
     try:
         head = await get_range(
@@ -229,8 +248,9 @@ async def _verify_uploaded_object_integrity(
         # EOCD: PK\x05\x06, Zip64 EOCD: PK\x06\x06, Zip64 EOCD locator: PK\x06\x07
         if not any(sig in tail for sig in (b"PK\x05\x06", b"PK\x06\x06", b"PK\x06\x07")):
             log.error(
-                "Integrity check FAIL: %s missing EOCD/Zip64 EOCD in last 64 bytes",
-                storage_key,
+                "Integrity check FAIL: %s missing EOCD/Zip64 EOCD in last 64 bytes "
+                "(actual_size=%d expected=%d tail_hex=%s)",
+                storage_key, actual_size, expected_size, tail.hex(),
             )
             return False
 
@@ -301,15 +321,365 @@ async def upload_document(
 
 
 # ===========================================================================
+# Multipart upload — for large files (GB), similar to Google Drive Resumable.
+# ===========================================================================
+# Flow:
+#   1. Client POST /multipart/init {filename, size} -> get upload_id + parts URLs
+#   2. Client PUT each chunk binary directly to MinIO via presigned URL
+#      (parallel, retry per part, NOT going through Next.js -> bypass 1MB limit)
+#   3. Client POST /multipart/{id}/complete {parts: [{PartNumber, ETag}]}
+#      -> BE merges parts + creates Document record + returns document_id
+#   4. (Optional) Client DELETE /multipart/{id}/abort to cancel
+#
+# Resume: Client GET /multipart/{id}/status -> know which parts uploaded.
+#
+# QUAN TRỌNG: Các endpoint multipart phải đăng ký TRƯỚC `/{doc_id}` —
+# FastAPI match route theo thứ tự, nếu `/multipart/...` nằm sau thì
+# `/{doc_id}` (int) sẽ bắt trước và trả 404 cho path "multipart".
+
+DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024  # 8 MB
+MIN_CHUNK_SIZE = 1024 * 1024  # 1 MB
+MAX_PARTS = 10000
+
+
+def _init_session_chunk_size(size: int) -> int:
+    """Compute chunk size: ensure parts count <= MAX_PARTS (10000)."""
+    chunk = DEFAULT_CHUNK_SIZE
+    while math.ceil(size / chunk) > MAX_PARTS and chunk < size:
+        chunk *= 2
+    return max(chunk, MIN_CHUNK_SIZE)
+
+
+@router.post("/multipart/init", response_model=MultipartInitResponse, status_code=201)
+async def multipart_init(
+    payload: MultipartInitRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Initialize multipart upload session."""
+    doc_type = _get_doc_type(payload.filename)
+    safe_filename = _sanitize_filename(payload.filename)
+
+    if payload.size <= 0:
+        raise HTTPException(status_code=400, detail="File size must be > 0")
+    if payload.size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Max: {MAX_FILE_SIZE // (1024 * 1024)} MB",
+        )
+
+    bucket = settings.minio.bucket
+    chunk_size = _init_session_chunk_size(payload.size)
+    parts_expected = math.ceil(payload.size / chunk_size)
+
+    storage_key = f"documents/{uuid.uuid4().hex[:16]}_{safe_filename}"
+    mime = payload.mime or _determine_mime(safe_filename)
+
+    try:
+        s3_upload_id = await create_multipart_upload(bucket, storage_key, mime)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).exception("MinIO create_multipart_upload failed")
+        raise HTTPException(status_code=502, detail=f"Storage init failed: {exc}")
+
+    session_id = uuid.uuid4().hex
+    sess = UploadSession(
+        id=session_id,
+        storage_key=storage_key,
+        s3_upload_id=s3_upload_id,
+        user_id=user.id,
+        filename=safe_filename,
+        size=payload.size,
+        mime=mime,
+        parts_expected=parts_expected,
+        parts_received=0,
+        status="pending",
+    )
+    db.add(sess)
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        try:
+            await abort_multipart_upload(bucket, storage_key, s3_upload_id)
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail="Failed to save upload session")
+
+    parts_info: list[MultipartPartInfo] = []
+    for part_no in range(1, parts_expected + 1):
+        if part_no == parts_expected:
+            actual_chunk = payload.size - (parts_expected - 1) * chunk_size
+        else:
+            actual_chunk = chunk_size
+        url = await generate_part_upload_url(
+            bucket, storage_key, s3_upload_id, part_no, expires_in=3600
+        )
+        parts_info.append(
+            MultipartPartInfo(part_number=part_no, url=url, chunk_size=actual_chunk)
+        )
+
+    return MultipartInitResponse(
+        upload_id=session_id,
+        storage_key=storage_key,
+        bucket=bucket,
+        chunk_size=chunk_size,
+        parts_expected=parts_expected,
+        parts=parts_info,
+    )
+
+
+@router.get("/multipart/{upload_id}/status", response_model=MultipartStatusResponse)
+async def multipart_status(
+    upload_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return current session status — used for resume after FE crash/network loss."""
+    sess = await db.get(UploadSession, upload_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail=f"Upload session {upload_id} not found")
+    if sess.user_id != user.id and not _is_privileged(user):
+        raise HTTPException(status_code=403, detail="You do not have access to this session")
+
+    uploaded: list[dict] = []
+    if sess.status == "pending":
+        try:
+            uploaded = await list_uploaded_parts(
+                settings.minio.bucket, sess.storage_key, sess.s3_upload_id
+            )
+        except Exception:
+            pass
+
+    return MultipartStatusResponse(
+        upload_id=upload_id,
+        status=sess.status,
+        parts_expected=sess.parts_expected,
+        parts_received=sess.parts_received,
+        document_id=sess.document_id,
+        uploaded_parts=uploaded,
+    )
+
+
+@router.post("/multipart/{upload_id}/complete", response_model=MultipartCompleteResponse)
+async def multipart_complete(
+    upload_id: str,
+    payload: MultipartCompleteRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Merge uploaded parts -> create Document record."""
+    sess = await db.get(UploadSession, upload_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail=f"Upload session {upload_id} not found")
+    if sess.user_id != user.id and not _is_privileged(user):
+        raise HTTPException(status_code=403, detail="You do not have access to this session")
+    if sess.status == "completed":
+        return MultipartCompleteResponse(
+            upload_id=upload_id,
+            document_id=sess.document_id,
+            storage_key=sess.storage_key,
+            filename=sess.filename,
+            size=sess.size,
+        )
+    if sess.status != "pending":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Session is {sess.status}, cannot complete",
+        )
+
+    if len(payload.parts) != sess.parts_expected:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Parts mismatch: expected {sess.parts_expected}, "
+                f"got {len(payload.parts)}"
+            ),
+        )
+
+    doc_type = _get_doc_type(sess.filename)
+
+    parts_for_s3 = [{"PartNumber": p.PartNumber, "ETag": p.ETag} for p in payload.parts]
+
+    try:
+        await complete_multipart_upload(
+            settings.minio.bucket, sess.storage_key, sess.s3_upload_id, parts_for_s3
+        )
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).exception("MinIO complete_multipart_upload failed")
+        raise HTTPException(status_code=502, detail=f"Storage complete failed: {exc}")
+
+    integrity_ok = await _verify_uploaded_object_integrity(
+        sess.filename, sess.size, sess.storage_key,
+    )
+    if not integrity_ok:
+        try:
+            await _delete_object_best_effort(settings.minio.bucket, sess.storage_key)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            await abort_multipart_upload(
+                settings.minio.bucket, sess.storage_key, sess.s3_upload_id,
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        sess.status = "failed"
+        await db.commit()
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Upload completed but object integrity check failed — "
+                "the assembled file on storage is not a valid archive. "
+                "Object has been deleted, please retry the upload."
+            ),
+        )
+
+    doc = Document(
+        filename=sess.filename,
+        file_type=Path(sess.filename).suffix.lower(),
+        doc_type=doc_type,
+        storage_key=sess.storage_key,
+        status=DocumentStatus.uploaded,
+        purpose=DocumentPurpose.student_project,
+        uploaded_by=user.id,
+    )
+    db.add(doc)
+    await db.flush()
+
+    sess.status = "completed"
+    sess.parts_received = len(payload.parts)
+    sess.document_id = doc.id
+    sess.completed_at = datetime.utcnow()
+
+    try:
+        await db.commit()
+        await db.refresh(doc)
+    except Exception:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to save document metadata")
+
+    return MultipartCompleteResponse(
+        upload_id=upload_id,
+        document_id=doc.id,
+        storage_key=sess.storage_key,
+        filename=sess.filename,
+        size=sess.size,
+    )
+
+
+@router.put("/multipart/{upload_id}/part/{part_number}")
+async def multipart_upload_part(
+    upload_id: str,
+    part_number: int,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Proxy: receive chunk bytes from browser and upload to MinIO."""
+    sess = await db.get(UploadSession, upload_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail="Upload session not found")
+    if sess.user_id != user.id and not _is_privileged(user):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if sess.status != "pending":
+        raise HTTPException(status_code=409, detail=f"Session is {sess.status}")
+    if part_number < 1 or part_number > sess.parts_expected:
+        raise HTTPException(status_code=400, detail=f"Invalid part number: {part_number}")
+
+    data = await request.body()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty body")
+
+    chunk = _init_session_chunk_size(sess.size)
+    if part_number < sess.parts_expected:
+        expected_len = chunk
+    else:
+        expected_len = sess.size - (sess.parts_expected - 1) * chunk
+    if len(data) != expected_len:
+        logging.getLogger(__name__).warning(
+            "Part %d length mismatch: got %d bytes, expected %d (session %s)",
+            part_number, len(data), expected_len, upload_id,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Part {part_number} has wrong size: got {len(data)} bytes, "
+                f"expected {expected_len}. Please retry this part."
+            ),
+        )
+
+    expected_sha = request.headers.get("x-part-sha256")
+    if not expected_sha:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Part {part_number} missing X-Part-Sha256 header.",
+        )
+    if expected_sha:
+        actual_sha = hashlib.sha256(data).hexdigest()
+        if actual_sha != expected_sha.lower():
+            logging.getLogger(__name__).warning(
+                "Part %d checksum mismatch: got %s, expected %s (session %s)",
+                part_number, actual_sha, expected_sha.lower(), upload_id,
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Part {part_number} failed checksum. Please retry this part."
+                ),
+            )
+
+    try:
+        etag = await upload_part_bytes(
+            settings.minio.bucket, sess.storage_key, sess.s3_upload_id, part_number, data
+        )
+    except Exception as exc:
+        logging.getLogger(__name__).exception("Proxy upload part %d failed", part_number)
+        raise HTTPException(status_code=502, detail=f"Upload part failed: {exc}")
+
+    return {"part_number": part_number, "etag": etag}
+
+
+@router.delete("/multipart/{upload_id}/abort", status_code=204)
+async def multipart_abort(
+    upload_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel upload session + cleanup parts on MinIO."""
+    sess = await db.get(UploadSession, upload_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail=f"Upload session {upload_id} not found")
+    if sess.user_id != user.id and not _is_privileged(user):
+        raise HTTPException(status_code=403, detail="You do not have access to this session")
+    if sess.status == "completed":
+        raise HTTPException(
+            status_code=409,
+            detail="Session already completed, cannot abort",
+        )
+
+    try:
+        await abort_multipart_upload(
+            settings.minio.bucket, sess.storage_key, sess.s3_upload_id
+        )
+    except Exception:
+        pass
+
+    sess.status = "aborted"
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+
+    return Response(status_code=204)
+
+
+# ===========================================================================
 # Soft delete (thùng rác, mô phỏng Google Drive)
 #   - Student xoá được file mình upload, TRỪ khi đã có assessment completed.
 #   - Mentor xoá được mọi document của student.
 #   - Admin xoá được tất cả + purge cứng qua /api/admin/documents/{id}/purge.
 #   - File bị soft-delete được giữ 30 ngày rồi cron TrashPurger purge hẳn.
-#
-# QUAN TRỌNG: 3 endpoint này phải đăng ký TRƯỚC `/{doc_id}` — FastAPI match
-# route theo thứ tự đăng ký, nếu `/trash` nằm sau thì `GET /api/documents/trash`
-# sẽ bị `GET /{doc_id}` bắt với doc_id="trash" → 422.
 # ===========================================================================
 
 
@@ -478,7 +848,14 @@ async def get_document(
     """Lấy metadata của 1 document theo ID."""
     doc = await _get_active_doc(db, doc_id)
     _assert_doc_access(doc, user)
-    return doc
+    # Lấy dung lượng file từ MinIO
+    resp = DocumentResponse.model_validate(doc)
+    try:
+        from app.services.storage import get_object_size
+        resp.size = await get_object_size(doc.storage_key)
+    except Exception:
+        resp.size = None
+    return resp
 
 
 @router.get("/", response_model=DocumentListResponse)
@@ -498,7 +875,19 @@ async def list_documents(
         query = query.where(Document.uploaded_by == user.id)
     result = await db.execute(query)
     docs = list(result.scalars().all())
-    return DocumentListResponse(total=len(docs), items=docs)
+
+    # Lấy dung lượng file từ MinIO cho tất cả documents
+    from app.services.storage import get_object_size
+    items: list[DocumentResponse] = []
+    for doc in docs:
+        resp = DocumentResponse.model_validate(doc)
+        try:
+            resp.size = await get_object_size(doc.storage_key)
+        except Exception:
+            resp.size = None
+        items.append(resp)
+
+    return DocumentListResponse(total=len(items), items=items)
 
 
 @router.get("/{doc_id}/download")
@@ -615,300 +1004,3 @@ async def get_document_member_content(
             "Content-Length": str(len(data)),
         },
     )
-
-# ===========================================================================
-
-# ===========================================================================
-# Multipart upload — for large files (GB), similar to Google Drive Resumable.
-# ===========================================================================
-# Flow:
-#   1. Client POST /multipart/init {filename, size} -> get upload_id + parts URLs
-#   2. Client PUT each chunk binary directly to MinIO via presigned URL
-#      (parallel, retry per part, NOT going through Next.js -> bypass 1MB limit)
-#   3. Client POST /multipart/{id}/complete {parts: [{PartNumber, ETag}]}
-#      -> BE merges parts + creates Document record + returns document_id
-#   4. (Optional) Client DELETE /multipart/{id}/abort to cancel
-#
-# Resume: Client GET /multipart/{id}/status -> know which parts uploaded.
-
-DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024  # 8 MB
-MIN_CHUNK_SIZE = 1024 * 1024  # 1 MB
-MAX_PARTS = 10000
-
-
-def _init_session_chunk_size(size: int) -> int:
-    """Compute chunk size: ensure parts count <= MAX_PARTS (10000)."""
-    chunk = DEFAULT_CHUNK_SIZE
-    while math.ceil(size / chunk) > MAX_PARTS and chunk < size:
-        chunk *= 2
-    return max(chunk, MIN_CHUNK_SIZE)
-
-
-@router.post("/multipart/init", response_model=MultipartInitResponse, status_code=201)
-async def multipart_init(
-    payload: MultipartInitRequest,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Initialize multipart upload session.
-
-    1. Validate extension + size.
-    2. Create storage_key, call MinIO create_multipart_upload -> get s3_upload_id.
-    3. Generate presigned URL for each part (FE uses them for PUT).
-    4. Save UploadSession in DB for tracking + resume.
-    """
-    doc_type = _get_doc_type(payload.filename)
-    safe_filename = _sanitize_filename(payload.filename)
-
-    if payload.size <= 0:
-        raise HTTPException(status_code=400, detail="File size must be > 0")
-    if payload.size > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"File too large. Max: {MAX_FILE_SIZE // (1024 * 1024)} MB",
-        )
-
-    bucket = settings.minio.bucket
-    chunk_size = _init_session_chunk_size(payload.size)
-    parts_expected = math.ceil(payload.size / chunk_size)
-
-    storage_key = f"documents/{uuid.uuid4().hex[:16]}_{safe_filename}"
-    mime = payload.mime or _determine_mime(safe_filename)
-
-    try:
-        s3_upload_id = await create_multipart_upload(bucket, storage_key, mime)
-    except Exception as exc:
-        import logging
-        logging.getLogger(__name__).exception("MinIO create_multipart_upload failed")
-        raise HTTPException(status_code=502, detail=f"Storage init failed: {exc}")
-
-    session_id = uuid.uuid4().hex
-    sess = UploadSession(
-        id=session_id,
-        storage_key=storage_key,
-        s3_upload_id=s3_upload_id,
-        user_id=user.id,
-        filename=safe_filename,
-        size=payload.size,
-        mime=mime,
-        parts_expected=parts_expected,
-        parts_received=0,
-        status="pending",
-    )
-    db.add(sess)
-    try:
-        await db.commit()
-    except Exception:
-        await db.rollback()
-        try:
-            await abort_multipart_upload(bucket, storage_key, s3_upload_id)
-        except Exception:
-            pass
-        raise HTTPException(status_code=500, detail="Failed to save upload session")
-
-    parts_info: list[MultipartPartInfo] = []
-    for part_no in range(1, parts_expected + 1):
-        if part_no == parts_expected:
-            actual_chunk = payload.size - (parts_expected - 1) * chunk_size
-        else:
-            actual_chunk = chunk_size
-        url = await generate_part_upload_url(
-            bucket, storage_key, s3_upload_id, part_no, expires_in=3600
-        )
-        parts_info.append(
-            MultipartPartInfo(part_number=part_no, url=url, chunk_size=actual_chunk)
-        )
-
-    return MultipartInitResponse(
-        upload_id=session_id,
-        storage_key=storage_key,
-        bucket=bucket,
-        chunk_size=chunk_size,
-        parts_expected=parts_expected,
-        parts=parts_info,
-    )
-
-
-@router.get("/multipart/{upload_id}/status", response_model=MultipartStatusResponse)
-async def multipart_status(
-    upload_id: str,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Return current session status — used for resume after FE crash/network loss."""
-    sess = await db.get(UploadSession, upload_id)
-    if not sess:
-        raise HTTPException(status_code=404, detail=f"Upload session {upload_id} not found")
-    if sess.user_id != user.id and not _is_privileged(user):
-        raise HTTPException(status_code=403, detail="You do not have access to this session")
-
-    uploaded: list[dict] = []
-    if sess.status == "pending":
-        try:
-            uploaded = await list_uploaded_parts(
-                settings.minio.bucket, sess.storage_key, sess.s3_upload_id
-            )
-        except Exception:
-            pass
-
-    return MultipartStatusResponse(
-        upload_id=upload_id,
-        status=sess.status,
-        parts_expected=sess.parts_expected,
-        parts_received=sess.parts_received,
-        document_id=sess.document_id,
-        uploaded_parts=uploaded,
-    )
-
-
-@router.post("/multipart/{upload_id}/complete", response_model=MultipartCompleteResponse)
-async def multipart_complete(
-    upload_id: str,
-    payload: MultipartCompleteRequest,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Merge uploaded parts -> create Document record.
-
-    FE sends list of {PartNumber, ETag} for all successfully PUT parts.
-    BE calls complete_multipart_upload on MinIO, creates Document row.
-    """
-    sess = await db.get(UploadSession, upload_id)
-    if not sess:
-        raise HTTPException(status_code=404, detail=f"Upload session {upload_id} not found")
-    if sess.user_id != user.id and not _is_privileged(user):
-        raise HTTPException(status_code=403, detail="You do not have access to this session")
-    if sess.status == "completed":
-        return MultipartCompleteResponse(
-            upload_id=upload_id,
-            document_id=sess.document_id,
-            storage_key=sess.storage_key,
-            filename=sess.filename,
-            size=sess.size,
-        )
-    if sess.status != "pending":
-        raise HTTPException(
-            status_code=409,
-            detail=f"Session is {sess.status}, cannot complete",
-        )
-
-    if len(payload.parts) != sess.parts_expected:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Parts mismatch: expected {sess.parts_expected}, "
-                f"got {len(payload.parts)}"
-            ),
-        )
-
-    doc_type = _get_doc_type(sess.filename)
-
-    parts_for_s3 = [{"PartNumber": p.PartNumber, "ETag": p.ETag} for p in payload.parts]
-
-    try:
-        await complete_multipart_upload(
-            settings.minio.bucket, sess.storage_key, sess.s3_upload_id, parts_for_s3
-        )
-    except Exception as exc:
-        import logging
-        logging.getLogger(__name__).exception("MinIO complete_multipart_upload failed")
-        raise HTTPException(status_code=502, detail=f"Storage complete failed: {exc}")
-
-    # Verify object integrity ngay sau khi MinIO complete.
-    # Bắt buộc với file ZIP/RAR (và cả file thường): nếu FE gửi ETag list sai
-    # thứ tự hoặc ETag bị strip dấu nháy kép, MinIO vẫn trả 200 OK nhưng lắp
-    # ráp parts sai vị trí — file "thành công" trên bucket nhưng không thể mở.
-    # Check: (1) 4 bytes đầu == ZIP/RAR magic; (2) (chỉ với ZIP) EOCD signature
-    # ở 22 bytes cuối file. Nếu fail → xoá object hỏng + abort session,
-    # return 502 với message rõ ràng.
-    integrity_ok = await _verify_uploaded_object_integrity(
-        sess.filename, sess.size, sess.storage_key,
-    )
-    if not integrity_ok:
-        # Cleanup object hỏng + abort session để user có thể retry.
-        try:
-            await _delete_object_best_effort(settings.minio.bucket, sess.storage_key)
-        except Exception:  # noqa: BLE001
-            pass
-        try:
-            await abort_multipart_upload(
-                settings.minio.bucket, sess.storage_key, sess.s3_upload_id,
-            )
-        except Exception:  # noqa: BLE001
-            pass
-        sess.status = "failed"
-        await db.commit()
-        raise HTTPException(
-            status_code=502,
-            detail=(
-                "Upload completed but object integrity check failed — "
-                "the assembled file on storage is not a valid archive. "
-                "Object has been deleted, please retry the upload."
-            ),
-        )
-
-    doc = Document(
-        filename=sess.filename,
-        file_type=Path(sess.filename).suffix.lower(),
-        doc_type=doc_type,
-        storage_key=sess.storage_key,
-        status=DocumentStatus.uploaded,
-        purpose=DocumentPurpose.student_project,
-        uploaded_by=user.id,
-    )
-    db.add(doc)
-    await db.flush()
-
-    sess.status = "completed"
-    sess.parts_received = len(payload.parts)
-    sess.document_id = doc.id
-    sess.completed_at = datetime.utcnow()
-
-    try:
-        await db.commit()
-        await db.refresh(doc)
-    except Exception:
-        await db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to save document metadata")
-
-    return MultipartCompleteResponse(
-        upload_id=upload_id,
-        document_id=doc.id,
-        storage_key=sess.storage_key,
-        filename=sess.filename,
-        size=sess.size,
-    )
-
-
-@router.delete("/multipart/{upload_id}/abort", status_code=204)
-async def multipart_abort(
-    upload_id: str,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Cancel upload session + cleanup parts on MinIO."""
-    sess = await db.get(UploadSession, upload_id)
-    if not sess:
-        raise HTTPException(status_code=404, detail=f"Upload session {upload_id} not found")
-    if sess.user_id != user.id and not _is_privileged(user):
-        raise HTTPException(status_code=403, detail="You do not have access to this session")
-    if sess.status == "completed":
-        raise HTTPException(
-            status_code=409,
-            detail="Session already completed, cannot abort",
-        )
-
-    try:
-        await abort_multipart_upload(
-            settings.minio.bucket, sess.storage_key, sess.s3_upload_id
-        )
-    except Exception:
-        pass
-
-    sess.status = "aborted"
-    try:
-        await db.commit()
-    except Exception:
-        await db.rollback()
-
-    return Response(status_code=204)

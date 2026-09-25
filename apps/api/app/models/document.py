@@ -5,6 +5,7 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum as SQ
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.models.code_module_hash import CodeModuleHash  # noqa: F401
 
 
 class DocType(str, Enum):
