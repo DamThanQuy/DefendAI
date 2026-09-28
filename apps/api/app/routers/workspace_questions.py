@@ -21,10 +21,23 @@ from app.schemas.workspace_question import (
     WorkspaceQuestionListResponse,
 )
 from app.services.job_queue import create_job
+from app.services.source_item_builder import to_source_list
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/workspaces", tags=["workspace-questions"])
+
+
+def _q_to_response(q: WorkspaceQuestion) -> WorkspaceQuestionResponse:
+    """Convert ORM row → response, đảm bảo `sources` luôn match schema mới.
+
+    Row cũ trong DB có thể lưu dict thiếu field (`display_title`, `kind`, `doc_type`,
+    `is_markdown`) do schema cũ. Đưa qua `to_source_list` để normalize lại.
+    """
+    data = {k: v for k, v in q.__dict__.items() if not k.startswith("_")}
+    if data.get("sources"):
+        data["sources"] = to_source_list(list(data["sources"]))
+    return WorkspaceQuestionResponse.model_validate(data)
 
 
 async def _get_owned_workspace(workspace_id: int, user: User, db) -> Workspace:
@@ -95,7 +108,7 @@ async def list_workspace_questions(
         total=total,
         limit=limit,
         offset=offset,
-        items=[WorkspaceQuestionResponse.model_validate(q.__dict__) for q in result.scalars().all()],
+        items=[_q_to_response(q) for q in result.scalars().all()],
     )
 
 
@@ -110,7 +123,7 @@ async def get_workspace_question(
     q = await db.get(WorkspaceQuestion, question_id)
     if not q or q.workspace_id != ws.id:
         raise HTTPException(status_code=404, detail="Question session not found")
-    return WorkspaceQuestionResponse.model_validate(q.__dict__)
+    return _q_to_response(q)
 
 
 @router.delete("/{workspace_id}/questions/{question_id}", status_code=204)

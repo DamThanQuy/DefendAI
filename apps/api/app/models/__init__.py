@@ -20,18 +20,43 @@ from app.models.assessment import (  # noqa: F401
     Assessment,
     AssessmentStatus,
     CodeAnalysis,
+    CodeAnalysisIssue,
+    CodeAnalysisStatus,
     Evaluation,
     Report,
+)
+from app.models.defense_score import DefenseScore, DefenseScoreAudit  # noqa: F401
+from app.models.committee_decision import CommitteeDecision  # noqa: F401
+from app.models.use_case_commitment import (  # noqa: F401
+    UseCaseCommitment,
+    UseCaseCommitmentAudit,
+    UCStatus,
+    UCSource,
+)
+from app.models.defect_severity import (  # noqa: F401
+    AuditCodeAnalysisIssue,
+    DefectSeverity,
+    map_legacy_severity,
 )
 from app.models.app_setting import AppSetting  # noqa: F401
 from app.models.ai_config import AIProvider, AIModel, FeatureAIConfig  # noqa: F401
 from app.models.subscription_plan import SubscriptionPlan  # noqa: F401
 from app.models.session import Session  # noqa: F401
 from app.models.message import Message  # noqa: F401
-from app.models.workspace import Workspace  # noqa: F401
+from app.models.code_module_hash import CodeModuleHash  # noqa: F401
+from app.models.upload_session import UploadSession  # noqa: F401
+from app.models.workspace_conversation import WorkspaceConversation  # noqa: F401
+from app.models.workspace import Workspace, WorkspaceFile  # noqa: F401
 from app.models.workspace_question import WorkspaceQuestion  # noqa: F401
 from app.models.workspace_chat import WorkspaceChat  # noqa: F401
-from app.models.mock_chat import MockChatMessage  # noqa: F401
+from app.models.analysis_job import (  # noqa: F401
+    AnalysisJob,
+    AnalysisStatus,
+    MatchStatus,
+    ProjectEvidence,
+    ProjectManifest,
+    RequirementMatch,
+)
 
 __all__ = [
     "User",
@@ -57,6 +82,15 @@ __all__ = [
     "CodeAnalysisStatus",
     "Evaluation",
     "Report",
+    "DefenseScore",
+    "DefenseScoreAudit",
+    "CommitteeDecision",
+    "UseCaseCommitment",
+    "UseCaseCommitmentAudit",
+    "UCStatus",
+    "UCSource",
+    "DefectSeverity",
+    "AuditCodeAnalysisIssue",
     "AppSetting",
     "AIProvider",
     "AIModel",
@@ -64,8 +98,14 @@ __all__ = [
     "SubscriptionPlan",
     "Session",
     "Workspace",
+    "WorkspaceFile",
     "Message",
     "WorkspaceQuestion",
     "WorkspaceChat",
-    "MockChatMessage",
+    "AnalysisJob",
+    "AnalysisStatus",
+    "MatchStatus",
+    "ProjectEvidence",
+    "ProjectManifest",
+    "RequirementMatch",
 ]

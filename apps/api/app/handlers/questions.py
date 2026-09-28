@@ -181,6 +181,7 @@ def _build_system_prompt(rubric: dict | None = None, missing_block: str = "") ->
         "không có trong nội dung. Mỗi câu hỏi PHẢI bám sâu vào ít nhất một chi tiết cụ thể "
         "từ tài liệu. Nếu tài liệu quá ngắn hoặc không đủ nội dung để tạo câu hỏi chất lượng, "
         "hãy tạo ÍT câu hỏi hơn nhưng chất lượng hơn. Mảng questions có thể có 0 phần tử.\n\n"
+        "NGÔN NGỮ: CHỈ trả lời bằng tiếng Việt. TUYỆT ĐỐI KHÔNG dùng ngôn ngữ khác (Trung, Nhật, Hàn, Anh).\n\n"
         "LUẬT BẮT BUỘC (CRITICAL): BẠN CHỈ ĐƯỢC PHÉP TRẢ VỀ ĐÚNG MỘT OBJECT JSON. "
         "KHÔNG ĐƯỢC CÓ BẤT KỲ CHỮ NÀO KHÁC TRƯỚC HAY SAU JSON.\n\n"
         "CẤU TRÚC PHẢI NHƯ SAU:\n"

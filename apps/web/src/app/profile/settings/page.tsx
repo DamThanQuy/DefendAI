@@ -45,6 +45,7 @@ export default function ProfileSettingsPage() {
     }
   }
 
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -72,7 +73,8 @@ export default function ProfileSettingsPage() {
           {saving ? "Đang lưu..." : "Lưu thay đổi"}
         </button>
       </div>
-      {status && <p className={status.type === "ok" ? "text-sm text-teal-400" : "text-sm text-red-400"}>{status.text}</p>}
+
+      </div>
 
       {/* Thông tin cá nhân */}
       <div className="dark-card rounded-2xl p-6">

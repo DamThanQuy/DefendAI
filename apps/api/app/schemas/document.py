@@ -98,3 +98,4 @@ class MultipartStatusResponse(BaseModel):
         default_factory=list,
         description="[{PartNumber, ETag, Size}, ...] các part đã có trên MinIO"
     )
+

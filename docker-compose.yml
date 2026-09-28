@@ -120,6 +120,12 @@ services:
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
       REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      EMBED_BATCH_SIZE: "64"
+      EMBED_REQUEST_DELAY: "1.5"
+      NVIDIA_EMBED_API_KEY: ${NVIDIA_EMBED_API_KEY:-}
+      NVIDIA_EMBED_MODEL: ${NVIDIA_EMBED_MODEL:-nvidia/llama-nemotron-embed-vl-1b-v2}
+      NVIDIA_EMBED_TEXT_MODEL: ${NVIDIA_EMBED_TEXT_MODEL:-nvidia/nemotron-3-embed-1b}
+      NVIDIA_EMBED_BASE_URL: ${NVIDIA_EMBED_BASE_URL:-https://integrate.api.nvidia.com/v1}
     volumes:
       - ./apps/api:/app
       - /app/__pycache__
@@ -131,16 +137,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - defense-net
-    # Override HEALTHCHECK của Dockerfile (dò :8000 — chỉ đúng với api).
-    # Worker chạy health server ở :9091 (xem worker_main.py).
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9091/health', timeout=3).read()"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+    networks:
+      - defense-net
 
   # ========================================================================
   # Multi-process worker (2 processes for HDD stability + RAM Disk)
@@ -161,6 +165,7 @@ services:
       LOCAL_BASE_URL: ${LOCAL_BASE_URL:-https://apihub.agnes-ai.com/v1}
       LOCAL_API_KEY: ${LOCAL_API_KEY:-sk-x4yIzIz3M26SDmJLrPsjbXSwDUxL8HMrVehmAdrOVWSnqqsX}
       WORKER_PROCESSES: 4
+
       EMBED_BATCH_SIZE: "64"
       EMBED_REQUEST_DELAY: "1.5"
       NVIDIA_EMBED_API_KEY: ${NVIDIA_EMBED_API_KEY:-}

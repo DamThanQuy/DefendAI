@@ -5,6 +5,7 @@ Luồng: load row → index-on-demand các file chưa có chunk → retrieve top
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, List
 
@@ -20,6 +21,7 @@ from app.handlers.questions import (
     _heuristic_questions,
     _truncate_text,
 )
+from app.services.source_item_builder import to_source_list
 from app.models.entities import (
     AssessmentStatus,
     Document,
@@ -41,7 +43,7 @@ logger = logging.getLogger(__name__)
 _VALID_DIFFICULTIES = ("easy", "medium", "hard")
 
 
-async def _ensure_indexed(workspace_id: int, force: bool = False) -> None:
+async def _ensure_indexed(workspace_id: int, force: bool = False, job_id: str | None = None) -> None:
     """Index-on-demand: parse + embed các file trong workspace chưa có document_chunks.
 
     Tự re-index file đã index bằng pipeline cũ (trước figure-inventory): bản cũ
@@ -51,7 +53,9 @@ async def _ensure_indexed(workspace_id: int, force: bool = False) -> None:
 
     Args:
         force: nếu True, re-index tất cả file dù đã có chunks.
+        job_id: job ID for logging context.
     """
+    logger.info("Job %s: _ensure_indexed entered for workspace %s", job_id, workspace_id)
     async with async_session_maker() as db:
         result = await db.execute(
             select(WorkspaceFile.document_id).where(WorkspaceFile.workspace_id == workspace_id)
@@ -85,6 +89,7 @@ async def _ensure_indexed(workspace_id: int, force: bool = False) -> None:
             missing = list(dict.fromkeys(missing))  # dedup giữ thứ tự
 
         docs: List[Document] = []
+        skipped: List[int] = []
         if missing:
             # R9 harden: bỏ qua tài liệu chuẩn (staff_reference) — chúng chỉ đi
             # vào reference_chunks, không bao giờ được index vào document_chunks
@@ -95,15 +100,29 @@ async def _ensure_indexed(workspace_id: int, force: bool = False) -> None:
                 )
             )
             docs = r4.scalars().all()
+            skipped = [d for d in missing if d not in {doc.id for doc in docs}]
+            if skipped:
+                logger.info(
+                    "Skipped indexing for staff_reference docs: %s", skipped
+                )
 
+    logger.info("Job %s: _ensure_indexed finished for workspace %s", job_id, workspace_id)
     for doc in docs:
         try:
-            chunks, diagrams, diagram_infos = await parse_and_chunk_full(doc)
+            logger.info("Job %s: indexing doc %s (%s)", job_id, doc.id, doc.filename)
+            chunks, diagrams, diagram_infos = await asyncio.wait_for(
+                parse_and_chunk_full(doc), timeout=300
+            )
+            logger.info("Job %s: parsed doc %s (%s chunks)", job_id, doc.id, len(chunks))
             if chunks:
                 await index_chunks(doc, chunks, diagrams, diagram_infos=diagram_infos)
-                logger.info("Index on-demand doc %s (%s chunks)", doc.id, len(chunks))
+                logger.info("Job %s: indexed doc %s (%s chunks)", job_id, doc.id, len(chunks))
+            else:
+                logger.warning("Job %s: doc %s produced 0 chunks", job_id, doc.id)
+        except asyncio.TimeoutError:
+            logger.warning("Job %s: index-on-demand timed out for doc %s", job_id, doc.id)
         except Exception as exc:  # best-effort từng doc, không chặn cả job
-            logger.warning("Index-on-demand failed for doc %s: %s", doc.id, exc)
+            logger.warning("Job %s: index-on-demand failed for doc %s: %s", job_id, doc.id, exc)
 
 
 def _format_context(item: dict) -> str:
@@ -115,14 +134,28 @@ def _format_context(item: dict) -> str:
 def _build_rag_prompt(topic: str, contexts: List[str]) -> str:
     body = "\n\n".join(f"{i}. {c}" for i, c in enumerate(contexts, start=1))
     return _truncate_text(
-        f"Đề tài cần hỏi: {topic}\n\n"
+        f"Đề tài workspace (ĐÂY LÀ ĐỀ TÀI THẬT CỦA SV): {topic}\n\n"
         "Dưới đây là các đoạn trích liên quan nhất. Nhãn [USER: ...] là nội dung đồ án, "
         "nhãn [REF: ...] là tiêu chuẩn/rubric của hội đồng (mỗi đoạn đầu có nguồn).\n\n"
         f"{body}\n\n"
-        "Hãy sinh 5-10 câu hỏi phản biện sắc bén, bám sát đề tài và từng đoạn trích trên. "
+        "=== YÊU CẦU BẮT BUỘC VỀ PHẠM VI CÂU HỎI ===\n"
+        f"1) CHỈ sinh câu hỏi về đề tài '{topic}' và các file do sinh viên nộp (nhãn [USER: ...]).\n"
+        "2) BỎ QUA hoàn toàn nội dung từ file template/mẫu FPT nếu lẫn vào (ví dụ: "
+        "'Cafeteria Ordering System', 'COS', 'Process Impact campus', 'SWP493-G4', 'Angular 7', "
+        "'MySQL + Firebase', 'Clackamas Oregon'). Đây là file mẫu hướng dẫn, KHÔNG phải đồ án của SV.\n"
+        "3) Câu hỏi phải có đáp án rõ ràng từ nội dung SV đã nộp — không hỏi những thứ "
+        "workspace này không có.\n\n"
+        "=== YÊU CẦU BẮT BUỘC VỀ STYLE CÂU HỎI ===\n"
+        "1) Mỗi câu tập trung 1 ý duy nhất, KHÔNG liệt kê nhiều thuật ngữ chuyên ngành cùng lúc.\n"
+        "2) Dùng tiếng Việt thuần, ưu tiên từ ngữ sinh viên năm 3-4 hiểu được. "
+        "Nếu buộc phải dùng thuật ngữ (VD: API, database, ERD), hãy giải thích ngắn trong ngoặc.\n"
+        "3) Câu hỏi cụ thể, có thể trả lời được, không mơ hồ kiểu 'tạo ra giá trị gì'.\n"
+        "4) TUYỆT ĐỐI KHÔNG hỏi kiểu 'Nhóm em đã làm chưa?' / 'Có hay không?' — phải hỏi "
+        "CÁCH LÀM, TẠI SAO CHỌN, SO SÁNH, ĐÁNH ĐỔI (trade-off).\n\n"
+        "=== YÊU CẦU VỀ CẤU TRÚC ===\n"
         "MỖI câu hỏi PHẢI kèm 'citations' là mảng nguồn [\"file: đoạn X\", ...] mà câu hỏi dựa vào "
         "(chỉ dùng ĐÚNG tên nguồn đã liệt kê ở các đoạn trên). "
-        "ĐỒNG THỜI, trong chính nội dung câu hỏi, hãy chèn tham chiếu dạng [số] (VD: \"... hệ thống xử lý như thế nào? [3]\") "
+        "ĐỒNG THỜI, trong chính nội dung câu hỏi, hãy chèn tham chiếu dạng [số] (VD: '... hệ thống xử lý như thế nào? [3]') "
         "ngay sau ý dựa vào nguồn số đó (các nguồn đã được đánh số 1..N ở trên). "
         "MỖI câu hỏi PHẢI có 'suggested_answer' là CÂU TRẢ LỜI MẪU CHI TIẾT (2-4 câu, bám sát "
         "đoạn trích, nêu được lập luận/key point để sinh viên đối đáp tốt với hội đồng). "
@@ -179,12 +212,18 @@ async def handle_workspace_questions(params: dict) -> dict:
         await update_job(job_id, progress="10")
 
     try:
-        await _ensure_indexed(workspace_id)
+        logger.info("Job %s: starting _ensure_indexed for workspace %s", job_id, workspace_id)
+        await _ensure_indexed(workspace_id, job_id=job_id)
+        logger.info("Job %s: finished _ensure_indexed for workspace %s", job_id, workspace_id)
         if job_id:
             await update_job(job_id, progress="50")
 
+        logger.info("Job %s: starting retrieve_mixed for workspace %s", job_id, workspace_id)
         # R10: 2 query song song — user chunks + reference chunks (cùng 1 embed)
         user_results, ref_results = await retrieve_mixed(topic, workspace_id)
+        logger.info("Job %s: retrieve_mixed returned %d user results, %d ref results", job_id, len(user_results), len(ref_results))
+        if job_id:
+            await update_job(job_id, progress="60")
 
         # min_score (R5) quá cao / topic xa → fallback lấy toàn bộ user chunks đạt ngưỡng 0
         saved_min = settings.rag.min_score
@@ -227,16 +266,7 @@ async def handle_workspace_questions(params: dict) -> dict:
             questions = [q.model_dump() | {"citations": []} for q in qs]
 
         # Nguồn đã dùng, đánh số 1..N đúng thứ tự context trong prompt (circle style)
-        sources = [
-            {
-                "num": i + 1,
-                "source": r["source"],
-                "title": str(r.get("title") or r.get("filename") or ""),
-                "chunk_index": r.get("chunk_index"),
-                "content": str(r.get("content") or "")[:500],
-            }
-            for i, r in enumerate(user_results + ref_results)
-        ]
+        sources = to_source_list(user_results + ref_results)
 
         async with async_session_maker() as db:
             row = await db.get(WorkspaceQuestion, question_id)

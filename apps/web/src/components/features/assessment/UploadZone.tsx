@@ -1,7 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { MAX_FILE_SIZE } from "@/lib/constants";
+import { ChunkedUploader } from "@/lib/chunked-upload";
+
+// File nhỏ dùng FormData upload truyền thống (nhanh, ít overhead).
+// File >= ngưỡng này chuyển sang chunked (S3 Multipart) để bypass giới hạn 1MB của Next.js BFF.
+const CHUNKED_THRESHOLD = 4 * 1024 * 1024; // 4 MB
 
 type Props = {
   onFileSelected?: (file: File) => void;
@@ -137,12 +142,17 @@ export function UploadZone({
       onFileSelected(file);
     }
 
-    // Bước "Tải lên": upload mọi loại file (PDF/DOCX/PPTX/ZIP/RAR) như tài liệu
-    setStatusText("Đang tải tài liệu lên...");
+    setStatusText(
+      file.size >= CHUNKED_THRESHOLD
+        ? "Đang tải tài liệu lên (chunked)..."
+        : "Đang tải tài liệu lên...",
+    );
     setIsProcessing(true);
+    resetProgressTracking();
 
     const ac = new AbortController();
     setAbortController(ac);
+    let uploader: ChunkedUploader | null = null;
 
     try {
       const token = localStorage.getItem("access_token");
@@ -222,7 +232,7 @@ export function UploadZone({
     }
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (abortController) {
       abortController.abort();
       setAbortController(null);
@@ -233,6 +243,10 @@ export function UploadZone({
     setProgress(0);
     setStatusText("");
     setError("");
+    setSpeed(0);
+    setEta(null);
+    speedSamplesRef.current = [];
+    lastSampleRef.current = null;
   };
 
   return (
@@ -389,6 +403,16 @@ export function UploadZone({
             />
           </div>
           <p className="text-xs text-muted-foreground mt-2 font-medium">{progress}%</p>
+          {speed > 0 && (
+            <p className="text-[12px] text-muted-foreground mt-1 tabular-nums">
+              {(speed / 1024 / 1024).toFixed(2)} MB/s
+              {eta !== null && eta > 0 && (
+                <span className="ml-2">
+                  · còn ~{eta < 60 ? `${Math.ceil(eta)}s` : `${Math.ceil(eta / 60)}m ${Math.ceil(eta % 60)}s`}
+                </span>
+              )}
+            </p>
+          )}
           <button
             onClick={handleCancel}
             className="mt-6 px-6 py-2 text-sm font-medium text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-400 rounded-full transition-all"

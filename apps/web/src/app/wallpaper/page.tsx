@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Download, RefreshCw, Moon, Sun, Monitor } from "lucide-react";
+import { Download, RefreshCw, Moon, Sun, Monitor, Save, X, Upload, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function WallpaperPage() {

@@ -10,6 +10,7 @@ from datetime import datetime
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 from app.models.assessment import AssessmentStatus
@@ -19,7 +20,7 @@ class WorkspaceChat(Base):
     __tablename__ = "workspace_chats"
 
     id = Column(Integer, primary_key=True, index=True)
-    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
     conversation_id = Column(String(50), nullable=True, index=True)  # đoạn chat (NULL = mặc định)
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=True)
@@ -28,3 +29,5 @@ class WorkspaceChat(Base):
     status = Column(SQLEnum(AssessmentStatus), default=AssessmentStatus.pending, nullable=False)
     error = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    workspace = relationship("Workspace", back_populates="chats")

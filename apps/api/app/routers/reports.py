@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from datetime import datetime
 
@@ -103,7 +103,7 @@ async def get_my_reports(
         report_list.append({
             "id": report.id,
             "title": workspace.name,
-            "description": f"Dự án đã được đánh giá AI và phản biện từ mentor",
+            "description": "Dự án đã được đánh giá AI và phản biện từ mentor",
             "status": status,
             "ai_score": ai_score,
             "mentor_count": len(evaluation.scores) if evaluation.scores else 0,

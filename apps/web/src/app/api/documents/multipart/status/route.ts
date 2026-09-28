@@ -58,3 +58,4 @@ export async function GET(request: Request) {
 
   return NextResponse.json(upstream.data, { status: upstream.status });
 }
+

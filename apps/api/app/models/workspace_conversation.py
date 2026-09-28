@@ -6,6 +6,7 @@ tên tuỳ chỉnh. Không có row trong bảng này → hiển thị tên mặc
 from datetime import datetime
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 
@@ -22,3 +23,5 @@ class WorkspaceConversation(Base):
     __table_args__ = (
         UniqueConstraint("workspace_id", "conversation_id", name="uq_ws_conv"),
     )
+
+    workspace = relationship("Workspace", back_populates="conversations")
