@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ngrokHeaders } from '@/lib/upstream';
 
 export async function POST(request: Request) {
   try {
@@ -7,7 +8,7 @@ export async function POST(request: Request) {
 
     const res = await fetch(`${backendUrl}/api/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...ngrokHeaders() },
       body: JSON.stringify(body),
     });
 

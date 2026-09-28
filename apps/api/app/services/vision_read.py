@@ -37,6 +37,24 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+# --- Env fallback for vision config (chỉ dùng khi DB chưa có) ---
+# vision dùng GoogleGenAI generateContent API — provider type luôn là "google".
+_VISION_ENV_KEY = settings.google_embed.api_key
+_VISION_ENV_BASE = settings.google_embed.base_url or "https://generativelanguage.googleapis.com/v1beta/models"
+_VISION_ENV_MODEL = settings.google_embed.model or "gemini-3.1-flash-lite"
+
+# Cache resolved vision config (TTL 30s). Invalidate khi admin mutation.
+_vision_cfg: Optional[dict] = None
+_vision_cfg_expires: float = 0.0
+_VISION_CFG_TTL = 30.0
+
+
+def invalidate_vision_cache() -> None:
+    """Clear cached vision config."""
+    global _vision_cfg
+    _vision_cfg = None
+
+
 @dataclass
 class DiagramInfo:
     """Mô tả 1 figure từ vision reader, có khoá figure để merge không phụ thuộc thứ tự."""
@@ -158,6 +176,9 @@ async def _call_gemini_vision_once(
     file_bytes: bytes,
     mime_type: str,
     *,
+    api_key: str,
+    base_url: str,
+    model_name: str,
     images: list[ImagePart] | None = None,
     body_text: str | None = None,
     max_output_tokens: int = 8192,
@@ -168,10 +189,7 @@ async def _call_gemini_vision_once(
     truncated=True khi model chạm maxOutputTokens (finishReason=LENGTH) — caller
     phải chia batch nhỏ hơn / tăng token thay vì nhận JSON cụt (Fix F).
     """
-    api_key = settings.google_embed.api_key
-    base_url = settings.google_embed.base_url or "https://generativelanguage.googleapis.com/v1beta/models"
-    model_name = settings.google_embed.model or "gemini-3.1-flash-lite"
-    url = f"{base_url}/{model_name}:generateContent"
+    url = f"{base_url.rstrip('/')}/{model_name}:generateContent"
 
     parts: list[dict] = []
     if images:
@@ -308,6 +326,7 @@ async def read_file(
     images: list[ImagePart] | None = None,
     body_text: str | None = None,
     use_cache: bool = True,
+    db=None,
 ) -> ReadResult:
     """Extract text + diagram descriptions via Gemini 3.1 Flash Lite.
 
@@ -339,13 +358,20 @@ async def read_file(
     )
 
     if images:
-        result = await _read_office_batched(images, body_text)
+        cfg = await get_vision_effective_config(db)
+        result = await _read_office_batched(
+            images, body_text,
+            api_key=cfg["api_key"], base_url=cfg["base_url"], model_name=cfg["model"],
+        )
         # text luôn lấy từ native extractor (authoritative) — Gemini chỉ mô tả ảnh.
         result = ReadResult(text=(body_text or ""), diagrams=result.diagrams,
                             diagram_infos=result.diagram_infos)
     else:
+        cfg = await get_vision_effective_config(db)
         result, truncated = await _call_gemini_vision_once(
-            file_bytes, mime_type, max_output_tokens=8192
+            file_bytes, mime_type,
+            api_key=cfg["api_key"], base_url=cfg["base_url"], model_name=cfg["model"],
+            max_output_tokens=8192,
         )
         if truncated and result.diagrams:
             logger.warning("PDF vision response truncated — diagram list may be incomplete")
@@ -360,6 +386,10 @@ async def read_file(
 async def _read_office_batched(
     images: list[ImagePart],
     body_text: str | None,
+    *,
+    api_key: str,
+    base_url: str,
+    model_name: str,
 ) -> ReadResult:
     """Batch + merge toàn bộ ảnh của office file (Fix B + F)."""
     batches = [
@@ -371,7 +401,9 @@ async def _read_office_batched(
     async def _run(batch: list[ImagePart], depth: int) -> list[DiagramInfo]:
         async with sem:
             result, truncated = await _call_gemini_vision_once(
-                b"", "", images=batch, body_text=body_text,
+                b"", "",
+                api_key=api_key, base_url=base_url, model_name=model_name,
+                images=batch, body_text=body_text,
                 max_output_tokens=VISION_BATCH_MAX_TOKENS,
             )
         if truncated and len(batch) > 1 and depth < VISION_MAX_SPLIT_DEPTH:
@@ -434,3 +466,111 @@ def cache_stats() -> dict:
         "total_chars": sum(len(v.text) for v in _cache.values()),
         "total_diagrams": sum(len(v.diagrams) for v in _cache.values()),
     }
+
+
+# ---------------------------------------------------------------------------
+# DB-driven config resolution (feature_ai_config feature='vision')
+# ---------------------------------------------------------------------------
+
+async def _load_vision_config(db=None) -> dict:
+    """Resolve vision config từ DB.
+
+    Fallback chain:
+    1. DB feature_ai_config (feature='vision') + ai_providers — nếu có provider + api_key + base_url.
+    2. Env GOOGLE_EMBED_* fallback.
+    """
+    from sqlalchemy import select
+    from app.core.database import async_session_maker
+    from app.models.ai_config import AIProvider, FeatureAIConfig
+    from app.services.feature_ai import resolve_feature_ai
+
+    try:
+        if db is not None:
+            provider, model = await resolve_feature_ai(db, "vision")
+        else:
+            async with async_session_maker() as session:
+                provider, model = await resolve_feature_ai(session, "vision")
+        if provider and model:
+            if db is not None:
+                prov = (await db.execute(
+                    select(AIProvider).where(AIProvider.name == provider)
+                )).scalar_one_or_none()
+            else:
+                async with async_session_maker() as session:
+                    prov = (await session.execute(
+                        select(AIProvider).where(AIProvider.name == provider)
+                    )).scalar_one_or_none()
+            if prov and prov.api_key and prov.base_url:
+                return {
+                    "provider": provider,
+                    "model": model,
+                    "api_key": prov.api_key,
+                    "base_url": prov.base_url.rstrip("/"),
+                }
+    except Exception as e:
+        logger.warning("_load_vision_config: DB resolve failed (%s), fallback env", e)
+
+    # Fallback env
+    return {
+        "provider": "google",
+        "model": _VISION_ENV_MODEL,
+        "api_key": _VISION_ENV_KEY,
+        "base_url": _VISION_ENV_BASE,
+    }
+
+
+async def get_vision_effective_config(db=None) -> dict:
+    """Lấy vision config có cache (TTL 30s)."""
+    global _vision_cfg, _vision_cfg_expires
+    now = time.monotonic()
+    if _vision_cfg is not None and _vision_cfg_expires > now:
+        return _vision_cfg
+    _vision_cfg = await _load_vision_config(db)
+    _vision_cfg_expires = now + _VISION_CFG_TTL
+    return _vision_cfg
+
+
+# ---------------------------------------------------------------------------
+# Admin test helper — validate vision config (kết nối + model)
+# ---------------------------------------------------------------------------
+
+async def test_vision_connection(db=None) -> dict:
+    """Gửi 1 request vision cực nhẹ để validate config (admin endpoint).
+
+    validate API key + model bằng 1 request text-only generateContent (không cần file).
+    """
+    try:
+        cfg = await get_vision_effective_config(db)
+        if not cfg["api_key"]:
+            return {"ok": False, "detail": "API key rỗng — chưa cấu hình provider"}
+        # Gửi request text-only đơn giản để validate kết nối + model hợp lệ.
+        url = f"{cfg['base_url'].rstrip('/')}/{cfg['model']}:generateContent"
+        headers = {"x-goog-api-key": cfg["api_key"], "Content-Type": "application/json"}
+        payload = {
+            "contents": [{"parts": [{"text": "Hello — validate model availability."}]}],
+            "generationConfig": {"maxOutputTokens": 10, "responseMimeType": "text/plain"},
+        }
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+            candidates = data.get("candidates", [])
+            has_response = bool(candidates and candidates[0].get("content", {}).get("parts"))
+            if has_response:
+                return {
+                    "ok": True,
+                    "detail": "OK — vision model responded",
+                    "provider": cfg["provider"],
+                    "model": cfg["model"],
+                    "truncated": False,
+                }
+            return {"ok": False, "detail": "Response format unexpected — không nhận được content"}
+    except httpx.HTTPStatusError as e:
+        try:
+            j = e.response.json()
+            msg = j.get("error", {}).get("message") or j.get("detail") or (e.response.text or "")[:300]
+        except Exception:
+            msg = (e.response.text or "")[:300]
+        return {"ok": False, "detail": f"HTTP {e.response.status_code}: {msg}"}
+    except Exception as e:
+        return {"ok": False, "detail": repr(e)[:300]}

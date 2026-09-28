@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ngrokHeaders } from '@/lib/upstream';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     const backendFormData = new FormData();
     backendFormData.append('file', file);
 
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...ngrokHeaders() };
     if (authHeader) {
       headers['Authorization'] = authHeader;
     }

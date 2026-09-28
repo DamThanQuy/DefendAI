@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { getMe } from "@/lib/api";
+import { handleSessionExpired } from "@/lib/auth";
 
 export interface AuthUser {
   id?: number | string;
@@ -11,6 +12,7 @@ export interface AuthUser {
   about?: string | null;
   created_at?: string | null;
   roles: string[];
+  profile_data?: Record<string, unknown>;
 }
 
 // Hiển thị sidebar TỨC THÌ từ localStorage cache (tránh flash trống menu sau
@@ -117,6 +119,7 @@ export function useAuth() {
           about: me.about ?? null,
           created_at: me.created_at ?? null,
           roles: me.roles ?? [],
+          profile_data: me.profile_data ?? {},
         };
         setUser(synced);
         // Ghi đè cache cũ để các lần sau đọc đúng
@@ -124,8 +127,14 @@ export function useAuth() {
         invalidateCache();
         setLoading(false);
       })
-      .catch(() => {
+      .catch((error: { response?: { status?: number } }) => {
         if (cancelled) return;
+        if (error.response?.status === 401) {
+          setUser(null);
+          window.dispatchEvent(new Event("storage"));
+          handleSessionExpired();
+          return;
+        }
         // /me fail (mạng lỗi) → giữ nguyên user từ cache (đã set ở bước 1)
         setLoading(false);
       });

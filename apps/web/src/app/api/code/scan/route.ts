@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ngrokHeaders } from '@/lib/upstream';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +9,7 @@ const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 async function scanDocument(documentId: number, authHeader: string) {
   const scanRes = await fetch(`${backendUrl}/api/code/scan`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...ngrokHeaders() },
     body: JSON.stringify({ document_id: documentId }),
   });
 
@@ -31,7 +32,7 @@ async function scanDocument(documentId: number, authHeader: string) {
 
   for (let i = 0; i < maxAttempts; i++) {
     const pollRes = await fetch(`${backendUrl}/api/code/analyses/${analysisId}`, {
-      headers: authHeader ? { Authorization: authHeader } : {},
+      headers: { ...ngrokHeaders(), ...(authHeader ? { Authorization: authHeader } : {}) },
     });
     if (!pollRes.ok) {
       const err = await pollRes.json();
@@ -126,7 +127,7 @@ export async function POST(request: Request) {
 
     const uploadFormData = new FormData();
     uploadFormData.append('file', file);
-    const uploadHeaders: Record<string, string> = {};
+    const uploadHeaders: Record<string, string> = { ...ngrokHeaders() };
     if (authHeader) uploadHeaders['Authorization'] = authHeader;
 
     const uploadRes = await fetch(`${backendUrl}/api/documents/upload`, {

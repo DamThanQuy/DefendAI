@@ -1,7 +1,7 @@
 # ===== Dockerfile cho Next.js (Frontend) =====
 # Multi-stage build: deps -> dev runner
 
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /app
 

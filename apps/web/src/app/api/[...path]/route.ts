@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { backendUrl, ngrokHeaders, readUpstream, upstreamFailure } from '@/lib/upstream';
 
 export const dynamic = 'force-dynamic';
-
-const BACKEND = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 
 // Generic catch-all proxy: forwards /api/{path...} → BACKEND/api/{path...}.
 // Lets the browser-only axios client (lib/api.ts, baseURL="") reach the backend
@@ -10,9 +9,9 @@ const BACKEND = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 // (auth/*, workspaces/[...], questions/*, documents/*, ...) take precedence.
 async function proxy(request: NextRequest, { params }: { params: any }) {
   const sub = (params.path || []).join('/');
-  const url = `${BACKEND}/api/${sub}`;
+  const url = `${backendUrl()}/api/${sub}`;
   const authHeader = request.headers.get('authorization') || '';
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...ngrokHeaders() };
   if (authHeader) headers['Authorization'] = authHeader;
 
   const init: RequestInit = { method: request.method, headers };
@@ -27,11 +26,17 @@ async function proxy(request: NextRequest, { params }: { params: any }) {
   try {
     const res = await fetch(url, init);
     if (res.status === 204) return new Response(null, { status: 204 });
-    const text = await res.text();
-    const data = text ? JSON.parse(text) : null;
-    return NextResponse.json(data, { status: res.status });
+
+    const upstream = await readUpstream(res);
+    if (upstream.nonJson) {
+      // Upstream trả về không phải JSON (HTML 502/504, body lỗi...) → lộ nguyên nhân.
+      console.error('catch-all non-JSON upstream:', url, upstream);
+      return upstreamFailure('API proxy', { url, status: upstream.status, upstream });
+    }
+    return NextResponse.json(upstream.data, { status: upstream.status });
   } catch (error: any) {
-    return NextResponse.json({ error: 'API proxy failed', message: error.message }, { status: 500 });
+    console.error('catch-all proxy error:', url, error);
+    return upstreamFailure('API proxy', { url, status: 502, cause: error });
   }
 }
 

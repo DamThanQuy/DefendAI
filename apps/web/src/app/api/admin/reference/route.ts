@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
+import { backendUrl, ngrokHeaders } from "@/lib/upstream";
 
 export const dynamic = 'force-dynamic';
-
-const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 
 export async function GET(request: Request) {
   try {
@@ -15,8 +14,11 @@ export async function GET(request: Request) {
       category && title
         ? `/api/admin/reference/chunks?category=${encodeURIComponent(category)}&title=${encodeURIComponent(title)}`
         : "/api/admin/reference/";
-    const res = await fetch(`${BACKEND_URL}${path}`, {
-      headers: auth ? { Authorization: auth } : {},
+    const res = await fetch(`${backendUrl()}${path}`, {
+      headers: {
+        ...ngrokHeaders(),
+        ...(auth ? { Authorization: auth } : {}),
+      },
     });
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
@@ -35,8 +37,14 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "category and title are required" }, { status: 400 });
     }
     const res = await fetch(
-      `${BACKEND_URL}/api/admin/reference/?category=${encodeURIComponent(category)}&title=${encodeURIComponent(title)}`,
-      { method: "DELETE", headers: auth ? { Authorization: auth } : {} },
+      `${backendUrl()}/api/admin/reference/?category=${encodeURIComponent(category)}&title=${encodeURIComponent(title)}`,
+      {
+        method: "DELETE",
+        headers: {
+          ...ngrokHeaders(),
+          ...(auth ? { Authorization: auth } : {}),
+        },
+      },
     );
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
@@ -64,10 +72,10 @@ export async function POST(request: Request) {
     backendFormData.append("title", title as string);
     backendFormData.append("source", source as string);
 
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...ngrokHeaders() };
     if (authHeader) headers["Authorization"] = authHeader;
 
-    const backendResponse = await fetch(`${BACKEND_URL}/api/admin/reference/`, {
+    const backendResponse = await fetch(`${backendUrl()}/api/admin/reference/`, {
       method: "POST",
       headers,
       body: backendFormData,

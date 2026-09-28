@@ -1,24 +1,34 @@
 import { NextResponse } from 'next/server';
+import { backendUrl, ngrokHeaders } from '@/lib/upstream';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
-    const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
     const authHeader = request.headers.get('authorization') || '';
-
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...ngrokHeaders() };
     if (authHeader) headers['Authorization'] = authHeader;
 
-    const res = await fetch(`${backendUrl}/api/documents/`, { headers });
-    const data = await res.json();
+    const url = new URL(request.url);
+    const qs = url.search || '';
 
-    if (!res.ok) {
-      return NextResponse.json(data, { status: res.status });
-    }
-
-    return NextResponse.json(data);
+    const res = await fetch(`${backendUrl()}/api/documents/${qs}`, {
+      headers,
+      redirect: 'follow',
+      cache: 'no-store',
+    });
+    const data = await res.text();
+    return new Response(data, {
+      status: res.status,
+      headers: {
+        'content-type': res.headers.get('content-type') || 'application/json',
+        'cache-control': 'no-store, must-revalidate',
+      },
+    });
   } catch (error: any) {
-    return NextResponse.json({ error: 'Documents list proxy failed', message: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Documents list proxy failed', message: error.message },
+      { status: 500 },
+    );
   }
 }

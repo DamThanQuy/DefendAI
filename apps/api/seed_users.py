@@ -58,9 +58,10 @@ def main() -> None:
                 # → đảm bảo role được gán dù seed chạy dở lần trước
                 cur.execute(
                     "INSERT INTO users "
-                    "(username, email, full_name, hashed_password, auth_provider, is_active, created_at) "
-                    "VALUES (%s, %s, %s, %s, 'email', 1, now()) "
-                    "ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email RETURNING id",
+                    "(username, email, full_name, profile_data, hashed_password, auth_provider, is_active, created_at) "
+                    "VALUES (%s, %s, %s, '{}'::json, %s, 'email', 1, now()) "
+                    "ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email, "
+                    "profile_data = COALESCE(users.profile_data, '{}'::json) RETURNING id",
                     (username, email, full_name, HASH),
                 )
                 uid = cur.fetchone()[0]

@@ -3,7 +3,7 @@
  * navbar marketing (top nav) + footer. Dùng chung bởi Navbar, Footer, AppShell
  * để tránh lệch nhau.
  */
-const PUBLIC_PATHS = ["/", "/demo", "/login", "/register"];
+const PUBLIC_PATHS = ["/", "/demo", "/login", "/register", "/pricing"];
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.includes(pathname);

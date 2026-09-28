@@ -338,6 +338,84 @@ async def update_feature_ai_config(
     return {"feature": req.feature, "provider_name": req.provider_name, "model_id": req.model_id}
 
 
+# ---------------------------------------------------------------------------
+# Embedding / Vision config — test + lấy config chi tiết (admin)
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/feature-ai-config/{feature}/config-detail",
+    summary="Lấy config chi tiết (api_key, base_url) cho 1 feature (admin)",
+    description="Trả về provider/model + api_key mask + base_url cho embedding/vision.",
+)
+async def get_feature_config_detail(
+    feature: str,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_role("admin")),
+) -> dict:
+    from app.models.ai_config import AIProvider, FeatureAIConfig
+
+    if feature not in ("embedding", "vision"):
+        raise HTTPException(status_code=400, detail="Chỉ hỗ trợ feature: embedding, vision")
+
+    row = (await db.execute(
+        select(FeatureAIConfig).where(FeatureAIConfig.feature == feature)
+    )).scalar_one_or_none()
+    if row:
+        prov = (await db.execute(
+            select(AIProvider).where(AIProvider.name == row.provider_name)
+        )).scalar_one_or_none()
+        return {
+            "feature": feature,
+            "provider_name": row.provider_name,
+            "model_id": row.model_id,
+            "base_url": prov.base_url if prov else "",
+            "api_key_masked": _mask_key(prov.api_key) if prov and prov.api_key else "",
+            "has_key": bool(prov and prov.api_key),
+        }
+    # Chưa config — trả env fallback
+    return {
+        "feature": feature,
+        "provider_name": "",
+        "model_id": "",
+        "base_url": "",
+        "api_key_masked": "",
+        "has_key": False,
+    }
+
+
+@router.post(
+    "/feature-ai-config/{feature}/test",
+    summary="Test model cho feature (admin — gọi thực tế API)",
+    description="Gửi 1 request thực tế để validate config (dim 1024 cho embedding, kết nối cho vision).",
+)
+async def test_feature(
+    feature: str,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_role("admin")),
+) -> dict:
+    if feature not in ("embedding", "vision"):
+        raise HTTPException(status_code=400, detail="Chỉ hỗ trợ feature: embedding, vision")
+
+    from app.models.ai_config import FeatureAIConfig
+    from app.services.feature_ai import invalidate_cache
+
+    # Force refresh config cache
+    invalidate_cache()
+    from app.services.embedder import invalidate_cache as _inv_emb
+    from app.services.vision_read import invalidate_vision_cache as _inv_vis
+    _inv_emb()
+    _inv_vis()
+
+    if feature == "embedding":
+        from app.services.embedder import test_embedding_dim
+        result = await test_embedding_dim(db)
+    else:
+        from app.services.vision_read import test_vision_connection
+        result = await test_vision_connection(db)
+
+    return result
+
+
 @router.get(
     "/settings",
     summary="Lấy cấu hình hệ thống (admin)",

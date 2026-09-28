@@ -8,9 +8,20 @@ import { UploadZone } from "@/components/features/assessment/UploadZone";
 type Props = {
   open: boolean;
   onClose: () => void;
+  onMinimize?: () => void;
+  onProgress?: (state: {
+    file: File | null;
+    progress: number;
+    loaded: number;
+    total: number;
+    speed: number;
+    eta: number | null;
+    status: "idle" | "uploading" | "success" | "error";
+    error?: string;
+  }) => void;
 };
 
-export function UploadModal({ open, onClose }: Props) {
+export function UploadModal({ open, onClose, onMinimize, onProgress }: Props) {
   return (
     <AnimatePresence>
       {open && (
@@ -31,14 +42,14 @@ export function UploadModal({ open, onClose }: Props) {
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-foreground">Tải lên tài liệu mới</h3>
               <button
-                onClick={onClose}
+                onClick={onMinimize ?? onClose}
                 className="p-2 rounded-full hover:bg-muted/60 text-muted-foreground transition-colors"
-                aria-label="Đóng"
+                aria-label="Thu nhỏ"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <UploadZone onDone={onClose} />
+            <UploadZone onDone={onClose} onProgress={onProgress} />
           </motion.div>
         </motion.div>
       )}

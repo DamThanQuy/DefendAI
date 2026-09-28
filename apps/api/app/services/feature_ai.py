@@ -26,6 +26,8 @@ FEATURES = [
     "question_gen",    # Sinh câu hỏi phản biện
     "classify",        # Phân loại deliverable
     "feedback",        # Feedback sau mock
+    "embedding",       # Sinh vector embedding cho RAG
+    "vision",          # Đọc tài liệu qua Gemini Vision (PDF/DOCX/PPTX)
 ]
 
 # Cache đơn giản: {feature: (provider, model, expires_at)}

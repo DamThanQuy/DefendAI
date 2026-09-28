@@ -38,6 +38,7 @@ export function UserMenu() {
   const profileHref = hasRole("mentor") ? "/mentor/profile" : "/profile";
   const historyHref = hasRole("mentor") ? "/mentor/sessions" : "/profile/history";
   const settingsHref = hasRole("mentor") ? "/mentor/profile" : "/profile/settings";
+  const isStudentOnly = hasRole("student") && !hasRole("admin") && !hasRole("mentor");
 
   return (
     <div ref={ref} className="relative">
@@ -88,14 +89,16 @@ export function UserMenu() {
               <History className="w-4 h-4 text-secondary" />
               Lịch sử hoạt động
             </Link>
-            <Link
-              href="/pricing"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-colors"
-            >
-              <CreditCard className="w-4 h-4 text-accent" />
-              Gói thành viên
-            </Link>
+            {isStudentOnly && (
+              <Link
+                href="/pricing"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-colors"
+              >
+                <CreditCard className="w-4 h-4 text-accent" />
+                Gói thành viên
+              </Link>
+            )}
             <Link
               href={settingsHref}
               onClick={() => setOpen(false)}
