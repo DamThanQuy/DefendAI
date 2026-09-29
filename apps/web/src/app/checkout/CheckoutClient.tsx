@@ -7,7 +7,6 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft,
   CreditCard,
-  Smartphone,
   Building2,
   Check,
   ShieldCheck,
@@ -21,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   PAYMENT_METHODS,
-  BANK_LIST,
   getOrderSummary,
   formatVND,
   type PaymentMethodId,
@@ -30,77 +28,105 @@ import { fetchPlans } from "@/app/pricing/pricing-api";
 
 type CheckoutPlan = { id: string; name: string; monthly: number; yearly: number };
 
+const LEGACY_PLAN_SLUGS: Record<string, string> = {
+  premium: "100002",
+  vip: "100003",
+};
+
 export default function CheckoutClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const planId = searchParams.get("plan") || "premium";
+  const requestedPlanId = searchParams.get("plan") || "100002";
+  const planId = LEGACY_PLAN_SLUGS[requestedPlanId] || requestedPlanId;
   const cycle = (searchParams.get("cycle") || "monthly") as "monthly" | "yearly";
 
   const [plan, setPlan] = useState<CheckoutPlan | null>(null);
-  const [step, setStep] = useState<"payment" | "processing" | "done">("payment");
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethodId>("momo");
-  const [showBankList, setShowBankList] = useState(false);
-  const [selectedBank, setSelectedBank] = useState<string>("");
+  const [plansLoaded, setPlansLoaded] = useState(false);
+  const [step, setStep] = useState<"payment" | "processing" | "awaiting" | "done">("payment");
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethodId>("vietqr");
+  const [paymentOrder, setPaymentOrder] = useState<{ order_code: string; status: string; amount?: number; proration_credit?: number; payment_instructions?: { type?: string; qr_url?: string; payment_url?: string; account_number?: string; account_name?: string; transfer_content?: string } } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  const [orderCode] = useState(() => `DEFEND${Date.now().toString().slice(-8)}`);
 
   useEffect(() => {
     fetchPlans()
       .then((plans) => {
-        const selected = plans.find((item) => item.id === planId);
+        const selected = plans.find((item) => item.id === planId || item.id === requestedPlanId);
         if (selected) {
           setPlan({ id: selected.id, name: selected.name, monthly: selected.monthly, yearly: selected.yearly });
         }
       })
-      .catch(() => setErrorMsg("Không tải được thông tin gói. Vui lòng thử lại."));
-  }, [planId]);
+      .catch(() => setErrorMsg("Không tải được thông tin gói. Vui lòng thử lại."))
+      .finally(() => setPlansLoaded(true));
+  }, [planId, requestedPlanId]);
+
+  useEffect(() => {
+    if (step !== "awaiting" || selectedMethod !== "payos" || !paymentOrder) return;
+    const poll = async () => {
+      const response = await fetch(`/api/payment/orders/${paymentOrder.order_code}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
+        cache: "no-store",
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      setPaymentOrder(data.order);
+      if (data.order.status === "paid") {
+        router.push(`/payment-success?order_id=${paymentOrder.order_code}`);
+      }
+    };
+    const timer = window.setInterval(() => { poll().catch(() => undefined); }, 3000);
+    return () => window.clearInterval(timer);
+  }, [paymentOrder, router, selectedMethod, step]);
 
   // Redirect if no plan
   useEffect(() => {
-    if (!plan) {
+    if (plansLoaded && !plan) {
       router.replace("/pricing");
     }
-  }, [plan, router]);
+  }, [plan, plansLoaded, router]);
 
-  if (!plan) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Đang tải thông tin gói...</div>;
+  if (!plansLoaded || !plan) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Đang tải thông tin gói...</div>;
 
   const order = getOrderSummary(plan, cycle);
 
   const handlePayment = async () => {
-    if (selectedMethod === "bank_transfer" && !selectedBank) {
-      setErrorMsg("Vui lòng chọn ngân hàng");
-      return;
-    }
     setIsLoading(true);
     setErrorMsg("");
     setStep("processing");
-
-    // Simulate payment processing - in production, call backend API
-    await new Promise((r) => setTimeout(r, 2000));
-
-    // For demo: always succeed
-    setStep("done");
-    setIsLoading(false);
+    try {
+      const response = await fetch("/api/payment/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
+        body: JSON.stringify({ plan_id: plan.id, cycle, method: selectedMethod, purpose: "subscription" }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || data.error || "Không thể tạo đơn thanh toán");
+      const created = data.order;
+      setPaymentOrder(created);
+      if (created.status === "paid") {
+        router.push(`/payment-success?order_id=${created.order_code}`);
+      } else {
+        setStep("awaiting");
+      }
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Không thể tạo đơn thanh toán");
+      setStep("payment");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getMethodIcon = (id: PaymentMethodId) => {
-    if (id === "momo" || id === "zalopay" || id === "vnpay") return <Smartphone className="w-5 h-5" />;
-    if (id === "bank_transfer") return <Building2 className="w-5 h-5" />;
-    return <CreditCard className="w-5 h-5" />;
+    if (id === "wallet") return <CreditCard className="w-5 h-5" />;
+    return <Building2 className="w-5 h-5" />;
   };
 
   const getMethodColor = (id: PaymentMethodId) => {
-    if (id === "momo") return "bg-pink-500 text-white";
-    if (id === "zalopay") return "bg-blue-500 text-white";
-    if (id === "vnpay") return "bg-red-500 text-white";
-    if (id === "bank_transfer") return "bg-amber-500 text-white";
-    return "bg-indigo-500 text-white";
+    if (id === "wallet") return "bg-indigo-500 text-white";
+    if (id === "payos") return "bg-emerald-500 text-white";
+    return "bg-amber-500 text-white";
   };
-
-  const qrContent = `${selectedMethod.toUpperCase()}|${orderCode}|${order.total}|${plan.name}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrContent)}`;
 
   return (
     <div className="min-h-screen bg-background">
@@ -161,7 +187,6 @@ export default function CheckoutClient() {
                         onClick={() => {
                           setSelectedMethod(method.id);
                           setErrorMsg("");
-                          if (method.id !== "bank_transfer") setShowBankList(false);
                         }}
                         className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${
                           selectedMethod === method.id
@@ -193,49 +218,24 @@ export default function CheckoutClient() {
                   </div>
                 </Card>
 
-                {/* Bank list (shown when bank_transfer is selected) */}
-                {selectedMethod === "bank_transfer" && (
-                  <Card className="p-6">
-                    <h3 className="text-sm font-semibold mb-3">Chọn ngân hàng</h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {BANK_LIST.map((bank) => (
-                        <button
-                          key={bank.code}
-                          onClick={() => {
-                            setSelectedBank(bank.code);
-                            setErrorMsg("");
-                          }}
-                          className={`p-3 rounded-lg border text-center text-xs font-medium transition-all ${
-                            selectedBank === bank.code
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "border-border hover:border-primary/40 bg-card"
-                          }`}
-                        >
-                          {bank.name}
-                        </button>
-                      ))}
-                    </div>
-                  </Card>
-                )}
-
                 <Card className="p-6 border-primary/30 bg-primary/5">
-                  <h3 className="text-sm font-semibold mb-4">Thông tin thanh toán sandbox</h3>
+                  <h3 className="text-sm font-semibold mb-4">Thông tin thanh toán</h3>
                   <div className="flex flex-col sm:flex-row items-center gap-5">
-                    <img src={qrUrl} alt="QR thanh toán sandbox" className="w-44 h-44 rounded-lg bg-white p-2" />
+                    {paymentOrder?.payment_instructions?.qr_url ? <img src={paymentOrder.payment_instructions.qr_url} alt="QR thanh toán" className="w-44 h-44 rounded-lg bg-white p-2" /> : <div className="w-44 h-44 rounded-lg bg-muted flex items-center justify-center text-center text-xs text-muted-foreground p-4">Bấm tạo đơn để nhận QR thanh toán</div>}
                     <div className="text-sm space-y-2 w-full">
                       <p className="text-muted-foreground">Phương thức: <strong className="text-foreground">{PAYMENT_METHODS.find((method) => method.id === selectedMethod)?.name}</strong></p>
-                      <p className="text-muted-foreground">Số tiền: <strong className="text-primary">{formatVND(order.total)}</strong></p>
-                      <p className="text-muted-foreground">Nội dung: <strong className="text-foreground">{orderCode}</strong></p>
-                      {selectedMethod === "bank_transfer" && (
+                      <p className="text-muted-foreground">Số tiền: <strong className="text-primary">{formatVND(paymentOrder?.amount ?? order.total)}</strong></p>
+                      {!!paymentOrder?.proration_credit && <p className="text-xs text-emerald-500">Đã trừ {formatVND(paymentOrder.proration_credit)} giá trị thời gian còn lại.</p>}
+                      {paymentOrder?.payment_instructions && (
                         <div className="pt-2 border-t border-border/60">
-                          <p>Ngân hàng: <strong>Vietcombank</strong></p>
-                          <p>STK: <strong>0123456789</strong> <button type="button" aria-label="Sao chép số tài khoản" title="Sao chép số tài khoản" onClick={() => navigator.clipboard?.writeText("0123456789")}><Copy className="inline w-3.5 h-3.5 text-primary" /></button></p>
-                          <p>Chủ TK: <strong>DEFENDAI SANDBOX</strong></p>
+                          <p>STK: <strong>{paymentOrder.payment_instructions.account_number}</strong> <button type="button" aria-label="Sao chép số tài khoản" title="Sao chép số tài khoản" onClick={() => navigator.clipboard?.writeText(paymentOrder.payment_instructions?.account_number || "")}><Copy className="inline w-3.5 h-3.5 text-primary" /></button></p>
+                          <p>Chủ TK: <strong>{paymentOrder.payment_instructions.account_name}</strong></p>
+                          <p>Nội dung: <strong>{paymentOrder.payment_instructions.transfer_content}</strong></p>
                         </div>
                       )}
                     </div>
                   </div>
-                  <p className="text-xs text-amber-500 mt-4">Đây là môi trường sandbox. Giao dịch chỉ mô phỏng, không trừ tiền thật.</p>
+                  <p className="text-xs text-amber-500 mt-4">{selectedMethod === "payos" ? "PayOS sẽ tự động xác nhận sau khi giao dịch thành công." : "Đơn QR sẽ chờ admin đối soát trước khi kích hoạt gói."}</p>
                 </Card>
 
                 {/* Error message */}
@@ -252,7 +252,11 @@ export default function CheckoutClient() {
 
                 {/* Pay button */}
                 <Button
-                  onClick={handlePayment}
+                  onClick={async () => {
+                    if (!paymentOrder) return handlePayment();
+                    const response = await fetch(`/api/payment/orders/${paymentOrder.order_code}/submitted`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` } });
+                    if (response.ok) setStep("awaiting");
+                  }}
                   disabled={isLoading}
                   className="w-full h-14 text-lg font-bold rounded-xl shadow-[0_0_20px_hsl(var(--primary)/0.5)] hover:brightness-110"
                 >
@@ -263,7 +267,7 @@ export default function CheckoutClient() {
                     </>
                   ) : (
                     <>
-                      Thanh toán {formatVND(order.total)}
+                      {paymentOrder ? "Tôi đã thanh toán" : `Tạo đơn ${formatVND(order.total)}`}
                       <ArrowLeft className="w-5 h-5 ml-2 rotate-180" />
                     </>
                   )}
@@ -305,6 +309,38 @@ export default function CheckoutClient() {
                   </p>
                 </motion.div>
               </Card>
+            )}
+
+            {step === "awaiting" && paymentOrder && (
+              <>
+                <Card className="p-6 border-primary/30 bg-primary/5">
+                  <h3 className="text-sm font-semibold mb-4">QR và thông tin chuyển khoản</h3>
+                  <div className="flex flex-col sm:flex-row items-center gap-5">
+                    {paymentOrder.payment_instructions?.qr_url && <img src={paymentOrder.payment_instructions.qr_url} alt="QR thanh toán" className="w-44 h-44 rounded-lg bg-white p-2" />}
+                    <div className="text-sm space-y-2 w-full">
+                      <p>Mã đơn: <strong>{paymentOrder.order_code}</strong></p>
+                      <p>Số tiền: <strong className="text-primary">{formatVND(paymentOrder.amount ?? order.total)}</strong></p>
+                      {!!paymentOrder.proration_credit && <p className="text-xs text-emerald-500">Đã trừ {formatVND(paymentOrder.proration_credit)} giá trị thời gian còn lại.</p>}
+                      {paymentOrder.payment_instructions?.type === "payos" ? <>{paymentOrder.payment_instructions.payment_url && <a className="inline-flex rounded-md bg-primary px-3 py-2 text-primary-foreground font-semibold" href={paymentOrder.payment_instructions.payment_url} target="_blank" rel="noreferrer">Mở trang thanh toán PayOS</a>}<p className="text-xs text-muted-foreground">Sau khi thanh toán, trang này sẽ tự kiểm tra trạng thái.</p></> : <><p>STK: <strong>{paymentOrder.payment_instructions?.account_number}</strong> <button type="button" aria-label="Sao chép số tài khoản" title="Sao chép số tài khoản" onClick={() => navigator.clipboard?.writeText(paymentOrder.payment_instructions?.account_number || "")}><Copy className="inline w-3.5 h-3.5 text-primary" /></button></p><p>Chủ TK: <strong>{paymentOrder.payment_instructions?.account_name}</strong></p><p>Nội dung: <strong>{paymentOrder.payment_instructions?.transfer_content}</strong></p></>}
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-12 text-center">
+                  <div className="w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-6"><Loader2 className="w-10 h-10 text-amber-500" /></div>
+                  <h2 className="text-2xl font-serif font-bold mb-2">{paymentOrder.payment_instructions?.type === "payos" ? "Đang chờ PayOS xác nhận" : "Đang chờ admin xác nhận"}</h2>
+                  <p className="text-muted-foreground mb-6">Mã đơn {paymentOrder.order_code}. {paymentOrder.payment_instructions?.type === "payos" ? "Sau khi thanh toán thành công, gói sẽ được kích hoạt tự động." : "Sau khi kiểm tra giao dịch, admin sẽ kích hoạt gói cho bạn."}</p>
+                  {paymentOrder.payment_instructions?.type !== "payos" && <Button
+                    className="mb-3"
+                    onClick={async () => {
+                      const response = await fetch(`/api/payment/orders/${paymentOrder.order_code}/submitted`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` } });
+                      if (response.ok) setErrorMsg("Đã gửi yêu cầu xác nhận cho admin.");
+                      else setErrorMsg("Không thể gửi yêu cầu xác nhận.");
+                    }}
+                  >Tôi đã thanh toán</Button>}
+                  {errorMsg && <p className="text-sm text-muted-foreground mb-3">{errorMsg}</p>}
+                  <Link href={`/payment-success?order_id=${paymentOrder.order_code}`}><Button variant="outline">Kiểm tra trạng thái</Button></Link>
+                </Card>
+              </>
             )}
 
             {/* Done - redirect notice */}
@@ -389,9 +425,15 @@ export default function CheckoutClient() {
                   <span>{order.vat === 0 ? "Miễn phí" : formatVND(order.vat)}</span>
                 </div>
                 <div className="border-t border-border pt-2 mt-2" />
+                {!!paymentOrder?.proration_credit && (
+                  <div className="flex justify-between text-emerald-500">
+                    <span>Khấu trừ thời gian còn lại</span>
+                    <span>-{formatVND(paymentOrder.proration_credit)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-bold text-lg">
                   <span>Tổng cộng</span>
-                  <span className="text-primary">{formatVND(order.total)}</span>
+                  <span className="text-primary">{formatVND(paymentOrder?.amount ?? order.total)}</span>
                 </div>
               </div>
 

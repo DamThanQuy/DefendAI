@@ -1,9 +1,7 @@
 export type PaymentMethodId =
-  | "momo"
-  | "zalopay"
-  | "vnpay"
-  | "bank_transfer"
-  | "card";
+  | "vietqr"
+  | "payos"
+  | "wallet"
 
 export interface PaymentMethod {
   id: PaymentMethodId;
@@ -16,37 +14,24 @@ export interface PaymentMethod {
 
 export const PAYMENT_METHODS: PaymentMethod[] = [
   {
-    id: "momo",
-    name: "Ví MoMo",
-    description: "Thanh toán nhanh qua ví điện tử MoMo",
-    logo: "M",
-    badge: "Phổ biến",
+    id: "vietqr",
+    name: "VietQR thủ công",
+    description: "Quét QR chuyển khoản, admin đối soát",
+    logo: "VQR",
+  },
+  {
+    id: "payos",
+    name: "PayOS",
+    description: "Quét QR và tự động xác nhận giao dịch",
+    logo: "P",
+    badge: "Tự động",
     popular: true,
   },
   {
-    id: "zalopay",
-    name: "ZaloPay",
-    description: "Quét QR hoặc liên kết ngân hàng qua ZaloPay",
-    logo: "Z",
-    popular: true,
-  },
-  {
-    id: "vnpay",
-    name: "VNPay",
-    description: "Hỗ trợ tất cả ngân hàng nội địa Việt Nam",
-    logo: "V",
-  },
-  {
-    id: "bank_transfer",
-    name: "Chuyển khoản ngân hàng",
-    description: "Internet Banking / QR ngân hàng",
-    logo: "🏦",
-  },
-  {
-    id: "card",
-    name: "Thẻ quốc tế",
-    description: "Visa, Mastercard, JCB, Amex",
-    logo: "💳",
+    id: "wallet",
+    name: "Ví DefendAI",
+    description: "Trừ trực tiếp số dư ví nội bộ của bạn",
+    logo: "W",
   },
 ];
 

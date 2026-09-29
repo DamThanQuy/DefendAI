@@ -35,6 +35,7 @@ from app.routers import mock_qa as mock_qa_router
 from app.routers import signaling as signaling_router
 from app.routers import analysis as analysis_router
 from app.routers import subscriptions as subscriptions_router
+from app.routers import payments as payments_router
 from app.routers import user as user_router
 from app.routers import reports as reports_router
 from app.routers import mock_ai as mock_ai_router
@@ -107,6 +108,8 @@ app.include_router(signaling_router.router)
 app.include_router(analysis_router.router)
 app.include_router(subscriptions_router.router)
 app.include_router(subscriptions_router.admin_router)
+app.include_router(payments_router.router)
+app.include_router(payments_router.admin_router)
 app.include_router(user_router.router)
 app.include_router(reports_router.router)
 app.include_router(mock_ai_router.router)
