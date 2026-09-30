@@ -17,8 +17,11 @@ import {
   Award,
   UserCog,
   TrendingUp,
+  Crown,
+  Zap,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { getMembershipPlan } from "@/lib/mock-ai-data";
 
 type ActivityItem = {
   id: string;
@@ -208,9 +211,28 @@ export default function ProfileOverviewPage() {
               <h2 className="text-2xl font-serif font-black text-foreground">
                 {fullName}
               </h2>
-              <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
-                Thành viên
-              </span>
+              {(() => {
+                const membership = getMembershipPlan();
+                if (membership === "vip") {
+                  return (
+                    <span className="px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-500 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                      <Crown className="w-3.5 h-3.5" /> Hội viên VIP
+                    </span>
+                  );
+                }
+                if (membership === "premium") {
+                  return (
+                    <span className="px-3 py-1 rounded-full bg-primary/15 border border-primary/30 text-primary text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                      <Zap className="w-3.5 h-3.5" /> Hội viên Premium
+                    </span>
+                  );
+                }
+                return (
+                  <span className="px-2.5 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-bold uppercase tracking-wider">
+                    Thành viên Free
+                  </span>
+                );
+              })()}
             </div>
             <p className="text-sm text-muted-foreground mb-4">
               {user?.email}

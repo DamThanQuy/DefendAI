@@ -370,18 +370,33 @@ async def get_payment_account(db: AsyncSession = Depends(get_db), user: User = D
     )).scalars().all()
     for order in pending_wallet_orders:
         await reconcile_payos_order(db, order)
-    wallet = await get_or_create_wallet(db, user.id)
     subscription = (await db.execute(select(Subscription, SubscriptionPlan).join(SubscriptionPlan, Subscription.plan_id == SubscriptionPlan.id).where(Subscription.user_id == user.id, Subscription.status == "active", Subscription.expires_at > now).order_by(Subscription.expires_at.desc()))).first()
     await db.commit()
-    return {
-        "wallet": {"balance": wallet.balance, "currency": wallet.currency},
-        "subscription": {
+
+    sub_data = None
+    if subscription:
+        sub_data = {
             "plan_id": subscription[1].slug,
             "plan_name": subscription[1].name,
             "starts_at": subscription[0].starts_at.isoformat(),
             "expires_at": subscription[0].expires_at.isoformat(),
             "features": subscription[1].features or [],
-        } if subscription else None,
+        }
+    elif user.profile_data and isinstance(user.profile_data, dict) and user.profile_data.get("membership"):
+        m = user.profile_data.get("membership", {})
+        if m.get("status") == "active":
+            p_key = m.get("plan", "premium")
+            sub_data = {
+                "plan_id": p_key,
+                "plan_name": "VIP" if p_key == "vip" else "Premium",
+                "starts_at": m.get("activated_at", now.isoformat()),
+                "expires_at": m.get("expires_at", (now + timedelta(days=30)).isoformat()),
+                "features": [],
+            }
+
+    return {
+        "wallet": {"balance": wallet.balance, "currency": wallet.currency},
+        "subscription": sub_data,
     }
 
 

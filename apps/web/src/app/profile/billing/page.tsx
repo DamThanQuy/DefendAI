@@ -14,7 +14,7 @@ const PLAN_INFO: Record<MembershipPlan, { name: string; color: string; icon: Rea
 };
 
 export default function BillingPage() {
-  const [account, setAccount] = useState<{ wallet: { balance: number }; subscription: { plan_name: string; expires_at: string; features: { label: string; included: boolean }[] } | null } | null>(null);
+  const [account, setAccount] = useState<{ wallet: { balance: number }; subscription: { plan_id?: string; plan_name: string; starts_at?: string; expires_at: string; features: { label: string; included: boolean }[] } | null } | null>(null);
   const [depositAmount, setDepositAmount] = useState("100000");
   const [depositOrder, setDepositOrder] = useState<{ order_code: string; status: string; amount?: number; payment_instructions?: { type?: string; qr_url?: string; payment_url?: string; transfer_content?: string } } | null>(null);
   const [depositMessage, setDepositMessage] = useState("");
@@ -60,16 +60,24 @@ export default function BillingPage() {
     if (!response.ok) setDepositMessage(data.detail || "Không thể tạo đơn nạp ví.");
     else setDepositOrder(data.order);
   }
-  const [plan, setPlan] = useState<MembershipPlan>("free");
+  const [localPlan, setLocalPlan] = useState<MembershipPlan>("free");
 
   useEffect(() => {
-    setPlan(getMembershipPlan());
+    setLocalPlan(getMembershipPlan());
   }, []);
 
-  const planInfo = PLAN_INFO[plan];
-  const isVip = plan === "vip";
+  const effectivePlan: MembershipPlan =
+    (subscription?.plan_id?.toLowerCase().includes("vip") || subscription?.plan_name?.toLowerCase().includes("vip") || localPlan === "vip")
+      ? "vip"
+      : (subscription?.plan_id?.toLowerCase().includes("premium") || subscription?.plan_name?.toLowerCase().includes("premium") || localPlan === "premium")
+      ? "premium"
+      : "free";
+
+  const planInfo = PLAN_INFO[effectivePlan];
+  const isVip = effectivePlan === "vip";
   const nextPlan = planInfo.nextPlan;
-  const displayPlanName = subscription?.plan_name || planInfo.name;
+  const displayPlanName = isVip ? "VIP" : effectivePlan === "premium" ? "Premium" : (subscription?.plan_name || planInfo.name);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -103,16 +111,24 @@ export default function BillingPage() {
               {displayPlanName}
             </h2>
             <p className="text-muted-foreground text-sm max-w-md">
-              {subscription ? `Đang sử dụng đến ${new Date(subscription.expires_at).toLocaleDateString("vi-VN")}.` : "Bạn đang dùng gói miễn phí. Nâng cấp để mở khóa tính năng cao cấp."}
+              {effectivePlan !== "free"
+                ? `Gói ${displayPlanName} đang hoạt động${subscription?.expires_at ? ` đến ${new Date(subscription.expires_at).toLocaleDateString("vi-VN")}` : ""}.`
+                : "Bạn đang dùng gói miễn phí. Nâng cấp để mở khóa tính năng cao cấp."}
             </p>
           </div>
-          {!subscription || displayPlanName !== "VIP" ? <Link
-            href={`/checkout?plan=${nextPlan}&cycle=monthly`}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary to-secondary text-primary-foreground rounded-full text-sm font-bold shadow-[0_0_20px_hsl(var(--primary)/0.45)] hover:brightness-110 transition-all shrink-0"
-          >
-            Nâng cấp {nextPlan === "vip" ? "VIP" : "Premium"} ngay
-            <ArrowRight className="w-4 h-4" />
-          </Link> : null}
+          {effectivePlan !== "vip" ? (
+            <Link
+              href={`/checkout?plan=${nextPlan}&cycle=monthly`}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary to-secondary text-primary-foreground rounded-full text-sm font-bold shadow-[0_0_20px_hsl(var(--primary)/0.45)] hover:brightness-110 transition-all shrink-0"
+            >
+              Nâng cấp {nextPlan === "vip" ? "VIP" : "Premium"} ngay
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          ) : (
+            <div className="px-4 py-2 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+              <Crown className="w-4 h-4" /> Gói cao cấp nhất
+            </div>
+          )}
         </div>
       </div>
 
