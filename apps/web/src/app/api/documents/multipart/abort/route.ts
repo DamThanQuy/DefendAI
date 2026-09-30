@@ -55,3 +55,4 @@ export async function DELETE(
 
   return NextResponse.json(upstream.data, { status: upstream.status });
 }
+

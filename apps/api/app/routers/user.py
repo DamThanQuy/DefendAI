@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional
 import os
 import uuid
+import base64
 from datetime import datetime
 
 from app.core.database import get_db
@@ -66,7 +67,7 @@ async def update_user_profile(
 
 @router.post("/avatar")
 async def upload_avatar(
-    avatar: str,
+    avatar: str = Form(...),
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ):
@@ -78,8 +79,9 @@ async def upload_avatar(
     filepath = os.path.join(UPLOAD_DIR, "avatars", filename)
 
     # Save avatar
+    base64_str = avatar.split(",")[1] if "," in avatar else avatar
     with open(filepath, "wb") as f:
-        f.write(avatar.split(",")[1])  # Remove data URL prefix
+        f.write(base64.b64decode(base64_str))
 
     # Update user
     user.avatar = f"/uploads/avatars/{filename}"
@@ -116,7 +118,7 @@ async def delete_avatar(
 
 @router.post("/wallpaper")
 async def upload_wallpaper(
-    wallpaper: str,
+    wallpaper: str = Form(...),
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ):
@@ -128,8 +130,9 @@ async def upload_wallpaper(
     filepath = os.path.join(UPLOAD_DIR, "wallpapers", filename)
 
     # Save wallpaper
+    base64_str = wallpaper.split(",")[1] if "," in wallpaper else wallpaper
     with open(filepath, "wb") as f:
-        f.write(wallpaper.split(",")[1])  # Remove data URL prefix
+        f.write(base64.b64decode(base64_str))
 
     # Update user
     user.wallpaper = f"/uploads/wallpapers/{filename}"

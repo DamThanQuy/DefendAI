@@ -34,6 +34,7 @@ from app.models.workspace import Workspace, WorkspaceFile
 from app.models.workspace_chat import WorkspaceChat
 from app.models.workspace_question import WorkspaceQuestion
 from app.models.workspace_conversation import WorkspaceConversation
+from app.models.mock_chat import MockChatMessage
 from app.models.code_module_hash import CodeModuleHash
 from app.models.upload_session import UploadSession
 from app.models.analysis_job import (  # noqa: F401
@@ -70,6 +71,7 @@ __all__ = [
     "ReferenceChunk",
     "Workspace", "WorkspaceFile",
     "WorkspaceChat",
+    "MockChatMessage",
     "WorkspaceQuestion",
     "WorkspaceConversation",
     "CodeModuleHash",

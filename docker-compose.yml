@@ -29,6 +29,14 @@ services:
       LOCAL_MODEL: ${LOCAL_MODEL:-agnes-2.5-flash}
       LOCAL_BASE_URL: ${LOCAL_BASE_URL:-https://apihub.agnes-ai.com/v1}
       LOCAL_API_KEY: ${LOCAL_API_KEY:-sk-x4yIzIz3M26SDmJLrPsjbXSwDUxL8HMrVehmAdrOVWSnqqsX}
+      PAYOS_CLIENT_ID: ${PAYOS_CLIENT_ID:-}
+      PAYOS_API_KEY: ${PAYOS_API_KEY:-}
+      PAYOS_CHECKSUM_KEY: ${PAYOS_CHECKSUM_KEY:-}
+      PAYOS_MOMO_PHONE: ${PAYOS_MOMO_PHONE:-}
+      PAYOS_MOMO_NAME: ${PAYOS_MOMO_NAME:-}
+      PAYOS_BANK_BIN: ${PAYOS_BANK_BIN:-970422}
+      PAYOS_BANK_ACCOUNT: ${PAYOS_BANK_ACCOUNT:-}
+      PAYOS_BANK_ACCOUNT_NAME: ${PAYOS_BANK_ACCOUNT_NAME:-}
     volumes:
       - ./apps/api:/app
       - /app/__pycache__
@@ -164,7 +172,8 @@ services:
       LOCAL_MODEL: ${LOCAL_MODEL:-agnes-2.5-flash}
       LOCAL_BASE_URL: ${LOCAL_BASE_URL:-https://apihub.agnes-ai.com/v1}
       LOCAL_API_KEY: ${LOCAL_API_KEY:-sk-x4yIzIz3M26SDmJLrPsjbXSwDUxL8HMrVehmAdrOVWSnqqsX}
-      WORKER_PROCESSES: 2
+      WORKER_PROCESSES: 4
+
       EMBED_BATCH_SIZE: "64"
       EMBED_REQUEST_DELAY: "1.5"
       NVIDIA_EMBED_API_KEY: ${NVIDIA_EMBED_API_KEY:-}

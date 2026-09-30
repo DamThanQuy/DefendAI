@@ -194,3 +194,5 @@ def iter_selected_manifest_files(manifest: dict) -> Iterable[dict]:
         if entry.get("skip_reason"):
             continue
         yield entry
+
+        yield entry

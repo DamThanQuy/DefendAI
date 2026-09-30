@@ -263,20 +263,34 @@ class AIGateway:
         """
         provider_name = provider or settings.routing.default_provider
 
-        if provider_name not in self.providers:
-            available = sorted(self.providers.keys())
-            raise RuntimeError(
-                f"Provider '{provider_name}' not available. "
-                f"Available: {available or 'NONE - check your API keys in .env'}"
-            )
+        candidates = []
+        if provider_name in self.providers:
+            candidates.append(provider_name)
+        for p in self.providers:
+            if p not in candidates:
+                candidates.append(p)
 
-        return await self.providers[provider_name].generate(
-            prompt=prompt,
-            model=model,
-            system_prompt=system_prompt,
-            images=kwargs.pop("images", None),
-            **kwargs,
-        )
+        if not candidates:
+            raise RuntimeError("No AI provider available. Check your API keys in .env or DB.")
+
+        last_error = None
+        images_arg = kwargs.pop("images", None)
+        for cand in candidates:
+            try:
+                return await self.providers[cand].generate(
+                    prompt=prompt,
+                    model=model if cand == provider_name else None,
+                    system_prompt=system_prompt,
+                    images=images_arg,
+                    **kwargs,
+                )
+            except Exception as exc:
+                last_error = exc
+                logger.warning(f"AI Provider '{cand}' failed ({exc}). Trying fallback provider...")
+                if provider is not None and len(candidates) == 1:
+                    break
+
+        raise last_error or RuntimeError(f"All AI providers failed. Tried: {candidates}")
 
     def generate_stream(
         self,

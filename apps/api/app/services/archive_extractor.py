@@ -314,4 +314,7 @@ def _extract_into(
                 target.write(chunk)
         os.chmod(destination, 0o600)
         selected_files.append(ExtractedFile(path=path, local_path=destination, size=destination.stat().st_size))
+
+    return ExtractionResult(validation=validation, root_dir=root, selected_files=selected_files)
+
     return ExtractionResult(validation=validation, root_dir=root, selected_files=selected_files)

@@ -1,7 +1,10 @@
 export type PaymentMethodId =
-  | "vietqr"
   | "payos"
-  | "wallet"
+  | "momo"
+  | "zalopay"
+  | "vnpay"
+  | "bank_transfer"
+  | "card";
 
 export interface PaymentMethod {
   id: PaymentMethodId;
@@ -14,24 +17,45 @@ export interface PaymentMethod {
 
 export const PAYMENT_METHODS: PaymentMethod[] = [
   {
-    id: "vietqr",
-    name: "VietQR thủ công",
-    description: "Quét QR chuyển khoản, admin đối soát",
-    logo: "VQR",
-  },
-  {
     id: "payos",
-    name: "PayOS",
-    description: "Quét QR và tự động xác nhận giao dịch",
+    name: "PayOS (QR Ngân hàng & MoMo)",
+    description: "Quét mã QR tự động xác nhận qua PayOS / VietQR",
     logo: "P",
-    badge: "Tự động",
+    badge: "Khuyên dùng",
     popular: true,
   },
   {
-    id: "wallet",
-    name: "Ví DefendAI",
-    description: "Trừ trực tiếp số dư ví nội bộ của bạn",
-    logo: "W",
+    id: "momo",
+    name: "Ví MoMo",
+    description: "Thanh toán quét mã MoMo QR",
+    logo: "M",
+    badge: "Phổ biến",
+    popular: true,
+  },
+  {
+    id: "zalopay",
+    name: "ZaloPay",
+    description: "Quét QR hoặc liên kết ngân hàng qua ZaloPay",
+    logo: "Z",
+    popular: true,
+  },
+  {
+    id: "vnpay",
+    name: "VNPay",
+    description: "Hỗ trợ tất cả ngân hàng nội địa Việt Nam",
+    logo: "V",
+  },
+  {
+    id: "bank_transfer",
+    name: "Chuyển khoản ngân hàng",
+    description: "Internet Banking / QR ngân hàng",
+    logo: "🏦",
+  },
+  {
+    id: "card",
+    name: "Thẻ quốc tế",
+    description: "Visa, Mastercard, JCB, Amex",
+    logo: "💳",
   },
 ];
 

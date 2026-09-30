@@ -312,6 +312,7 @@ async def iter_zip_members(
         if spill_dir:
             _os.makedirs(spill_dir, exist_ok=True)
         fd, tmp_path = _tempfile.mkstemp(suffix=".zip", prefix="minio_zip_", dir=spill_dir)
+
         _os.close(fd)
         total_bytes = 0
         with open(tmp_path, "wb") as f:

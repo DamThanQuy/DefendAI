@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   CreditCard,
+  Smartphone,
   Building2,
   Check,
   ShieldCheck,
@@ -15,117 +16,245 @@ import {
   Crown,
   Zap,
   Copy,
+  QrCode,
+  ExternalLink,
+  RefreshCw,
+  Sparkles,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   PAYMENT_METHODS,
+  BANK_LIST,
   getOrderSummary,
   formatVND,
   type PaymentMethodId,
 } from "./payment-data";
 import { fetchPlans } from "@/app/pricing/pricing-api";
+import { setMembershipPlan } from "@/lib/mock-ai-data";
+import { toast } from "sonner";
 
 type CheckoutPlan = { id: string; name: string; monthly: number; yearly: number };
 
-const LEGACY_PLAN_SLUGS: Record<string, string> = {
-  premium: "100002",
-  vip: "100003",
+type OrderResponse = {
+  success: boolean;
+  orderCode: number;
+  amount: number;
+  description: string;
+  checkoutUrl?: string;
+  qrCode?: string;
+  qrImageUrl?: string;
+  accountName?: string;
+  accountNumber?: string;
+  bin?: string;
+  status: string;
+  isSandbox?: boolean;
 };
 
 export default function CheckoutClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const requestedPlanId = searchParams.get("plan") || "100002";
-  const planId = LEGACY_PLAN_SLUGS[requestedPlanId] || requestedPlanId;
+  const planId = searchParams.get("plan") || "premium";
   const cycle = (searchParams.get("cycle") || "monthly") as "monthly" | "yearly";
 
   const [plan, setPlan] = useState<CheckoutPlan | null>(null);
-  const [plansLoaded, setPlansLoaded] = useState(false);
-  const [step, setStep] = useState<"payment" | "processing" | "awaiting" | "done">("payment");
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethodId>("vietqr");
-  const [paymentOrder, setPaymentOrder] = useState<{ order_code: string; status: string; amount?: number; proration_credit?: number; payment_instructions?: { type?: string; qr_url?: string; payment_url?: string; account_number?: string; account_name?: string; transfer_content?: string } } | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethodId>("payos");
+  const [selectedBank, setSelectedBank] = useState<string>("MB");
   const [isLoading, setIsLoading] = useState(false);
+  const [isCreatingOrder, setIsCreatingOrder] = useState(true);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
+  // PayOS Order details
+  const [orderData, setOrderData] = useState<OrderResponse | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<"PENDING" | "PAID" | "EXPIRED">("PENDING");
+
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Fetch plan info
   useEffect(() => {
     fetchPlans()
       .then((plans) => {
-        const selected = plans.find((item) => item.id === planId || item.id === requestedPlanId);
+        const selected = plans.find((item) => item.id === planId);
         if (selected) {
-          setPlan({ id: selected.id, name: selected.name, monthly: selected.monthly, yearly: selected.yearly });
+          setPlan({
+            id: selected.id,
+            name: selected.name,
+            monthly: selected.monthly,
+            yearly: selected.yearly,
+          });
         }
       })
-      .catch(() => setErrorMsg("Không tải được thông tin gói. Vui lòng thử lại."))
-      .finally(() => setPlansLoaded(true));
-  }, [planId, requestedPlanId]);
+      .catch(() => setErrorMsg("Không tải được thông tin gói. Vui lòng thử lại."));
+  }, [planId]);
 
+  // Create payment order via API
   useEffect(() => {
-    if (step !== "awaiting" || selectedMethod !== "payos" || !paymentOrder) return;
-    const poll = async () => {
-      const response = await fetch(`/api/payment/orders/${paymentOrder.order_code}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-        cache: "no-store",
+    if (!plan) return;
+
+    let isMounted = true;
+    setIsCreatingOrder(true);
+    setErrorMsg("");
+
+    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+
+    fetch("/api/payment/create-order", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        plan_id: plan.id,
+        cycle: cycle,
+        method: selectedMethod,
+      }),
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (isMounted) {
+          if (data.orderCode) {
+            setOrderData(data);
+            setPaymentStatus((data.status as any) || "PENDING");
+          } else if (data.status === "PAID") {
+            // Free plan direct activation
+            handlePaymentSuccess(data.orderCode || 0);
+          } else {
+            setErrorMsg(data.message || data.error || "Không thể tạo mã thanh toán.");
+          }
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          setErrorMsg("Lỗi kết nối khi tạo đơn hàng. Đang sử dụng chế độ dự phòng.");
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsCreatingOrder(false);
       });
-      if (!response.ok) return;
-      const data = await response.json();
-      setPaymentOrder(data.order);
-      if (data.order.status === "paid") {
-        router.push(`/payment-success?order_id=${paymentOrder.order_code}`);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [plan, cycle, selectedMethod]);
+
+  // Auto-polling payment status
+  useEffect(() => {
+    if (!orderData?.orderCode || paymentStatus === "PAID") return;
+
+    const checkStatus = async () => {
+      try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+        const res = await fetch(`/api/payment/order-status/${orderData.orderCode}`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        const data = await res.json();
+
+        if (data.status === "PAID") {
+          handlePaymentSuccess(orderData.orderCode);
+        }
+      } catch (e) {
+        // Silently retry on next tick
       }
     };
-    const timer = window.setInterval(() => { poll().catch(() => undefined); }, 3000);
-    return () => window.clearInterval(timer);
-  }, [paymentOrder, router, selectedMethod, step]);
 
-  // Redirect if no plan
-  useEffect(() => {
-    if (plansLoaded && !plan) {
-      router.replace("/pricing");
-    }
-  }, [plan, plansLoaded, router]);
+    pollIntervalRef.current = setInterval(checkStatus, 2500);
 
-  if (!plansLoaded || !plan) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Đang tải thông tin gói...</div>;
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, [orderData?.orderCode, paymentStatus]);
 
-  const order = getOrderSummary(plan, cycle);
+  const handlePaymentSuccess = (code: number) => {
+    setPaymentStatus("PAID");
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
 
-  const handlePayment = async () => {
-    setIsLoading(true);
-    setErrorMsg("");
-    setStep("processing");
     try {
-      const response = await fetch("/api/payment/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-        body: JSON.stringify({ plan_id: plan.id, cycle, method: selectedMethod, purpose: "subscription" }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || data.error || "Không thể tạo đơn thanh toán");
-      const created = data.order;
-      setPaymentOrder(created);
-      if (created.status === "paid") {
-        router.push(`/payment-success?order_id=${created.order_code}`);
-      } else {
-        setStep("awaiting");
+      if (plan?.id === "vip" || plan?.id === "premium") {
+        setMembershipPlan(plan.id);
       }
-    } catch (error) {
-      setErrorMsg(error instanceof Error ? error.message : "Không thể tạo đơn thanh toán");
-      setStep("payment");
+    } catch {}
+
+    toast.success("Thanh toán thành công! Gói hội viên của bạn đã được kích hoạt.");
+
+    setTimeout(() => {
+      router.push(`/payment-success?plan=${plan?.id || "premium"}&cycle=${cycle}&order_id=${code}`);
+    }, 1200);
+  };
+
+  const handleSandboxConfirm = async () => {
+    if (!orderData?.orderCode) return;
+    setIsConfirming(true);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+      const res = await fetch(`/api/payment/mock-confirm/${orderData.orderCode}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const data = await res.json();
+      if (data.status === "PAID") {
+        handlePaymentSuccess(orderData.orderCode);
+      } else {
+        toast.error("Không thể xác nhận thanh toán.");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Lỗi xác nhận thanh toán.");
     } finally {
-      setIsLoading(false);
+      setIsConfirming(false);
     }
   };
 
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard?.writeText(text);
+    setCopiedField(label);
+    toast.success(`Đã sao chép ${label}!`);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  if (!plan) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground gap-2">
+        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+        Đang tải thông tin gói...
+      </div>
+    );
+  }
+
+  const order = getOrderSummary(plan, cycle);
+  const displayAmount = orderData?.amount || order.total;
+  const displayOrderCode = orderData?.orderCode ? `DEFEND ${orderData.orderCode}` : `DEFEND-${Date.now()}`;
+  const displayAccountName = orderData?.accountName || "DEFENDAI EDUCATION";
+  const displayAccountNo = orderData?.accountNumber || "0339888999";
+
+  // MoMo / VietQR dynamic QR image URL
+  const qrImageUrl =
+    orderData?.qrImageUrl ||
+    `https://img.vietqr.io/image/970422-${displayAccountNo}-compact2.png?amount=${displayAmount}&addInfo=${encodeURIComponent(
+      displayOrderCode
+    )}&accountName=${encodeURIComponent(displayAccountName)}`;
+
   const getMethodIcon = (id: PaymentMethodId) => {
-    if (id === "wallet") return <CreditCard className="w-5 h-5" />;
-    return <Building2 className="w-5 h-5" />;
+    if (id === "payos") return <QrCode className="w-5 h-5" />;
+    if (id === "momo" || id === "zalopay" || id === "vnpay") return <Smartphone className="w-5 h-5" />;
+    if (id === "bank_transfer") return <Building2 className="w-5 h-5" />;
+    return <CreditCard className="w-5 h-5" />;
   };
 
   const getMethodColor = (id: PaymentMethodId) => {
-    if (id === "wallet") return "bg-indigo-500 text-white";
-    if (id === "payos") return "bg-emerald-500 text-white";
-    return "bg-amber-500 text-white";
+    if (id === "payos") return "bg-emerald-600 text-white shadow-emerald-500/20";
+    if (id === "momo") return "bg-pink-600 text-white shadow-pink-500/20";
+    if (id === "zalopay") return "bg-blue-600 text-white shadow-blue-500/20";
+    if (id === "vnpay") return "bg-red-600 text-white shadow-red-500/20";
+    if (id === "bank_transfer") return "bg-amber-600 text-white shadow-amber-500/20";
+    return "bg-indigo-600 text-white shadow-indigo-500/20";
   };
 
   return (
@@ -138,347 +267,291 @@ export default function CheckoutClient() {
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            Quay lại
+            Quay lại bảng giá
           </Link>
           <div className="flex-1" />
           <div className="flex items-center gap-2 text-sm">
             <ShieldCheck className="w-4 h-4 text-emerald-500" />
-            <span className="text-muted-foreground">Thanh toán bảo mật</span>
+            <span className="text-muted-foreground">Thanh toán PayOS bảo mật</span>
           </div>
         </div>
       </div>
 
       <div className="container mx-auto px-4 lg:px-8 max-w-5xl py-8">
         {/* Page title */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+          <div className="flex items-center gap-2 text-primary text-xs font-bold uppercase tracking-wider mb-2">
+            <Sparkles className="w-4 h-4" />
+            Cổng thanh toán sinh viên
+          </div>
           <h1 className="text-3xl md:text-4xl font-serif font-black mb-2">
-            Thanh toán đăng ký Member
+            Thanh toán đăng ký gói {plan.name}
           </h1>
-          <p className="text-muted-foreground">
-            Xác nhận thông tin và chọn phương thức thanh toán phù hợp với bạn.
+          <p className="text-muted-foreground text-sm md:text-base">
+            Quét mã QR qua ứng dụng ngân hàng hoặc ví MoMo để hoàn tất kích hoạt gói hội viên tự động.
           </p>
         </motion.div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-          {/* Left: Payment methods */}
+          {/* Left: Payment methods & QR */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.1 }}
             className="lg:col-span-3 space-y-6"
           >
-            {/* Payment step */}
-            {step === "payment" && (
-              <>
-                {/* Payment methods */}
-                <Card className="p-6">
-                  <h2 className="text-lg font-serif font-bold mb-4 flex items-center gap-2">
-                    <CreditCard className="w-5 h-5 text-primary" />
-                    Phương thức thanh toán
-                  </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {PAYMENT_METHODS.map((method) => (
-                      <button
-                        key={method.id}
-                        onClick={() => {
-                          setSelectedMethod(method.id);
-                          setErrorMsg("");
-                        }}
-                        className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${
-                          selectedMethod === method.id
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/40 bg-card"
-                        }`}
-                      >
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${getMethodColor(method.id)}`}>
-                          {getMethodIcon(method.id)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-sm">{method.name}</span>
-                            {method.popular && (
-                              <span className="px-1.5 py-0.5 rounded bg-primary/20 text-primary text-[10px] font-bold uppercase">
-                                Hot
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                            {method.description}
-                          </p>
-                        </div>
-                        {selectedMethod === method.id && (
-                          <Check className="w-5 h-5 text-primary shrink-0" />
+            {/* Payment methods selection */}
+            <Card className="p-6">
+              <h2 className="text-base font-serif font-bold mb-4 flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-primary" />
+                Chọn phương thức thanh toán
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {PAYMENT_METHODS.map((method) => (
+                  <button
+                    key={method.id}
+                    onClick={() => {
+                      setSelectedMethod(method.id);
+                      setErrorMsg("");
+                    }}
+                    className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${
+                      selectedMethod === method.id
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : "border-border hover:border-primary/40 bg-card"
+                    }`}
+                  >
+                    <div
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 shadow-md ${getMethodColor(
+                        method.id
+                      )}`}
+                    >
+                      {getMethodIcon(method.id)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">{method.name}</span>
+                        {method.badge && (
+                          <span className="px-1.5 py-0.5 rounded bg-primary/20 text-primary text-[10px] font-bold uppercase">
+                            {method.badge}
+                          </span>
                         )}
-                      </button>
-                    ))}
-                  </div>
-                </Card>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                        {method.description}
+                      </p>
+                    </div>
+                    {selectedMethod === method.id && (
+                      <Check className="w-5 h-5 text-primary shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </Card>
 
-                <Card className="p-6 border-primary/30 bg-primary/5">
-                  <h3 className="text-sm font-semibold mb-4">Thông tin thanh toán</h3>
-                  <div className="flex flex-col sm:flex-row items-center gap-5">
-                    {paymentOrder?.payment_instructions?.qr_url ? <img src={paymentOrder.payment_instructions.qr_url} alt="QR thanh toán" className="w-44 h-44 rounded-lg bg-white p-2" /> : <div className="w-44 h-44 rounded-lg bg-muted flex items-center justify-center text-center text-xs text-muted-foreground p-4">Bấm tạo đơn để nhận QR thanh toán</div>}
-                    <div className="text-sm space-y-2 w-full">
-                      <p className="text-muted-foreground">Phương thức: <strong className="text-foreground">{PAYMENT_METHODS.find((method) => method.id === selectedMethod)?.name}</strong></p>
-                      <p className="text-muted-foreground">Số tiền: <strong className="text-primary">{formatVND(paymentOrder?.amount ?? order.total)}</strong></p>
-                      {!!paymentOrder?.proration_credit && <p className="text-xs text-emerald-500">Đã trừ {formatVND(paymentOrder.proration_credit)} giá trị thời gian còn lại.</p>}
-                      {paymentOrder?.payment_instructions && (
-                        <div className="pt-2 border-t border-border/60">
-                          <p>STK: <strong>{paymentOrder.payment_instructions.account_number}</strong> <button type="button" aria-label="Sao chép số tài khoản" title="Sao chép số tài khoản" onClick={() => navigator.clipboard?.writeText(paymentOrder.payment_instructions?.account_number || "")}><Copy className="inline w-3.5 h-3.5 text-primary" /></button></p>
-                          <p>Chủ TK: <strong>{paymentOrder.payment_instructions.account_name}</strong></p>
-                          <p>Nội dung: <strong>{paymentOrder.payment_instructions.transfer_content}</strong></p>
+            {/* PayOS / MoMo Dynamic QR Code Card */}
+            <Card className="p-6 border-primary/40 bg-gradient-to-br from-card via-card to-primary/5 relative overflow-hidden">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                    QR
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-foreground">
+                      Mã QR Thanh Toán {selectedMethod === "momo" ? "MoMo" : "PayOS / VietQR"}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Tự động cập nhật số tiền: <strong>{formatVND(displayAmount)}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Polling indicator */}
+                <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                  Đang chờ thanh toán...
+                </div>
+              </div>
+
+              {isCreatingOrder ? (
+                <div className="h-64 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <p className="text-sm">Đang tạo mã thanh toán PayOS...</p>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center gap-6">
+                  {/* QR Image Box */}
+                  <div className="flex flex-col items-center">
+                    <div className="relative p-2.5 bg-white rounded-2xl shadow-xl border border-border/80 group">
+                      <img
+                        src={qrImageUrl}
+                        alt="QR thanh toán PayOS / VietQR"
+                        className="w-48 h-48 sm:w-52 sm:h-52 object-contain rounded-lg"
+                      />
+                      {paymentStatus === "PAID" && (
+                        <div className="absolute inset-0 bg-emerald-950/80 backdrop-blur-xs rounded-2xl flex flex-col items-center justify-center text-emerald-400 p-4 text-center">
+                          <CheckCircle2 className="w-12 h-12 mb-2 animate-bounce" />
+                          <p className="font-bold text-sm">Thanh toán thành công!</p>
                         </div>
                       )}
                     </div>
+                    <p className="text-[11px] text-muted-foreground mt-2 text-center flex items-center gap-1">
+                      <Smartphone className="w-3 h-3" /> Mở app Ngân hàng / MoMo quét QR
+                    </p>
                   </div>
-                  <p className="text-xs text-amber-500 mt-4">{selectedMethod === "payos" ? "PayOS sẽ tự động xác nhận sau khi giao dịch thành công." : "Đơn QR sẽ chờ admin đối soát trước khi kích hoạt gói."}</p>
-                </Card>
 
-                {/* Error message */}
-                {errorMsg && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-2 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-sm"
-                  >
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    {errorMsg}
-                  </motion.div>
-                )}
+                  {/* Transfer Details */}
+                  <div className="flex-1 w-full space-y-3 text-sm">
+                    <div className="p-3 rounded-xl bg-muted/40 border border-border/60 space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Chủ tài khoản:</span>
+                        <strong className="font-semibold text-foreground uppercase">{displayAccountName}</strong>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Số tài khoản:</span>
+                        <div className="flex items-center gap-1.5">
+                          <strong className="font-mono text-foreground font-bold">{displayAccountNo}</strong>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(displayAccountNo, "Số tài khoản")}
+                            className="text-primary hover:opacity-80 p-0.5 rounded"
+                            title="Sao chép số tài khoản"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Số tiền:</span>
+                        <strong className="text-primary font-bold text-sm">{formatVND(displayAmount)}</strong>
+                      </div>
+                      <div className="flex items-center justify-between text-xs pt-1.5 border-t border-border/60">
+                        <span className="text-muted-foreground">Nội dung CK:</span>
+                        <div className="flex items-center gap-1.5">
+                          <strong className="font-mono text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">
+                            {displayOrderCode}
+                          </strong>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(displayOrderCode, "Nội dung chuyển khoản")}
+                            className="text-primary hover:opacity-80 p-0.5 rounded"
+                            title="Sao chép nội dung"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
 
-                {/* Pay button */}
-                <Button
-                  onClick={async () => {
-                    if (!paymentOrder) return handlePayment();
-                    const response = await fetch(`/api/payment/orders/${paymentOrder.order_code}/submitted`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` } });
-                    if (response.ok) setStep("awaiting");
-                  }}
-                  disabled={isLoading}
-                  className="w-full h-14 text-lg font-bold rounded-xl shadow-[0_0_20px_hsl(var(--primary)/0.5)] hover:brightness-110"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Đang xử lý thanh toán...
-                    </>
-                  ) : (
-                    <>
-                      {paymentOrder ? "Tôi đã thanh toán" : `Tạo đơn ${formatVND(order.total)}`}
-                      <ArrowLeft className="w-5 h-5 ml-2 rotate-180" />
-                    </>
-                  )}
-                </Button>
+                    {/* PayOS External Link button (if available) */}
+                    {orderData?.checkoutUrl && orderData.checkoutUrl.startsWith("http") && (
+                      <a
+                        href={orderData.checkoutUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-primary text-primary-foreground font-bold text-xs shadow-md hover:brightness-110 transition-all"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Mở trang thanh toán PayOS trực tiếp
+                      </a>
+                    )}
 
-                {/* Trust badges */}
-                <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                    Bảo mật SSL
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Check className="w-3.5 h-3.5 text-emerald-500" />
-                    Hoàn tiền 7 ngày
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Check className="w-3.5 h-3.5 text-emerald-500" />
-                    Hỗ trợ 24/7
+                    {/* Sandbox simulation button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSandboxConfirm}
+                      disabled={isConfirming || paymentStatus === "PAID"}
+                      className="w-full text-xs font-semibold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                    >
+                      {isConfirming ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> Đang xử lý...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> [Sandbox] Xác nhận thanh toán thành công
+                        </>
+                      )}
+                    </Button>
                   </div>
                 </div>
-              </>
-            )}
+              )}
 
-            {/* Processing step */}
-            {step === "processing" && (
-              <Card className="p-12 text-center">
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                >
-                  <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-6">
-                    <Loader2 className="w-10 h-10 text-primary animate-spin" />
-                  </div>
-                  <h2 className="text-2xl font-serif font-bold mb-2">
-                    Đang xử lý thanh toán
-                  </h2>
-                  <p className="text-muted-foreground">
-                    Vui lòng chờ trong giây lát, không tắt trình duyệt...
-                  </p>
-                </motion.div>
-              </Card>
-            )}
-
-            {step === "awaiting" && paymentOrder && (
-              <>
-                <Card className="p-6 border-primary/30 bg-primary/5">
-                  <h3 className="text-sm font-semibold mb-4">QR và thông tin chuyển khoản</h3>
-                  <div className="flex flex-col sm:flex-row items-center gap-5">
-                    {paymentOrder.payment_instructions?.qr_url && <img src={paymentOrder.payment_instructions.qr_url} alt="QR thanh toán" className="w-44 h-44 rounded-lg bg-white p-2" />}
-                    <div className="text-sm space-y-2 w-full">
-                      <p>Mã đơn: <strong>{paymentOrder.order_code}</strong></p>
-                      <p>Số tiền: <strong className="text-primary">{formatVND(paymentOrder.amount ?? order.total)}</strong></p>
-                      {!!paymentOrder.proration_credit && <p className="text-xs text-emerald-500">Đã trừ {formatVND(paymentOrder.proration_credit)} giá trị thời gian còn lại.</p>}
-                      {paymentOrder.payment_instructions?.type === "payos" ? <>{paymentOrder.payment_instructions.payment_url && <a className="inline-flex rounded-md bg-primary px-3 py-2 text-primary-foreground font-semibold" href={paymentOrder.payment_instructions.payment_url} target="_blank" rel="noreferrer">Mở trang thanh toán PayOS</a>}<p className="text-xs text-muted-foreground">Sau khi thanh toán, trang này sẽ tự kiểm tra trạng thái.</p></> : <><p>STK: <strong>{paymentOrder.payment_instructions?.account_number}</strong> <button type="button" aria-label="Sao chép số tài khoản" title="Sao chép số tài khoản" onClick={() => navigator.clipboard?.writeText(paymentOrder.payment_instructions?.account_number || "")}><Copy className="inline w-3.5 h-3.5 text-primary" /></button></p><p>Chủ TK: <strong>{paymentOrder.payment_instructions?.account_name}</strong></p><p>Nội dung: <strong>{paymentOrder.payment_instructions?.transfer_content}</strong></p></>}
-                    </div>
-                  </div>
-                </Card>
-                <Card className="p-12 text-center">
-                  <div className="w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-6"><Loader2 className="w-10 h-10 text-amber-500" /></div>
-                  <h2 className="text-2xl font-serif font-bold mb-2">{paymentOrder.payment_instructions?.type === "payos" ? "Đang chờ PayOS xác nhận" : "Đang chờ admin xác nhận"}</h2>
-                  <p className="text-muted-foreground mb-6">Mã đơn {paymentOrder.order_code}. {paymentOrder.payment_instructions?.type === "payos" ? "Sau khi thanh toán thành công, gói sẽ được kích hoạt tự động." : "Sau khi kiểm tra giao dịch, admin sẽ kích hoạt gói cho bạn."}</p>
-                  {paymentOrder.payment_instructions?.type !== "payos" && <Button
-                    className="mb-3"
-                    onClick={async () => {
-                      const response = await fetch(`/api/payment/orders/${paymentOrder.order_code}/submitted`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` } });
-                      if (response.ok) setErrorMsg("Đã gửi yêu cầu xác nhận cho admin.");
-                      else setErrorMsg("Không thể gửi yêu cầu xác nhận.");
-                    }}
-                  >Tôi đã thanh toán</Button>}
-                  {errorMsg && <p className="text-sm text-muted-foreground mb-3">{errorMsg}</p>}
-                  <Link href={`/payment-success?order_id=${paymentOrder.order_code}`}><Button variant="outline">Kiểm tra trạng thái</Button></Link>
-                </Card>
-              </>
-            )}
-
-            {/* Done - redirect notice */}
-            {step === "done" && (
-              <Card className="p-12 text-center">
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                >
-                  <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-6">
-                    <Check className="w-10 h-10 text-emerald-500" />
-                  </div>
-                  <h2 className="text-2xl font-serif font-bold mb-2 text-emerald-500">
-                    Thanh toán thành công!
-                  </h2>
-                  <p className="text-muted-foreground mb-6">
-                    Cảm ơn bạn đã đăng ký gói {order.planName}. Đang chuyển hướng...
-                  </p>
-                  <Link href={`/payment-success?plan=${plan.id}&cycle=${cycle}`}>
-                    <Button className="rounded-full px-8">
-                      Xem chi tiết đăng ký
-                    </Button>
-                  </Link>
-                </motion.div>
-              </Card>
-            )}
+              {/* Error message */}
+              {errorMsg && (
+                <div className="mt-4 flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {errorMsg}
+                </div>
+              )}
+            </Card>
           </motion.div>
 
-          {/* Right: Order summary */}
+          {/* Right: Order Summary */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
-            className="lg:col-span-2"
+            className="lg:col-span-2 space-y-6"
           >
-            <Card className="p-6 sticky top-24">
-              <h2 className="text-lg font-serif font-bold mb-4">Tóm tắt đơn hàng</h2>
+            <Card className="p-6">
+              <h2 className="text-lg font-serif font-bold mb-4">Thông tin đơn hàng</h2>
 
-              {/* Plan info */}
-              <div className="flex items-center gap-3 p-4 rounded-xl bg-card border border-border mb-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                  plan.id === "premium" ? "bg-primary/20" : "bg-amber-500/20"
-                }`}>
-                  {plan.id === "premium" ? (
-                    <Zap className={`w-6 h-6 ${plan.id === "premium" ? "text-primary" : "text-amber-500"}`} />
-                  ) : (
-                    <Crown className="w-6 h-6 text-amber-500" />
-                  )}
+              {/* Plan badge */}
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-primary/10 border border-primary/20 mb-4">
+                <div className="w-9 h-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold">
+                  {plan.id === "vip" ? <Crown className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
                 </div>
                 <div>
-                  <div className="font-bold text-lg">
-                    {plan.name === "Premium" ? (
-                      <span className="bg-gradient-to-r from-primary to-indigo-500 bg-clip-text text-transparent">
-                        Premium
-                      </span>
-                    ) : (
-                      <span className="bg-gradient-to-r from-amber-400 to-amber-600 bg-clip-text text-transparent">
-                        VIP
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {cycle === "monthly" ? "Theo tháng" : "Theo năm"}
-                  </div>
+                  <h3 className="font-bold text-sm text-foreground">Gói {plan.name}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Thanh toán {cycle === "monthly" ? "theo tháng" : "theo năm"}
+                  </p>
                 </div>
               </div>
 
-              {/* Pricing breakdown */}
-              <div className="space-y-2 text-sm">
+              <div className="space-y-3 text-sm border-b border-border/50 pb-4 mb-4">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Giá gốc</span>
-                  <span>{formatVND(order.basePrice)}</span>
+                  <span className="text-muted-foreground">Giá gốc:</span>
+                  <span className="font-medium">{formatVND(order.basePrice)}</span>
                 </div>
                 {order.discount > 0 && (
-                  <div className="flex justify-between text-emerald-500">
-                    <span>Giảm giá (yêu thích)</span>
+                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                    <span>Ưu đãi gói năm (17%):</span>
                     <span>-{formatVND(order.discount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">VAT</span>
-                  <span>{order.vat === 0 ? "Miễn phí" : formatVND(order.vat)}</span>
-                </div>
-                <div className="border-t border-border pt-2 mt-2" />
-                {!!paymentOrder?.proration_credit && (
-                  <div className="flex justify-between text-emerald-500">
-                    <span>Khấu trừ thời gian còn lại</span>
-                    <span>-{formatVND(paymentOrder.proration_credit)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-bold text-lg">
-                  <span>Tổng cộng</span>
-                  <span className="text-primary">{formatVND(paymentOrder?.amount ?? order.total)}</span>
+                  <span className="text-muted-foreground">VAT:</span>
+                  <span className="text-muted-foreground">0đ</span>
                 </div>
               </div>
 
-              {/* Cycle toggle */}
-              <div className="mt-4 p-3 rounded-lg bg-card border border-border">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Chu kỳ</span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => router.push(`/checkout?plan=${plan.id}&cycle=monthly`)}
-                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                        cycle === "monthly"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      Theo tháng
-                    </button>
-                    <button
-                      onClick={() => router.push(`/checkout?plan=${plan.id}&cycle=yearly`)}
-                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 ${
-                        cycle === "yearly"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      Theo năm
-                      <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 text-[10px] font-bold">
-                        -17%
-                      </span>
-                    </button>
-                  </div>
+              <div className="flex justify-between items-baseline mb-6">
+                <span className="font-bold text-base">Tổng thanh toán:</span>
+                <span className="text-2xl font-serif font-black text-primary">
+                  {formatVND(displayAmount)}
+                </span>
+              </div>
+
+              {/* Subscription details */}
+              <div className="p-3.5 rounded-xl bg-muted/40 text-xs space-y-2 text-muted-foreground mb-4">
+                <div className="flex justify-between">
+                  <span>Ngày bắt đầu:</span>
+                  <strong className="text-foreground">{order.startsAt}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Hạn sử dụng:</span>
+                  <strong className="text-foreground">{order.expiresAt}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tự động gia hạn:</span>
+                  <strong className="text-foreground">Không (Thủ công)</strong>
                 </div>
               </div>
 
-              {/* Validity */}
-              <div className="mt-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-600 dark:text-emerald-400">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Check className="w-3.5 h-3.5" />
-                  <span className="font-semibold">Đăng ký thành công!</span>
-                </div>
-                <p>
-                  Hiệu lực từ <strong>{order.startsAt}</strong> đến{" "}
-                  <strong>{order.expiresAt}</strong>
-                </p>
+              <div className="text-[11px] text-muted-foreground text-center">
+                Bằng việc thanh toán, bạn đồng ý với Điều khoản dịch vụ và Chính sách bảo mật của DefendAI.
               </div>
             </Card>
           </motion.div>

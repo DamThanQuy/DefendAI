@@ -9,6 +9,7 @@ import { AuthGate } from "@/components/auth/AuthGate";
 import { TopProgress } from "@/components/common/TopProgress";
 import { ThemeProvider } from "@/components/theme-provider";
 import { FloatingThemeToggle } from "@/components/theme-toggle-floating";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
@@ -44,6 +45,7 @@ export default function RootLayout({
             </main>
             <Footer />
             <FloatingThemeToggle />
+            <Toaster position="top-right" richColors />
           </ThemeProvider>
         </body>
       </GoogleOAuthProvider>
