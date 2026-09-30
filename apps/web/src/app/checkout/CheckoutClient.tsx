@@ -221,19 +221,52 @@ export default function CheckoutClient() {
     }, 1200);
   };
 
+  const handleVerifyPayment = async () => {
+    if (!orderData?.orderCode) return;
+    setIsConfirming(true);
+
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+      const res = await fetch(`/api/payment/order-status/${orderData.orderCode}`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const data = await res.json();
+
+      if (data.status === "PAID") {
+        handlePaymentSuccess(orderData.orderCode);
+      } else {
+        toast.info(
+          `Hệ thống chưa nhận được tiền từ ngân hàng cho đơn #${orderData.orderCode}. Nếu bạn vừa chuyển tiền, vui lòng đợi 15-30 giây để hệ thống đối soát và nhấn kiểm tra lại!`
+        );
+      }
+    } catch {
+      toast.error("Không thể kết nối đến máy chủ kiểm tra thanh toán. Vui lòng thử lại!");
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
   const handleSandboxConfirm = async () => {
     const code = orderData?.orderCode || Math.floor(Date.now() / 1000) % 100000000;
     setIsConfirming(true);
 
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-      fetch(`/api/payment/mock-confirm/${code}`, {
+      const res = await fetch(`/api/payment/mock-confirm/${code}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-      }).catch(() => {});
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.membership?.plan) {
+          setMembershipPlan(data.membership.plan);
+        }
+      }
     } catch {}
 
     handlePaymentSuccess(code);
@@ -509,23 +542,34 @@ export default function CheckoutClient() {
                       </a>
                     )}
 
-                    {/* Sandbox simulation button */}
+                    {/* Real payment check button */}
                     <Button
                       variant="default"
                       size="sm"
-                      onClick={handleSandboxConfirm}
+                      onClick={handleVerifyPayment}
                       disabled={isConfirming || paymentStatus === "PAID"}
                       className="w-full text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                     >
                       {isConfirming ? (
                         <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> Đang kiểm tra & kích hoạt...
+                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> Đang kiểm tra giao dịch PayOS...
                         </>
                       ) : (
                         <>
-                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Tôi đã chuyển khoản / Kích hoạt gói ngay
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Tôi đã chuyển tiền / Kiểm tra thanh toán
                         </>
                       )}
+                    </Button>
+
+                    {/* Sandbox quick activate button */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleSandboxConfirm}
+                      disabled={isConfirming || paymentStatus === "PAID"}
+                      className="w-full text-[11px] text-muted-foreground hover:text-foreground h-7"
+                    >
+                      Kích hoạt thử nghiệm (Sandbox Demo)
                     </Button>
                   </div>
                 </div>

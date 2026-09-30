@@ -175,6 +175,99 @@ async def create_payment_order(
     }
 
 
+from app.models.payment import PaymentOrder, Subscription
+
+
+async def apply_paid_membership(
+    db: AsyncSession,
+    user_id: Optional[int],
+    plan_id: str,
+    cycle: str,
+    order_code: int,
+    user: Optional[User] = None
+) -> Dict[str, Any]:
+    """Helper to activate membership in user profile and persist subscription row in database."""
+    target_user = user
+    if not target_user and user_id:
+        target_user = await db.get(User, user_id)
+
+    days = 365 if cycle == "yearly" else 30
+    now = datetime.utcnow()
+    expires_at = now + timedelta(days=days)
+
+    membership_data = {
+        "plan": plan_id,
+        "cycle": cycle,
+        "status": "active",
+        "activated_at": now.isoformat(),
+        "expires_at": expires_at.isoformat(),
+        "order_code": order_code,
+    }
+
+    if target_user:
+        profile = dict(target_user.profile_data or {})
+        profile["membership"] = membership_data
+        if "pending_payment" in profile:
+            del profile["pending_payment"]
+        target_user.profile_data = profile
+
+        try:
+            # Sync subscription row
+            plan_stmt = select(SubscriptionPlan).where(
+                (SubscriptionPlan.slug == plan_id) | (SubscriptionPlan.name.ilike(f"%{plan_id}%"))
+            )
+            plan_row = (await db.execute(plan_stmt)).scalar_one_or_none()
+            if plan_row:
+                # Expire previous subscriptions
+                prev_sub_stmt = select(Subscription).where(
+                    Subscription.user_id == target_user.id,
+                    Subscription.status == "active"
+                )
+                for ps in (await db.execute(prev_sub_stmt)).scalars().all():
+                    ps.status = "expired"
+
+                # Check or create PaymentOrder
+                po_stmt = select(PaymentOrder).where(PaymentOrder.order_code == str(order_code))
+                po_row = (await db.execute(po_stmt)).scalar_one_or_none()
+                po_id = po_row.id if po_row else None
+                amount = plan_row.yearly if cycle == "yearly" else plan_row.monthly
+
+                if not po_row:
+                    po_row = PaymentOrder(
+                        order_code=str(order_code),
+                        user_id=target_user.id,
+                        plan_id=plan_row.id,
+                        purpose="subscription",
+                        cycle=cycle,
+                        amount=amount,
+                        method="payos",
+                        status="paid",
+                        paid_at=now,
+                    )
+                    db.add(po_row)
+                    await db.flush()
+                    po_id = po_row.id
+                else:
+                    po_row.status = "paid"
+                    po_row.paid_at = now
+
+                sub = Subscription(
+                    user_id=target_user.id,
+                    plan_id=plan_row.id,
+                    payment_order_id=po_id,
+                    starts_at=now,
+                    expires_at=expires_at,
+                    status="active"
+                )
+                db.add(sub)
+        except Exception as exc:
+            logger.warning("Could not sync subscription row in DB: %s", exc)
+
+        await db.commit()
+
+    return membership_data
+
+
 @router.get("/order-status/{order_code}")
 async def check_order_status(
     order_code: int,
@@ -191,32 +284,22 @@ async def check_order_status(
         payos_info = await payos_service.get_payment_link_information(order_code)
         if payos_info.get("status") == "PAID":
             current_status = "PAID"
+            if order_info:
+                order_info["status"] = "PAID"
 
     if current_status == "PAID":
-        # Activate subscription
         plan_id = order_info.get("plan_id", "premium") if order_info else "premium"
         cycle = order_info.get("cycle", "monthly") if order_info else "monthly"
+        user_id = order_info.get("user_id") if order_info else (user.id if user else None)
 
-        # Calculate expiration
-        days = 365 if cycle == "yearly" else 30
-        expires_at = datetime.utcnow() + timedelta(days=days)
-
-        membership_data = {
-            "plan": plan_id,
-            "cycle": cycle,
-            "status": "active",
-            "activated_at": datetime.utcnow().isoformat(),
-            "expires_at": expires_at.isoformat(),
-            "order_code": order_code
-        }
-
-        if user:
-            profile = dict(user.profile_data or {})
-            profile["membership"] = membership_data
-            if "pending_payment" in profile:
-                del profile["pending_payment"]
-            user.profile_data = profile
-            await db.commit()
+        membership_data = await apply_paid_membership(
+            db=db,
+            user_id=user_id,
+            plan_id=plan_id,
+            cycle=cycle,
+            order_code=order_code,
+            user=user
+        )
 
         return {
             "success": True,
@@ -245,30 +328,19 @@ async def mock_confirm_payment(
     order_info = ORDER_CACHE.get(order_code)
     plan_id = order_info.get("plan_id", "premium") if order_info else "premium"
     cycle = order_info.get("cycle", "monthly") if order_info else "monthly"
+    user_id = order_info.get("user_id") if order_info else (user.id if user else None)
 
     if order_info:
         order_info["status"] = "PAID"
 
-    # Calculate expiration
-    days = 365 if cycle == "yearly" else 30
-    expires_at = datetime.utcnow() + timedelta(days=days)
-
-    membership_data = {
-        "plan": plan_id,
-        "cycle": cycle,
-        "status": "active",
-        "activated_at": datetime.utcnow().isoformat(),
-        "expires_at": expires_at.isoformat(),
-        "order_code": order_code
-    }
-
-    if user:
-        profile = dict(user.profile_data or {})
-        profile["membership"] = membership_data
-        if "pending_payment" in profile:
-            del profile["pending_payment"]
-        user.profile_data = profile
-        await db.commit()
+    membership_data = await apply_paid_membership(
+        db=db,
+        user_id=user_id,
+        plan_id=plan_id,
+        cycle=cycle,
+        order_code=order_code,
+        user=user
+    )
 
     return {
         "success": True,
@@ -295,29 +367,21 @@ async def payos_webhook(
     if not order_code:
         return {"success": False, "message": "Missing orderCode"}
 
-    order_info = ORDER_CACHE.get(int(order_code))
+    order_code_int = int(order_code)
+    order_info = ORDER_CACHE.get(order_code_int)
     if order_info:
         order_info["status"] = "PAID"
+        plan_id = order_info.get("plan_id", "premium")
+        cycle = order_info.get("cycle", "monthly")
         user_id = order_info.get("user_id")
-        if user_id:
-            user = await db.get(User, user_id)
-            if user:
-                plan_id = order_info.get("plan_id", "premium")
-                cycle = order_info.get("cycle", "monthly")
-                days = 365 if cycle == "yearly" else 30
-                expires_at = datetime.utcnow() + timedelta(days=days)
-
-                profile = dict(user.profile_data or {})
-                profile["membership"] = {
-                    "plan": plan_id,
-                    "cycle": cycle,
-                    "status": "active",
-                    "activated_at": datetime.utcnow().isoformat(),
-                    "expires_at": expires_at.isoformat(),
-                    "order_code": order_code
-                }
-                user.profile_data = profile
-                await db.commit()
-                logger.info("User %s upgraded to %s via PayOS Webhook.", user_id, plan_id)
+        await apply_paid_membership(
+            db=db,
+            user_id=user_id,
+            plan_id=plan_id,
+            cycle=cycle,
+            order_code=order_code_int
+        )
+        logger.info("User %s upgraded to %s via PayOS Webhook.", user_id, plan_id)
 
     return {"success": True, "message": "Webhook processed successfully"}
+
