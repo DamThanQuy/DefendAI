@@ -23,6 +23,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { AuthField, AuthPasswordField } from "@/components/auth/AuthField";
 
+const googleConfigured = Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
+
 /* ---------- Floating illustration for the promo panel ---------- */
 function PromoArt() {
   return (
@@ -58,6 +60,7 @@ function PromoArt() {
 
 /* ---------- Login form ---------- */
 function LoginForm(props: {
+  active: boolean;
   email: string;
   setEmail: (v: string) => void;
   password: string;
@@ -83,13 +86,13 @@ function LoginForm(props: {
             className="w-full h-full object-cover rounded-2xl"
           />
         </div>
-        <span className="text-2xl font-extrabold tracking-tight text-foreground">
+        <span className="text-2xl font-extrabold tracking-tight text-slate-900">
           GraduAI
         </span>
       </div>
 
       <div className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">
           Đăng nhập
         </p>
         <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-foreground">
@@ -170,14 +173,15 @@ function LoginForm(props: {
           </div>
         </div>
 
-        <GoogleLogin
-          onSuccess={props.onGoogle}
-          onError={() => props.setError("Đăng nhập Google thất bại")}
-          useOneTap={false}
-          theme="outline"
-          shape="rectangular"
-          width="100%"
-        />
+        {props.active && googleConfigured && (
+          <GoogleLogin
+            onSuccess={props.onGoogle}
+            onError={() => props.setError("Đăng nhập Google thất bại")}
+            useOneTap={false}
+            theme="outline"
+            shape="rectangular"
+          />
+        )}
       </form>
 
       {/* Mobile-only switch (desktop uses the sliding panel) */}
@@ -197,7 +201,16 @@ function LoginForm(props: {
 
 /* ---------- Register form ---------- */
 function RegisterForm(props: {
+  active: boolean;
+  fullName: string;
+  setFullName: (v: string) => void;
+  email: string;
+  setEmail: (v: string) => void;
+  password: string;
+  setPassword: (v: string) => void;
+  loading: boolean;
   error: string;
+  onSubmit: (e: React.FormEvent) => void;
   onSwitch: () => void;
   onGoogle: (r: { credential?: string }) => void;
   setError: (v: string) => void;
@@ -214,7 +227,7 @@ function RegisterForm(props: {
             className="w-full h-full object-cover rounded-2xl"
           />
         </div>
-        <span className="text-2xl font-extrabold tracking-tight text-foreground">
+        <span className="text-2xl font-extrabold tracking-tight text-slate-900">
           GraduAI
         </span>
       </div>
@@ -223,15 +236,15 @@ function RegisterForm(props: {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
           Bắt đầu ngay
         </p>
-        <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-foreground">
+        <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-slate-900">
           Tạo tài khoản của bạn
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="mt-2 text-sm text-slate-600">
           Đăng ký để trải nghiệm luyện tập bảo vệ với hội đồng AI.
         </p>
       </div>
 
-      <div className="space-y-5">
+      <form onSubmit={props.onSubmit} className="space-y-5">
         {props.error && (
           <div className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-500 border border-red-500/20">
             {props.error}
@@ -239,24 +252,29 @@ function RegisterForm(props: {
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="name" className="text-foreground">Họ và tên</Label>
-          <AuthField id="name" type="text" icon={User} placeholder="Nguyễn Văn A" />
+          <Label htmlFor="name" className="font-semibold text-slate-700">Họ và tên</Label>
+          <AuthField id="name" type="text" icon={User} placeholder="Nguyễn Văn A" required value={props.fullName} onChange={(e) => props.setFullName(e.target.value)} />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="email" className="text-foreground">Địa chỉ email</Label>
-          <AuthField id="email" type="email" icon={Mail} placeholder="you@company.com" />
+          <Label htmlFor="email" className="font-semibold text-slate-700">Địa chỉ email</Label>
+          <AuthField id="email" type="email" icon={Mail} placeholder="you@company.com" required value={props.email} onChange={(e) => props.setEmail(e.target.value)} />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="password" className="text-foreground">Mật khẩu</Label>
-          <AuthPasswordField id="password" icon={Lock} placeholder="Nhập mật khẩu" />
+          <Label htmlFor="password" className="font-semibold text-slate-700">Mật khẩu</Label>
+          <AuthPasswordField id="password" icon={Lock} placeholder="Nhập mật khẩu" required value={props.password} onChange={(e) => props.setPassword(e.target.value)} />
+          <p className="text-xs leading-5 text-slate-600">
+            Mật khẩu phải có ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số và ký hiệu đặc biệt.
+          </p>
         </div>
 
         <Button
-          type="button"
+          type="submit"
+          disabled={props.loading}
           className="h-12 w-full rounded-xl bg-gradient-to-r from-primary to-secondary text-base font-semibold text-white shadow-lg shadow-primary/30 transition-all hover:from-primary/90 hover:to-secondary/90 hover:shadow-xl"
         >
+          {props.loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
           Tạo tài khoản
         </Button>
 
@@ -269,15 +287,16 @@ function RegisterForm(props: {
           </div>
         </div>
 
-        <GoogleLogin
-          onSuccess={props.onGoogle}
-          onError={() => props.setError("Đăng nhập Google thất bại")}
-          useOneTap={false}
-          theme="outline"
-          shape="rectangular"
-          width="100%"
-        />
-      </div>
+        {props.active && googleConfigured && (
+          <GoogleLogin
+            onSuccess={props.onGoogle}
+            onError={() => props.setError("Đăng nhập Google thất bại")}
+            useOneTap={false}
+            theme="outline"
+            shape="rectangular"
+          />
+        )}
+      </form>
 
       {/* Mobile-only switch (desktop uses the sliding panel) */}
       <p className="mt-6 text-center text-sm text-muted-foreground lg:hidden">
@@ -305,10 +324,54 @@ export function AuthSlider({
   const isRegister = mode === "register";
 
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  function validatePassword(value: string) {
+    const missing: string[] = [];
+    if (value.length < 8) missing.push("ít nhất 8 ký tự");
+    if (!/[A-Z]/.test(value)) missing.push("một chữ hoa");
+    if (!/[a-z]/.test(value)) missing.push("một chữ thường");
+    if (!/[0-9]/.test(value)) missing.push("một chữ số");
+    if (!/[^A-Za-z0-9]/.test(value)) missing.push("một ký hiệu đặc biệt");
+    return missing;
+  }
+
+  async function handleRegister(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    const missing = validatePassword(password);
+    if (missing.length > 0) {
+      setError(`Mật khẩu còn thiếu: ${missing.join(", ")}.`);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ full_name: fullName, email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail || "Đăng ký thất bại");
+        return;
+      }
+      localStorage.setItem("access_token", data.token);
+      localStorage.setItem("refresh_token", data.refresh_token || "");
+      localStorage.setItem("user", JSON.stringify(data.user));
+      window.dispatchEvent(new Event("storage"));
+      router.push("/documents");
+    } catch {
+      setError("Không thể kết nối server");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -389,6 +452,7 @@ export function AuthSlider({
         }`}
       >
         <LoginForm
+          active={!isRegister}
           email={email}
           setEmail={setEmail}
           password={password}
@@ -411,7 +475,16 @@ export function AuthSlider({
         }`}
       >
         <RegisterForm
+          active={isRegister}
+          fullName={fullName}
+          setFullName={setFullName}
+          email={email}
+          setEmail={setEmail}
+          password={password}
+          setPassword={setPassword}
+          loading={loading}
           error={error}
+          onSubmit={handleRegister}
           onSwitch={() => setMode("login")}
           onGoogle={handleGoogle}
           setError={setError}
