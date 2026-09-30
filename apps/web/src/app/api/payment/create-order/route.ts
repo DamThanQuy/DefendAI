@@ -6,8 +6,11 @@ export const dynamic = "force-dynamic";
 
 const PLAN_PRICES: Record<string, { monthly: number; yearly: number; name: string }> = {
   free: { monthly: 0, yearly: 0, name: "Free" },
+  "100001": { monthly: 0, yearly: 0, name: "Free" },
   premium: { monthly: 99000, yearly: 990000, name: "Premium" },
+  "100002": { monthly: 99000, yearly: 990000, name: "Premium" },
   vip: { monthly: 199000, yearly: 1990000, name: "VIP" },
+  "100003": { monthly: 199000, yearly: 1990000, name: "VIP" },
 };
 
 function generatePayosSignature(data: Record<string, any>, checksumKey: string): string {
@@ -28,7 +31,16 @@ export async function POST(request: NextRequest) {
     body = {};
   }
 
-  const planId = (body.plan_id || body.plan || "premium").toLowerCase();
+  const rawPlan = (body.plan_id || body.plan || "premium").toString().toLowerCase().trim();
+  let planId = "premium";
+  if (rawPlan.includes("vip") || rawPlan === "100003") {
+    planId = "vip";
+  } else if (rawPlan.includes("free") || rawPlan === "100001") {
+    planId = "free";
+  } else {
+    planId = "premium";
+  }
+
   const cycle = (body.cycle || "monthly").toLowerCase();
   const method = (body.method || "payos").toLowerCase();
 

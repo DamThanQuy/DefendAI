@@ -49,8 +49,11 @@ class WebhookPayload(BaseModel):
 # Default prices fallback (VND)
 PLAN_PRICES = {
     "free": {"monthly": 0, "yearly": 0, "name": "Free"},
+    "100001": {"monthly": 0, "yearly": 0, "name": "Free"},
     "premium": {"monthly": 99000, "yearly": 990000, "name": "Premium"},
+    "100002": {"monthly": 99000, yearly: 990000, "name": "Premium"},
     "vip": {"monthly": 199000, "yearly": 1990000, "name": "VIP"},
+    "100003": {"monthly": 199000, "yearly": 1990000, "name": "VIP"},
 }
 
 
@@ -62,7 +65,14 @@ async def create_payment_order(
 ) -> Dict[str, Any]:
     """Tạo đơn hàng thanh toán PayOS / VietQR cho gói hội viên của sinh viên."""
 
-    plan_key = req.plan_id.lower().strip()
+    raw_key = req.plan_id.lower().strip()
+    if "vip" in raw_key or raw_key == "100003":
+        plan_key = "vip"
+    elif "free" in raw_key or raw_key == "100001":
+        plan_key = "free"
+    else:
+        plan_key = "premium"
+
     cycle_key = req.cycle.lower().strip()
 
     # Determine amount
@@ -71,7 +81,9 @@ async def create_payment_order(
 
     # Try DB lookup first
     plan_stmt = select(SubscriptionPlan).where(
-        (SubscriptionPlan.slug == plan_key) | (SubscriptionPlan.name.ilike(f"%{plan_key}%"))
+        (SubscriptionPlan.slug == raw_key)
+        | (SubscriptionPlan.slug == plan_key)
+        | (SubscriptionPlan.name.ilike(f"%{plan_key}%"))
     )
     plan_row = (await db.execute(plan_stmt)).scalar_one_or_none()
 
@@ -83,8 +95,8 @@ async def create_payment_order(
         plan_name = plan_info["name"]
         amount = plan_info["yearly"] if cycle_key == "yearly" else plan_info["monthly"]
     else:
-        amount = 99000 if cycle_key == "monthly" else 990000
-        plan_name = "Premium"
+        amount = 199000 if plan_key == "vip" else (99000 if cycle_key == "monthly" else 990000)
+        plan_name = "VIP" if plan_key == "vip" else "Premium"
 
     if amount <= 0:
         # Free plan activation directly

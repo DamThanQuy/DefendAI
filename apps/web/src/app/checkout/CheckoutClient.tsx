@@ -31,6 +31,7 @@ import {
   type PaymentMethodId,
 } from "./payment-data";
 import { fetchPlans } from "@/app/pricing/pricing-api";
+import { PLANS } from "@/app/pricing/pricing-data";
 import { setMembershipPlan } from "@/lib/mock-ai-data";
 import { toast } from "sonner";
 
@@ -71,11 +72,30 @@ export default function CheckoutClient() {
 
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch plan info
+  // Fetch plan info with fallback
   useEffect(() => {
+    const rawId = (planId || "").toLowerCase();
+    const staticPlan =
+      PLANS.find(
+        (p) =>
+          p.id.toLowerCase() === rawId ||
+          p.name.toLowerCase() === rawId ||
+          (rawId.includes("vip") && p.id === "vip") ||
+          (rawId.includes("100003") && p.id === "vip") ||
+          (rawId.includes("premium") && p.id === "premium") ||
+          (rawId.includes("100002") && p.id === "premium")
+      ) || PLANS[1]; // default to premium
+
     fetchPlans()
       .then((plans) => {
-        const selected = plans.find((item) => item.id === planId);
+        const selected = plans.find(
+          (item) =>
+            item.id === planId ||
+            item.name.toLowerCase() === rawId ||
+            (rawId === "vip" && (item.id === "100003" || item.name.toLowerCase() === "vip")) ||
+            (rawId === "premium" && (item.id === "100002" || item.name.toLowerCase() === "premium")) ||
+            (rawId === "free" && (item.id === "100001" || item.name.toLowerCase() === "free"))
+        );
         if (selected) {
           setPlan({
             id: selected.id,
@@ -83,9 +103,23 @@ export default function CheckoutClient() {
             monthly: selected.monthly,
             yearly: selected.yearly,
           });
+        } else {
+          setPlan({
+            id: staticPlan.id,
+            name: staticPlan.name,
+            monthly: staticPlan.monthly,
+            yearly: staticPlan.yearly,
+          });
         }
       })
-      .catch(() => setErrorMsg("Không tải được thông tin gói. Vui lòng thử lại."));
+      .catch(() => {
+        setPlan({
+          id: staticPlan.id,
+          name: staticPlan.name,
+          monthly: staticPlan.monthly,
+          yearly: staticPlan.yearly,
+        });
+      });
   }, [planId]);
 
   // Create payment order via API
@@ -97,6 +131,12 @@ export default function CheckoutClient() {
     setErrorMsg("");
 
     const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+    const normalizedPlanId =
+      plan.name.toLowerCase() === "vip" || plan.id === "100003" || plan.id === "vip"
+        ? "vip"
+        : plan.name.toLowerCase() === "premium" || plan.id === "100002" || plan.id === "premium"
+        ? "premium"
+        : plan.id;
 
     fetch("/api/payment/create-order", {
       method: "POST",
@@ -105,7 +145,7 @@ export default function CheckoutClient() {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
-        plan_id: plan.id,
+        plan_id: normalizedPlanId,
         cycle: cycle,
         method: selectedMethod,
       }),
