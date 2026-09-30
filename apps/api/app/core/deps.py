@@ -10,6 +10,7 @@ from app.core.security import decode_access_token
 from app.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_optional_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 
 async def get_current_user(
@@ -21,7 +22,6 @@ async def get_current_user(
         user_id = int(payload["sub"])
     except (HTTPException, KeyError, TypeError, ValueError):
         raise HTTPException(status_code=401, detail="Token không hợp lệ hoặc đã hết hạn")
-    # selectinload để tránh lazy-load relationship trong async context
     result = await db.execute(
         select(User).options(selectinload(User.roles)).where(User.id == user_id)
     )
@@ -29,6 +29,24 @@ async def get_current_user(
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User không tồn tại hoặc bị khoá")
     return user
+
+
+async def get_optional_user(
+    token: str | None = Depends(oauth2_optional_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> User | None:
+    if not token:
+        return None
+    try:
+        payload = decode_access_token(token)
+        user_id = int(payload["sub"])
+    except Exception:
+        return None
+    result = await db.execute(
+        select(User).options(selectinload(User.roles)).where(User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
+    return user if user and user.is_active else None
 
 
 def require_role(*allowed: str):

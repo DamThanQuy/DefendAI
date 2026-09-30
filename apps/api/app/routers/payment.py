@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_optional_user
 from app.models.user import User
 from app.models.subscription_plan import SubscriptionPlan
 from app.services.payos_service import payos_service
@@ -178,7 +178,7 @@ async def create_payment_order(
 @router.get("/order-status/{order_code}")
 async def check_order_status(
     order_code: int,
-    user: User = Depends(get_current_user),
+    user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """Kiểm tra trạng thái thanh toán của đơn hàng theo orderCode."""
@@ -201,8 +201,7 @@ async def check_order_status(
         days = 365 if cycle == "yearly" else 30
         expires_at = datetime.utcnow() + timedelta(days=days)
 
-        profile = dict(user.profile_data or {})
-        profile["membership"] = {
+        membership_data = {
             "plan": plan_id,
             "cycle": cycle,
             "status": "active",
@@ -210,18 +209,21 @@ async def check_order_status(
             "expires_at": expires_at.isoformat(),
             "order_code": order_code
         }
-        if "pending_payment" in profile:
-            del profile["pending_payment"]
 
-        user.profile_data = profile
-        await db.commit()
+        if user:
+            profile = dict(user.profile_data or {})
+            profile["membership"] = membership_data
+            if "pending_payment" in profile:
+                del profile["pending_payment"]
+            user.profile_data = profile
+            await db.commit()
 
         return {
             "success": True,
             "status": "PAID",
             "orderCode": order_code,
             "message": "Thanh toán thành công! Tài khoản của bạn đã được nâng cấp.",
-            "membership": profile["membership"]
+            "membership": membership_data
         }
 
     return {
@@ -235,7 +237,7 @@ async def check_order_status(
 @router.post("/mock-confirm/{order_code}")
 async def mock_confirm_payment(
     order_code: int,
-    user: User = Depends(get_current_user),
+    user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """Xác nhận thanh toán thành công (dành cho chế độ Sandbox / Demo)."""
@@ -251,8 +253,7 @@ async def mock_confirm_payment(
     days = 365 if cycle == "yearly" else 30
     expires_at = datetime.utcnow() + timedelta(days=days)
 
-    profile = dict(user.profile_data or {})
-    profile["membership"] = {
+    membership_data = {
         "plan": plan_id,
         "cycle": cycle,
         "status": "active",
@@ -260,18 +261,21 @@ async def mock_confirm_payment(
         "expires_at": expires_at.isoformat(),
         "order_code": order_code
     }
-    if "pending_payment" in profile:
-        del profile["pending_payment"]
 
-    user.profile_data = profile
-    await db.commit()
+    if user:
+        profile = dict(user.profile_data or {})
+        profile["membership"] = membership_data
+        if "pending_payment" in profile:
+            del profile["pending_payment"]
+        user.profile_data = profile
+        await db.commit()
 
     return {
         "success": True,
         "status": "PAID",
         "orderCode": order_code,
         "message": "Thanh toán thành công! Gói hội viên đã kích hoạt.",
-        "membership": profile["membership"]
+        "membership": membership_data
     }
 
 
