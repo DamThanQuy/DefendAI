@@ -35,9 +35,15 @@ export async function GET(
     // Backend offline / Vercel standalone -> check PayOS directly
   }
 
-  // 2. Check PayOS directly if configured
-  const payosClientId = process.env.PAYOS_CLIENT_ID || process.env.NEXT_PUBLIC_PAYOS_CLIENT_ID || "";
-  const payosApiKey = process.env.PAYOS_API_KEY || process.env.NEXT_PUBLIC_PAYOS_API_KEY || "";
+  // 2. Check PayOS directly
+  const payosClientId =
+    process.env.PAYOS_CLIENT_ID ||
+    process.env.NEXT_PUBLIC_PAYOS_CLIENT_ID ||
+    "65689206-6aea-49b0-be71-3b489b5256e7";
+  const payosApiKey =
+    process.env.PAYOS_API_KEY ||
+    process.env.NEXT_PUBLIC_PAYOS_API_KEY ||
+    "71958fb8-5ee2-433b-a114-4c458427438f";
 
   if (payosClientId && payosApiKey) {
     try {

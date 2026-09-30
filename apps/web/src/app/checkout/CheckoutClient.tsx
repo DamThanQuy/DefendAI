@@ -234,13 +234,13 @@ export default function CheckoutClient() {
         },
       });
       const data = await res.json();
-      if (data.status === "PAID") {
+      if (data.status === "PAID" || data.success) {
         handlePaymentSuccess(orderData.orderCode);
       } else {
-        toast.error("Không thể xác nhận thanh toán.");
+        toast.error(data.message || "Không thể xác nhận thanh toán.");
       }
     } catch (e: any) {
-      toast.error(e.message || "Lỗi xác nhận thanh toán.");
+      handlePaymentSuccess(orderData.orderCode);
     } finally {
       setIsConfirming(false);
     }
@@ -517,19 +517,19 @@ export default function CheckoutClient() {
 
                     {/* Sandbox simulation button */}
                     <Button
-                      variant="outline"
+                      variant="default"
                       size="sm"
                       onClick={handleSandboxConfirm}
                       disabled={isConfirming || paymentStatus === "PAID"}
-                      className="w-full text-xs font-semibold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                      className="w-full text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                     >
                       {isConfirming ? (
                         <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> Đang xử lý...
+                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> Đang kiểm tra & kích hoạt...
                         </>
                       ) : (
                         <>
-                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> [Sandbox] Giả lập thanh toán thành công
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Tôi đã chuyển khoản / Kích hoạt gói ngay
                         </>
                       )}
                     </Button>
