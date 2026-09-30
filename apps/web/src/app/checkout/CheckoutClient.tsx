@@ -199,16 +199,30 @@ export default function CheckoutClient() {
 
         if (data.status === "PAID") {
           handlePaymentSuccess(orderData.orderCode);
+        } else if (data.status === "CANCELLED" || data.status === "EXPIRED") {
+          setPaymentStatus("EXPIRED");
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+          toast.error(
+            data.status === "CANCELLED"
+              ? "Đơn hàng đã bị hủy."
+              : "Đơn hàng đã hết hạn. Vui lòng tạo đơn mới."
+          );
         }
       } catch (e) {}
     };
 
-    pollIntervalRef.current = setInterval(checkStatus, 2500);
+    // Initial delay of 3s before first poll, then every 5s
+    const initialTimeout = setTimeout(() => {
+      checkStatus();
+      pollIntervalRef.current = setInterval(checkStatus, 5000);
+    }, 3000);
 
     return () => {
+      clearTimeout(initialTimeout);
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
   }, [orderData?.orderCode, paymentStatus]);
+
 
   const handlePaymentSuccess = (code: number) => {
     setPaymentStatus("PAID");

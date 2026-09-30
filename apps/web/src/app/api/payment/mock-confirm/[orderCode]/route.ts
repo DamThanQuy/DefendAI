@@ -23,7 +23,7 @@ export async function POST(
         ...ngrokHeaders(),
         ...(authHeader ? { Authorization: authHeader } : {}),
       },
-      signal: AbortSignal.timeout(3500),
+      signal: AbortSignal.timeout(1500),
     });
 
     if (res.ok) {

@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
         cycle: cycle,
         method: method,
       }),
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(1500),
     });
 
     if (res.ok) {
