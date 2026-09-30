@@ -75,33 +75,39 @@ export default function CheckoutClient() {
   // Fetch plan info with fallback
   useEffect(() => {
     const rawId = (planId || "").toLowerCase();
+    const isVip = rawId.includes("vip") || rawId === "100003";
+    const isFree = rawId.includes("free") || rawId === "100001";
+    const defaultStatic = isVip
+      ? (PLANS.find((p) => p.id === "vip") || { id: "vip", name: "VIP", monthly: 199000, yearly: 1990000 })
+      : isFree
+      ? (PLANS.find((p) => p.id === "free") || { id: "free", name: "Free", monthly: 0, yearly: 0 })
+      : (PLANS.find((p) => p.id === "premium") || { id: "premium", name: "Premium", monthly: 99000, yearly: 990000 });
+
     const staticPlan =
       PLANS.find(
         (p) =>
           p.id.toLowerCase() === rawId ||
           p.name.toLowerCase() === rawId ||
-          (rawId.includes("vip") && p.id === "vip") ||
-          (rawId.includes("100003") && p.id === "vip") ||
-          (rawId.includes("premium") && p.id === "premium") ||
-          (rawId.includes("100002") && p.id === "premium")
-      ) || PLANS[1]; // default to premium
+          (isVip && p.id === "vip") ||
+          (isFree && p.id === "free")
+      ) || defaultStatic;
 
     fetchPlans()
       .then((plans) => {
         const selected = plans.find(
           (item) =>
-            item.id === planId ||
+            item.id.toLowerCase() === rawId ||
             item.name.toLowerCase() === rawId ||
-            (rawId === "vip" && (item.id === "100003" || item.name.toLowerCase() === "vip")) ||
-            (rawId === "premium" && (item.id === "100002" || item.name.toLowerCase() === "premium")) ||
-            (rawId === "free" && (item.id === "100001" || item.name.toLowerCase() === "free"))
+            (isVip && (item.id === "100003" || item.id === "vip" || item.name.toLowerCase().includes("vip"))) ||
+            (isFree && (item.id === "100001" || item.id === "free" || item.name.toLowerCase().includes("free"))) ||
+            (!isVip && !isFree && (item.id === "100002" || item.id === "premium" || item.name.toLowerCase().includes("premium")))
         );
         if (selected) {
           setPlan({
-            id: selected.id,
+            id: isVip ? "vip" : (isFree ? "free" : selected.id),
             name: selected.name,
-            monthly: selected.monthly,
-            yearly: selected.yearly,
+            monthly: isVip ? 199000 : (isFree ? 0 : (selected.monthly || 99000)),
+            yearly: isVip ? 1990000 : (isFree ? 0 : (selected.yearly || 990000)),
           });
         } else {
           setPlan({

@@ -51,7 +51,7 @@ PLAN_PRICES = {
     "free": {"monthly": 0, "yearly": 0, "name": "Free"},
     "100001": {"monthly": 0, "yearly": 0, "name": "Free"},
     "premium": {"monthly": 99000, "yearly": 990000, "name": "Premium"},
-    "100002": {"monthly": 99000, yearly: 990000, "name": "Premium"},
+    "100002": {"monthly": 99000, "yearly": 990000, "name": "Premium"},
     "vip": {"monthly": 199000, "yearly": 1990000, "name": "VIP"},
     "100003": {"monthly": 199000, "yearly": 1990000, "name": "VIP"},
 }
