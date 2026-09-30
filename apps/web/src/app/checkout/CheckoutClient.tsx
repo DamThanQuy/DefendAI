@@ -238,13 +238,39 @@ export default function CheckoutClient() {
         )}&accountName=${encodeURIComponent(displayAccountName)}`;
 
   const getMethodIcon = (id: PaymentMethodId) => {
-    if (id === "payos") return <QrCode className="w-5 h-5" />;
-    return <Building2 className="w-5 h-5" />;
+    switch (id) {
+      case "payos":
+        return <QrCode className="w-5 h-5" />;
+      case "momo":
+        return <span className="font-black text-xs">MoMo</span>;
+      case "zalopay":
+        return <Zap className="w-5 h-5" />;
+      case "vnpay":
+        return <span className="font-black text-xs">VNPAY</span>;
+      case "card":
+        return <CreditCard className="w-5 h-5" />;
+      case "bank_transfer":
+      default:
+        return <Building2 className="w-5 h-5" />;
+    }
   };
 
   const getMethodColor = (id: PaymentMethodId) => {
-    if (id === "payos") return "bg-emerald-600 text-white shadow-emerald-500/20";
-    return "bg-indigo-600 text-white shadow-indigo-500/20";
+    switch (id) {
+      case "payos":
+        return "bg-emerald-600 text-white shadow-emerald-500/20";
+      case "momo":
+        return "bg-pink-600 text-white shadow-pink-500/20";
+      case "zalopay":
+        return "bg-blue-600 text-white shadow-blue-500/20";
+      case "vnpay":
+        return "bg-cyan-600 text-white shadow-cyan-500/20";
+      case "card":
+        return "bg-violet-600 text-white shadow-violet-500/20";
+      case "bank_transfer":
+      default:
+        return "bg-indigo-600 text-white shadow-indigo-500/20";
+    }
   };
 
   return (
