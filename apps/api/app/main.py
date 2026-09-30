@@ -37,10 +37,10 @@ from app.routers import analysis as analysis_router
 from app.routers import subscriptions as subscriptions_router
 from app.routers import signaling as signaling_router
 from app.routers import analysis as analysis_router
-from app.routers import subscriptions as subscriptions_router
 from app.routers import user as user_router
 from app.routers import reports as reports_router
 from app.routers import mock_ai as mock_ai_router
+from app.routers import payment as payment_router
 
 # Khởi tạo AI gateway ngay khi import (sẽ log providers nào đã ready)
 from app.services.ai_client import ai_gateway
@@ -117,6 +117,7 @@ app.include_router(subscriptions_router.admin_router)
 app.include_router(user_router.router)
 app.include_router(reports_router.router)
 app.include_router(mock_ai_router.router)
+app.include_router(payment_router.router)
 
 
 @app.on_event("startup")

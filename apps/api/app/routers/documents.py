@@ -28,6 +28,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.orm import selectinload
 
+logger = logging.getLogger(__name__)
+
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
@@ -38,6 +40,7 @@ from app.models.entities import (
     DocumentPurpose,
     Assessment,
     AssessmentStatus,
+    DocumentChunk,
     User,
     UploadSession,
 )
@@ -1004,3 +1007,37 @@ async def get_document_member_content(
             "Content-Length": str(len(data)),
         },
     )
+
+
+@router.get("/{doc_id}/text")
+async def get_document_text(
+    doc_id: int,
+    max_chars: int = 20000,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Trích xuất nội dung text của tài liệu để làm ngữ cảnh AI (Mock Room, Chat, etc.)."""
+    doc = await _get_active_doc(db, doc_id)
+    _assert_doc_access(doc, user)
+
+    # 1. Thử lấy từ DocumentChunk nếu đã được index
+    chunk_res = await db.execute(
+        select(DocumentChunk.content)
+        .where(DocumentChunk.document_id == doc_id)
+        .order_by(DocumentChunk.chunk_index.asc())
+    )
+    chunks = chunk_res.scalars().all()
+    if chunks:
+        full_text = "\n\n".join(chunks)
+        return {"document_id": doc_id, "text": full_text[:max_chars]}
+
+    # 2. Thử parse tài liệu trực tiếp
+    try:
+        from app.services.document_parser import parse_document
+        parse_result = await parse_document(doc)
+        text_content = parse_result.text if hasattr(parse_result, "text") else str(parse_result)
+        return {"document_id": doc_id, "text": text_content[:max_chars]}
+    except Exception as e:
+        logger.warning(f"Failed to parse document text for doc {doc_id}: {e}")
+        return {"document_id": doc_id, "text": ""}
+

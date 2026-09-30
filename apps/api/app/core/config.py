@@ -151,6 +151,19 @@ class RAGConfig(BaseSettings):
     
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore", env_prefix="RAG_", env_file=ENV_FILE, env_file_encoding="utf-8")
 
+class PayOSConfig(BaseSettings):
+    """Config cho cổng thanh toán PayOS và tài khoản nhận MoMo/Ngân hàng."""
+    client_id: str = ""
+    api_key: str = ""
+    checksum_key: str = ""
+    momo_phone: str = ""
+    momo_name: str = ""
+    bank_bin: str = "970422"  # Default: MBBank
+    bank_account: str = ""
+    bank_account_name: str = ""
+
+    model_config = SettingsConfigDict(case_sensitive=False, extra="ignore", env_prefix="PAYOS_", env_file=ENV_FILE, env_file_encoding="utf-8")
+
 class Settings(BaseSettings):
     """Cấu hình chính của ứng dụng."""
     app_name: str = "AI Project Defense System API"
@@ -180,6 +193,7 @@ class Settings(BaseSettings):
     nvidia_embed: Optional[NVIDIAEmbedConfig] = None
     archive_analysis: Optional[ArchiveAnalysisConfig] = None
     analysis_storage: Optional[AnalysisStorageConfig] = None
+    payos: Optional[PayOSConfig] = None
 
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore", env_file=ENV_FILE, env_file_encoding="utf-8")
 
@@ -194,6 +208,7 @@ class Settings(BaseSettings):
         self.nvidia_embed = NVIDIAEmbedConfig()
         self.archive_analysis = ArchiveAnalysisConfig()
         self.analysis_storage = AnalysisStorageConfig()
+        self.payos = PayOSConfig()
 
 # Singleton instance
 settings = Settings()

@@ -74,8 +74,6 @@ export default function ProfileSettingsPage() {
         </button>
       </div>
 
-      </div>
-
       {/* Thông tin cá nhân */}
       <div className="dark-card rounded-2xl p-6">
         <div className="flex items-start gap-4 mb-6">

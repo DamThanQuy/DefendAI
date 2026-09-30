@@ -49,6 +49,7 @@ from app.models.workspace_conversation import WorkspaceConversation  # noqa: F40
 from app.models.workspace import Workspace, WorkspaceFile  # noqa: F401
 from app.models.workspace_question import WorkspaceQuestion  # noqa: F401
 from app.models.workspace_chat import WorkspaceChat  # noqa: F401
+from app.models.mock_chat import MockChatMessage  # noqa: F401
 from app.models.analysis_job import (  # noqa: F401
     AnalysisJob,
     AnalysisStatus,
@@ -102,6 +103,7 @@ __all__ = [
     "Message",
     "WorkspaceQuestion",
     "WorkspaceChat",
+    "MockChatMessage",
     "AnalysisJob",
     "AnalysisStatus",
     "MatchStatus",

@@ -36,9 +36,9 @@ export default function PaymentSuccessPage() {
   // Auto-redirect to dashboard after 10s
   useEffect(() => {
     // Set cờ membership vào localStorage để các tính năng VIP đọc được
-    if (planId === "vip") {
+    if (planId === "vip" || planId === "premium") {
       try {
-        setMembershipPlan("vip");
+        setMembershipPlan(planId as any);
       } catch {}
     }
     const t = setTimeout(() => {

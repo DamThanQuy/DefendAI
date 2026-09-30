@@ -1,4 +1,5 @@
 export type PaymentMethodId =
+  | "payos"
   | "momo"
   | "zalopay"
   | "vnpay"
@@ -16,9 +17,17 @@ export interface PaymentMethod {
 
 export const PAYMENT_METHODS: PaymentMethod[] = [
   {
+    id: "payos",
+    name: "PayOS (QR Ngân hàng & MoMo)",
+    description: "Quét mã QR tự động xác nhận qua PayOS / VietQR",
+    logo: "P",
+    badge: "Khuyên dùng",
+    popular: true,
+  },
+  {
     id: "momo",
     name: "Ví MoMo",
-    description: "Thanh toán nhanh qua ví điện tử MoMo",
+    description: "Thanh toán quét mã MoMo QR",
     logo: "M",
     badge: "Phổ biến",
     popular: true,
