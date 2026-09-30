@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
   const payosChecksumKey = process.env.PAYOS_CHECKSUM_KEY || process.env.NEXT_PUBLIC_PAYOS_CHECKSUM_KEY || "";
 
   const bankBin = process.env.PAYOS_BANK_BIN || "970422";
-  const bankAccount = process.env.PAYOS_BANK_ACCOUNT || "";
+  const bankAccount = process.env.PAYOS_BANK_ACCOUNT || "040060104";
   const bankAccountName = process.env.PAYOS_BANK_ACCOUNT_NAME || "NGUYEN THE BAO";
 
   // Gọi PayOS API nếu có key
@@ -121,8 +121,8 @@ export async function POST(request: NextRequest) {
           qrCode: rawQr,
           qrImageUrl,
           accountName: payosData.data.accountName || bankAccountName,
-          accountNumber: payosData.data.accountNumber,
-          bin: payosData.data.bin || "970422",
+          accountNumber: payosData.data.accountNumber || bankAccount,
+          bin: payosData.data.bin || bankBin,
           status: "PENDING",
           isSandbox: false,
           plan: { id: planId, name: planInfo.name, cycle },
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
   }
 
   // VietQR format
-  const qrImageUrl = `https://img.vietqr.io/image/${bankBin}-${bankAccount || "0123456789"}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(
+  const qrImageUrl = `https://img.vietqr.io/image/${bankBin}-${bankAccount}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(
     description
   )}&accountName=${encodeURIComponent(bankAccountName)}`;
 
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
     qrCode: "",
     qrImageUrl,
     accountName: bankAccountName,
-    accountNumber: bankAccount || "0123456789",
+    accountNumber: bankAccount,
     bin: bankBin,
     status: "PENDING",
     isSandbox: false,

@@ -75,9 +75,9 @@ def payment_instructions(order: PaymentOrder, wallet: Wallet | None = None) -> d
             "payment_url": order.payment_url,
             "note": "Thanh toán qua PayOS. Hệ thống tự động xác nhận sau khi giao dịch thành công.",
         }
-    bank = os.getenv("PAYMENT_BANK_CODE", "VCB")
-    account = os.getenv("PAYMENT_BANK_ACCOUNT", "0123456789")
-    account_name = os.getenv("PAYMENT_BANK_ACCOUNT_NAME", "DEFENDAI")
+    bank = os.getenv("PAYOS_BANK_BIN", os.getenv("PAYMENT_BANK_CODE", "970422"))
+    account = os.getenv("PAYOS_BANK_ACCOUNT", os.getenv("PAYMENT_BANK_ACCOUNT", "040060104"))
+    account_name = os.getenv("PAYOS_BANK_ACCOUNT_NAME", os.getenv("PAYMENT_BANK_ACCOUNT_NAME", "NGUYEN THE BAO"))
     transfer_text = order.order_code
     qr_url = os.getenv("PAYMENT_MANUAL_QR_URL", "") if order.method == "manual_qr" else ""
     if not qr_url:

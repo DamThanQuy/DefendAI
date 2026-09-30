@@ -156,9 +156,9 @@ class PayOSConfig(BaseSettings):
     client_id: str = ""
     api_key: str = ""
     checksum_key: str = ""
-    bank_bin: str = "970422"  # Default: MBBank
-    bank_account: str = ""
-    bank_account_name: str = ""
+    bank_bin: str = "970422"  # MBBank
+    bank_account: str = "040060104"
+    bank_account_name: str = "NGUYEN THE BAO"
 
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore", env_prefix="PAYOS_", env_file=ENV_FILE, env_file_encoding="utf-8")
 

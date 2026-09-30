@@ -149,7 +149,7 @@ class PayOSService:
                 logger.error("Error communicating with PayOS: %s", exc)
 
         # 2. Fallback direct bank transfer (VietQR)
-        acc_no = self.bank_account or "0123456789"
+        acc_no = self.bank_account or "040060104"
         acc_bin = self.bank_bin or "970422"  # MBBank
         acc_name = self.bank_account_name or "NGUYEN THE BAO"
 

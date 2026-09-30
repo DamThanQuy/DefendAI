@@ -226,7 +226,7 @@ export default function CheckoutClient() {
   const displayAmount = orderData?.amount || order.total;
   const displayOrderCode = orderData?.orderCode ? `DEFEND ${orderData.orderCode}` : `DEFEND-${Date.now()}`;
   const displayAccountName = orderData?.accountName || "NGUYEN THE BAO";
-  const displayAccountNo = orderData?.accountNumber || "VQRQAMKFL9964";
+  const displayAccountNo = orderData?.accountNumber || "040060104";
 
   // If PayOS returned official EMVCo QR string, render it directly
   const qrImageUrl =
