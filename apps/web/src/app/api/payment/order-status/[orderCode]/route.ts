@@ -39,11 +39,11 @@ export async function GET(
   const payosClientId =
     process.env.PAYOS_CLIENT_ID ||
     process.env.NEXT_PUBLIC_PAYOS_CLIENT_ID ||
-    "65689206-6aea-49b0-be71-3b489b5256e7";
+    "42823f61-55cc-4873-a413-ca1552021130";
   const payosApiKey =
     process.env.PAYOS_API_KEY ||
     process.env.NEXT_PUBLIC_PAYOS_API_KEY ||
-    "71958fb8-5ee2-433b-a114-4c458427438f";
+    "56767618-129d-4dfb-a0c8-75d729c15f94";
 
   if (payosClientId && payosApiKey) {
     try {

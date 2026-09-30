@@ -79,9 +79,18 @@ export async function POST(request: NextRequest) {
   const orderCode = Math.floor(Date.now() / 1000) % 100000000;
   const description = `DEFEND ${orderCode}`;
 
-  const payosClientId = process.env.PAYOS_CLIENT_ID || process.env.NEXT_PUBLIC_PAYOS_CLIENT_ID || "";
-  const payosApiKey = process.env.PAYOS_API_KEY || process.env.NEXT_PUBLIC_PAYOS_API_KEY || "";
-  const payosChecksumKey = process.env.PAYOS_CHECKSUM_KEY || process.env.NEXT_PUBLIC_PAYOS_CHECKSUM_KEY || "";
+  const payosClientId =
+    process.env.PAYOS_CLIENT_ID ||
+    process.env.NEXT_PUBLIC_PAYOS_CLIENT_ID ||
+    "42823f61-55cc-4873-a413-ca1552021130";
+  const payosApiKey =
+    process.env.PAYOS_API_KEY ||
+    process.env.NEXT_PUBLIC_PAYOS_API_KEY ||
+    "56767618-129d-4dfb-a0c8-75d729c15f94";
+  const payosChecksumKey =
+    process.env.PAYOS_CHECKSUM_KEY ||
+    process.env.NEXT_PUBLIC_PAYOS_CHECKSUM_KEY ||
+    "8d84b150933f2cebcc1b54873d3b175b2f56b03664513d349fbef8883f6c2c0f";
 
   const bankBin = process.env.PAYOS_BANK_BIN || "970422";
   const bankAccount = process.env.PAYOS_BANK_ACCOUNT || "040060104";
