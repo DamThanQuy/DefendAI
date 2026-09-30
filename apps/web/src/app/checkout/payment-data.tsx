@@ -1,16 +1,12 @@
 export type PaymentMethodId =
   | "payos"
-  | "momo"
-  | "zalopay"
-  | "vnpay"
-  | "bank_transfer"
-  | "card";
+  | "bank_transfer";
 
 export interface PaymentMethod {
   id: PaymentMethodId;
   name: string;
   description: string;
-  logo: string; // emoji or short label as logo placeholder
+  logo: string;
   badge?: string;
   popular?: boolean;
 }
@@ -18,51 +14,24 @@ export interface PaymentMethod {
 export const PAYMENT_METHODS: PaymentMethod[] = [
   {
     id: "payos",
-    name: "PayOS (QR Ngân hàng & MoMo)",
+    name: "Quét mã VietQR (Tất cả Ngân hàng)",
     description: "Quét mã QR tự động xác nhận qua PayOS / VietQR",
-    logo: "P",
-    badge: "Khuyên dùng",
+    logo: "QR",
+    badge: "Tự động 24/7",
     popular: true,
-  },
-  {
-    id: "momo",
-    name: "Ví MoMo",
-    description: "Thanh toán quét mã MoMo QR",
-    logo: "M",
-    badge: "Phổ biến",
-    popular: true,
-  },
-  {
-    id: "zalopay",
-    name: "ZaloPay",
-    description: "Quét QR hoặc liên kết ngân hàng qua ZaloPay",
-    logo: "Z",
-    popular: true,
-  },
-  {
-    id: "vnpay",
-    name: "VNPay",
-    description: "Hỗ trợ tất cả ngân hàng nội địa Việt Nam",
-    logo: "V",
   },
   {
     id: "bank_transfer",
-    name: "Chuyển khoản ngân hàng",
-    description: "Internet Banking / QR ngân hàng",
+    name: "Chuyển khoản thủ công",
+    description: "Internet Banking / Chuyển khoản 24/7",
     logo: "🏦",
-  },
-  {
-    id: "card",
-    name: "Thẻ quốc tế",
-    description: "Visa, Mastercard, JCB, Amex",
-    logo: "💳",
   },
 ];
 
 export const BANK_LIST = [
+  { code: "MB", name: "MB Bank" },
   { code: "VCB", name: "Vietcombank" },
   { code: "TCB", name: "Techcombank" },
-  { code: "MB", name: "MB Bank" },
   { code: "ACB", name: "ACB" },
   { code: "BIDV", name: "BIDV" },
   { code: "VTB", name: "VietinBank" },
@@ -94,7 +63,7 @@ export function getOrderSummary(
   // 17% discount for yearly
   const discount = cycle === "yearly" ? Math.round(basePrice * 0.17) : 0;
   const subtotal = basePrice - discount;
-  const vat = 0; // MVP: chưa thu VAT
+  const vat = 0;
   const total = subtotal + vat;
   const startsAt = new Date();
   const expiresAt = new Date(startsAt);

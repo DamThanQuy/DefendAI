@@ -1,5 +1,5 @@
 """
-PayOS & MoMo / VietQR Service for handling payment requests and QR code generation.
+PayOS Service for handling payment requests and VietQR code generation.
 """
 from __future__ import annotations
 
@@ -33,14 +33,6 @@ class PayOSService:
     @property
     def checksum_key(self) -> str:
         return settings.payos.checksum_key if settings.payos else ""
-
-    @property
-    def momo_phone(self) -> str:
-        return settings.payos.momo_phone if settings.payos else ""
-
-    @property
-    def momo_name(self) -> str:
-        return settings.payos.momo_name if settings.payos else ""
 
     @property
     def bank_bin(self) -> str:
@@ -92,16 +84,15 @@ class PayOSService:
         description: str,
         return_url: str,
         cancel_url: str,
-        method: str = "payos",
         items: Optional[list] = None
     ) -> Dict[str, Any]:
         """
-        Creates a payment link via PayOS or returns a dynamic VietQR / MoMo payment payload.
+        Creates a payment link via PayOS and returns the official VietQR code payload.
         """
         clean_desc = description[:25].strip()
 
-        # 1. If PayOS API keys are configured and method is payos, call PayOS official API
-        if self.is_configured() and method != "momo":
+        # 1. If PayOS API keys are configured, call PayOS official API
+        if self.is_configured():
             try:
                 payload = {
                     "orderCode": order_code,
@@ -133,55 +124,34 @@ class PayOSService:
                     data = res.json()
                     if res.status_code == 200 and data.get("code") == "00":
                         res_data = data.get("data", {})
+                        raw_qr = res_data.get("qrCode", "")
+                        
+                        # Render QR code image directly from the official EMVCo VietQR string
+                        qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=350x350&data={urllib.parse.quote(raw_qr)}"
+
                         return {
                             "success": True,
                             "orderCode": order_code,
                             "amount": amount,
                             "description": clean_desc,
                             "checkoutUrl": res_data.get("checkoutUrl"),
-                            "qrCode": res_data.get("qrCode"),
-                            "qrImageUrl": f"https://api.vietqr.io/image/970422-{res_data.get('accountNumber')}-compact2.jpg?amount={amount}&addInfo={clean_desc}&accountName={res_data.get('accountName')}",
-                            "accountName": res_data.get("accountName"),
+                            "qrCode": raw_qr,
+                            "qrImageUrl": qr_image_url,
+                            "accountName": res_data.get("accountName", "NGUYEN THE BAO"),
                             "accountNumber": res_data.get("accountNumber"),
-                            "bin": res_data.get("bin"),
+                            "bin": res_data.get("bin", "970422"),
                             "status": "PENDING",
                             "isSandbox": False
                         }
                     else:
-                        logger.warning("PayOS API returned error: %s. Falling back to customized QR mode.", data)
+                        logger.warning("PayOS API returned error: %s", data)
             except Exception as exc:
                 logger.error("Error communicating with PayOS: %s", exc)
 
-        # 2. Custom MoMo QR (Personal wallet MoMo)
-        if method == "momo" or (self.momo_phone and method in ("momo", "payos")):
-            momo_num = self.momo_phone or "0339888999"
-            momo_user = self.momo_name or "DEFENDAI EDUCATION"
-            
-            # Standard MoMo Transfer QR Data
-            # Format: 2|99|<phone>|<name>|<email>|0|0|<amount>|<message>|transfer_myqr
-            momo_raw_qr = f"2|99|{momo_num}|{momo_user}||0|0|{amount}|{clean_desc}|transfer_myqr"
-            encoded_momo = urllib.parse.quote(momo_raw_qr)
-            qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={encoded_momo}"
-
-            return {
-                "success": True,
-                "orderCode": order_code,
-                "amount": amount,
-                "description": clean_desc,
-                "checkoutUrl": f"https://me.momo.vn/{momo_num}",
-                "qrCode": momo_raw_qr,
-                "qrImageUrl": qr_image_url,
-                "accountName": momo_user,
-                "accountNumber": momo_num,
-                "bin": "MOMO",
-                "status": "PENDING",
-                "isSandbox": not bool(self.momo_phone or self.is_configured())
-            }
-
-        # 3. Custom Bank / VietQR
-        acc_no = self.bank_account or "0339888999"
+        # 2. Fallback direct bank transfer (VietQR)
+        acc_no = self.bank_account or "0123456789"
         acc_bin = self.bank_bin or "970422"  # MBBank
-        acc_name = self.bank_account_name or "DEFENDAI EDUCATION"
+        acc_name = self.bank_account_name or "NGUYEN THE BAO"
 
         qr_image_url = f"https://img.vietqr.io/image/{acc_bin}-{acc_no}-compact2.png?amount={amount}&addInfo={clean_desc}&accountName={urllib.parse.quote(acc_name)}"
 
@@ -191,13 +161,13 @@ class PayOSService:
             "amount": amount,
             "description": clean_desc,
             "checkoutUrl": f"/checkout?orderCode={order_code}",
-            "qrCode": f"00020101021238540010A00000072701240006{acc_bin}0110{acc_no}0208QRIBFTTA5303704540{len(str(amount)):02d}{amount}5802VN62{len(clean_desc)+4:02d}080{len(clean_desc):02d}{clean_desc}6304",
+            "qrCode": "",
             "qrImageUrl": qr_image_url,
             "accountName": acc_name,
             "accountNumber": acc_no,
             "bin": acc_bin,
             "status": "PENDING",
-            "isSandbox": not bool(self.bank_account or self.is_configured())
+            "isSandbox": not self.is_configured()
         }
 
     async def get_payment_link_information(self, order_code: int) -> Dict[str, Any]:

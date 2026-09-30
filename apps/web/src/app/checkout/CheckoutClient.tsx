@@ -3,11 +3,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   ArrowLeft,
   CreditCard,
-  Smartphone,
   Building2,
   Check,
   ShieldCheck,
@@ -18,9 +17,9 @@ import {
   Copy,
   QrCode,
   ExternalLink,
-  RefreshCw,
   Sparkles,
   CheckCircle2,
+  Smartphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -61,8 +60,6 @@ export default function CheckoutClient() {
 
   const [plan, setPlan] = useState<CheckoutPlan | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethodId>("payos");
-  const [selectedBank, setSelectedBank] = useState<string>("MB");
-  const [isLoading, setIsLoading] = useState(false);
   const [isCreatingOrder, setIsCreatingOrder] = useState(true);
   const [isConfirming, setIsConfirming] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -120,7 +117,6 @@ export default function CheckoutClient() {
             setOrderData(data);
             setPaymentStatus((data.status as any) || "PENDING");
           } else if (data.status === "PAID") {
-            // Free plan direct activation
             handlePaymentSuccess(data.orderCode || 0);
           } else {
             setErrorMsg(data.message || data.error || "Không thể tạo mã thanh toán.");
@@ -158,9 +154,7 @@ export default function CheckoutClient() {
         if (data.status === "PAID") {
           handlePaymentSuccess(orderData.orderCode);
         }
-      } catch (e) {
-        // Silently retry on next tick
-      }
+      } catch (e) {}
     };
 
     pollIntervalRef.current = setInterval(checkStatus, 2500);
@@ -231,29 +225,25 @@ export default function CheckoutClient() {
   const order = getOrderSummary(plan, cycle);
   const displayAmount = orderData?.amount || order.total;
   const displayOrderCode = orderData?.orderCode ? `DEFEND ${orderData.orderCode}` : `DEFEND-${Date.now()}`;
-  const displayAccountName = orderData?.accountName || "DEFENDAI EDUCATION";
-  const displayAccountNo = orderData?.accountNumber || "0339888999";
+  const displayAccountName = orderData?.accountName || "NGUYEN THE BAO";
+  const displayAccountNo = orderData?.accountNumber || "VQRQAMKFL9964";
 
-  // MoMo / VietQR dynamic QR image URL
+  // If PayOS returned official EMVCo QR string, render it directly
   const qrImageUrl =
-    orderData?.qrImageUrl ||
-    `https://img.vietqr.io/image/970422-${displayAccountNo}-compact2.png?amount=${displayAmount}&addInfo=${encodeURIComponent(
-      displayOrderCode
-    )}&accountName=${encodeURIComponent(displayAccountName)}`;
+    orderData?.qrCode && orderData.qrCode.startsWith("000201")
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(orderData.qrCode)}`
+      : orderData?.qrImageUrl ||
+        `https://img.vietqr.io/image/970422-${displayAccountNo}-compact2.png?amount=${displayAmount}&addInfo=${encodeURIComponent(
+          displayOrderCode
+        )}&accountName=${encodeURIComponent(displayAccountName)}`;
 
   const getMethodIcon = (id: PaymentMethodId) => {
     if (id === "payos") return <QrCode className="w-5 h-5" />;
-    if (id === "momo" || id === "zalopay" || id === "vnpay") return <Smartphone className="w-5 h-5" />;
-    if (id === "bank_transfer") return <Building2 className="w-5 h-5" />;
-    return <CreditCard className="w-5 h-5" />;
+    return <Building2 className="w-5 h-5" />;
   };
 
   const getMethodColor = (id: PaymentMethodId) => {
     if (id === "payos") return "bg-emerald-600 text-white shadow-emerald-500/20";
-    if (id === "momo") return "bg-pink-600 text-white shadow-pink-500/20";
-    if (id === "zalopay") return "bg-blue-600 text-white shadow-blue-500/20";
-    if (id === "vnpay") return "bg-red-600 text-white shadow-red-500/20";
-    if (id === "bank_transfer") return "bg-amber-600 text-white shadow-amber-500/20";
     return "bg-indigo-600 text-white shadow-indigo-500/20";
   };
 
@@ -288,7 +278,7 @@ export default function CheckoutClient() {
             Thanh toán đăng ký gói {plan.name}
           </h1>
           <p className="text-muted-foreground text-sm md:text-base">
-            Quét mã QR qua ứng dụng ngân hàng hoặc ví MoMo để hoàn tất kích hoạt gói hội viên tự động.
+            Mở ứng dụng Ngân hàng (VietQR) quét mã QR bên dưới để kích hoạt tài khoản tự động.
           </p>
         </motion.div>
 
@@ -304,7 +294,7 @@ export default function CheckoutClient() {
             <Card className="p-6">
               <h2 className="text-base font-serif font-bold mb-4 flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-primary" />
-                Chọn phương thức thanh toán
+                Phương thức thanh toán
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {PAYMENT_METHODS.map((method) => (
@@ -348,7 +338,7 @@ export default function CheckoutClient() {
               </div>
             </Card>
 
-            {/* PayOS / MoMo Dynamic QR Code Card */}
+            {/* PayOS / VietQR Dynamic QR Code Card */}
             <Card className="p-6 border-primary/40 bg-gradient-to-br from-card via-card to-primary/5 relative overflow-hidden">
               <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
@@ -357,10 +347,10 @@ export default function CheckoutClient() {
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-foreground">
-                      Mã QR Thanh Toán {selectedMethod === "momo" ? "MoMo" : "PayOS / VietQR"}
+                      Mã QR Thanh Toán VietQR (PayOS)
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                      Tự động cập nhật số tiền: <strong>{formatVND(displayAmount)}</strong>
+                      Số tiền thanh toán: <strong className="text-primary">{formatVND(displayAmount)}</strong>
                     </p>
                   </div>
                 </div>
@@ -384,7 +374,7 @@ export default function CheckoutClient() {
                     <div className="relative p-2.5 bg-white rounded-2xl shadow-xl border border-border/80 group">
                       <img
                         src={qrImageUrl}
-                        alt="QR thanh toán PayOS / VietQR"
+                        alt="Mã QR thanh toán VietQR PayOS"
                         className="w-48 h-48 sm:w-52 sm:h-52 object-contain rounded-lg"
                       />
                       {paymentStatus === "PAID" && (
@@ -395,13 +385,17 @@ export default function CheckoutClient() {
                       )}
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-2 text-center flex items-center gap-1">
-                      <Smartphone className="w-3 h-3" /> Mở app Ngân hàng / MoMo quét QR
+                      <Smartphone className="w-3 h-3" /> Mở app Ngân hàng bất kỳ để quét
                     </p>
                   </div>
 
                   {/* Transfer Details */}
                   <div className="flex-1 w-full space-y-3 text-sm">
                     <div className="p-3 rounded-xl bg-muted/40 border border-border/60 space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Ngân hàng:</span>
+                        <strong className="font-semibold text-foreground">MB Bank (VietQR)</strong>
+                      </div>
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">Chủ tài khoản:</span>
                         <strong className="font-semibold text-foreground uppercase">{displayAccountName}</strong>
@@ -442,7 +436,7 @@ export default function CheckoutClient() {
                       </div>
                     </div>
 
-                    {/* PayOS External Link button (if available) */}
+                    {/* PayOS Direct Link button */}
                     {orderData?.checkoutUrl && orderData.checkoutUrl.startsWith("http") && (
                       <a
                         href={orderData.checkoutUrl}
@@ -469,7 +463,7 @@ export default function CheckoutClient() {
                         </>
                       ) : (
                         <>
-                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> [Sandbox] Xác nhận thanh toán thành công
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> [Sandbox] Giả lập thanh toán thành công
                         </>
                       )}
                     </Button>
@@ -545,8 +539,8 @@ export default function CheckoutClient() {
                   <strong className="text-foreground">{order.expiresAt}</strong>
                 </div>
                 <div className="flex justify-between">
-                  <span>Tự động gia hạn:</span>
-                  <strong className="text-foreground">Không (Thủ công)</strong>
+                  <span>Tự động kích hoạt:</span>
+                  <strong className="text-emerald-500 font-bold">Có (Tự động 24/7)</strong>
                 </div>
               </div>
 

@@ -93,7 +93,7 @@ export const FAQS = [
   },
   {
     q: "Thanh toán những phương thức nào?",
-    a: "Chúng tôi hỗ trợ MoMo, ZaloPay, VNPay, thẻ ATM nội địa, Visa/Mastercard và chuyển khoản ngân hàng.",
+    a: "Chúng tôi hỗ trợ quét mã VietQR tự động qua ứng dụng Mobile Banking của tất cả các ngân hàng Việt Nam (MBBank, Vietcombank, Techcombank, VPBank,...) và chuyển khoản ngân hàng.",
   },
 ];
 

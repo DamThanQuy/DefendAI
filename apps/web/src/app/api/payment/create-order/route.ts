@@ -18,8 +18,7 @@ function generatePayosSignature(data: Record<string, any>, checksumKey: string):
 
 /**
  * POST /api/payment/create-order
- * Tạo đơn hàng thanh toán PayOS / MoMo / VietQR.
- * Ưu tiên gọi FastAPI Backend, nếu không kết nối được (ví dụ deploy Vercel độc lập) sẽ tự động xử lý trực tiếp.
+ * Tạo đơn hàng thanh toán PayOS / VietQR Ngân hàng.
  */
 export async function POST(request: NextRequest) {
   let body: any = {};
@@ -59,7 +58,7 @@ export async function POST(request: NextRequest) {
       }
     }
   } catch (backendError) {
-    // Backend offline / Vercel standalone -> fallback to direct PayOS / MoMo generation
+    // Backend offline / Vercel standalone -> fallback to direct PayOS generation
   }
 
   // 2. Xử lý trực tiếp trên Vercel Serverless
@@ -72,23 +71,12 @@ export async function POST(request: NextRequest) {
   const payosApiKey = process.env.PAYOS_API_KEY || process.env.NEXT_PUBLIC_PAYOS_API_KEY || "";
   const payosChecksumKey = process.env.PAYOS_CHECKSUM_KEY || process.env.NEXT_PUBLIC_PAYOS_CHECKSUM_KEY || "";
 
-  const momoPhone =
-    process.env.PAYOS_MOMO_PHONE ||
-    process.env.NEXT_PUBLIC_MOMO_PHONE ||
-    process.env.MOMO_PHONE ||
-    "0911294001";
-  const momoName =
-    process.env.PAYOS_MOMO_NAME ||
-    process.env.NEXT_PUBLIC_MOMO_NAME ||
-    process.env.MOMO_NAME ||
-    "NGUYEN THE BAO";
-
   const bankBin = process.env.PAYOS_BANK_BIN || "970422";
   const bankAccount = process.env.PAYOS_BANK_ACCOUNT || "";
-  const bankAccountName = process.env.PAYOS_BANK_ACCOUNT_NAME || momoName;
+  const bankAccountName = process.env.PAYOS_BANK_ACCOUNT_NAME || "NGUYEN THE BAO";
 
   // Gọi PayOS API nếu có key
-  if (payosClientId && payosApiKey && payosChecksumKey && method !== "momo") {
+  if (payosClientId && payosApiKey && payosChecksumKey) {
     try {
       const returnUrl = `https://${request.headers.get("host") || "localhost:3000"}/payment-success?plan=${planId}&cycle=${cycle}&order_id=${orderCode}`;
       const cancelUrl = `https://${request.headers.get("host") || "localhost:3000"}/payment-cancel?plan=${planId}&cycle=${cycle}`;
@@ -119,17 +107,20 @@ export async function POST(request: NextRequest) {
 
       const payosData = await payosRes.json();
       if (payosRes.ok && payosData.code === "00" && payosData.data) {
+        const rawQr = payosData.data.qrCode || "";
+        const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(
+          rawQr
+        )}`;
+
         return NextResponse.json({
           success: true,
           orderCode,
           amount,
           description,
           checkoutUrl: payosData.data.checkoutUrl,
-          qrCode: payosData.data.qrCode,
-          qrImageUrl: `https://api.vietqr.io/image/970422-${payosData.data.accountNumber}-compact2.jpg?amount=${amount}&addInfo=${encodeURIComponent(
-            description
-          )}&accountName=${encodeURIComponent(payosData.data.accountName)}`,
-          accountName: payosData.data.accountName,
+          qrCode: rawQr,
+          qrImageUrl,
+          accountName: payosData.data.accountName || bankAccountName,
           accountNumber: payosData.data.accountNumber,
           bin: payosData.data.bin || "970422",
           status: "PENDING",
@@ -138,36 +129,12 @@ export async function POST(request: NextRequest) {
         });
       }
     } catch (payosErr) {
-      // Fall through to custom MoMo / VietQR
+      // Fall through to standard VietQR
     }
   }
 
-  // MoMo QR format
-  if (method === "momo" || (momoPhone && !bankAccount)) {
-    const momoRawQr = `2|99|${momoPhone}|${momoName}||0|0|${amount}|${description}|transfer_myqr`;
-    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
-      momoRawQr
-    )}`;
-
-    return NextResponse.json({
-      success: true,
-      orderCode,
-      amount,
-      description,
-      checkoutUrl: `https://me.momo.vn/${momoPhone}`,
-      qrCode: momoRawQr,
-      qrImageUrl,
-      accountName: momoName,
-      accountNumber: momoPhone,
-      bin: "MOMO",
-      status: "PENDING",
-      isSandbox: false,
-      plan: { id: planId, name: planInfo.name, cycle },
-    });
-  }
-
   // VietQR format
-  const qrImageUrl = `https://img.vietqr.io/image/${bankBin}-${bankAccount || momoPhone}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(
+  const qrImageUrl = `https://img.vietqr.io/image/${bankBin}-${bankAccount || "0123456789"}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(
     description
   )}&accountName=${encodeURIComponent(bankAccountName)}`;
 
@@ -177,10 +144,10 @@ export async function POST(request: NextRequest) {
     amount,
     description,
     checkoutUrl: `/checkout?orderCode=${orderCode}`,
-    qrCode: `00020101021238540010A00000072701240006${bankBin}0110${bankAccount || momoPhone}0208QRIBFTTA5303704540${amount.toString().length.toString().padStart(2, "0")}${amount}5802VN621908015${description}6304`,
+    qrCode: "",
     qrImageUrl,
     accountName: bankAccountName,
-    accountNumber: bankAccount || momoPhone,
+    accountNumber: bankAccount || "0123456789",
     bin: bankBin,
     status: "PENDING",
     isSandbox: false,

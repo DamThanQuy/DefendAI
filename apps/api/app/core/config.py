@@ -152,12 +152,10 @@ class RAGConfig(BaseSettings):
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore", env_prefix="RAG_", env_file=ENV_FILE, env_file_encoding="utf-8")
 
 class PayOSConfig(BaseSettings):
-    """Config cho cổng thanh toán PayOS và tài khoản nhận MoMo/Ngân hàng."""
+    """Config cho cổng thanh toán PayOS (VietQR / Ngân hàng)."""
     client_id: str = ""
     api_key: str = ""
     checksum_key: str = ""
-    momo_phone: str = ""
-    momo_name: str = ""
     bank_bin: str = "970422"  # Default: MBBank
     bank_account: str = ""
     bank_account_name: str = ""
