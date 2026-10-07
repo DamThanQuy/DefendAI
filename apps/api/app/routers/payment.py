@@ -20,6 +20,7 @@ from app.core.deps import get_current_user, get_optional_user
 from app.models.user import User
 from app.models.subscription_plan import SubscriptionPlan
 from app.services.payos_service import payos_service
+from app.models.payment import PaymentOrder, Subscription
 
 logger = logging.getLogger(__name__)
 
@@ -174,8 +175,6 @@ async def create_payment_order(
         }
     }
 
-
-from app.models.payment import PaymentOrder, Subscription
 
 
 async def apply_paid_membership(
