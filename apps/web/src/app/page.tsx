@@ -70,8 +70,6 @@ const FEATURES = [
   },
 ];
 
-const UNIVERSITIES = ["FPT", "DNTU", "UEH", "FTU2", "HCMUT", "VNU-UET"];
-
 export default function LandingPage() {
   const { isAuthed } = useAuth();
   const startHref = isAuthed ? "/documents" : "/register";
@@ -168,27 +166,6 @@ export default function LandingPage() {
                 </div>
                 <div className="text-sm text-muted-foreground">{s.label}</div>
               </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Trusted by */}
-      <section className="relative z-10 pb-16">
-        <div className="container mx-auto px-4 max-w-5xl">
-          <div className="text-center mb-6">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
-              Được tin dùng bởi sinh viên từ
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4 opacity-70">
-            {UNIVERSITIES.map((u) => (
-              <span
-                key={u}
-                className="text-lg md:text-xl font-extrabold tracking-tight text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {u}
-              </span>
             ))}
           </div>
         </div>

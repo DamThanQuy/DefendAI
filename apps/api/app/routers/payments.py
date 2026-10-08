@@ -372,6 +372,7 @@ async def get_payment_account(db: AsyncSession = Depends(get_db), user: User = D
         await reconcile_payos_order(db, order)
     subscription = (await db.execute(select(Subscription, SubscriptionPlan).join(SubscriptionPlan, Subscription.plan_id == SubscriptionPlan.id).where(Subscription.user_id == user.id, Subscription.status == "active", Subscription.expires_at > now).order_by(Subscription.expires_at.desc()))).first()
     await db.commit()
+    wallet = await get_or_create_wallet(db, user.id)
 
     sub_data = None
     if subscription:

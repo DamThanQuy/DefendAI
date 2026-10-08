@@ -28,7 +28,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.orm import selectinload
 
-logger = logging.getLogger(__name__)
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -71,6 +70,8 @@ from app.services.storage import (
 from app.services.archive_service import list_archive_members, read_archive_member, ArchiveError
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
+
+logger = logging.getLogger(__name__)
 
 # ===== Config =====
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".zip", ".rar", ".md"}
