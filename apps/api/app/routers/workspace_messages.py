@@ -43,6 +43,7 @@ from app.models.message import Message
 from app.models.workspace_conversation import WorkspaceConversation
 from app.services.ai_client import ai_gateway
 from app.services.retriever import retrieve_mixed
+from app.services.sse_utils import HEARTBEAT, heartbeat_stream
 
 logger = logging.getLogger(__name__)
 
@@ -212,15 +213,22 @@ async def _chat_stream(
         
         yield await _sse_frame({"type": "status", "stage": "thinking"})
         
-        # Stream response
-        async for chunk in ai_gateway.generate_stream(
-            prompt=prompt,
-            system_prompt=_build_chat_system_prompt(),
-            temperature=0.3,
-            max_tokens=4000,
-            provider=provider,
-            model=model,
+        # Stream response — heartbeat mỗi 10s giữ FE watchdog (30s) không abort
+        # trong lúc reasoning model im lặng trước token đầu tiên.
+        async for chunk in heartbeat_stream(
+            ai_gateway.generate_stream(
+                prompt=prompt,
+                system_prompt=_build_chat_system_prompt(),
+                temperature=0.3,
+                max_tokens=4000,
+                provider=provider,
+                model=model,
+            ),
+            seconds=10.0,
         ):
+            if chunk is HEARTBEAT:
+                yield await _sse_frame({"type": "status", "stage": "thinking"})
+                continue
             if chunk.get("content"):
                 answer_parts.append(chunk["content"])
                 yield await _sse_frame({"type": "delta", "text": chunk["content"]})
