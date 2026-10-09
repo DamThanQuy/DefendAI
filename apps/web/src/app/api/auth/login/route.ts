@@ -1,25 +1,28 @@
 import { NextResponse } from 'next/server';
-import { backendUrl, ngrokHeaders } from '@/lib/upstream';
+import { backendUrl, ngrokHeaders, readUpstream, upstreamFailure } from '@/lib/upstream';
 
 export async function POST(request: Request) {
+  const url = `${backendUrl()}/api/auth/login`;
   try {
     const body = await request.json();
-    const baseUrl = backendUrl();
 
-    const res = await fetch(`${baseUrl}/api/auth/login`, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...ngrokHeaders() },
       body: JSON.stringify(body),
     });
 
-    const data = await res.json();
-
-    if (!res.ok) {
-      return NextResponse.json(data, { status: res.status });
+    const upstream = await readUpstream(res);
+    if (upstream.nonJson) {
+      return upstreamFailure('Login', { url, status: res.status, upstream });
     }
 
-    return NextResponse.json(data);
+    if (!upstream.ok) {
+      return NextResponse.json(upstream.data, { status: res.status });
+    }
+
+    return NextResponse.json(upstream.data);
   } catch (error: any) {
-    return NextResponse.json({ error: 'Login failed', message: error.message }, { status: 500 });
+    return upstreamFailure('Login', { url, cause: error });
   }
 }
