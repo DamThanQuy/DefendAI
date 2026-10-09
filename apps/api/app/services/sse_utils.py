@@ -15,6 +15,15 @@ from typing import AsyncIterator, Any
 # Sentinel riêng biệt (identity check) — không lẫn được với chunk dict của gateway
 HEARTBEAT = object()
 
+_STOP = object()
+
+
+async def _next_or_stop(it: AsyncIterator[Any]) -> Any:
+    try:
+        return await it.__anext__()
+    except StopAsyncIteration:
+        return _STOP
+
 
 async def heartbeat_stream(
     source: AsyncIterator[Any],
@@ -22,16 +31,24 @@ async def heartbeat_stream(
 ) -> AsyncIterator[Any]:
     """Yield lại từng chunk của `source`; xen kẽ HEARTBEAT khi source im lặng.
 
+    - KHÔNG cancel `__anext__()` khi timeout (asyncio.wait_for sẽ hủy stream của
+      gateway): dùng task + asyncio.wait để chờ tiếp đúng task đang treo.
     - Source hết → dừng iterator (không yield HEARTBEAT thừa).
     - Source raise → exception lan truyền bình thường (caller xử lý).
     """
     it = source.__aiter__()
-    while True:
-        try:
-            chunk = await asyncio.wait_for(it.__anext__(), timeout=seconds)
-        except StopAsyncIteration:
-            return
-        except asyncio.TimeoutError:
-            yield HEARTBEAT
-            continue
-        yield chunk
+    nxt: "asyncio.Task | None" = asyncio.ensure_future(_next_or_stop(it))
+    try:
+        while True:
+            done, _ = await asyncio.wait({nxt}, timeout=seconds)
+            if not done:
+                yield HEARTBEAT
+                continue
+            chunk = nxt.result()
+            if chunk is _STOP:
+                return
+            nxt = asyncio.ensure_future(_next_or_stop(it))
+            yield chunk
+    finally:
+        if nxt is not None and not nxt.done():
+            nxt.cancel()

@@ -192,10 +192,12 @@ async def _chat_sse(workspace_id: int, question: str, conversation_id: Optional[
 
         prompt = _build_rag_answer_prompt(question, history, contexts, json_mode=False)
         yield await _sse_frame({"type": "status", "stage": "thinking"})
+        last_client_frame = asyncio.get_running_loop().time()
 
-        # Reasoning model có thể im lặng >30s trước token đầu tiên; FE có watchdog
-        # 30s-không-dữ-liệu → abort. heartbeat_stream xen frame status mỗi 10s để
-        # giữ kết nối sống tới khi LLM bắt đầu nhả chữ.
+        # Reasoning model có thể im lặng >30s trước token đầu tiên (hoặc nhả chunk
+        # rỗng liên tục trong pha reasoning); FE có watchdog 30s-không-dữ-liệu →
+        # abort. Hai lớp giữ kết nối: heartbeat_stream (source im lặng) và kiểm tra
+        # last_client_frame dưới đây (chunk rỗng bị skip → không frame nào tới FE).
         async for chunk in heartbeat_stream(
             ai_gateway.generate_stream(
                 prompt=prompt,
@@ -207,12 +209,16 @@ async def _chat_sse(workspace_id: int, question: str, conversation_id: Optional[
             ),
             seconds=10.0,
         ):
-            if chunk is HEARTBEAT:
+            now = asyncio.get_running_loop().time()
+            if chunk is HEARTBEAT or now - last_client_frame >= 10.0:
                 yield await _sse_frame({"type": "status", "stage": "thinking"})
-                continue
+                last_client_frame = now
+                if chunk is HEARTBEAT:
+                    continue
             if chunk.get("content"):
                 answer_parts.append(chunk["content"])
                 yield await _sse_frame({"type": "delta", "text": chunk["content"]})
+                last_client_frame = asyncio.get_running_loop().time()
 
         answer = "".join(answer_parts).strip()
         if not answer:
