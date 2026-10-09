@@ -212,9 +212,10 @@ async def _chat_stream(
         prompt = _build_rag_answer_prompt(question, history, contexts, json_mode=False)
         
         yield await _sse_frame({"type": "status", "stage": "thinking"})
+        last_client_frame = asyncio.get_running_loop().time()
         
-        # Stream response — heartbeat mỗi 10s giữ FE watchdog (30s) không abort
-        # trong lúc reasoning model im lặng trước token đầu tiên.
+        # Stream response — heartbeat giữ FE watchdog (30s) không abort trong lúc
+        # reasoning model im lặng / nhả chunk rỗng trước token đầu tiên.
         async for chunk in heartbeat_stream(
             ai_gateway.generate_stream(
                 prompt=prompt,
@@ -226,12 +227,16 @@ async def _chat_stream(
             ),
             seconds=10.0,
         ):
-            if chunk is HEARTBEAT:
+            now = asyncio.get_running_loop().time()
+            if chunk is HEARTBEAT or now - last_client_frame >= 10.0:
                 yield await _sse_frame({"type": "status", "stage": "thinking"})
-                continue
+                last_client_frame = now
+                if chunk is HEARTBEAT:
+                    continue
             if chunk.get("content"):
                 answer_parts.append(chunk["content"])
                 yield await _sse_frame({"type": "delta", "text": chunk["content"]})
+                last_client_frame = asyncio.get_running_loop().time()
         
         answer = "".join(answer_parts).strip()
         if not answer:
