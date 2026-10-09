@@ -18,7 +18,11 @@ from app.handlers.questions import (
     _extract_json_payload,
     _truncate_text,
 )
-from app.handlers.workspace_questions import _ensure_indexed, _format_context
+from app.handlers.workspace_questions import (
+    _ensure_indexed,
+    _format_context,
+    MAX_ON_DEMAND_INDEX_BYTES,
+)
 from app.models.entities import AssessmentStatus, WorkspaceChat
 from app.services.ai_client import ai_gateway
 from app.services.feature_ai import resolve_feature_ai
@@ -135,7 +139,7 @@ async def handle_chat_ask(params: dict) -> dict:
         await update_job(job_id, progress="10")
 
     try:
-        await _ensure_indexed(workspace_id)
+        await _ensure_indexed(workspace_id, max_bytes=MAX_ON_DEMAND_INDEX_BYTES)
         if job_id:
             await update_job(job_id, progress="50")
 

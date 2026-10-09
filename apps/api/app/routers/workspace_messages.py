@@ -33,7 +33,11 @@ from app.handlers.chat_messages import (
     create_message,
     create_failed_message,
 )
-from app.handlers.workspace_questions import _ensure_indexed, _format_context
+from app.handlers.workspace_questions import (
+    _ensure_indexed,
+    _format_context,
+    MAX_ON_DEMAND_INDEX_BYTES,
+)
 from app.models.entities import User, Workspace
 from app.models.message import Message
 from app.models.workspace_conversation import WorkspaceConversation
@@ -175,8 +179,8 @@ async def _chat_stream(
     citations = []
     
     try:
-        # Index on demand
-        await _ensure_indexed(workspace_id)
+        # Index on demand — bỏ qua file quá lớn trong luồng chat tương tác
+        await _ensure_indexed(workspace_id, max_bytes=MAX_ON_DEMAND_INDEX_BYTES)
         
         # Retrieve chunks
         user_results, ref_results = await retrieve_mixed(question, workspace_id)
