@@ -37,23 +37,46 @@ from app.services.chunk_indexer import index_chunks
 from app.services.document_parser import parse_and_chunk_full
 from app.services.job_queue import register_handler, update_job
 from app.services.retriever import retrieve_mixed
+from app.services.storage import get_object_size
 
 logger = logging.getLogger(__name__)
 
 _VALID_DIFFICULTIES = ("easy", "medium", "hard")
 
+# Ngưỡng index-on-demand TRONG LUỒNG CHAT (bytes). File lớn hơn (vd ZIP 2.7GB)
+# KHÔNG được parse ngay trong request/stream: dù giải nén đã chạy trong thread,
+# việc tải + parse vài GB vẫn chiếm executor/disk hàng chục phút và làm chat
+# treo vô ích. Bỏ qua và báo rõ để user index qua worker/job riêng.
+MAX_ON_DEMAND_INDEX_BYTES = 512 * 1024 * 1024  # 512MB
 
-async def _ensure_indexed(workspace_id: int, force: bool = False, job_id: str | None = None) -> None:
+
+async def _doc_size_bytes(doc) -> int | None:
+    """HEAD object lấy size; None nếu không xác định được (coi như nhỏ)."""
+    try:
+        return await get_object_size(doc.storage_key)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+async def _ensure_indexed(
+    workspace_id: int,
+    force: bool = False,
+    job_id: str | None = None,
+    max_bytes: int | None = None,
+) -> None:
     """Index-on-demand: parse + embed các file trong workspace chưa có document_chunks.
+
+    Args:
+        max_bytes: nếu set, BỎ QUA tài liệu có size vượt ngưỡng (chỉ dùng cho
+            luồng chat/request tương tác — tránh treo API với ZIP vài GB).
+            Job/worker không truyền → index đầy đủ mọi file.
+        force: nếu True, re-index tất cả file dù đã có chunks.
+        job_id: job ID for logging context.
 
     Tự re-index file đã index bằng pipeline cũ (trước figure-inventory): bản cũ
     không có chunk meta.type='diagram' và text thiếu FIGURE INVENTORY → AI chat
     vẫn trả lời "10 diagram" thay vì 86. Phát hiện bằng cách check meta của
     chunk đầu: thiếu 'schema_ver' → re-index.
-
-    Args:
-        force: nếu True, re-index tất cả file dù đã có chunks.
-        job_id: job ID for logging context.
     """
     logger.info("Job %s: _ensure_indexed entered for workspace %s", job_id, workspace_id)
     async with async_session_maker() as db:
@@ -109,6 +132,17 @@ async def _ensure_indexed(workspace_id: int, force: bool = False, job_id: str | 
     logger.info("Job %s: _ensure_indexed finished for workspace %s", job_id, workspace_id)
     for doc in docs:
         try:
+            # Guard luồng tương tác: bỏ qua file quá lớn (vd ZIP 2.7GB) để không
+            # treo request/stream; job/worker (max_bytes=None) vẫn index đầy đủ.
+            if max_bytes is not None:
+                size = await _doc_size_bytes(doc)
+                if size is not None and size > max_bytes:
+                    logger.warning(
+                        "Job %s: skip index-on-demand doc %s (%s) — %d bytes > %d bytes "
+                        "(quá lớn cho luồng chat; cần index qua worker/job)",
+                        job_id, doc.id, doc.filename, size, max_bytes,
+                    )
+                    continue
             logger.info("Job %s: indexing doc %s (%s)", job_id, doc.id, doc.filename)
             chunks, diagrams, diagram_infos = await asyncio.wait_for(
                 parse_and_chunk_full(doc), timeout=300

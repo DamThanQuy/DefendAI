@@ -27,7 +27,11 @@ from app.handlers.chat_ask import (
     _build_chat_system_prompt,
     _MAX_CITATIONS,
 )
-from app.handlers.workspace_questions import _ensure_indexed, _format_context
+from app.handlers.workspace_questions import (
+    _ensure_indexed,
+    _format_context,
+    MAX_ON_DEMAND_INDEX_BYTES,
+)
 from app.models.entities import AssessmentStatus, User, Workspace, WorkspaceChat
 from app.models.workspace_conversation import WorkspaceConversation
 from app.schemas.workspace_chat import (
@@ -104,7 +108,9 @@ def _ensure_indexed_sync(workspace_id: int) -> None:
     raise RuntimeError("_ensure_indexed_sync is deprecated — use _wait_indexed_with_heartbeat")
 
 
-async def _wait_indexed_with_heartbeat(workspace_id: int) -> AsyncIterator[dict]:
+async def _wait_indexed_with_heartbeat(
+    workspace_id: int, max_bytes: int | None = None
+) -> AsyncIterator[dict]:
     """Chạy `_ensure_indexed` cùng event loop, yield payload status định kỳ.
 
     SSE chỉ gửi được frame khi GENERATOR CHÍNH yield (task phụ không thể gửi qua
@@ -114,8 +120,10 @@ async def _wait_indexed_with_heartbeat(workspace_id: int) -> AsyncIterator[dict]
 
     Chú ý: _ensure_indexed có parse DOCX (python-docx/PIL) blocking nhưng nhanh;
     phần vision/embed là async nên loop xoay vòng đều → heartbeat chạy được.
+    Giải nén ZIP lớn đã chạy trong thread riêng (storage.iter_zip_members) nên
+    loop vẫn rảnh. max_bytes giúp bỏ qua file quá lớn trong luồng tương tác.
     """
-    task = asyncio.create_task(_ensure_indexed(workspace_id))
+    task = asyncio.create_task(_ensure_indexed(workspace_id, max_bytes=max_bytes))
     yield {"type": "status", "stage": "indexing"}
     while True:
         try:
@@ -150,7 +158,10 @@ async def _chat_sse(workspace_id: int, question: str, conversation_id: Optional[
         # Index-on-demand (parse + embed các file chưa có chunk) có thể mất >30s —
         # client watchdog abort nếu không nhận frame nào. `_wait_indexed_with_heartbeat`
         # chạy index cùng loop và yield "status: indexing" mỗi 8s để giữ kết nối sống.
-        async for payload in _wait_indexed_with_heartbeat(workspace_id):
+        # max_bytes: bỏ qua file quá lớn (ZIP vài GB) trong luồng chat tương tác.
+        async for payload in _wait_indexed_with_heartbeat(
+            workspace_id, max_bytes=MAX_ON_DEMAND_INDEX_BYTES
+        ):
             yield await _sse_frame(payload)
 
         # 2 query song song (user + reference chunks), fallback min_score 0 như handler chat_ask

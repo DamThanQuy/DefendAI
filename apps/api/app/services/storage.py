@@ -236,76 +236,68 @@ async def iter_zip_members(
         zipfile.BadZipFile: ZIP không hợp lệ.
         CodeScanError / ValueError: extension không hợp lệ (do caller raise).
     """
-    import zipfile as _zipfile
-    from io import BytesIO as _BytesIO
-
-    # Buffer để gom chunk download thành BytesIO seekable (zipfile cần seek)
-    # Tối đa = 1 chunk + 1 file. ZIP parser sẽ tự giải phóng khi đọc xong file.
-    buf = _BytesIO()
-    file_count = 0
-
-    async def _feed_archive(zf: _zipfile.ZipFile) -> "AsyncIterator[tuple[str, bytes]]":
-        """Đọc từng member, yield ngay, không tích luỹ vào list."""
-        nonlocal file_count
-        for info in zf.infolist():
-            if info.is_dir():
-                continue
-            path = info.filename
-            if extensions is not None:
-                from pathlib import PurePosixPath as _P
-                if _P(path).suffix.lower() not in extensions:
-                    continue
-            if safe_filter is not None:
-                # Truyền size để filter có thể skip file lớn (OOM protection)
-                try:
-                    filter_fn = safe_filter
-                    # Nếu safe_filter nhận 2 args (path, size) → gọi với size
-                    import inspect
-                    sig = inspect.signature(filter_fn)
-                    if len(sig.parameters) >= 2:
-                        if not filter_fn(path, info.file_size):
-                            continue
-                    else:
-                        if not filter_fn(path):
-                            continue
-                except Exception:
-                    continue
-            # Read member: zipfile tự giải nén, giải phóng ngay khi yield xong
-            try:
-                data = zf.read(info)
-            except Exception:  # noqa: BLE001
-                continue
-            file_count += 1
-            yield path, data
-
-    # Gom 8MB chunk → ZIP parser. Khi ZIP parser cần chunk tiếp theo
-    # mà buf hết → fetch chunk mới từ MinIO.
-    # Lưu ý: zipfile.ZipFile cần seekable, ta dùng BytesIO buffer.
-    # Buffer sẽ chứa 8MB chunk ZIP. Khi extract xong 1 member, ta reset
-    # buf bằng cách re-create ZipFile với data đã gom.
-    # Đơn giản hơn: download hết vào 1 buffer, dùng BytesIO.
-    # Nhưng mục tiêu là KHÔNG load toàn bộ → dùng cách streaming khác.
-
-    # Cách tối ưu: dùng zipfile.ZipFile với file-like object hỗ trợ seek.
-    # BytesIO là seekable. Ta feed chunks vào BytesIO, nhưng ZIP parser
-    # sẽ đọc hết central directory ngay đầu (EOF comment).
-    # Nếu ZIP chưa đầy đủ trong buffer → parser fail.
-
-    # GIẢI PHÁP ĐÚNG: Central directory ở cuối file. Phải đợi toàn bộ ZIP
-    # downloaded mới parse được. Tuy nhiên ta có thể tối ưu bằng cách
-    # dùng `PartialRead` pattern:
-    #  1. Download 8MB chunks
-    #  2. Tìm End-of-Central-Directory (EOCD) record
-    #  3. Khi đã có EOCD → parse central directory
-    #  4. Extract từng member bằng cách fetch đúng range bytes
-
-    # Để đơn giản & robust, ta dùng cách: download vào buffer tạm trên
-    # disk (spillover to disk khi quá 64MB RAM), parse ZIP, extract từng
-    # file, yield. Memory tối đa = 64MB + 1 file lớn nhất.
-    import tempfile as _tempfile
+    import asyncio as _asyncio
+    import inspect as _inspect
     import os as _os
+    import tempfile as _tempfile
+    import threading as _threading
+    import zipfile as _zipfile
+    from pathlib import PurePosixPath as _PurePosixPath
+
+    _SENTINEL = object()
+    loop = _asyncio.get_running_loop()
+    # Backpressure: tối đa 4 member (<=2MB/member sau safe_filter) nằm trong queue
+    queue: "_asyncio.Queue" = _asyncio.Queue(maxsize=4)
+    stop_event = _threading.Event()
+
+    def _accept(path: str, size: int) -> bool:
+        if extensions is not None and _PurePosixPath(path).suffix.lower() not in extensions:
+            return False
+        if safe_filter is not None:
+            try:
+                sig = _inspect.signature(safe_filter)
+                if len(sig.parameters) >= 2:
+                    return bool(safe_filter(path, size))
+                return bool(safe_filter(path))
+            except Exception:  # noqa: BLE001
+                return False
+        return True
+
+    def _extract_worker(tmp_path: str) -> None:
+        """CHẠY TRONG THREAD RIÊNG: mở ZIP + giải nén từng member rồi đẩy vào queue.
+
+        TUYỆT ĐỐI không gọi zf.read() trên event loop: giải nén member là CPU-bound
+        đồng bộ — với ZIP vài GB nó chặn loop đơn của uvicorn hàng chục phút,
+        làm TOÀN BỘ API đơ (health/login timeout, SSE ECONNRESET).
+        """
+        file_count = 0
+        try:
+            with _zipfile.ZipFile(tmp_path, "r") as zf:
+                for info in zf.infolist():
+                    if stop_event.is_set():
+                        return
+                    if info.is_dir() or not _accept(info.filename, info.file_size):
+                        continue
+                    try:
+                        data = zf.read(info)
+                    except Exception:  # noqa: BLE001
+                        continue
+                    file_count += 1
+                    _asyncio.run_coroutine_threadsafe(
+                        queue.put((info.filename, data)), loop
+                    ).result()
+                    if stop_event.is_set():
+                        return
+            logger.info("Extracted %d files from %s/%s", file_count, bucket, key)
+            _asyncio.run_coroutine_threadsafe(queue.put(_SENTINEL), loop).result()
+        except BaseException as exc:  # noqa: BLE001
+            try:
+                _asyncio.run_coroutine_threadsafe(queue.put(exc), loop).result(timeout=10)
+            except Exception:  # noqa: BLE001
+                pass
 
     tmp_path: str | None = None
+    worker_fut = None
     try:
         # Tạo temp file trên disk thật (tránh RAM-disk /tmp bị giới hạn 1GB khi tải file 2-3GB)
         spill_dir = "/app/.tmp" if _os.path.exists("/app") and _os.path.isdir("/app") else None
@@ -317,17 +309,34 @@ async def iter_zip_members(
         total_bytes = 0
         with open(tmp_path, "wb") as f:
             async for chunk in iter_object_chunks(bucket, key, chunk_size=8 * 1024 * 1024):
-                f.write(chunk)
+                # Ghi disk trong executor để không chặn loop giữa các chunk 8MB
+                await loop.run_in_executor(None, f.write, chunk)
                 total_bytes += len(chunk)
         logger.info("Downloaded ZIP %s/%s → %s (%d bytes)", bucket, key, tmp_path, total_bytes)
 
-        # Parse từ file trên disk → memory chỉ chứa 1 member tại 1 thời điểm
-        with _zipfile.ZipFile(tmp_path, "r") as zf:
-            async for path, data in _feed_archive(zf):
-                yield path, data
-
-        logger.info("Extracted %d files from %s/%s", file_count, bucket, key)
+        # Giải nén trong thread → event loop rảnh để trả heartbeat SSE / request khác
+        worker_fut = loop.run_in_executor(None, _extract_worker, tmp_path)
+        while True:
+            item = await queue.get()
+            if item is _SENTINEL:
+                break
+            if isinstance(item, BaseException):
+                raise item
+            yield item
+        await worker_fut
     finally:
+        stop_event.set()
+        # Giải phóng chỗ trống trong queue để worker đang kẹt ở put() thoát ra
+        while not queue.empty():
+            try:
+                queue.get_nowait()
+            except _asyncio.QueueEmpty:
+                break
+        if worker_fut is not None:
+            try:
+                await _asyncio.wait_for(_asyncio.shield(worker_fut), timeout=5)
+            except Exception:  # noqa: BLE001
+                pass
         # Cleanup temp file
         if tmp_path and _os.path.exists(tmp_path):
             try:
