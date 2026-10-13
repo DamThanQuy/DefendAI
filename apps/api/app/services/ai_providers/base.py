@@ -148,12 +148,16 @@ class OpenAICompatibleProvider(ABC):
         headers = self._build_headers()
 
         # Build messages with multimodal support
-        messages: list[dict[str, Any]] = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        
-        # Build user message - support multimodal if images provided
-        if images:
+        messages_input = kwargs.pop("messages", None)
+        if messages_input and isinstance(messages_input, list):
+            messages: list[dict[str, Any]] = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.extend(messages_input)
+        elif images:
+            messages: list[dict[str, Any]] = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
             content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
             for img in images:
                 # Support both data URIs and URLs
@@ -164,6 +168,9 @@ class OpenAICompatibleProvider(ABC):
                     content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}})
             messages.append({"role": "user", "content": content})
         else:
+            messages: list[dict[str, Any]] = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
 
         # Build payload
