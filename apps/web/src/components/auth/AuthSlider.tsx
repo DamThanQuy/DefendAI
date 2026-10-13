@@ -95,10 +95,10 @@ function LoginForm(props: {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">
           Đăng nhập
         </p>
-        <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-foreground">
+        <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-slate-900">
           Chào mừng trở lại
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="mt-2 text-sm text-slate-600">
           Đăng nhập để tiếp tục luyện tập bảo vệ đồ án của bạn.
         </p>
       </div>
@@ -111,7 +111,7 @@ function LoginForm(props: {
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="email" className="text-foreground">Địa chỉ email</Label>
+          <Label htmlFor="email" className="font-semibold text-slate-700">Email</Label>
           <AuthField
             id="email"
             type="email"
@@ -125,7 +125,7 @@ function LoginForm(props: {
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password" className="text-foreground">Mật khẩu</Label>
+            <Label htmlFor="password" className="font-semibold text-slate-700">Mật khẩu</Label>
             <Link
               href="/forgot-password"
               className="text-sm font-medium text-primary hover:underline"

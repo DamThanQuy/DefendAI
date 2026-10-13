@@ -1,7 +1,22 @@
 # ===== docker-compose.yml cho DefendAI (Server Optimized Backend) =====
-# Frontend: https://defend-ai.vercel.app (Vercel Cloud)
-# Server Backend: db, redis, minio, api, worker, worker_multi
+# Frontend prod: https://defend-ai.vercel.app (Vercel Cloud)
+# Backend: db, redis, minio, api, worker, worker_multi
+# Frontend local (service `web`): nằm trong profile "web" — xem ghi chú bên dưới
 # Tối ưu: RAM Disk tmpfs /tmp, Postgres in-memory WAL buffer, Redis in-memory queue, no swap
+#
+# ------------------------------------------------------------------------
+# CHẠY CẢ FE + BE LOCAL CHỈ BẰNG 1 LỆNH:
+#   Thêm dòng sau vào file .env (cùng cấp file này, đã gitignore):
+#       COMPOSE_PROFILES=web
+#   Rồi:  docker compose up -d      → FE http://localhost:3000 + BE http://localhost:8000
+#
+#   Không muốn FE (chỉ BE, như trên server): bỏ dòng đó, hoặc
+#       docker compose up -d                     (không có web)
+#       docker compose --profile web up -d       (bật web tạm thời 1 lần)
+#
+#   Service `web` để trong profile để KHÔNG phá deploy trên server
+#   (server đang chạy container `defense-web` bằng docker run tay — trùng tên).
+# ------------------------------------------------------------------------
 
 services:
   # ========================================================================
@@ -47,6 +62,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - defense-net
     healthcheck:
@@ -151,6 +169,9 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - defense-net
 
@@ -201,6 +222,9 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - defense-net
 
@@ -224,6 +248,51 @@ services:
       timeout: 3s
       retries: 5
 
+  # ========================================================================
+  # Frontend (Next.js dev server) — LOCAL ONLY, nằm trong profile "web"
+  # ------------------------------------------------------------------------
+  # Bật bằng COMPOSE_PROFILES=web trong .env, hoặc `docker compose --profile web up -d`.
+  #
+  # Lưu ý kỹ thuật:
+  #  - Bind-mount ./apps/web:/app để có hot-reload, nhưng PHẢI che /app/node_modules
+  #    và /app/.next bằng named volume: node_modules + .next trên host là bản build
+  #    Windows, nếu lọt vào container Linux sẽ hỏng native binary (swc) và cache
+  #    NEXT_PUBLIC_* cũ bị inline cứng. Named volume được Docker tự seed từ image
+  #    (đã `npm install` Linux) ở lần tạo đầu tiên.
+  #  - BACKEND_URL = http://api:8000 (docker network) cho các BFF route server-side.
+  #  - NEXT_PUBLIC_API_URL = http://localhost:8000 cho browser (WebSocket /api/meetings,
+  #    /api/mock-qa — browser không resolve được host `api`).
+  #  - Muốn FE local trỏ BE PRODUCTION: thêm vào .env
+  #      WEB_BACKEND_URL=http://26.161.35.68:8000
+  #      WEB_PUBLIC_API_URL=http://26.161.35.68:8000
+  # ========================================================================
+  web:
+    build: ./apps/web
+    image: defendai-web
+    container_name: defense-web
+    restart: unless-stopped
+    profiles: ["web"]
+    ports:
+      - "3000:3000"
+    environment:
+      # Server-side (BFF routes + next.config.js rewrites) → đi trong docker network
+      BACKEND_URL: ${WEB_BACKEND_URL:-http://api:8000}
+      NEXT_PUBLIC_BACKEND_URL: ${WEB_BACKEND_URL:-http://api:8000}
+      # Client-side (browser) → phải là host reachable
+      NEXT_PUBLIC_API_URL: ${WEB_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      NODE_ENV: development
+    volumes:
+      - ./apps/web:/app
+      # Che node_modules + .next của host (Windows) bằng bản Linux của container
+      - web_node_modules:/app/node_modules
+      - web_next:/app/.next
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - defense-net
+
 # ========================================================================
 # Volumes (persistent data)
 # ========================================================================
@@ -234,6 +303,10 @@ volumes:
     name: defense_minio_data
   redis_data:
     name: defense_redis_data
+  web_node_modules:
+    name: defense_web_node_modules
+  web_next:
+    name: defense_web_next
 
 # ========================================================================
 # Networks

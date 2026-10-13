@@ -513,6 +513,21 @@ async def retrieve_reference(
             },
         )
         rows = result.mappings().all()
+        if not rows:
+            fallback_res = await db.execute(
+                text("""
+                    SELECT c.content,
+                           c.title,
+                           c.meta->>'chunk_index' AS chunk_index,
+                           0.5 AS score
+                    FROM reference_chunks c
+                    WHERE c.category = 'rubric'
+                    ORDER BY c.id ASC
+                    LIMIT :top_k
+                """),
+                {"top_k": limit},
+            )
+            rows = fallback_res.mappings().all()
 
     return [
         {
@@ -563,6 +578,24 @@ async def retrieve_mixed(
                 },
             )
             rows = result.mappings().all()
+            if not rows:
+                # Fallback: Lấy các chunk rubric chuẩn có sẵn trong reference_chunks
+                # để AI luôn có tiêu chí chấm của hội đồng dù query là generic workspace name
+                fallback_res = await db.execute(
+                    text("""
+                        SELECT c.content,
+                               c.title,
+                               c.meta->>'chunk_index' AS chunk_index,
+                               0.5 AS score
+                        FROM reference_chunks c
+                        WHERE c.category = 'rubric'
+                        ORDER BY c.id ASC
+                        LIMIT :top_k
+                    """),
+                    {"top_k": ref_limit},
+                )
+                rows = fallback_res.mappings().all()
+
         return [
             {
                 "content": row["content"],
