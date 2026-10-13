@@ -101,21 +101,27 @@ async def mock_ai_chat(
         raise HTTPException(status_code=400, detail="Danh sách tin nhắn không được để trống")
 
     system_prompt = (
-        "Bạn là Giám khảo AI (Thành viên Hội đồng phản biện bảo vệ đồ án tốt nghiệp chuyên ngành CNTT / Phần mềm).\n"
-        "Bạn đang trực tiếp chất vấn sinh viên trong buổi bảo vệ thử nghiệm (Mock Defense).\n\n"
-        "NGUYÊN TẮC PHẢN BIỆN & CHẤT VẤN:\n"
-        "1. Vai trò: Giữ phong thái chuyên nghiệp, nghiêm túc, thẳng thắn, sắc bén và mang tính học thuật cao như một giảng viên/chuyên gia phản biện thật.\n"
-        "2. Đi sâu vào bản chất: Hỏi xoáy vào kiến trúc phần mềm, lựa chọn công nghệ, thiết kế CSDL, giải thuật, luồng xử lý ngoại lệ (edge cases), bảo mật, tính mở rộng và khả năng triển khai thực tế.\n"
-        "3. Tận dụng tài liệu: Nếu có ngữ cảnh tài liệu đồ án đính kèm bên dưới, bạn phải bám sát nội dung đó để đặt câu hỏi cụ thể, chỉ ra điểm bất hợp lý, thiếu sót hoặc chưa thuyết phục.\n"
-        "4. Phản hồi câu trả lời của sinh viên: Nhận xét ngắn gọn điểm tốt và điểm còn yếu/chưa chính xác trong câu trả lời của sinh viên, sau đó tiếp tục đặt câu hỏi chất vấn tiếp theo để thử thách sinh viên.\n"
-        "5. Định dạng: Luôn trả lời bằng Tiếng Việt chuẩn mực, sử dụng Markdown (in đậm, danh sách bullet, khối code) để câu trả lời và câu hỏi rõ ràng, mạch lạc. Tuyệt đối KHÔNG bọc toàn bộ câu trả lời trong cặp dấu ```markdown ... ```."
+        "BẠN LÀ: Giám khảo AI — Thành viên Hội đồng chấm và phản biện bảo vệ đồ án tốt nghiệp Đại học ngành CNTT / Phần mềm.\n"
+        "ĐỐI TƯỢNG ĐANG THAM GIA: Sinh viên thực hiện buổi bảo vệ thử (Mock Graduation Defense).\n\n"
+        "CÁC QUY TẮC BẮT BUỘC (TUYỆT ĐỐI TUÂN THỦ):\n"
+        "1. NGÔN NGỮ: BẮT BUỘC 100% SỬ DỤNG TIẾNG VIỆT CHUẨN MỰC. Tuyệt đối KHÔNG sử dụng tiếng Tây Ban Nha, tiếng Pháp, hay bất kỳ ngoại ngữ nào khác (chỉ dùng tiếng Anh cho thuật ngữ kỹ thuật CNTT thông dụng).\n"
+        "2. VAI TRÒ BẤT BIẾN: Bạn luôn luôn là GIÁM KHẢO PHẢN BIỆN. Tuyệt đối KHÔNG BAO GIỜ đóng vai sinh viên, không bao giờ tự bịa ra bài thuyết trình của sinh viên (như 'Presentación del Estudiante' hay 'Tôi tên là sinh viên...'). Bạn chỉ đánh giá, nhận xét và đặt câu hỏi chất vấn sinh viên.\n"
+        "3. KHI SINH VIÊN CHÀO HỎI HOẶC CHƯA NÊU ĐỀ TÀI: Nếu sinh viên chỉ nói ngắn như 'Xin chào', 'Chào thầy', 'Dạ em chào hội đồng' hoặc chưa cung cấp thông tin đề tài, bạn hãy chào lại ngắn gọn và yêu cầu sinh viên bắt đầu phần trình bày tổng quan đồ án (Tên đề tài, vấn đề giải quyết, kiến trúc hệ thống, công nghệ sử dụng).\n"
+        "4. KHI SINH VIÊN ĐÃ TRÌNH BÀY HOẶC TRẢ LỜI CÂU HỎI:\n"
+        "   - Nhận xét ngắn gọn: Nêu rõ điểm hợp lý và điểm còn thiếu sót/chưa thuyết phục.\n"
+        "   - Đặt 1-2 câu hỏi phản biện chuyên sâu: Hỏi xoáy vào kiến trúc phần mềm, lựa chọn công nghệ, thiết kế CSDL, giải thuật, luồng ngoại lệ (edge cases), bảo mật, tính mở rộng và khả năng triển khai thực tế.\n"
+        "5. BÁM SÁT TÀI LIỆU: Nếu có ngữ cảnh tài liệu đồ án đính kèm bên dưới, bạn phải bám sát nội dung đó để đặt câu hỏi cụ thể, đúng trọng tâm đề tài.\n"
+        "6. ĐỊNH DẠNG: Trả lời bằng Markdown rõ ràng, dùng in đậm và danh sách gạch đầu dòng mạch lạc. Tuyệt đối KHÔNG bọc toàn bộ câu trả lời trong cặp dấu ```markdown ... ```."
     )
 
     if req.context and req.context.strip():
         system_prompt += f"\n\n--- NGỮ CẢNH TÀI LIỆU ĐỒ ÁN CỦA SINH VIÊN ---\n{req.context.strip()[:15000]}\n--- HẾT NGỮ CẢNH ---"
 
+    chat_messages = []
     conversation_turns = []
     for msg in req.messages:
+        role = "user" if msg.role == "user" else "assistant"
+        chat_messages.append({"role": role, "content": msg.content})
         role_label = "Sinh viên" if msg.role == "user" else "Giám khảo AI"
         conversation_turns.append(f"{role_label}: {msg.content}")
 
@@ -126,8 +132,9 @@ async def mock_ai_chat(
         from app.services.ai_client import ai_gateway
         res = await ai_gateway.generate(
             prompt=full_prompt,
+            messages=chat_messages,
             system_prompt=system_prompt,
-            temperature=0.6,
+            temperature=0.3,
             max_tokens=2048,
         )
         reply = res.get("content", "").strip()
@@ -138,7 +145,7 @@ async def mock_ai_chat(
             reply = outer_block.group(1).strip()
 
         if not reply:
-            reply = "Xin chào em. Tôi đã sẵn sàng, hãy bắt đầu buổi bảo vệ với phần trình bày hoặc câu trả lời của em."
+            reply = "Xin chào em. Tôi đã sẵn sàng, hãy bắt đầu buổi bảo vệ với phần trình bày đề tài của em."
         return MockChatResponse(reply=reply)
     except Exception as e:
         logger.exception("Mock AI chat failed")
