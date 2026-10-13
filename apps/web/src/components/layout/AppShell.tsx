@@ -111,8 +111,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     else grouped.push({ section: l.section, items: [l] });
   }
 
+  const isFullScreen =
+    pathname.startsWith("/mock-room-ai") || pathname.startsWith("/room");
+
   const activeLabel =
-    SIDEBAR_LINKS.find((l) => isActive(l.href))?.label ?? "Ứng dụng";
+    SIDEBAR_LINKS.find((l) => isActive(l.href))?.label ??
+    (pathname.startsWith("/mock-room-ai") ? "Phòng Mock AI" : "Ứng dụng");
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -196,9 +200,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main column */}
-      <div className="flex-1 ml-64 min-w-0">
+      <div
+        className={`flex-1 ml-64 min-w-0 ${
+          isFullScreen ? "h-screen flex flex-col overflow-hidden" : ""
+        }`}
+      >
         {/* Top bar */}
-        <header className="sticky top-0 z-30 h-16 border-b border-border bg-background/80 backdrop-blur-md flex items-center px-6 gap-4">
+        <header className="shrink-0 z-30 h-16 border-b border-border bg-background/80 backdrop-blur-md flex items-center px-6 gap-4">
           {/* Breadcrumb */}
           <nav className="flex items-center text-[13px] font-medium gap-1.5 min-w-0">
             <Link
@@ -242,7 +250,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="p-6 lg:p-8 max-w-[1400px] mx-auto">{children}</main>
+        <main
+          className={
+            isFullScreen
+              ? "flex-1 overflow-hidden flex flex-col"
+              : "p-6 lg:p-8 max-w-[1400px] mx-auto"
+          }
+        >
+          {children}
+        </main>
       </div>
     </div>
   );
