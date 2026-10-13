@@ -129,6 +129,10 @@ export function useAuth() {
         setUser(synced);
         // Ghi đè cache cũ để các lần sau đọc đúng
         localStorage.setItem("user", JSON.stringify(synced));
+        const plan = (me.profile_data as any)?.membership?.plan;
+        if (plan) {
+          localStorage.setItem("membership_plan", plan);
+        }
         invalidateCache();
         setLoading(false);
       })

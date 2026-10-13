@@ -20,7 +20,7 @@ from app.core.deps import get_current_user, get_optional_user
 from app.models.user import User
 from app.models.subscription_plan import SubscriptionPlan
 from app.services.payos_service import payos_service
-from app.models.payment import PaymentOrder, Subscription
+from app.models.payment import PaymentOrder, Subscription, Wallet
 
 logger = logging.getLogger(__name__)
 
@@ -383,4 +383,60 @@ async def payos_webhook(
         logger.info("User %s upgraded to %s via PayOS Webhook.", user_id, plan_id)
 
     return {"success": True, "message": "Webhook processed successfully"}
+
+
+@router.get("/account")
+async def get_payment_account(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """Lấy thông tin tài khoản thanh toán, số dư ví và gói hội viên hiện tại."""
+    now = datetime.utcnow()
+    stmt = (
+        select(Subscription, SubscriptionPlan)
+        .join(SubscriptionPlan, Subscription.plan_id == SubscriptionPlan.id)
+        .where(
+            Subscription.user_id == user.id,
+            Subscription.status == "active",
+            Subscription.expires_at > now,
+        )
+        .order_by(Subscription.expires_at.desc())
+    )
+    res = (await db.execute(stmt)).first()
+
+    sub_data = None
+    if res:
+        sub, plan = res
+        sub_data = {
+            "plan_id": plan.slug or str(plan.id),
+            "plan_name": plan.name,
+            "starts_at": sub.starts_at.isoformat() if sub.starts_at else None,
+            "expires_at": sub.expires_at.isoformat() if sub.expires_at else None,
+            "features": plan.features or [],
+        }
+    elif user.profile_data and isinstance(user.profile_data, dict) and user.profile_data.get("membership"):
+        m = user.profile_data.get("membership", {})
+        if m.get("status") == "active":
+            p_key = m.get("plan", "vip")
+            sub_data = {
+                "plan_id": p_key,
+                "plan_name": "VIP" if "vip" in p_key.lower() else "Premium",
+                "starts_at": m.get("activated_at", now.isoformat()),
+                "expires_at": m.get("expires_at", (now + timedelta(days=365)).isoformat()),
+                "features": [],
+            }
+
+    balance = 0
+    try:
+        wallet_stmt = select(Wallet).where(Wallet.user_id == user.id)
+        wallet = (await db.execute(wallet_stmt)).scalar_one_or_none()
+        if wallet:
+            balance = wallet.balance
+    except Exception:
+        pass
+
+    return {
+        "wallet": {"balance": balance, "currency": "VND"},
+        "subscription": sub_data,
+    }
 

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { ngrokHeaders } from '@/lib/upstream';
+import { backendUrl, ngrokHeaders, readUpstream, upstreamFailure } from '@/lib/upstream';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+  const url = `${backendUrl()}/api/documents/upload`;
   try {
     const formData = await request.formData();
     const file = formData.get('file');
@@ -12,46 +13,44 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'File is required' }, { status: 400 });
     }
 
-    // Proxy request sang Python Backend FastAPI
-    const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
-    
-    // Forward Authorization header từ client request
     const authHeader = request.headers.get('authorization') || '';
 
-    // Tạo FormData mới để gửi qua Backend
     const backendFormData = new FormData();
     backendFormData.append('file', file);
+    const purpose = formData.get('purpose');
+    if (purpose) {
+      backendFormData.append('purpose', purpose);
+    }
 
     const headers: Record<string, string> = { ...ngrokHeaders() };
     if (authHeader) {
       headers['Authorization'] = authHeader;
     }
 
-    const backendResponse = await fetch(`${backendUrl}/api/documents/upload`, {
+    const backendResponse = await fetch(url, {
       method: 'POST',
       headers,
       body: backendFormData,
     });
 
-    if (!backendResponse.ok) {
-      const errorData = await backendResponse.json();
-      return NextResponse.json(
-        { error: 'Backend upload failed', details: errorData }, 
-        { status: backendResponse.status }
-      );
+    const upstream = await readUpstream(backendResponse);
+    if (upstream.nonJson) {
+      return upstreamFailure('Document upload', { url, status: backendResponse.status, upstream });
     }
 
-    const data = await backendResponse.json();
+    if (!upstream.ok) {
+      return NextResponse.json(upstream.data, { status: backendResponse.status });
+    }
 
-    // Mapping dữ liệu trả về từ Backend để Frontend UploadZone vẫn hiểu được
+    const data = (upstream.data ?? {}) as Record<string, any>;
     return NextResponse.json({
       success: true,
       documentId: data.id,
+      id: data.id,
       message: 'File uploaded successfully via FastAPI',
-      backendData: data
+      backendData: data,
     });
   } catch (error: any) {
-    console.error('Upload proxy error:', error);
-    return NextResponse.json({ error: 'Upload proxy failed', message: error.message }, { status: 500 });
+    return upstreamFailure('Document upload', { url, cause: error });
   }
 }
