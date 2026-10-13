@@ -36,7 +36,7 @@ from app.core.config import settings
 from app.core.database import get_db, async_session_maker
 from app.core.deps import get_current_user
 from app.models.user import User
-from app.models.mock_chat import MockChatMessage
+from app.models.mock_chat import MockChatMessage, MockChatSession
 from app.services.mock_qa_engine import MockQAEngine
 from app.services.mock_qa_state import MockQASessionManager, SessionState
 from app.services.mock_qa_rag import MockQARAGService
@@ -81,6 +81,42 @@ class SaveHistoryRequest(BaseModel):
 class HistoryResponse(BaseModel):
     messages: List[MockHistoryMessage]
     document_id: Optional[int] = None
+
+
+# ── Session-based history (xem lại / tiếp tục theo từng tài liệu) ──────────
+
+class SessionSummary(BaseModel):
+    id: int
+    document_id: Optional[int] = None
+    title: str
+    message_count: int
+    preview: str = ""
+    created_at: datetime
+    updated_at: datetime
+
+
+class SessionListResponse(BaseModel):
+    items: List[SessionSummary]
+
+
+class SessionDetailResponse(BaseModel):
+    id: int
+    document_id: Optional[int] = None
+    title: str
+    messages: List[MockHistoryMessage]
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreateSessionRequest(BaseModel):
+    document_id: Optional[int] = None
+    title: str = "Phiên chất vấn"
+
+
+class SaveSessionRequest(BaseModel):
+    messages: List[MockHistoryMessage]
+    document_id: Optional[int] = None
+    title: Optional[str] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -225,6 +261,198 @@ async def clear_mock_history(
     await db.execute(
         sa_delete(MockChatMessage).where(MockChatMessage.user_id == user.id)
     )
+    await db.commit()
+    return {"success": True}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Session-based history — xem lại / tiếp tục / xoá phiên theo từng tài liệu
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/sessions", response_model=SessionListResponse)
+async def list_mock_sessions(
+    document_id: Optional[int] = Query(None, description="Lọc theo tài liệu"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Danh sách phiên chat của user (mới nhất trước), tuỳ chọn lọc theo document_id."""
+    stmt = select(MockChatSession).where(MockChatSession.user_id == user.id)
+    if document_id is not None:
+        stmt = stmt.where(MockChatSession.document_id == document_id)
+    stmt = stmt.order_by(MockChatSession.updated_at.desc())
+
+    result = await db.execute(stmt)
+    sessions = result.scalars().all()
+
+    # Lấy preview (tin nhắn đầu tiên) cho mỗi phiên trong 1 query
+    session_ids = [s.id for s in sessions]
+    previews: dict[int, str] = {}
+    if session_ids:
+        pv = await db.execute(
+            select(MockChatMessage.session_id, MockChatMessage.content)
+            .where(
+                MockChatMessage.session_id.in_(session_ids),
+                MockChatMessage.user_id == user.id,
+            )
+            .order_by(MockChatMessage.id.asc())
+        )
+        for sid, content in pv.all():
+            if sid not in previews:
+                previews[sid] = (content or "")[:160]
+
+    return SessionListResponse(
+        items=[
+            SessionSummary(
+                id=s.id,
+                document_id=s.document_id,
+                title=s.title,
+                message_count=s.message_count,
+                preview=previews.get(s.id, ""),
+                created_at=s.created_at,
+                updated_at=s.updated_at,
+            )
+            for s in sessions
+        ]
+    )
+
+
+@router.post("/sessions", response_model=SessionSummary)
+async def create_mock_session(
+    body: CreateSessionRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Tạo phiên chat mới (thay vì ghi đè toàn cục như PUT /history cũ)."""
+    session = MockChatSession(
+        user_id=user.id,
+        document_id=body.document_id,
+        title=body.title.strip()[:200] or "Phiên chất vấn",
+        message_count=0,
+    )
+    db.add(session)
+    await db.commit()
+    await db.refresh(session)
+    return SessionSummary(
+        id=session.id,
+        document_id=session.document_id,
+        title=session.title,
+        message_count=0,
+        preview="",
+        created_at=session.created_at,
+        updated_at=session.updated_at,
+    )
+
+
+@router.get("/sessions/{session_id}", response_model=SessionDetailResponse)
+async def get_mock_session(
+    session_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Đọc nội dung 1 phiên cũ (chỉ xem)."""
+    session = await db.execute(
+        select(MockChatSession).where(
+            MockChatSession.id == session_id,
+            MockChatSession.user_id == user.id,
+        )
+    )
+    session = session.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Không tìm thấy phiên chat")
+
+    rows = await db.execute(
+        select(MockChatMessage)
+        .where(
+            MockChatMessage.session_id == session.id,
+            MockChatMessage.user_id == user.id,
+        )
+        .order_by(MockChatMessage.id.asc())
+    )
+    msgs = [
+        MockHistoryMessage(role=r.role, content=r.content, time=r.time_label or "")
+        for r in rows.scalars().all()
+    ]
+    return SessionDetailResponse(
+        id=session.id,
+        document_id=session.document_id,
+        title=session.title,
+        messages=msgs,
+        created_at=session.created_at,
+        updated_at=session.updated_at,
+    )
+
+
+@router.put("/sessions/{session_id}")
+async def save_mock_session(
+    session_id: int,
+    body: SaveSessionRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ghi (thay thế) toàn bộ tin nhắn của 1 phiên — autosave khi đang chat."""
+    session = await db.execute(
+        select(MockChatSession).where(
+            MockChatSession.id == session_id,
+            MockChatSession.user_id == user.id,
+        )
+    )
+    session = session.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Không tìm thấy phiên chat")
+
+    # Xoá tin nhắn cũ của phiên rồi ghi lại (chỉ trong phạm vi phiên này)
+    await db.execute(
+        sa_delete(MockChatMessage).where(MockChatMessage.session_id == session.id)
+    )
+    for m in body.messages:
+        db.add(
+            MockChatMessage(
+                user_id=user.id,
+                session_id=session.id,
+                role=m.role,
+                content=m.content,
+                time_label=m.time or "",
+                document_id=session.document_id,
+            )
+        )
+
+    session.message_count = len(body.messages)
+    if body.document_id is not None:
+        session.document_id = body.document_id
+    if body.title and body.title.strip():
+        session.title = body.title.strip()[:200]
+    elif body.messages:
+        # Auto title: tin nhắn đầu tiên của sinh viên (hoặc mentor)
+        first = next(
+            (m for m in body.messages if m.role == "user"),
+            body.messages[0],
+        )
+        session.title = (first.content or "Phiên chất vấn").replace("\n", " ")[:100]
+
+    await db.commit()
+    return {
+        "success": True,
+        "count": len(body.messages),
+        "session_id": session.id,
+        "title": session.title,
+    }
+
+
+@router.delete("/sessions/{session_id}")
+async def delete_mock_session(
+    session_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Xoá 1 phiên (tin nhắn theo cascade)."""
+    result = await db.execute(
+        sa_delete(MockChatSession).where(
+            MockChatSession.id == session_id,
+            MockChatSession.user_id == user.id,
+        )
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Không tìm thấy phiên chat")
     await db.commit()
     return {"success": True}
 

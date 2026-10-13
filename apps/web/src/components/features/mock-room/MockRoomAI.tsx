@@ -58,6 +58,27 @@ type StudentDoc = {
   created_at: string;
 };
 
+// Phiên chat đã lưu (GET /api/mock-qa/sessions)
+type MockSession = {
+  id: number;
+  document_id: number | null;
+  title: string;
+  message_count: number;
+  preview: string;
+  created_at: string;
+  updated_at: string;
+};
+
+// Chi tiết 1 phiên khi xem lại (GET /api/mock-qa/sessions/{id})
+type MockSessionDetail = {
+  id: number;
+  document_id: number | null;
+  title: string;
+  messages: { role: string; content: string; time?: string }[];
+  created_at: string;
+  updated_at: string;
+};
+
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
   try {
@@ -85,11 +106,15 @@ export default function MockRoomAI() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatusText, setUploadStatusText] = useState("");
 
-  // Lịch sử chat đã lưu trên server — khôi phục khi vào lại phòng
-  const [savedHistory, setSavedHistory] = useState<{
-    messages: MockMessage[];
-    document_id: number | null;
-  } | null>(null);
+  // Danh sách phiên chat đã lưu — xem lại / tiếp tục theo từng tài liệu
+  const [sessions, setSessions] = useState<MockSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  // Phiên đang active trong phòng (null = chưa có, sẽ tạo khi autosave)
+  const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
+  // Modal xem lại 1 phiên cũ (chỉ đọc)
+  const [viewSession, setViewSession] = useState<MockSessionDetail | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [searchQ, setSearchQ] = useState("");
 
   // Chat state
   const [messages, setMessages] = useState<MockMessage[]>([]);
@@ -161,57 +186,93 @@ export default function MockRoomAI() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Tải lịch sử chat đã lưu trên server (khi mở trang) ──
-  useEffect(() => {
+  // ── Tải danh sách phiên chat đã lưu (khi mở trang) ──────
+  const fetchSessions = useCallback(async () => {
     const token = getToken();
     if (!token) return;
-    fetch("/api/mock-qa/history", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!data) return;
-        const restored: MockMessage[] = (data.messages ?? []).map(
-          (m: { role: string; content: string; time?: string }, i: number) => ({
-            id: Date.now() + i,
-            role: m.role === "user" ? ("user" as const) : ("mentor" as const),
-            content: m.content,
-            time: m.time || "",
-          })
-        );
-        if (restored.length > 0) {
-          setSavedHistory({
-            messages: restored,
-            document_id: data.document_id ?? null,
-          });
-        }
-      })
-      .catch(() => {});
+    setSessionsLoading(true);
+    try {
+      const r = await fetch("/api/mock-qa/sessions", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) return;
+      const data = await r.json();
+      setSessions(data.items ?? []);
+    } catch {
+      // tải thất bại không chặn UI
+    } finally {
+      setSessionsLoading(false);
+    }
   }, []);
 
-  // ── Tự lưu lịch sử chat lên server (debounce 800ms sau mỗi tin) ──
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
+
+  // Refresh danh sách phiên mỗi khi quay về màn hình chọn tài liệu
+  useEffect(() => {
+    if (step === "upload") void fetchSessions();
+  }, [step, fetchSessions]);
+
+  // ── Tự lưu phiên chat lên server (debounce 800ms sau mỗi tin) ──
+  // Nếu chưa có phiên active → tạo mới (POST) rồi lưu vào phiên đó (PUT),
+  // KHÔNG còn ghi đè toàn cục như cơ chế /history cũ.
+  const activeSessionRef = useRef<number | null>(null);
+  activeSessionRef.current = activeSessionId;
+  // Ref để callback trong timeout gọi được fetchSessions mới nhất
+  const fetchSessionsRef = useRef<typeof fetchSessions | null>(null);
+  fetchSessionsRef.current = fetchSessions;
+
   useEffect(() => {
     if (step !== "room" || messages.length === 0) return;
     const token = getToken();
     if (!token) return;
 
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      fetch("/api/mock-qa/history", {
-        method: "PUT",
-        headers: {
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        const headers = {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+        };
+        const payload = {
           messages: messages.map((m) => ({
             role: m.role,
             content: m.content,
             time: m.time,
           })),
           document_id: projectContext ? selectedDocId : null,
-        }),
-      }).catch(() => {}); // lưu thất bại không chặn chat — thử lại ở lần tin sau
+        };
+
+        let sid = activeSessionRef.current;
+        if (sid == null) {
+          // Tạo phiên mới — tiêu đề lấy từ tin nhắn user đầu tiên
+          const firstUser = messages.find((m) => m.role === "user");
+          const r = await fetch("/api/mock-qa/sessions", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              document_id: payload.document_id,
+              title: (firstUser?.content || "Phiên chất vấn").slice(0, 100),
+            }),
+          });
+          if (!r.ok) return;
+          const created = await r.json();
+          sid = created.id;
+          setActiveSessionId(sid);
+          activeSessionRef.current = sid;
+        }
+
+        await fetch(`/api/mock-qa/sessions/${sid}`, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify(payload),
+        });
+        // Refresh danh sách ở màn hình chọn file (fetchSessions khi quay lại)
+        void fetchSessionsRef.current?.();
+      } catch {
+        // lưu thất bại không chặn chat — thử lại ở lần tin sau
+      }
     }, 800);
 
     return () => {
@@ -219,21 +280,15 @@ export default function MockRoomAI() {
     };
   }, [messages, step, projectContext, selectedDocId]);
 
-  // ── Bắt đầu phiên mới — xoá lịch sử chat đã lưu ────────
+  // ── Bắt đầu phiên mới — không xoá dữ liệu cũ, chỉ reset phiên active ──
   const clearHistory = useCallback(async () => {
-    const token = getToken();
-    if (token) {
-      try {
-        await fetch("/api/mock-qa/history", {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      } catch {}
-    }
-    setSavedHistory(null);
     setMessages([]);
+    setActiveSessionId(null);
+    activeSessionRef.current = null;
     stateRef.current = { messages: [], context: "" };
-  }, []);
+    // Danh sách các phiên cũ vẫn giữ nguyên để xem lại sau
+    void fetchSessions();
+  }, [fetchSessions]);
 
   // ── Lấy nội dung text đã trích xuất của tài liệu được chọn ──
   const loadDocContext = useCallback(async (docId: number): Promise<string> => {
@@ -343,31 +398,99 @@ export default function MockRoomAI() {
     }
   };
 
-  // ── Vào phòng chat (tài liệu là TUỲ CHỌN, không bắt buộc) ──
-  const enterRoom = useCallback(async (useDoc: boolean) => {
-    // ── Khôi phục lịch sử chat đã lưu: tiếp tục phiên trước ──
-    if (savedHistory && savedHistory.messages.length > 0) {
-      let context = "";
-      const histDocId = savedHistory.document_id;
-      if (histDocId) {
-        setContextLoading(true);
-        setContextError("");
-        try {
-          context = await loadDocContext(histDocId);
-          setSelectedDocId(histDocId);
-        } catch {
-          context = ""; // tài liệu cũ có thể đã bị xoá — vẫn khôi phục chat
-        } finally {
-          setContextLoading(false);
-        }
-      }
-      setProjectContext(context);
-      setStep("room");
-      setMessages(savedHistory.messages);
-      // Đồng bộ stateRef NGAY để askMentor đọc đúng history vừa khôi phục
-      stateRef.current = { messages: savedHistory.messages, context };
-      return;
+  // ── Xem lại 1 phiên cũ (chỉ đọc, không tiếp tục chat) ──
+  const openSessionView = useCallback(async (sessionId: number) => {
+    const token = getToken();
+    if (!token) return;
+    setViewLoading(true);
+    try {
+      const r = await fetch(`/api/mock-qa/sessions/${sessionId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error("Không tải được phiên chat");
+      const data: MockSessionDetail = await r.json();
+      setViewSession(data);
+    } catch (e: any) {
+      alert(e.message || "Lỗi khi mở phiên chat");
+    } finally {
+      setViewLoading(false);
     }
+  }, []);
+
+  // ── Tiếp tục 1 phiên cũ — nạp messages + document_id vào phòng ──
+  const resumeSession = useCallback(
+    async (sessionId: number) => {
+      const token = getToken();
+      if (!token) return;
+      setContextLoading(true);
+      setContextError("");
+      try {
+        const r = await fetch(`/api/mock-qa/sessions/${sessionId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!r.ok) throw new Error("Không tải được phiên chat");
+        const data: MockSessionDetail = await r.json();
+
+        let context = "";
+        if (data.document_id) {
+          try {
+            context = await loadDocContext(data.document_id);
+            setSelectedDocId(data.document_id);
+          } catch {
+            context = ""; // tài liệu cũ có thể đã bị xoá — vẫn khôi phục chat
+          }
+        }
+        setProjectContext(context);
+
+        const restored: MockMessage[] = data.messages.map((m, i) => ({
+          id: Date.now() + i,
+          role: m.role === "user" ? ("user" as const) : ("mentor" as const),
+          content: m.content,
+          time: m.time || "",
+        }));
+
+        setViewSession(null);
+        setStep("room");
+        setMessages(restored);
+        setActiveSessionId(data.id);
+        activeSessionRef.current = data.id;
+        // Đồng bộ stateRef NGAY để askMentor đọc đúng history vừa khôi phục
+        stateRef.current = { messages: restored, context };
+      } catch (e: any) {
+        setContextError(e.message || "Không thể tiếp tục phiên chat");
+      } finally {
+        setContextLoading(false);
+      }
+    },
+    [loadDocContext]
+  );
+
+  // ── Xoá 1 phiên khỏi danh sách ─────────────────────────
+  const deleteSession = useCallback(
+    async (sessionId: number) => {
+      if (!confirm("Xoá phiên chat này? Hành động không thể hoàn tác.")) return;
+      const token = getToken();
+      if (!token) return;
+      try {
+        const r = await fetch(`/api/mock-qa/sessions/${sessionId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!r.ok) throw new Error("Xoá phiên thất bại");
+        setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+        if (activeSessionId === sessionId) {
+          setActiveSessionId(null);
+          activeSessionRef.current = null;
+        }
+      } catch (e: any) {
+        alert(e.message || "Lỗi khi xoá phiên");
+      }
+    },
+    [activeSessionId]
+  );
+
+  // ── Vào phòng chat MỚI (tài liệu là TUỲ CHỌN, không bắt buộc) ──
+  const enterRoom = useCallback(async (useDoc: boolean) => {
 
     let context = "";
     if (useDoc && selectedDocId) {
@@ -383,6 +506,10 @@ export default function MockRoomAI() {
       }
     }
     setProjectContext(context);
+
+    // Phiên mới hoàn toàn — autosave sẽ tạo session mới
+    setActiveSessionId(null);
+    activeSessionRef.current = null;
 
     const docName = context
       ? studentDocs.find((d) => d.id === selectedDocId)?.filename ||
@@ -415,7 +542,7 @@ export default function MockRoomAI() {
         : "(Buổi bảo vệ bắt đầu, chưa có tài liệu đính kèm. Hãy mở đầu với đúng vai giám khảo: yêu cầu sinh viên giới thiệu đồ án trong 2 phút, rồi đặt ngay câu hỏi chất vấn đầu tiên.)",
       { hidden: true }
     );
-  }, [selectedDocId, studentDocs, uploadedFile, loadDocContext, savedHistory]);
+  }, [selectedDocId, studentDocs, uploadedFile, loadDocContext]);
 
   // ── Gọi Mentor AI (backend /api/mock-qa/chat) ──────────
   // Nhận thêm một lượt của sinh viên → gửi toàn bộ history + context tài liệu
@@ -799,35 +926,154 @@ export default function MockRoomAI() {
               </div>
             )}
 
-            {/* Lịch sử chat đã lưu — tiếp tục phiên trước */}
-            {savedHistory && savedHistory.messages.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-6 p-4 bg-teal-500/10 border border-teal-500/30 rounded-xl text-left"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2 min-w-0">
-                    <FileText className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-teal-300">
-                        Có {savedHistory.messages.length} tin nhắn từ phiên trước
-                      </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        Vào phòng sẽ tiếp tục đúng đoạn chat cũ — tài liệu được lưu kèm.
-                      </p>
-                    </div>
-                  </div>
+            {/* Lịch sử phiên chat — xem lại / tiếp tục / xoá theo từng tài liệu */}
+            <div className="mb-6 text-left">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-foreground">
+                  Lịch sử phiên chất vấn
+                  {sessions.length > 0 && (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      ({sessions.length} phiên)
+                    </span>
+                  )}
+                </span>
+                <div className="flex items-center gap-3">
+                  <input
+                    value={searchQ}
+                    onChange={(e) => setSearchQ(e.target.value)}
+                    placeholder="Tìm phiên..."
+                    className="w-36 sm:w-44 bg-muted/40 border border-border rounded-lg px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary placeholder:text-muted-foreground"
+                  />
                   <button
-                    onClick={clearHistory}
-                    className="text-xs text-gray-400 hover:text-red-400 underline shrink-0 transition-colors"
-                    title="Xoá lịch sử và bắt đầu phiên chat mới"
+                    onClick={fetchSessions}
+                    className="text-xs text-primary hover:underline font-medium"
                   >
-                    Phiên mới
+                    ↻ Làm mới
                   </button>
                 </div>
-              </motion.div>
-            )}
+              </div>
+
+              {sessionsLoading && sessions.length === 0 && (
+                <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Đang tải lịch sử...
+                </div>
+              )}
+
+              {!sessionsLoading && sessions.length === 0 && (
+                <div className="text-sm text-muted-foreground py-4 text-center border border-dashed border-border rounded-xl">
+                  Chưa có phiên chat nào. Vào phòng để bắt đầu — các phiên sẽ tự lưu tại đây.
+                </div>
+              )}
+
+              {sessions.length > 0 && (() => {
+                // Gom phiên theo từng tài liệu
+                const q = searchQ.trim().toLowerCase();
+                const filtered = q
+                  ? sessions.filter(
+                      (s) =>
+                        s.title.toLowerCase().includes(q) ||
+                        s.preview.toLowerCase().includes(q)
+                    )
+                  : sessions;
+                const grouped = new Map<number | null, MockSession[]>();
+                for (const s of filtered) {
+                  const key = s.document_id ?? null;
+                  if (!grouped.has(key)) grouped.set(key, []);
+                  grouped.get(key)!.push(s);
+                }
+                if (filtered.length === 0) {
+                  return (
+                    <div className="text-sm text-muted-foreground py-4 text-center border border-dashed border-border rounded-xl">
+                      Không tìm thấy phiên chat nào khớp.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="max-h-72 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
+                    {Array.from(grouped.entries()).map(([docId, list]) => {
+                      const docName =
+                        docId != null
+                          ? studentDocs.find((d) => d.id === docId)?.filename ||
+                            `Tài liệu #${docId}`
+                          : "Chat tự do (không tài liệu)";
+                      return (
+                        <div
+                          key={docId ?? "free"}
+                          className="border border-border rounded-xl overflow-hidden"
+                        >
+                          <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b border-border">
+                            <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <span className="text-xs font-semibold text-foreground truncate">
+                              {docName}
+                            </span>
+                            <span className="ml-auto text-[11px] text-muted-foreground shrink-0">
+                              {list.length} phiên
+                            </span>
+                          </div>
+                          <div className="divide-y divide-border/60">
+                            {list.map((s) => (
+                              <div
+                                key={s.id}
+                                className="flex items-start gap-3 px-3 py-2.5 hover:bg-muted/20 transition-colors group"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-medium text-foreground truncate">
+                                      {s.title}
+                                    </p>
+                                    {activeSessionId === s.id && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary text-primary-foreground font-bold shrink-0">
+                                        Đang hoạt động
+                                      </span>
+                                    )}
+                                  </div>
+                                  {s.preview && (
+                                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                                      {s.preview}
+                                    </p>
+                                  )}
+                                  <p className="text-[11px] text-muted-foreground/70 mt-1">
+                                    {s.message_count} tin ·{" "}
+                                    {new Date(s.updated_at).toLocaleString("vi-VN")}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => openSessionView(s.id)}
+                                    disabled={viewLoading}
+                                    className="px-2 py-1 rounded-md border border-border bg-muted/40 hover:border-primary hover:text-primary text-[11px] font-semibold text-muted-foreground transition-colors"
+                                    title="Xem lại phiên (chỉ đọc)"
+                                  >
+                                    Xem lại
+                                  </button>
+                                  <button
+                                    onClick={() => resumeSession(s.id)}
+                                    disabled={contextLoading}
+                                    className="px-2 py-1 rounded-md border border-primary/40 bg-primary/10 hover:bg-primary/20 text-[11px] font-semibold text-primary transition-colors"
+                                    title="Tiếp tục phiên này trong phòng chat"
+                                  >
+                                    Tiếp tục
+                                  </button>
+                                  <button
+                                    onClick={() => deleteSession(s.id)}
+                                    className="px-2 py-1 rounded-md border border-border bg-muted/40 hover:border-red-500/50 hover:text-red-400 text-[11px] font-semibold text-muted-foreground transition-colors"
+                                    title="Xoá phiên"
+                                  >
+                                    Xoá
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
 
             <div className="flex flex-col gap-3">
               <Button
@@ -1057,6 +1303,121 @@ export default function MockRoomAI() {
           </div>
         </>
       )}
+
+      {/* ── Modal xem lại phiên cũ (chỉ đọc) ── */}
+      <AnimatePresence>
+        {viewSession && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-2xl max-h-[85vh] flex flex-col"
+            >
+              <Card className="p-0 overflow-hidden flex flex-col max-h-[85vh]">
+                <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border bg-primary/5 shrink-0">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-bold text-foreground truncate">
+                      {viewSession.title}
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {new Date(viewSession.created_at).toLocaleString("vi-VN")} ·{" "}
+                      {viewSession.messages.length} tin ·{" "}
+                      {viewSession.document_id
+                        ? studentDocs.find((d) => d.id === viewSession.document_id)
+                            ?.filename || `Tài liệu #${viewSession.document_id}`
+                        : "Chat tự do"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs"
+                      onClick={() => {
+                        const sid = viewSession.id;
+                        setViewSession(null);
+                        void resumeSession(sid);
+                      }}
+                      disabled={contextLoading}
+                    >
+                      Tiếp tục phiên này
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setViewSession(null)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 custom-scrollbar">
+                  {viewSession.messages.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      Phiên này chưa có tin nhắn.
+                    </p>
+                  )}
+                  {viewSession.messages.map((m, i) => {
+                    const isMine = m.role === "user";
+                    return (
+                      <div
+                        key={i}
+                        className={`flex gap-3 items-start ${
+                          isMine ? "justify-end" : "justify-start"
+                        }`}
+                      >
+                        <div
+                          className={`flex flex-col ${
+                            isMine ? "items-end max-w-[85%]" : "items-start max-w-[90%]"
+                          }`}
+                        >
+                          <div
+                            className={`flex items-baseline gap-2 mb-1 ${
+                              isMine ? "flex-row-reverse" : ""
+                            }`}
+                          >
+                            <span className="text-[11px] font-semibold text-foreground">
+                              {isMine ? "Bạn" : "Giám khảo AI"}
+                            </span>
+                            {m.time && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {m.time}
+                              </span>
+                            )}
+                          </div>
+                          <div
+                            className={`rounded-2xl text-sm leading-relaxed ${
+                              isMine
+                                ? "rounded-tr-sm px-3.5 py-2.5 bg-primary text-primary-foreground"
+                                : "rounded-tl-sm p-4 bg-muted/60 border border-border text-foreground"
+                            }`}
+                          >
+                            {m.role === "user" ? (
+                              <p className="whitespace-pre-wrap">{m.content}</p>
+                            ) : (
+                              <MarkdownMessage content={m.content} />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <p className="text-[11px] text-muted-foreground text-center pt-2">
+                    — hết phiên (chế độ chỉ đọc) —
+                  </p>
+                </div>
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Settings Modal ── */}
       <AnimatePresence>
