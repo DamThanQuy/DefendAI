@@ -21,6 +21,7 @@ from app.handlers.questions import (
     _heuristic_questions,
     _truncate_text,
 )
+from app.services.rubric_service import get_active_rubric
 from app.services.source_item_builder import to_source_list
 from app.models.entities import (
     AssessmentStatus,
@@ -281,9 +282,11 @@ async def handle_workspace_questions(params: dict) -> dict:
         prompt = _build_rag_prompt(topic, contexts)
         async with async_session_maker() as db:
             provider, model = await resolve_feature_ai(db, "question_gen")
+            active_rubric = await get_active_rubric(db, scope="defense")
+        system_prompt = _build_system_prompt(rubric=active_rubric)
         ai_result = await ai_gateway.generate(
             prompt=prompt,
-            system_prompt=_build_system_prompt(),
+            system_prompt=system_prompt,
             temperature=0.2,
             # Gateway routes to a reasoning model (step-3.7-flash) that spends most of
             # max_tokens on `reasoning`; 4000 left no budget for the JSON answer (empty

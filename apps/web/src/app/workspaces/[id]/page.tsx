@@ -316,6 +316,7 @@ export default function WorkspaceDetailPage() {
   const [wqDeleting, setWqDeleting] = useState(false);
   const [wsRunning, setWsRunning] = useState(false);
   const [wsStageText, setWsStageText] = useState("");
+  const [customTopic, setCustomTopic] = useState("");
   const wsJobId = useRef<string | null>(null);
 
   // History
@@ -513,7 +514,10 @@ export default function WorkspaceDetailPage() {
     setWsQError("");
     setWsStageText("Đang chuẩn bị tài liệu...");
     try {
-      const topic = focusTopic && focusTopic.trim() ? focusTopic : (ws?.name ?? "");
+      const defaultTopic = ws?.name && !ws.name.toLowerCase().startsWith("workspace_")
+        ? `${ws.name} - Tiêu chí chấm bảo vệ đồ án tốt nghiệp`
+        : "Tiêu chí chấm và bảo vệ đồ án tốt nghiệp SEP490";
+      const topic = (focusTopic && focusTopic.trim()) || (customTopic && customTopic.trim()) || defaultTopic;
       const r = await fetch(`/api/workspaces/${wsId}/questions`, {
         method: "POST",
         headers: {
@@ -897,6 +901,14 @@ export default function WorkspaceDetailPage() {
                     <h3 className="text-[15px] font-bold text-zinc-200 mb-1">Luyện phản biện</h3>
                     <p className="text-[12px] text-zinc-500 mb-4">AI đóng vai hội đồng, tự động sinh <b>bộ câu hỏi</b> bắt bẻ chuyên sâu kèm gợi ý trả lời từ toàn bộ {ws.document_count} file — giúp bạn ôn tập trước khi bảo vệ thật. Bấm "Sinh câu hỏi" để bắt đầu.</p>
                     <div className="flex flex-col md:flex-row gap-3">
+                      <input
+                        type="text"
+                        placeholder="Nhập chủ đề phản biện trọng tâm (để trống: tự động bám sát rubric hội đồng)..."
+                        value={customTopic}
+                        onChange={(e) => setCustomTopic(e.target.value)}
+                        className="flex-1 px-4 py-2.5 bg-zinc-900 border border-zinc-700/80 rounded-xl text-[13px] text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-teal-400"
+                        disabled={wsRunning}
+                      />
                       {wsRunning ? (
                         <button
                           onClick={stopWorkspaceTopic}

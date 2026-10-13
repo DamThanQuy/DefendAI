@@ -17,12 +17,14 @@ export const DEFAULT_BACKEND_URL = "http://127.0.0.1:8000";
 const SNIPPET_LIMIT = 300;
 
 export function backendUrl(): string {
-  return (
+  const raw = (
     process.env.BACKEND_URL ||
     process.env.NEXT_PUBLIC_BACKEND_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
     DEFAULT_BACKEND_URL
-  );
+  ).trim();
+  // Strip trailing slash and trailing /api to ensure `${backendUrl()}/api/...` resolves cleanly
+  return raw.replace(/\/api\/?$/, "").replace(/\/+$/, "");
 }
 
 /**
