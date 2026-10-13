@@ -31,6 +31,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { MarkdownMessage } from "@/components/features/workspace/MarkdownMessage";
 import { type MockMessage, extractContextSummary } from "@/lib/mock-ai-data";
+import { ChunkedUploader } from "@/lib/chunked-upload";
+import { MAX_FILE_SIZE } from "@/lib/constants";
+
+// File >= 4MB sẽ chuyển sang S3 multipart chunked upload trực tiếp lên MinIO để tránh giới hạn 4.5MB của Vercel
+const CHUNKED_THRESHOLD = 4 * 1024 * 1024;
 
 /**
  * ─────────────────────────────────────────────────────────────
@@ -77,6 +82,8 @@ export default function MockRoomAI() {
   const [selectedDocId, setSelectedDocId] = useState<number | null>(null);
   const [contextLoading, setContextLoading] = useState(false);
   const [contextError, setContextError] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatusText, setUploadStatusText] = useState("");
 
   // Lịch sử chat đã lưu trên server — khôi phục khi vào lại phòng
   const [savedHistory, setSavedHistory] = useState<{
@@ -242,7 +249,7 @@ export default function MockRoomAI() {
     return (raw.text ?? "").trim();
   }, []);
 
-  // ── File upload handler (upload lên server qua API) ────
+  // ── File upload handler (hỗ trợ cả chunked upload cho file lớn > 4MB) ────
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -251,31 +258,87 @@ export default function MockRoomAI() {
       alert("Vui lòng đăng nhập để tải lên tài liệu.");
       return;
     }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setDocsError(`Tệp vượt quá ${MAX_FILE_SIZE / (1024 * 1024 * 1024)}GB. Vui lòng chọn tệp nhỏ hơn.`);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     setUploadedFile(file);
     setDocsError("");
     setContextLoading(true);
+    setUploadProgress(0);
+    setUploadStatusText("Đang chuẩn bị tải lên...");
+
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("purpose", "student_project");
-      const res = await fetch("/api/documents/upload", {
-        method: "POST",
-        body: formData,
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || data.error || "Tải lên thất bại");
+      let docId: number;
+
+      if (file.size >= CHUNKED_THRESHOLD) {
+        // File lớn (>= 4MB, kể cả ZIP vài GB): dùng S3 multipart chunked upload trực tiếp MinIO
+        setUploadStatusText("Đang tải lên qua S3 Multipart...");
+        const uploader = new ChunkedUploader(file, {
+          concurrency: 3,
+          onProgress: (uploaded, total) => {
+            const pct = Math.round((uploaded / total) * 100);
+            setUploadProgress(pct);
+            setUploadStatusText(
+              `Đang tải lên... ${(uploaded / 1024 / 1024).toFixed(1)}/${(total / 1024 / 1024).toFixed(1)} MB (${pct}%)`
+            );
+          },
+        });
+        const result = await uploader.start();
+        if (!result?.document_id) {
+          throw new Error("Tải lên thất bại: không nhận được mã tài liệu");
+        }
+        docId = result.document_id;
+      } else {
+        // File nhỏ (< 4MB): upload trực tiếp qua BFF
+        setUploadStatusText("Đang tải lên...");
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("purpose", "student_project");
+
+        const res = await fetch("/api/documents/upload", {
+          method: "POST",
+          body: formData,
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const text = await res.text();
+        let data: any = {};
+        try {
+          data = JSON.parse(text);
+        } catch {
+          if (res.status === 413) {
+            throw new Error("Tệp vượt quá giới hạn tải trực tiếp của máy chủ (4MB). Vui lòng thử lại.");
+          }
+          throw new Error(`Lỗi máy chủ (${res.status}): ${text.slice(0, 100)}`);
+        }
+
+        if (!res.ok) {
+          throw new Error(data.detail || data.error || data.message || `Tải lên thất bại (HTTP ${res.status})`);
+        }
+
+        docId = data.documentId ?? data.id;
+        if (!docId) {
+          throw new Error("Không nhận được mã tài liệu từ máy chủ");
+        }
       }
+
       // Upload xong → refresh danh sách + chọn tài liệu mới
+      setUploadProgress(100);
+      setUploadStatusText("Tải lên thành công!");
       await fetchStudentDocs();
-      setSelectedDocId(data.id);
+      setSelectedDocId(docId);
       setProjectContext("");
     } catch (err: any) {
       setDocsError(err.message || "Tải lên thất bại");
       setUploadedFile(null);
     } finally {
       setContextLoading(false);
+      setUploadProgress(0);
+      setUploadStatusText("");
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
@@ -670,23 +733,45 @@ export default function MockRoomAI() {
 
             {/* Upload file mới */}
             <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-border rounded-xl p-6 cursor-pointer hover:border-primary/40 hover:bg-muted/20 transition-all mb-4"
+              onClick={() => !contextLoading && fileInputRef.current?.click()}
+              className={`border-2 border-dashed border-border rounded-xl p-6 transition-all mb-4 ${
+                contextLoading
+                  ? "opacity-90 cursor-wait bg-muted/10 border-primary/40"
+                  : "cursor-pointer hover:border-primary/40 hover:bg-muted/20"
+              }`}
             >
               <input
                 ref={fileInputRef}
                 type="file"
                 accept=".pdf,.docx,.pptx,.zip,.rar,.md"
                 onChange={handleFileUpload}
+                disabled={contextLoading}
                 className="hidden"
               />
-              <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm font-medium">
-                {contextLoading ? "Đang tải lên..." : "Hoặc tải lên tài liệu mới"}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Hỗ trợ: PDF, Word, PowerPoint, ZIP, RAR (tối đa 10MB)
-              </p>
+              {contextLoading ? (
+                <div className="flex flex-col items-center">
+                  <Loader2 className="w-6 h-6 text-primary animate-spin mb-2" />
+                  <p className="text-sm font-medium text-foreground">
+                    {uploadStatusText || "Đang tải lên..."}
+                  </p>
+                  {uploadProgress > 0 && (
+                    <div className="w-full max-w-xs mt-3 bg-muted rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-primary h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm font-medium">Hoặc tải lên tài liệu mới</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Hỗ trợ: PDF, Word, PowerPoint, ZIP, RAR (Tối đa 10GB, tự động chia nhỏ khi &gt; 4MB)
+                  </p>
+                </>
+              )}
             </div>
 
             {uploadedFile && !contextLoading && (

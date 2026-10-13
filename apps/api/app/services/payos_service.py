@@ -84,7 +84,9 @@ class PayOSService:
         description: str,
         return_url: str,
         cancel_url: str,
-        items: Optional[list] = None
+        items: Optional[list] = None,
+        method: Optional[str] = None,
+        **kwargs: Any
     ) -> Dict[str, Any]:
         """
         Creates a payment link via PayOS and returns the official VietQR code payload.

@@ -62,15 +62,17 @@ export default function MockRoomLandingPage() {
 
   const isStudent = hasRole("student") || (!hasRole("mentor") && !hasRole("admin"));
 
-  // Kiểm tra quyền VIP để truy cập Phòng Mock AI
-  const isVip = (() => {
+  // Kiểm tra quyền VIP để truy cập Phòng Mock AI (từ user profile hoặc localStorage)
+  const isVip = useMemo(() => {
     if (typeof window === "undefined") return false;
+    const planFromProfile = (user?.profile_data as any)?.membership?.plan;
+    if (planFromProfile === "vip") return true;
     try {
       return localStorage.getItem("membership_plan") === "vip";
     } catch {
       return false;
     }
-  })();
+  }, [user]);
 
   const handleEnterMockAI = () => {
     if (!isVip) {
