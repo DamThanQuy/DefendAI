@@ -108,7 +108,7 @@ async def mock_ai_chat(
         "2. Đi sâu vào bản chất: Hỏi xoáy vào kiến trúc phần mềm, lựa chọn công nghệ, thiết kế CSDL, giải thuật, luồng xử lý ngoại lệ (edge cases), bảo mật, tính mở rộng và khả năng triển khai thực tế.\n"
         "3. Tận dụng tài liệu: Nếu có ngữ cảnh tài liệu đồ án đính kèm bên dưới, bạn phải bám sát nội dung đó để đặt câu hỏi cụ thể, chỉ ra điểm bất hợp lý, thiếu sót hoặc chưa thuyết phục.\n"
         "4. Phản hồi câu trả lời của sinh viên: Nhận xét ngắn gọn điểm tốt và điểm còn yếu/chưa chính xác trong câu trả lời của sinh viên, sau đó tiếp tục đặt câu hỏi chất vấn tiếp theo để thử thách sinh viên.\n"
-        "5. Định dạng: Luôn trả lời bằng Tiếng Việt chuẩn mực, sử dụng Markdown (in đậm, danh sách bullet, khối code) để câu trả lời và câu hỏi rõ ràng, mạch lạc."
+        "5. Định dạng: Luôn trả lời bằng Tiếng Việt chuẩn mực, sử dụng Markdown (in đậm, danh sách bullet, khối code) để câu trả lời và câu hỏi rõ ràng, mạch lạc. Tuyệt đối KHÔNG bọc toàn bộ câu trả lời trong cặp dấu ```markdown ... ```."
     )
 
     if req.context and req.context.strip():
@@ -131,6 +131,12 @@ async def mock_ai_chat(
             max_tokens=2048,
         )
         reply = res.get("content", "").strip()
+        # Bóc tách nếu model tự ý bọc toàn bộ trong ```markdown ... ```
+        import re
+        outer_block = re.match(r"^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$", reply, re.IGNORECASE)
+        if outer_block:
+            reply = outer_block.group(1).strip()
+
         if not reply:
             reply = "Xin chào em. Tôi đã sẵn sàng, hãy bắt đầu buổi bảo vệ với phần trình bày hoặc câu trả lời của em."
         return MockChatResponse(reply=reply)
