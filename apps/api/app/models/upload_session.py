@@ -32,7 +32,7 @@ class UploadSession(Base):
     # UUID string thay vì int để client dễ dùng làm key
     id = Column(String(64), primary_key=True, index=True)
     storage_key = Column(String(256), nullable=False, index=True)
-    s3_upload_id = Column(String(128), nullable=False)  # MinIO S3 multipart upload id
+    s3_upload_id = Column(String(1024), nullable=False)  # S3 multipart upload id (R2 tokens are ~320 chars)
 
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     filename = Column(String(255), nullable=False)

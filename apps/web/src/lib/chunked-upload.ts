@@ -144,6 +144,7 @@ interface ResumeState {
    *  Chỉ resume các session này — part cũ (không verify được nội dung) sẽ
    *  bị loại, tránh mang theo part hỏng đúng-độ-dài-sai-byte vào file ghép. */
   checksummed?: boolean;
+  parts?: { part_number: number; url: string; chunk_size: number }[];
 }
 
 const RESUME_STORAGE_PREFIX = "defendai:chunked-upload:";
@@ -288,6 +289,7 @@ function isPublicMinioUrl(url: string): boolean {
       u.protocol === "https:" &&
       (u.hostname.includes("taildec640.ts.net") ||
         u.hostname.includes("trycloudflare.com") ||
+        u.hostname.includes("r2.cloudflarestorage.com") ||
         u.hostname.includes("cloudflare") ||
         u.hostname.includes("defendai.dev"))
     );
@@ -313,37 +315,71 @@ function getDirectBackendUrl(): string | null {
   return null;
 }
 
-
 /**
- * PUT trực tiếp lên MinIO presigned URL (không qua proxy).
- * QUAN TRỌNG: KHÔNG gửi Content-Type — MinIO SigV2 presign không bao gồm
- * Content-Type, nếu browser tự thêm sẽ bị 403 SignatureDoesNotMatch.
- * Cũng không gửi Authorization hay X-Part-Sha256 (chỉ cần cho proxy path).
+ * PUT trực tiếp lên MinIO / Cloudflare R2 presigned URL (không qua proxy).
+ * Sử dụng XMLHttpRequest để bắt sự kiện xhr.upload.onprogress cho phép hiển thị
+ * thanh tiến trình byte-level mượt mà theo thời gian thực (đặc biệt cho chunk 64MB).
+ * QUAN TRỌNG: KHÔNG gửi Content-Type hay custom headers để tránh lỗi chữ ký S3.
  */
-async function putDirectMinio(
+function putDirectMinio(
   url: string,
   body: Blob,
   partNumber: number,
   signal: AbortSignal,
+  onProgress?: (bytesLoaded: number) => void,
 ): Promise<string> {
-  const res = await fetch(url, {
-    method: "PUT",
-    body,
-    signal,
-    // KHÔNG set headers — browser sẽ không thêm Content-Type nếu ta không
-    // chỉ định, và MinIO SigV2 sẽ match signature.
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      return reject(new DOMException("Upload aborted", "AbortError"));
+    }
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url, true);
+
+    if (onProgress && xhr.upload) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          onProgress(e.loaded);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const etag =
+          xhr.getResponseHeader("ETag") ??
+          xhr.getResponseHeader("etag") ??
+          "";
+        const cleanEtag = etag.replace(/"/g, "").trim();
+        if (!cleanEtag) {
+          reject(new Error(`No ETag in direct response for part ${partNumber}`));
+        } else {
+          resolve(cleanEtag);
+        }
+      } else {
+        reject(
+          new Error(
+            `Direct PUT part ${partNumber} failed: ${xhr.status} ${xhr.statusText}`,
+          ),
+        );
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new TypeError(`Direct PUT part ${partNumber} failed: network error`));
+    };
+
+    const onAbort = () => {
+      xhr.abort();
+      reject(new DOMException("Upload aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+
+    xhr.onloadend = () => {
+      signal.removeEventListener("abort", onAbort);
+    };
+
+    xhr.send(body);
   });
-  if (!res.ok) {
-    throw new Error(
-      `Direct PUT part ${partNumber} failed: ${res.status} ${res.statusText}`,
-    );
-  }
-  const etag = res.headers.get("ETag") ?? res.headers.get("etag") ?? "";
-  const cleanEtag = etag.replace(/"/g, "");
-  if (!cleanEtag) {
-    throw new Error(`No ETag in direct response for part ${partNumber}`);
-  }
-  return cleanEtag;
 }
 
 /**
@@ -393,6 +429,7 @@ async function putChunk(
   partNumber: number,
   signal: AbortSignal,
   uploadId?: string,
+  onProgress?: (bytesLoaded: number) => void,
 ): Promise<string> {
   let lastError: unknown;
 
@@ -420,13 +457,22 @@ async function putChunk(
         }
       }
 
-      // ── Strategy 2: Direct MinIO (public presigned URL) ──
+      // ── Strategy 2: Direct MinIO / Cloudflare R2 (public presigned URL) ──
       const canTryDirect = uploadId && isPublicMinioUrl(url);
 
       if (canTryDirect) {
         try {
-          return await putDirectMinio(url, body, partNumber, signal);
+          return await putDirectMinio(url, body, partNumber, signal, onProgress);
         } catch (directErr) {
+          // Nếu chunk > 4.5 MB, Vercel Serverless proxy CHẮC CHẮN bị lỗi 413 Payload Too Large.
+          // Tuyệt đối không fallback sang proxy path, mà để vòng retry thử lại Direct R2/MinIO.
+          if (body.size > 4 * 1024 * 1024) {
+            console.warn(
+              `Direct PUT part ${partNumber} failed (${(body.size / (1024 * 1024)).toFixed(1)} MB), retrying direct upload:`,
+              directErr,
+            );
+            throw directErr;
+          }
           console.warn(
             `Direct PUT part ${partNumber} failed, falling back to proxy:`,
             directErr,
@@ -435,6 +481,11 @@ async function putChunk(
       }
 
       // ── Strategy 3: Proxy path (BFF → FastAPI → MinIO) ──
+      if (body.size > 4.5 * 1024 * 1024) {
+        throw new Error(
+          `Chunk ${(body.size / (1024 * 1024)).toFixed(1)} MB exceeds Vercel 4.5MB limit. Direct R2/MinIO upload required.`,
+        );
+      }
       const proxyUrl = uploadId
         ? `/api/documents/multipart/${uploadId}/part/${partNumber}`
         : url;
@@ -560,6 +611,7 @@ export class ChunkedUploader {
         chunkSize: init.chunk_size,
         partsExpected: init.parts_expected,
         checksummed: true,
+        parts: init.parts,
       });
       options.onProgress(0, file.size);
     }
@@ -616,13 +668,24 @@ export class ChunkedUploader {
       return false;
     }
 
+    // Với file lớn (>4.5MB), session resume BẮT BUỘC phải có danh sách presigned URLs
+    // để đẩy trực tiếp lên Cloudflare R2 / MinIO (vì Vercel Serverless proxy chặn payload > 4.5MB).
+    // Nếu session cũ bị thiếu URLs, huỷ để init mới lấy presigned URLs hợp lệ.
+    if (saved.parts && saved.parts.length === saved.partsExpected && saved.parts.every((p) => p.url)) {
+      this.parts = saved.parts;
+    } else if (file.size <= 4 * 1024 * 1024) {
+      this.parts = buildPartsArray(
+        file.size,
+        saved.chunkSize,
+        saved.partsExpected,
+      );
+    } else {
+      clearResumeState(file);
+      return false;
+    }
+
     this.uploadId = saved.uploadId;
     this.chunkSize = saved.chunkSize;
-    this.parts = buildPartsArray(
-      file.size,
-      saved.chunkSize,
-      saved.partsExpected,
-    );
 
     // Nạp ETag của các part đã có trên MinIO → đánh dấu đã upload.
     // CHỈ chấp nhận part có Size khớp đúng kích thước dự kiến — nếu part bị
@@ -656,6 +719,16 @@ export class ChunkedUploader {
     const { concurrency } = this.options;
     const total = this.parts.length;
     let partIndex = 0;
+    const activeBytesMap = new Map<number, number>();
+
+    const emitProgress = () => {
+      let activeSum = 0;
+      for (const loaded of activeBytesMap.values()) {
+        activeSum += loaded;
+      }
+      const totalLoaded = Math.min(this.bytesUploaded + activeSum, this.file.size);
+      this.options.onProgress(totalLoaded, this.file.size);
+    };
 
     const worker = async () => {
       while (partIndex < total) {
@@ -673,10 +746,23 @@ export class ChunkedUploader {
         const end = Math.min(start + part.chunk_size, this.file.size);
         const blob = this.file.slice(start, end);
 
-        const etag = await putChunk(part.url, blob, part.part_number, signal, this.uploadId);
+        const onPartProgress = (loaded: number) => {
+          activeBytesMap.set(part.part_number, loaded);
+          emitProgress();
+        };
+
+        const etag = await putChunk(
+          part.url,
+          blob,
+          part.part_number,
+          signal,
+          this.uploadId,
+          onPartProgress,
+        );
         this.etags.set(part.part_number, etag);
+        activeBytesMap.delete(part.part_number);
         this.bytesUploaded += end - start;
-        this.options.onProgress(this.bytesUploaded, this.file.size);
+        emitProgress();
         this.options.onPartUploaded(part.part_number, total);
       }
     };

@@ -1,6 +1,19 @@
+function getApiBaseUrl(): string {
+  let url = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  if (
+    typeof window !== "undefined" &&
+    window.location.protocol === "https:" &&
+    url.startsWith("http://") &&
+    !url.includes("localhost") &&
+    !url.includes("127.0.0.1")
+  ) {
+    url = url.replace(/^http:\/\//, "https://");
+  }
+  return url;
+}
+
 /** API base URL — thay bằng env var khi deploy. */
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+export const API_BASE_URL = getApiBaseUrl();
 
 /** Supported document file extensions. */
 export const ACCEPTED_DOC_EXTENSIONS = [".pdf", ".docx", ".pptx"] as const;
