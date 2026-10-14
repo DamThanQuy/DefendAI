@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $envFile = 'F:\DefendAI\.env'
-$newVal  = 'https://tkm1.taildec640.ts.net:8443'
+$newVal  = 'https://international-reproduce-reuters-psi.trycloudflare.com'
 
 Write-Output "=== backup .env ==="
 Copy-Item $envFile "$envFile.bak-minio-$(Get-Date -Format yyyyMMddHHmmss)" -Force

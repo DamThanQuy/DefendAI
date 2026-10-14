@@ -47,8 +47,9 @@ export function UploadZone({
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [speed, setSpeed] = useState(0);
   const [eta, setEta] = useState<number | null>(null);
-  const lastSampleRef = useRef<{ ts: number; loaded: number } | null>(null);
-  const speedSamplesRef = useRef<number[]>([]);
+  const startTimeRef = useRef<number>(0);
+  const startLoadedRef = useRef<number>(0);
+  const historyRef = useRef<Array<{ ts: number; loaded: number }>>([]);
 
   const emitProgress = (next: Partial<Parameters<NonNullable<Props["onProgress"]>>[0]>) => {
     onProgress?.({
@@ -66,34 +67,58 @@ export function UploadZone({
 
   const updateProgress = (loaded: number, total: number) => {
     const now = Date.now();
-    const last = lastSampleRef.current;
-    if (last && now > last.ts) {
-      const dtSec = (now - last.ts) / 1000;
-      const dBytes = loaded - last.loaded;
-      if (dtSec > 0 && dBytes >= 0) {
-        const instSpeed = dBytes / dtSec; // bytes/sec
-        // EMA để mượt: alpha 0.4
-        const samples = speedSamplesRef.current;
-        samples.push(instSpeed);
-        if (samples.length > 5) samples.shift();
-        const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
-        setSpeed(avg);
-        const remaining = Math.max(0, total - loaded);
-        setEta(avg > 0 ? remaining / avg : null);
+    if (!startTimeRef.current) {
+      startTimeRef.current = now;
+      startLoadedRef.current = loaded;
+    }
+
+    // Lưu vào lịch sử cửa sổ trượt (rolling window 8-10 giây)
+    const history = historyRef.current;
+    history.push({ ts: now, loaded });
+    while (history.length > 2 && now - history[0].ts > 8000) {
+      history.shift();
+    }
+
+    let calculatedSpeed = 0;
+    const windowStart = history[0];
+    const dtWindowSec = (now - windowStart.ts) / 1000;
+    const dBytesWindow = loaded - windowStart.loaded;
+
+    if (dtWindowSec >= 1.5 && dBytesWindow > 0) {
+      calculatedSpeed = dBytesWindow / dtWindowSec;
+    } else {
+      const totalElapsedSec = (now - startTimeRef.current) / 1000;
+      const totalBytesUploaded = loaded - startLoadedRef.current;
+      if (totalElapsedSec >= 1.0 && totalBytesUploaded > 0) {
+        calculatedSpeed = totalBytesUploaded / totalElapsedSec;
       }
     }
-    lastSampleRef.current = { ts: now, loaded };
+
+    if (calculatedSpeed > 0) {
+      setSpeed(calculatedSpeed);
+      const remaining = Math.max(0, total - loaded);
+      setEta(remaining / calculatedSpeed);
+    }
+
     const pct = Math.round((loaded / total) * 100);
     setProgress(pct);
     setStatusText(
       `Đang tải tài liệu lên... ${(loaded / 1024 / 1024).toFixed(1)}/${(total / 1024 / 1024).toFixed(1)} MB`,
     );
-    emitProgress({ progress: pct, loaded, total, speed, eta, status: "uploading" });
+    emitProgress({
+      progress: pct,
+      loaded,
+      total,
+      speed: calculatedSpeed || speed,
+      eta,
+      status: "uploading",
+    });
   };
 
   const resetProgressTracking = () => {
-    lastSampleRef.current = null;
-    speedSamplesRef.current = [];
+    startTimeRef.current = 0;
+    startLoadedRef.current = 0;
+    historyRef.current = [];
     setSpeed(0);
     setEta(null);
     setProgress(0);
@@ -245,8 +270,9 @@ export function UploadZone({
     setError("");
     setSpeed(0);
     setEta(null);
-    speedSamplesRef.current = [];
-    lastSampleRef.current = null;
+    startTimeRef.current = 0;
+    startLoadedRef.current = 0;
+    historyRef.current = [];
   };
 
   return (

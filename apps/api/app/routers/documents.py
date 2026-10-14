@@ -347,8 +347,18 @@ MAX_PARTS = 10000
 
 
 def _init_session_chunk_size(size: int) -> int:
-    """Compute chunk size: ensure parts count <= MAX_PARTS (10000)."""
-    chunk = DEFAULT_CHUNK_SIZE
+    """Compute optimal chunk size:
+    - >= 1 GB: 64 MB (tối ưu hóa cho file lớn 1-5GB, giảm overhead round-trip)
+    - >= 200 MB: 32 MB
+    - < 200 MB: 8 MB
+    """
+    if size >= 1024 * 1024 * 1024:
+        chunk = 64 * 1024 * 1024
+    elif size >= 200 * 1024 * 1024:
+        chunk = 32 * 1024 * 1024
+    else:
+        chunk = DEFAULT_CHUNK_SIZE
+
     while math.ceil(size / chunk) > MAX_PARTS and chunk < size:
         chunk *= 2
     return max(chunk, MIN_CHUNK_SIZE)

@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$base = 'https://defend-ai.vercel.app'
+$base = 'https://jewel-bubble-watch-yields.trycloudflare.com'
 
 $login = Invoke-RestMethod -Uri "$base/api/auth/login" -Method Post -ContentType 'application/json' `
   -Body '{"email":"student@defendai.dev","password":"DefendAI@123"}' -TimeoutSec 60
@@ -30,7 +30,8 @@ try {
   Write-Output ("DIRECT PUT FAILED after $([Math]::Round($sw.Elapsed.TotalSeconds,1))s : $($_.Exception.Message)")
   if ($_.Exception.Response) {
     $sr = New-Object IO.StreamReader($_.Exception.Response.GetResponseStream())
-    Write-Output ("body: " + $sr.ReadToEnd().Substring(0,400))
+    $bodyText = $sr.ReadToEnd()
+    Write-Output ("body: " + $bodyText)
   }
 }
 

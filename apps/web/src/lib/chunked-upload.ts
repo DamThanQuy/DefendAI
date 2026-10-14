@@ -10,7 +10,7 @@
  */
 
 const DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024; // 8 MB — khớp với BE default
-const DEFAULT_CONCURRENCY = 3;
+const DEFAULT_CONCURRENCY = 6;
 // Retry mỗi part: tăng lên 8 lần với backoff luỹ thừa chặn ở 30s để chịu được
 // các lần rớt mạng/DNS chập chờn ngắn khi upload file lớn (vài GB) kéo dài.
 const MAX_RETRIES = 8;
@@ -284,7 +284,13 @@ async function waitForOnline(
 function isPublicMinioUrl(url: string): boolean {
   try {
     const u = new URL(url);
-    return u.protocol === "https:" && u.hostname.includes("taildec640.ts.net");
+    return (
+      u.protocol === "https:" &&
+      (u.hostname.includes("taildec640.ts.net") ||
+        u.hostname.includes("trycloudflare.com") ||
+        u.hostname.includes("cloudflare") ||
+        u.hostname.includes("defendai.dev"))
+    );
   } catch {
     return false;
   }
@@ -300,9 +306,13 @@ function getDirectBackendUrl(): string | null {
   if (typeof window === "undefined") return null;
   // Đọc từ meta tag hoặc env variable
   const meta = document.querySelector('meta[name="backend-url"]');
-  if (meta) return meta.getAttribute("content");
+  if (meta) {
+    const val = meta.getAttribute("content");
+    if (val && !val.includes("trycloudflare.com")) return val;
+  }
   return null;
 }
+
 
 /**
  * PUT trực tiếp lên MinIO presigned URL (không qua proxy).
