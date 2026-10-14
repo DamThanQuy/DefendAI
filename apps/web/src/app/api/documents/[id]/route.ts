@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { backendUrl, ngrokHeaders } from '@/lib/upstream';
+import { backendUrl, fetchUpstream, ngrokHeaders } from '@/lib/upstream';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +9,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     const headers: Record<string, string> = { ...ngrokHeaders() };
     if (authHeader) headers['Authorization'] = authHeader;
 
-    const res = await fetch(`${backendUrl()}/api/documents/${params.id}`, {
+    const res = await fetchUpstream(`${backendUrl()}/api/documents/${params.id}`, {
       method: 'DELETE',
       headers,
       cache: 'no-store',
@@ -23,6 +23,16 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     }
 
     const data = await res.text();
+
+    // Nếu backend trả về 400 "đã nằm trong thùng rác" do retry sau khi đã commit,
+    // coi như xoá thành công để người dùng không gặp thông báo lỗi giả.
+    if (res.status === 400 && data.includes('thùng rác')) {
+      return new Response(null, {
+        status: 204,
+        headers: { 'cache-control': 'no-store, must-revalidate' },
+      });
+    }
+
     return new Response(data, {
       status: res.status,
       headers: {
@@ -33,7 +43,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
   } catch (error: any) {
     return NextResponse.json(
       { error: 'Document delete proxy failed', message: error.message },
-      { status: 500 },
+      { status: 502 },
     );
   }
 }

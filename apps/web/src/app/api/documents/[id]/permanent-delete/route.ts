@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { backendUrl, ngrokHeaders } from '@/lib/upstream';
+import { backendUrl, fetchUpstream, ngrokHeaders } from '@/lib/upstream';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +9,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     const headers: Record<string, string> = { ...ngrokHeaders() };
     if (authHeader) headers['Authorization'] = authHeader;
 
-    const res = await fetch(`${backendUrl()}/api/documents/${params.id}/permanent-delete`, {
+    const res = await fetchUpstream(`${backendUrl()}/api/documents/${params.id}/permanent-delete`, {
       method: 'DELETE',
       headers,
     });
@@ -19,6 +19,12 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     }
 
     const data = await res.text();
+
+    // Nếu backend trả về 404 (document not found), có thể do retry sau khi đã xoá thành công
+    if (res.status === 404) {
+      return new Response(null, { status: 204 });
+    }
+
     return new Response(data, {
       status: res.status,
       headers: { 'content-type': res.headers.get('content-type') || 'application/json' },
@@ -26,7 +32,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
   } catch (error: any) {
     return NextResponse.json(
       { error: 'Permanent delete proxy failed', message: error.message },
-      { status: 500 },
+      { status: 502 },
     );
   }
 }

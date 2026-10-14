@@ -128,11 +128,26 @@ export default function TrashPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!r.ok) {
+        if (r.status >= 500) {
+          // Thử refresh thùng rác xem item đã được khôi phục thành công chưa
+          try {
+            await fetchTrash();
+            setError("");
+            return;
+          } catch {
+            // ignore
+          }
+        }
         const t = await r.text();
         throw new Error(t || `HTTP ${r.status}`);
       }
       await fetchTrash();
     } catch (e: any) {
+      try {
+        await fetchTrash();
+      } catch {
+        // ignore
+      }
       setError(`Khôi phục thất bại: ${e.message || e}`);
     } finally {
       setRestoringId(null);
@@ -152,11 +167,26 @@ export default function TrashPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!r.ok) {
+        if (r.status >= 500) {
+          // Thử refresh thùng rác xem item đã bị xoá vĩnh viễn khỏi DB chưa
+          try {
+            await fetchTrash();
+            setError("");
+            return;
+          } catch {
+            // ignore
+          }
+        }
         const t = await r.text();
         throw new Error(t || `HTTP ${r.status}`);
       }
       await fetchTrash();
     } catch (e: any) {
+      try {
+        await fetchTrash();
+      } catch {
+        // ignore
+      }
       setError(`Xóa vĩnh viễn thất bại: ${e.message || e}`);
     } finally {
       setDeletingId(null);
