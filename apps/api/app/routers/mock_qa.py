@@ -141,13 +141,16 @@ async def mock_ai_chat(
         "ĐỐI TƯỢNG ĐANG THAM GIA: Sinh viên thực hiện buổi bảo vệ thử (Mock Graduation Defense).\n\n"
         "CÁC QUY TẮC BẮT BUỘC (TUYỆT ĐỐI TUÂN THỦ):\n"
         "1. NGÔN NGỮ: BẮT BUỘC 100% SỬ DỤNG TIẾNG VIỆT CHUẨN MỰC. Tuyệt đối KHÔNG sử dụng tiếng Tây Ban Nha, tiếng Pháp, hay bất kỳ ngoại ngữ nào khác (chỉ dùng tiếng Anh cho thuật ngữ kỹ thuật CNTT thông dụng).\n"
-        "2. VAI TRÒ BẤT BIẾN: Bạn luôn luôn là GIÁM KHẢO PHẢN BIỆN. Tuyệt đối KHÔNG BAO GIỜ đóng vai sinh viên, không bao giờ tự bịa ra bài thuyết trình của sinh viên (như 'Presentación del Estudiante' hay 'Tôi tên là sinh viên...'). Bạn chỉ đánh giá, nhận xét và đặt câu hỏi chất vấn sinh viên.\n"
-        "3. KHI SINH VIÊN CHÀO HỎI HOẶC CHƯA NÊU ĐỀ TÀI: Nếu sinh viên chỉ nói ngắn như 'Xin chào', 'Chào thầy', 'Dạ em chào hội đồng' hoặc chưa cung cấp thông tin đề tài, bạn hãy chào lại ngắn gọn và yêu cầu sinh viên bắt đầu phần trình bày tổng quan đồ án (Tên đề tài, vấn đề giải quyết, kiến trúc hệ thống, công nghệ sử dụng).\n"
+        "2. VAI TRÒ BẤT BIẾN: Bạn luôn luôn là GIÁM KHẢO PHẢN BIỆN. Tuyệt đối KHÔNG BAO GIỜ đóng vai sinh viên, không bao giờ tự bịa ra bài thuyết trình của sinh viên. Bạn chỉ đánh giá, nhận xét và đặt câu hỏi chất vấn sinh viên.\n"
+        "3. ĐẶC BIỆT KHI SINH VIÊN DÙNG NHẬN DIỆN GIỌNG NÓI (SPEECH-TO-TEXT):\n"
+        "   - Văn bản do sinh viên nói qua Micro có thể bị sai chính tả âm vị, viết liền không dấu câu, hoặc nhận diện sai tên công nghệ (ví dụ: 'detena' -> DefendAI, 'fastsabi' / 'fast api bất' -> FastAPI, 'next GS' -> Next.js, 'Phone' -> Frontend, 'kính chúc' -> kiến trúc, 'bài toàn' -> bài toán, 'bờ tài' -> đề tài, 'làm lùm' -> luồng xử lý...).\n"
+        "   - BẠN BẮT BUỘC PHẢI THẤU HIỂU Ý ĐỒ, chủ động suy luận ngữ cảnh kỹ thuật mà sinh viên muốn diễn đạt. TUYỆT ĐỐI KHÔNG lờ đi, KHÔNG xem như sinh viên chưa nói gì, và TUYỆT ĐỐI KHÔNG lặp lại câu chào mở đầu!\n"
         "4. KHI SINH VIÊN ĐÃ TRÌNH BÀY HOẶC TRẢ LỜI CÂU HỎI:\n"
-        "   - Nhận xét ngắn gọn: Nêu rõ điểm hợp lý và điểm còn thiếu sót/chưa thuyết phục.\n"
+        "   - Nhận xét ngắn gọn: Tóm tắt điểm hợp lý và điểm còn thiếu sót/chưa thuyết phục (nhắc khéo nếu có thuật ngữ hoặc số liệu chưa rõ ràng).\n"
         "   - Đặt 1-2 câu hỏi phản biện chuyên sâu: Hỏi xoáy vào kiến trúc phần mềm, lựa chọn công nghệ, thiết kế CSDL, giải thuật, luồng ngoại lệ (edge cases), bảo mật, tính mở rộng và khả năng triển khai thực tế.\n"
-        "5. BÁM SÁT TÀI LIỆU: Nếu có ngữ cảnh tài liệu đồ án đính kèm bên dưới, bạn phải bám sát nội dung đó để đặt câu hỏi cụ thể, đúng trọng tâm đề tài.\n"
-        "6. ĐỊNH DẠNG: Trả lời bằng Markdown rõ ràng, dùng in đậm và danh sách gạch đầu dòng mạch lạc. Tuyệt đối KHÔNG bọc toàn bộ câu trả lời trong cặp dấu ```markdown ... ```."
+        "5. KHI SINH VIÊN THỰC SỰ CHƯA NÊU ĐỀ TÀI: CHỈ khi sinh viên CHỈ chào hỏi 1-2 từ rất ngắn (như 'Chào thầy', 'Dạ em chào hội đồng') mà KHÔNG có bất kỳ thông tin nào khác, bạn mới chào lại và yêu cầu sinh viên bắt đầu phần trình bày tổng quan đồ án.\n"
+        "6. BÁM SÁT TÀI LIỆU: Nếu có ngữ cảnh tài liệu đồ án đính kèm bên dưới, bạn phải bám sát nội dung đó để đặt câu hỏi cụ thể, đúng trọng tâm đề tài.\n"
+        "7. ĐỊNH DẠNG: Trả lời bằng Markdown rõ ràng, dùng in đậm và danh sách gạch đầu dòng mạch lạc. Tuyệt đối KHÔNG bọc toàn bộ câu trả lời trong cặp dấu ```markdown ... ```."
     )
 
     if req.context and req.context.strip():
@@ -157,9 +160,20 @@ async def mock_ai_chat(
     conversation_turns = []
     for msg in req.messages:
         role = "user" if msg.role == "user" else "assistant"
-        chat_messages.append({"role": role, "content": msg.content})
+        # Gộp các tin nhắn cùng role liên tiếp nếu có để chuẩn hóa luồng LLM
+        if chat_messages and chat_messages[-1]["role"] == role:
+            chat_messages[-1]["content"] += "\n\n" + msg.content
+        else:
+            chat_messages.append({"role": role, "content": msg.content})
+
         role_label = "Sinh viên" if msg.role == "user" else "Giám khảo AI"
         conversation_turns.append(f"{role_label}: {msg.content}")
+
+    # Đảm bảo tin cuối cùng gửi cho LLM luôn là từ phía sinh viên (user)
+    if not chat_messages or chat_messages[-1]["role"] != "user":
+        default_user_turn = "Dạ em đã sẵn sàng, xin mời thầy/cô trong hội đồng bắt đầu đặt câu hỏi hoặc đưa ra nhận xét phản biện ạ."
+        chat_messages.append({"role": "user", "content": default_user_turn})
+        conversation_turns.append(f"Sinh viên: {default_user_turn}")
 
     full_prompt = "\n\n".join(conversation_turns)
     full_prompt += "\n\nGiám khảo AI:"
@@ -181,7 +195,10 @@ async def mock_ai_chat(
             reply = outer_block.group(1).strip()
 
         if not reply:
-            reply = "Xin chào em. Tôi đã sẵn sàng, hãy bắt đầu buổi bảo vệ với phần trình bày đề tài của em."
+            reply = (
+                "Tôi đã ghi nhận nội dung trình bày của em. Tuy nhiên để đánh giá chính xác hơn, "
+                "em hãy làm rõ thêm về kiến trúc tổng thể, luồng xử lý dữ liệu chính và cách thức tích hợp các công nghệ đã chọn nhé."
+            )
         return MockChatResponse(reply=reply)
     except Exception as e:
         logger.exception("Mock AI chat failed")
