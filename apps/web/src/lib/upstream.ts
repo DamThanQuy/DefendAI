@@ -44,6 +44,35 @@ export function ngrokHeaders(): Record<string, string> {
   return {};
 }
 
+/**
+ * Thực hiện fetch sang upstream với cơ chế auto-retry cho các lỗi mạng
+ * (ECONNRESET, TLS socket reset, fetch failed) hoặc 502/503/504 từ tunnel proxy.
+ */
+export async function fetchUpstream(
+  url: string,
+  init?: RequestInit,
+  maxRetries: number = 2,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, init);
+      if (attempt < maxRetries && [502, 503, 504].includes(res.status)) {
+        await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
+        continue;
+      }
+      return res;
+    } catch (err: any) {
+      lastError = err;
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
+        continue;
+      }
+    }
+  }
+  throw lastError;
+}
+
 export function authOnlyHeaders(
   request: Request,
   extra: Record<string, string> = {},

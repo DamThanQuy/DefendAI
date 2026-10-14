@@ -197,11 +197,36 @@ export default function DocumentsPage() {
         setError("Tài liệu đã có đánh giá hoàn thành, không thể xoá. Liên hệ mentor.");
       } else if (r.status === 403) {
         setError("Bạn không có quyền xoá tài liệu này.");
+      } else if (r.status >= 500) {
+        // Nếu gặp lỗi mạng/proxy 502/504, kiểm tra xem backend đã thực sự commit soft-delete chưa
+        try {
+          const checkRes = await fetch("/api/documents", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (checkRes.ok) {
+            const list: DocumentsResponse = await checkRes.json();
+            const stillThere = (list.items ?? []).some((item) => item.id === doc.id);
+            if (!stillThere) {
+              setDocs(list.items ?? []);
+              setDeleteTarget(null);
+              setError("");
+              return;
+            }
+          }
+        } catch {
+          // ignore check error
+        }
+        setError(backendMsg || `Xoá thất bại: HTTP ${r.status}`);
       } else {
         setError(backendMsg || `Xoá thất bại: HTTP ${r.status}`);
       }
       setDeleteTarget(null);
     } catch (e: any) {
+      try {
+        await fetchDocs();
+      } catch {
+        // ignore
+      }
       setError(`Xoá thất bại: ${e.message}`);
     } finally {
       setDeletingId(null);
