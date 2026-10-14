@@ -521,7 +521,7 @@ export default function MockRoomAI() {
 
     const intro = context
       ? `Chào em. Tôi là **giám khảo** phụ trách buổi bảo vệ hôm nay. Tôi đã xem tài liệu "${docName}" của em:\n\n> ${extractContextSummary(context)}\n\nBuổi chất vấn bắt đầu ngay — em hãy sẵn sàng trả lời câu hỏi đầu tiên.`
-      : `Chào em. Tôi là **giám khảo** phụ trách buổi bảo vệ hôm nay.\n\nEm hãy giới thiệu ngắn về đồ án của mình — tôi sẽ chất vấn trực tiếp về dự án.`;
+      : `Chào em. Tôi là **giám khảo** phụ trách buổi bảo vệ hôm nay.\n\nEm hãy bắt đầu bằng việc **giới thiệu tổng quan về đồ án** của mình (Tên đề tài, vấn đề cần giải quyết, kiến trúc hệ thống và công nghệ sử dụng). Sau đó, tôi sẽ đặt câu hỏi phản biện trực tiếp. Em có thể bắt đầu.`;
 
     const introMsg: MockMessage = {
       id: Date.now(),
@@ -530,18 +530,17 @@ export default function MockRoomAI() {
       time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
     };
     setMessages([introMsg]);
-    // Đồng bộ stateRef NGAY — askMentor bên dưới đọc từ đây, còn setState mới
-    // có hiệu lực sau lần render kế tiếp.
     stateRef.current = { messages: [introMsg], context };
 
-    // Giám khảo tự mở lời bằng câu hỏi chất vấn đầu tiên (lượt mồi ẩn,
-    // không hiển thị bong bóng tin nhắn của sinh viên).
-    void askMentorRef.current(
-      context
-        ? "(Buổi bảo vệ bắt đầu. Em vừa ngồi xuống và sẵn sàng. Hãy mở đầu với đúng vai giám khảo: chào ngắn, vào thẳng vấn đề và đặt CÂU HỎI CHẤT VẤN ĐẦU TIÊN về đồ án trong tài liệu — cụ thể, không chung chung, kết thúc bằng câu hỏi.)"
-        : "(Buổi bảo vệ bắt đầu, chưa có tài liệu đính kèm. Hãy mở đầu với đúng vai giám khảo: yêu cầu sinh viên giới thiệu đồ án trong 2 phút, rồi đặt ngay câu hỏi chất vấn đầu tiên.)",
-      { hidden: true }
-    );
+    // Nếu CÓ TÀI LIỆU: Giám khảo AI chủ động đọc tài liệu và đặt câu hỏi mở đầu cụ thể về tài liệu đó
+    // Nếu KHÔNG CÓ TÀI LIỆU: Lời chào introMsg ở trên đã nêu rõ yêu cầu sinh viên giới thiệu đề tài,
+    // không gọi thêm lượt mồi ẩn để tránh sinh 2 câu chào trùng lặp liên tiếp.
+    if (context) {
+      void askMentorRef.current(
+        "(Buổi bảo vệ bắt đầu. Em vừa ngồi xuống và sẵn sàng. Hãy mở đầu với đúng vai giám khảo: chào ngắn, vào thẳng vấn đề và đặt CÂU HỎI CHẤT VẤN ĐẦU TIÊN về đồ án trong tài liệu — cụ thể, không chung chung, kết thúc bằng câu hỏi.)",
+        { hidden: true }
+      );
+    }
   }, [selectedDocId, studentDocs, uploadedFile, loadDocContext]);
 
   // ── Gọi Mentor AI (backend /api/mock-qa/chat) ──────────
@@ -550,19 +549,18 @@ export default function MockRoomAI() {
   const askMentor = useCallback(
     async (extraTurn?: string, opts?: { hidden?: boolean }) => {
       setIsTyping(true);
-      // hidden: gửi extraTurn xuống backend nhưng không hiển thị bong bóng sinh viên
       const showTurn = !!extraTurn && !opts?.hidden;
       const token = getToken();
       if (!token) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now(),
-            role: "mentor",
-            content: "⚠️ Bạn chưa đăng nhập nên Giám khảo AI không thể trả lời. Vui lòng đăng nhập lại.",
-            time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
-          },
-        ]);
+        const errMsg: MockMessage = {
+          id: Date.now(),
+          role: "mentor",
+          content: "⚠️ Bạn chưa đăng nhập nên Giám khảo AI không thể trả lời. Vui lòng đăng nhập lại.",
+          time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+        };
+        const next = [...stateRef.current.messages, errMsg];
+        stateRef.current = { ...stateRef.current, messages: next };
+        setMessages(next);
         setIsTyping(false);
         return;
       }
@@ -571,7 +569,12 @@ export default function MockRoomAI() {
         role: m.role === "user" ? ("user" as const) : ("assistant" as const),
         content: m.content,
       }));
-      const msgs = extraTurn ? [...history, { role: "user" as const, content: extraTurn }] : history;
+
+      // Đảm bảo tin nhắn mới nhất của sinh viên luôn có trong payload gửi cho AI
+      const lastHistory = history[history.length - 1];
+      const msgs = (extraTurn && lastHistory?.content !== extraTurn)
+        ? [...history, { role: "user" as const, content: extraTurn }]
+        : history;
 
       try {
         const res = await fetch("/api/mock-qa/chat", {
@@ -586,43 +589,43 @@ export default function MockRoomAI() {
         if (!res.ok) {
           throw new Error(data.detail || data.message || data.error || "AI không phản hồi");
         }
-        setMessages((prev) => {
-          const next = [...prev];
-          if (showTurn) {
-            next.push({
-              id: Date.now(),
-              role: "user",
-              content: extraTurn!,
-              time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
-            });
-          }
+
+        const next = [...stateRef.current.messages];
+        if (showTurn && next[next.length - 1]?.content !== extraTurn) {
           next.push({
-            id: Date.now() + 1,
-            role: "mentor",
-            content: data.reply || "(AI trả lời rỗng)",
+            id: Date.now(),
+            role: "user",
+            content: extraTurn!,
             time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
           });
-          return next;
+        }
+        next.push({
+          id: Date.now() + 1,
+          role: "mentor",
+          content: data.reply || "(AI trả lời rỗng)",
+          time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
         });
+
+        stateRef.current = { ...stateRef.current, messages: next };
+        setMessages(next);
       } catch (err: any) {
-        setMessages((prev) => {
-          const next = [...prev];
-          if (showTurn) {
-            next.push({
-              id: Date.now(),
-              role: "user",
-              content: extraTurn!,
-              time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
-            });
-          }
+        const next = [...stateRef.current.messages];
+        if (showTurn && next[next.length - 1]?.content !== extraTurn) {
           next.push({
-            id: Date.now() + 1,
-            role: "mentor",
-            content: `⚠️ **Không thể kết nối Giám khảo AI**\n\n${err?.message || "Lỗi không xác định"}. Vui lòng thử lại.`,
+            id: Date.now(),
+            role: "user",
+            content: extraTurn!,
             time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
           });
-          return next;
+        }
+        next.push({
+          id: Date.now() + 1,
+          role: "mentor",
+          content: `⚠️ **Không thể kết nối Giám khảo AI**\n\n${err?.message || "Lỗi không xác định"}. Vui lòng thử lại.`,
+          time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
         });
+        stateRef.current = { ...stateRef.current, messages: next };
+        setMessages(next);
       } finally {
         setIsTyping(false);
       }
@@ -633,10 +636,36 @@ export default function MockRoomAI() {
   const askMentorRef = useRef(askMentor);
   askMentorRef.current = askMentor;
 
+  // ── STT Controls ───────────────────────────────────────
+  const startSTT = useCallback(() => {
+    if (!recognitionRef.current) return;
+    isIntentionalStopRef.current = false;
+    try {
+      recognitionRef.current.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Failed to start STT", err);
+    }
+  }, []);
+
+  const stopSTT = useCallback(() => {
+    if (recognitionRef.current) {
+      isIntentionalStopRef.current = true;
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+    }
+    setIsRecording(false);
+  }, []);
+
   // ── Gửi tin nhắn ───────────────────────────────────────
-  const sendMessage = useCallback(() => {
-    const trimmed = input.trim();
+  const sendMessage = useCallback((overrideText?: string) => {
+    const trimmed = (overrideText ?? input).trim();
     if (!trimmed || isTyping) return;
+
+    if (isRecording) {
+      stopSTT();
+    }
 
     const userMsg: MockMessage = {
       id: Date.now(),
@@ -645,16 +674,16 @@ export default function MockRoomAI() {
       time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
     };
     // Cập nhật stateRef NGAY (đồng bộ) trước khi gọi askMentor
-    // vì setMessages updater chạy lazily khi React render, không phải ngay
+    const next = [...stateRef.current.messages, userMsg];
     stateRef.current = {
       ...stateRef.current,
-      messages: [...stateRef.current.messages, userMsg],
+      messages: next,
     };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages(next);
     setInput("");
     setIsTyping(true);
-    void askMentor();
-  }, [input, isTyping, askMentor]);
+    void askMentor(trimmed);
+  }, [input, isTyping, isRecording, askMentor, stopSTT]);
 
   // ── Quick action ───────────────────────────────────────
   const handleQuickAction = (prompt: string) => {
@@ -699,53 +728,23 @@ export default function MockRoomAI() {
     }
   };
 
-  // ── STT ────────────────────────────────────────────────
-  const startSTT = () => {
-    if (!recognitionRef.current) return;
-    isIntentionalStopRef.current = false;
-    try {
-      recognitionRef.current.start();
-      setIsRecording(true);
-    } catch (err) {
-      console.error("Failed to start STT", err);
-    }
-  };
-
-  const stopSTT = () => {
-    if (recognitionRef.current) {
-      isIntentionalStopRef.current = true;
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {}
-    }
-    setIsRecording(false);
-  };
-
-  // Speech recognition setup
+  // Speech recognition setup — nhận diện giọng nói và điền trực tiếp vào ô nhập liệu
   useEffect(() => {
     if (typeof window !== "undefined" && ("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
-      recognition.interimResults = false;
+      recognition.interimResults = true;
       recognition.lang = "vi-VN";
 
-      recognition.onresult = async (event: any) => {
-        const transcript = event.results[event.results.length - 1][0].transcript.trim();
-        if (transcript) {
-          const userMsg: MockMessage = {
-            id: Date.now(),
-            role: "user",
-            content: transcript,
-            time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
-          };
-          setMessages((prev) => {
-            const next = [...prev, userMsg];
-            stateRef.current = { ...stateRef.current, messages: next };
-            return next;
-          });
-          setIsTyping(true);
-          void askMentorRef.current();
+      recognition.onresult = (event: any) => {
+        let fullTranscript = "";
+        for (let i = 0; i < event.results.length; i++) {
+          fullTranscript += event.results[i][0].transcript;
+        }
+        const text = fullTranscript.trim();
+        if (text) {
+          setInput(text);
         }
       };
 
@@ -1286,7 +1285,7 @@ export default function MockRoomAI() {
                       }}
                     />
                     <button
-                      onClick={sendMessage}
+                      onClick={() => sendMessage()}
                       disabled={!input.trim() || isTyping}
                       className="absolute right-1.5 top-1.5 w-8 h-8 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:hover:bg-primary flex items-center justify-center text-primary-foreground transition-colors"
                     >
