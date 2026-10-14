@@ -17,12 +17,16 @@ export const DEFAULT_BACKEND_URL = "http://127.0.0.1:8000";
 const SNIPPET_LIMIT = 300;
 
 export function backendUrl(): string {
-  const raw = (
+  let raw = (
     process.env.BACKEND_URL ||
     process.env.NEXT_PUBLIC_BACKEND_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
     DEFAULT_BACKEND_URL
   ).trim();
+  // Ensure Tailscale Funnel is ALWAYS https:// to prevent mixed-content blocks
+  if (raw.includes("taildec640.ts.net") && raw.startsWith("http://")) {
+    raw = raw.replace(/^http:\/\//, "https://");
+  }
   // Strip trailing slash and trailing /api to ensure `${backendUrl()}/api/...` resolves cleanly
   return raw.replace(/\/api\/?$/, "").replace(/\/+$/, "");
 }
