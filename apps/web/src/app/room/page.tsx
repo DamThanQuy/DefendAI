@@ -58,12 +58,14 @@ type QAMessage = {
   session_id?: string;
 };
 
+import { Suspense } from "react";
+
 // ICE servers công khai (Google STUN). Đủ cho kết nối P2P trong hầu hết mạng.
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
-export default function MockRoomPage() {
+function MockRoomPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const rawMeeting = searchParams.get("meeting");
@@ -1621,5 +1623,19 @@ export default function MockRoomPage() {
       )}
 
     </div>
+  );
+}
+
+export default function MockRoomPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-screen w-full bg-[#0F0F0F] flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-teal-400 animate-spin" />
+        </div>
+      }
+    >
+      <MockRoomPageContent />
+    </Suspense>
   );
 }
