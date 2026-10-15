@@ -19,6 +19,8 @@ import {
   MicOff,
   ScreenShare,
   ScreenShareOff,
+  Video,
+  VideoOff,
   PhoneOff,
   Play,
   Pause,
@@ -109,6 +111,7 @@ export default function MockRoomPage() {
 
   // --- WebRTC state ---
   const [micOn, setMicOn] = useState(false);
+  const [cameraOn, setCameraOn] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [peerConnected, setPeerConnected] = useState(false);
   const [signalStatus, setSignalStatus] = useState<"idle" | "connecting" | "ready" | "peer-left">("idle");
@@ -117,7 +120,7 @@ export default function MockRoomPage() {
   // (Tránh lỗi màn hình đen do tile gốc bị ẩn → ref chuyển sang overlay nhưng thiếu stream)
   useEffect(() => {
     if (expandedTile === null) return;
-    const localStream = localStreamRef.current || screenStreamRef.current;
+    const localStream = screenStreamRef.current || cameraStreamRef.current || localStreamRef.current;
     if (expandedLocalVideoRef.current && localStream) {
       expandedLocalVideoRef.current.srcObject = localStream;
       expandedLocalVideoRef.current.play().catch(() => {});
@@ -127,7 +130,7 @@ export default function MockRoomPage() {
       expandedRemoteVideoRef.current.srcObject = remoteVideoRef.current.srcObject;
       expandedRemoteVideoRef.current.play().catch(() => {});
     }
-  }, [expandedTile, peerConnected, micOn, sharing]);
+  }, [expandedTile, peerConnected, micOn, cameraOn, sharing]);
 
   // --- 3 giai đoạn bảo vệ (countdown) ---
   // Thuyết trình 15p → Chất vấn 10p → Nhận xét 5p
@@ -165,6 +168,7 @@ export default function MockRoomPage() {
   // WebRTC refs
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const signalWsRef = useRef<WebSocket | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -512,6 +516,65 @@ export default function MockRoomPage() {
   };
 
   // ===========================================================================
+  // Camera (webcam)
+  // ===========================================================================
+  const toggleCamera = async () => {
+    if (!cameraOn) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        cameraStreamRef.current = stream;
+        const videoTrack = stream.getVideoTracks()[0];
+
+        // Nếu không đang share screen thì ưu tiên hiện camera trên video local
+        if (!sharing && localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+          localVideoRef.current.muted = true;
+        }
+
+        if (!pcRef.current) await createPeerConnection();
+        const pc = pcRef.current!;
+
+        // Nếu chưa share screen thì gửi video camera qua WebRTC
+        if (!sharing) {
+          const sender = pc.getSenders().find((s) => s.track && s.track.kind === "video");
+          if (sender) {
+            await sender.replaceTrack(videoTrack);
+          } else {
+            pc.addTrack(videoTrack, stream);
+          }
+        }
+
+        videoTrack.onended = () => stopCamera();
+        connectSignaling();
+        setCameraOn(true);
+      } catch (err) {
+        alert("Không thể truy cập camera. Vui lòng cấp quyền.");
+        console.error("Camera access error", err);
+      }
+    } else {
+      stopCamera();
+    }
+  };
+
+  const stopCamera = async () => {
+    cameraStreamRef.current?.getTracks().forEach((t) => t.stop());
+    cameraStreamRef.current = null;
+    setCameraOn(false);
+
+    if (!sharing) {
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+      if (pcRef.current) {
+        const sender = pcRef.current.getSenders().find((s) => s.track && s.track.kind === "video");
+        if (sender) {
+          await sender.replaceTrack(null);
+        }
+      }
+    }
+  };
+
+  // ===========================================================================
   // Screen share
   // ===========================================================================
   const toggleScreenShare = async () => {
@@ -544,13 +607,36 @@ export default function MockRoomPage() {
     }
   };
 
-  const stopScreenShare = () => {
+  const stopScreenShare = async () => {
     screenStreamRef.current?.getTracks().forEach((t) => t.stop());
     screenStreamRef.current = null;
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = localStreamRef.current;
-    }
     setSharing(false);
+
+    // Khi dừng chia sẻ màn hình: nếu đang bật camera thì khôi phục stream camera
+    if (cameraStreamRef.current && cameraStreamRef.current.getVideoTracks().length > 0) {
+      const camTrack = cameraStreamRef.current.getVideoTracks()[0];
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = cameraStreamRef.current;
+      }
+      if (pcRef.current) {
+        const sender = pcRef.current.getSenders().find((s) => s.track && s.track.kind === "video");
+        if (sender) {
+          await sender.replaceTrack(camTrack);
+        } else {
+          pcRef.current.addTrack(camTrack, cameraStreamRef.current);
+        }
+      }
+    } else {
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+      if (pcRef.current) {
+        const sender = pcRef.current.getSenders().find((s) => s.track && s.track.kind === "video");
+        if (sender) {
+          await sender.replaceTrack(null);
+        }
+      }
+    }
   };
 
   // Khởi tạo signaling khi mount
@@ -561,6 +647,7 @@ export default function MockRoomPage() {
       signalWsRef.current?.close();
       pcRef.current?.close();
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
+      cameraStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -985,27 +1072,27 @@ export default function MockRoomPage() {
             {participants.length === 0 ? (
               // Chưa có presence → fallback hiển thị 2 ô mặc định
               <>
-                {/* Card 1: Local (bạn) — mic / screen share */}
+                {/* Card 1: Local (bạn) — mic / camera / screen share */}
                 <div className="bg-[#121212] rounded-2xl border border-teal-900/40 relative overflow-hidden flex flex-col items-center justify-center group">
                   <video
                     ref={localVideoRef}
                     autoPlay
                     muted
                     playsInline
-                    className="absolute inset-0 w-full h-full object-cover"
+                    className={`absolute inset-0 w-full h-full object-cover ${(cameraOn || sharing) ? "block" : "hidden"}`}
                   />
-                  {!micOn && !sharing && (
+                  {!cameraOn && !sharing && (
                     <div className="w-32 h-32 rounded-full bg-gradient-to-br from-teal-400 to-blue-600 flex items-center justify-center relative shadow-[0_0_50px_rgba(45,212,191,0.2)]">
                       <span className="text-5xl text-white opacity-90 drop-shadow-lg">🎓</span>
                     </div>
                   )}
-                  <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50">
-                    {sharing ? "SHARE" : "YOU"}
+                  <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50 flex items-center gap-1">
+                    {sharing ? "SHARE" : cameraOn ? "CAM" : "YOU"}
                   </div>
                   <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/5">
                     <Mic className={`w-3.5 h-3.5 ${micOn ? "text-teal-400" : "text-gray-500"}`} />
                     <span className="text-xs text-gray-300 font-medium">
-                      {sharing ? "Đang chia sẻ màn hình" : micOn ? "Bạn (Đang nói)" : "Bạn"}
+                      {sharing ? "Đang chia sẻ màn hình" : cameraOn ? "Bạn (Camera bật)" : micOn ? "Bạn (Đang nói)" : "Bạn"}
                     </span>
                   </div>
                 </div>
@@ -1015,7 +1102,7 @@ export default function MockRoomPage() {
                     ref={remoteVideoRef}
                     autoPlay
                     playsInline
-                    className="absolute inset-0 w-full h-full object-cover"
+                    className={`absolute inset-0 w-full h-full object-cover ${peerConnected ? "block" : "hidden"}`}
                   />
                   {!peerConnected && (
                     <div className="w-32 h-32 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center relative shadow-[0_0_50px_rgba(168,85,247,0.15)]">
@@ -1044,8 +1131,8 @@ export default function MockRoomPage() {
                 const roleLabel = p.role === "mentor" ? "Mentor" : "Sinh viên";
                 const initials = displayName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
                 const isMentor = p.role === "mentor";
-                // Ô của mình → gắn video local; ô người khác → gắn video remote (chỉ 1 peer kết nối)
-                const showLocalVideo = isMe;
+                // Ô của mình → gắn video local khi có cam hoặc share; ô người khác → gắn video remote
+                const showLocalVideo = isMe && (cameraOn || sharing);
                 const showRemoteVideo = !isMe && peerConnected;
                 const hasVideo = showLocalVideo || showRemoteVideo;
                 const isExpanded = expandedTile === p.user_id;
@@ -1059,24 +1146,24 @@ export default function MockRoomPage() {
                       isExpanded ? "hidden" : ""
                     }`}
                   >
-                    {showLocalVideo && (
+                    {isMe && (
                       <video
                         ref={localVideoRef}
                         autoPlay
                         muted
                         playsInline
-                        className="absolute inset-0 w-full h-full object-cover"
+                        className={`absolute inset-0 w-full h-full object-cover ${showLocalVideo ? "block" : "hidden"}`}
                       />
                     )}
-                    {showRemoteVideo && (
+                    {!isMe && (
                       <video
                         ref={remoteVideoRef}
                         autoPlay
                         playsInline
-                        className="absolute inset-0 w-full h-full object-cover"
+                        className={`absolute inset-0 w-full h-full object-cover ${showRemoteVideo ? "block" : "hidden"}`}
                       />
                     )}
-                    {/* Avatar placeholder khi chưa có stream (người được mời chưa bật mic) */}
+                    {/* Avatar placeholder khi chưa bật video camera hoặc share */}
                     {!showLocalVideo && !showRemoteVideo && (
                       <div className={`w-32 h-32 rounded-full flex items-center justify-center relative shadow-lg ${
                         isMentor
@@ -1087,7 +1174,7 @@ export default function MockRoomPage() {
                       </div>
                     )}
                     <div className="absolute top-4 right-4 bg-teal-950/50 text-teal-400 text-[10px] font-bold px-2 py-1 rounded border border-teal-800/50">
-                      {isMe ? (sharing ? "SHARE" : "YOU") : (isMentor ? "MENTOR" : "STUDENT")}
+                      {isMe ? (sharing ? "SHARE" : cameraOn ? "CAM" : "YOU") : (isMentor ? "MENTOR" : "STUDENT")}
                     </div>
                     <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/5">
                       <Mic className={`w-3.5 h-3.5 ${
@@ -1095,7 +1182,7 @@ export default function MockRoomPage() {
                       }`} />
                       <span className="text-xs text-gray-300 font-medium">
                         {isMe
-                          ? (sharing ? "Đang chia sẻ màn hình" : micOn ? `${displayName} (Đang nói)` : `${displayName} (${roleLabel})`)
+                          ? (sharing ? "Đang chia sẻ màn hình" : cameraOn ? `${displayName} (Camera bật)` : micOn ? `${displayName} (Đang nói)` : `${displayName} (${roleLabel})`)
                           : (peerConnected ? `${displayName} (${roleLabel})` : `${displayName} (${roleLabel}) — chưa kết nối`)}
                       </span>
                     </div>
@@ -1204,6 +1291,17 @@ export default function MockRoomPage() {
                 title={micOn ? (isRecording ? "Tắt mic & nhận dạng giọng nói" : "Tắt mic") : "Bật mic & nhận dạng giọng nói (STT)"}
               >
                 {micOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+              </button>
+              <button
+                onClick={toggleCamera}
+                className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
+                  cameraOn
+                    ? "bg-teal-500/20 border border-teal-500 text-teal-400"
+                    : "bg-[#202020] hover:bg-[#2A2A2A] text-gray-300"
+                }`}
+                title={cameraOn ? "Tắt camera" : "Bật camera"}
+              >
+                {cameraOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
               </button>
               <button
                 onClick={toggleScreenShare}
