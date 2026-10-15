@@ -73,6 +73,8 @@ export default function WorkspacesPage() {
   const [renameName, setRenameName] = useState("");
   const [addWs, setAddWs] = useState<Workspace | null>(null);
   const [docs, setDocs] = useState<DocumentItem[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [addingFiles, setAddingFiles] = useState(false);
   const [selectedDocIds, setSelectedDocIds] = useState<Set<number>>(new Set());
 
   // Session history
@@ -84,15 +86,20 @@ export default function WorkspacesPage() {
     const token = getToken();
     if (!token) return;
     try {
+      setLoading(true);
+      setError("");
       const r = await fetch("/api/workspaces/", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!r.ok) throw new Error("Failed to fetch");
+      if (!r.ok) {
+        const errJson = await r.json().catch(() => null);
+        throw new Error(errJson?.error || errJson?.detail || errJson?.message || `Lỗi tải danh sách workspace (${r.status})`);
+      }
       const data: WorkspacesResponse = await r.json();
       setWorkspaces(data.items ?? []);
       setError("");
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message || "Không thể kết nối đến máy chủ");
     } finally {
       setLoading(false);
     }
@@ -168,8 +175,13 @@ export default function WorkspacesPage() {
   const openAddModal = async (ws: Workspace) => {
     setAddWs(ws);
     setSelectedDocIds(new Set(ws.files.map((f) => f.document_id)));
+    setLoadingDocs(true);
+    setDocs([]);
     const token = getToken();
-    if (!token) return;
+    if (!token) {
+      setLoadingDocs(false);
+      return;
+    }
     try {
       const r = await fetch("/api/documents/", {
         headers: { Authorization: `Bearer ${token}` },
@@ -180,6 +192,8 @@ export default function WorkspacesPage() {
       }
     } catch {
       // ignore — modal vẫn mở, list trống
+    } finally {
+      setLoadingDocs(false);
     }
   };
 
@@ -194,18 +208,23 @@ export default function WorkspacesPage() {
 
   const handleAddFiles = async () => {
     const token = getToken();
-    if (!token || !addWs) return;
-    const existing = new Set(addWs.files.map((f) => f.document_id));
-    for (const docId of selectedDocIds) {
-      if (existing.has(docId)) continue; // đã có — bỏ qua, tránh 409
-      await fetch(`/api/workspaces/${addWs.id}/files`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ document_id: docId, role: "main" }),
-      });
+    if (!token || !addWs || addingFiles) return;
+    setAddingFiles(true);
+    try {
+      const existing = new Set(addWs.files.map((f) => f.document_id));
+      for (const docId of selectedDocIds) {
+        if (existing.has(docId)) continue; // đã có — bỏ qua, tránh 409
+        await fetch(`/api/workspaces/${addWs.id}/files`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ document_id: docId, role: "main" }),
+        });
+      }
+      setAddWs(null);
+      await fetchWorkspaces();
+    } finally {
+      setAddingFiles(false);
     }
-    setAddWs(null);
-    await fetchWorkspaces();
   };
 
   const handleRemoveFile = async (ws: Workspace, docId: number) => {
@@ -304,7 +323,15 @@ export default function WorkspacesPage() {
         )}
 
         {error && (
-          <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 text-destructive text-[14px] mb-6">{error}</div>
+          <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 text-destructive text-[14px] mb-6 flex items-center justify-between gap-4">
+            <span>{error}</span>
+            <button
+              onClick={fetchWorkspaces}
+              className="px-3 py-1.5 bg-destructive/20 hover:bg-destructive/30 rounded-lg text-xs font-semibold text-destructive shrink-0 transition-colors"
+            >
+              Thử lại
+            </button>
+          </div>
         )}
 
         {!loading && !error && workspaces.length === 0 && (
@@ -477,24 +504,62 @@ export default function WorkspacesPage() {
               <button onClick={() => setAddWs(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground">✕</button>
             </div>
             <div className="flex-1 overflow-y-auto px-3 py-3">
-              {docs.length === 0 && <p className="text-center text-muted-foreground text-[13px] py-8">Chưa có tài liệu nào trong thùng. Vào trang Tài liệu để upload.</p>}
-              {docs.map((doc) => {
-                const checked = selectedDocIds.has(doc.id);
-                return (
-                  <label key={doc.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${checked ? "bg-teal-500/10" : "hover:bg-muted/50"}`}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleDoc(doc.id)} className="w-4 h-4 accent-teal-500" />
-                    <span className="text-[12px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded shrink-0">
-                      {doc.file_type === ".rar" ? "RAR" : docTypeLabel[doc.doc_type] ?? doc.file_type}
-                    </span>
-                    <span className="text-[14px] font-medium text-foreground truncate">{doc.filename}</span>
-                  </label>
-                );
-              })}
+              {loadingDocs ? (
+                <div className="py-8 px-4 space-y-3">
+                  <div className="flex items-center justify-center gap-2.5 pb-2 text-muted-foreground text-[13px]">
+                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <span>Đang tìm danh sách file đã tải lên...</span>
+                  </div>
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center gap-3 px-3 py-3 rounded-xl border border-border/40 bg-muted/20 animate-pulse">
+                      <div className="w-4 h-4 bg-muted/60 rounded" />
+                      <div className="w-10 h-5 bg-muted/60 rounded" />
+                      <div className="h-4 bg-muted/60 rounded w-2/3" />
+                    </div>
+                  ))}
+                </div>
+              ) : docs.length === 0 ? (
+                <div className="text-center py-10 px-4">
+                  <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-3 text-muted-foreground">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-muted-foreground text-[13px] mb-2 font-medium">Chưa có tài liệu nào trong hệ thống.</p>
+                  <Link href="/documents" className="text-primary hover:underline text-[13px] font-semibold inline-flex items-center gap-1">
+                    Vào trang Tài liệu để upload file mới →
+                  </Link>
+                </div>
+              ) : (
+                docs.map((doc) => {
+                  const checked = selectedDocIds.has(doc.id);
+                  return (
+                    <label key={doc.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${checked ? "bg-teal-500/10" : "hover:bg-muted/50"}`}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleDoc(doc.id)} className="w-4 h-4 accent-teal-500" />
+                      <span className="text-[12px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded shrink-0">
+                        {doc.file_type === ".rar" ? "RAR" : docTypeLabel[doc.doc_type] ?? doc.file_type}
+                      </span>
+                      <span className="text-[14px] font-medium text-foreground truncate">{doc.filename}</span>
+                    </label>
+                  );
+                })
+              )}
             </div>
             <div className="px-5 py-3 border-t border-border/60 flex justify-end gap-2">
-              <button onClick={() => setAddWs(null)} className="px-4 py-2 text-[13px] font-semibold text-muted-foreground hover:bg-muted rounded-lg">Huỷ</button>
-              <button onClick={handleAddFiles} className="px-4 py-2 text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90">
-                Thêm ({selectedDocIds.size})
+              <button
+                onClick={() => setAddWs(null)}
+                disabled={addingFiles}
+                className="px-4 py-2 text-[13px] font-semibold text-muted-foreground hover:bg-muted rounded-lg disabled:opacity-50"
+              >
+                Huỷ
+              </button>
+              <button
+                onClick={handleAddFiles}
+                disabled={loadingDocs || addingFiles}
+                className="px-4 py-2 text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {addingFiles && <div className="w-3.5 h-3.5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />}
+                {addingFiles ? "Đang thêm..." : `Thêm (${selectedDocIds.size})`}
               </button>
             </div>
           </div>

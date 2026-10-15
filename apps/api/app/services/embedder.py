@@ -71,10 +71,21 @@ def _l2(vec: list[float]) -> list[float]:
 
 
 async def _post_with_retry(client: httpx.AsyncClient, url: str, json_body: dict, headers: dict | None = None) -> dict:
-    """POST với retry exponential backoff cho 429/5xx. Raise nếu hết retry."""
+    """POST với retry exponential backoff cho 429/5xx và lỗi mạng tạm thời (timeout, connect error)."""
     last_exc: Exception | None = None
     for attempt in range(_MAX_RETRIES):
-        resp = await client.post(url, json=json_body, headers=headers)
+        try:
+            resp = await client.post(url, json=json_body, headers=headers)
+        except (httpx.TransportError, httpx.TimeoutException) as exc:
+            delay = _BASE_DELAY * (2 ** attempt)
+            logger.warning(
+                "Embedder network error %s: %s (attempt %s/%s) — retry in %.0fs",
+                type(exc).__name__, exc, attempt + 1, _MAX_RETRIES, delay,
+            )
+            last_exc = exc
+            await asyncio.sleep(delay)
+            continue
+
         if resp.status_code == 429 or 500 <= resp.status_code < 600:
             retry_after = resp.headers.get("Retry-After")
             delay = float(retry_after) if retry_after else _BASE_DELAY * (2 ** attempt)
@@ -91,11 +102,14 @@ async def _post_with_retry(client: httpx.AsyncClient, url: str, json_body: dict,
 
 
 _DATA_URI_RE = re.compile(r"data:image/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\s]+")
+_LONG_BASE64_RE = re.compile(r"[A-Za-z0-9+/=]{300,}")
 
 
 def _strip_data_uris(text: str) -> str:
-    """Xóa data URI ảnh khỏi chunk text (batch 4xx thường do ảnh lỗi/giả mạo)."""
-    return _DATA_URI_RE.sub("[image]", text)
+    """Xóa data URI ảnh và raw base64 dài khỏi chunk text (tránh lỗi 400 VLM serving của NVIDIA)."""
+    cleaned = _DATA_URI_RE.sub("[image]", text)
+    cleaned = _LONG_BASE64_RE.sub("[embedded_asset]", cleaned)
+    return cleaned
 
 
 def _nvidia_err(resp: httpx.Response) -> str:
@@ -208,9 +222,9 @@ async def _embed_nvidia(
     khỏi text → cuối cùng dùng model text-only (text_model).
     """
     vectors: list[list[float]] = []
-    # NVIDIA từ chối input rỗng/blank (400 "must not be blank or empty") —
-    # ZIP chunks có thể rỗng sau khi strip, thay bằng placeholder.
-    safe_texts = [t if t.strip() else "(empty)" for t in texts]
+    # NVIDIA từ chối input rỗng/blank (400 "must not be blank or empty") hoặc base64 ảnh
+    # chưa strip — dọn dẹp trước để tránh lỗi 400 VLM.
+    safe_texts = [_strip_data_uris(t).strip() or "(empty)" for t in texts]
     url = f"{base_url.rstrip('/')}/embeddings"
     headers = {"Authorization": f"Bearer {api_key}"}
 
@@ -267,7 +281,14 @@ async def _embed_nvidia(
                             pass
                         single = cleaned
                     # Cùng chót: model text-only (chấp nhận text thuần).
-                    vectors.extend(await _post_batch(text_model, [single]))
+                    try:
+                        vectors.extend(await _post_batch(text_model, [single]))
+                    except Exception as fallback_err:
+                        logger.warning(
+                            "NVIDIA embed fallback failed for single chunk (%s) — using zero vector placeholder",
+                            fallback_err,
+                        )
+                        vectors.append([0.0] * EMBEDDING_DIM)
             # Đủ chiều dài sau mọi nhánh (batch OK hoặc fallback) — luôn sleep
             # giữa các batch trừ batch cuối (rate limit 40 RPM).
             if request_delay > 0 and i < last_index:

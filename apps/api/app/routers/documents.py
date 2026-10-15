@@ -831,11 +831,27 @@ async def permanent_delete_document(
         )
 
     try:
+        # Xoá các bản ghi quan hệ có FK trỏ tới document trước khi xoá document
+        from app.models.entities import (
+            AnalysisJob,
+            CodeAnalysisIssue,
+            CodeModuleHash,
+            DocumentChunk,
+            UploadSession,
+            UseCaseCommitment,
+            WorkspaceFile,
+        )
+
+        await db.execute(sa_delete(WorkspaceFile).where(WorkspaceFile.document_id == doc_id))
+        await db.execute(sa_delete(UseCaseCommitment).where(UseCaseCommitment.document_id == doc_id))
+        await db.execute(sa_delete(UploadSession).where(UploadSession.document_id == doc_id))
+        await db.execute(sa_delete(DocumentChunk).where(DocumentChunk.document_id == doc_id))
+        await db.execute(sa_delete(CodeModuleHash).where(CodeModuleHash.document_id == doc_id))
+        await db.execute(sa_delete(AnalysisJob).where(AnalysisJob.document_id == doc_id))
+
         # Xoá code_analysis_issues trước (FK từ issues → code_analyses)
         if doc.code_analyses:
             analysis_ids = [a.id for a in doc.code_analyses]
-            from app.models.assessment import CodeAnalysisIssue
-
             await db.execute(
                 sa_delete(CodeAnalysisIssue).where(
                     CodeAnalysisIssue.analysis_id.in_(analysis_ids)

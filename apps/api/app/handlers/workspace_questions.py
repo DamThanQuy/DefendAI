@@ -131,6 +131,7 @@ async def _ensure_indexed(
                 )
 
     logger.info("Job %s: _ensure_indexed finished for workspace %s", job_id, workspace_id)
+    failed_docs: dict[str, str] = {}
     for doc in docs:
         try:
             # Guard luồng tương tác: bỏ qua file quá lớn (vd ZIP 2.7GB) để không
@@ -146,7 +147,7 @@ async def _ensure_indexed(
                     continue
             logger.info("Job %s: indexing doc %s (%s)", job_id, doc.id, doc.filename)
             chunks, diagrams, diagram_infos = await asyncio.wait_for(
-                parse_and_chunk_full(doc), timeout=300
+                parse_and_chunk_full(doc), timeout=900
             )
             logger.info("Job %s: parsed doc %s (%s chunks)", job_id, doc.id, len(chunks))
             if chunks:
@@ -154,10 +155,18 @@ async def _ensure_indexed(
                 logger.info("Job %s: indexed doc %s (%s chunks)", job_id, doc.id, len(chunks))
             else:
                 logger.warning("Job %s: doc %s produced 0 chunks", job_id, doc.id)
+                failed_docs[doc.filename] = "không trích xuất được nội dung (file rỗng hoặc không hỗ trợ)"
         except asyncio.TimeoutError:
             logger.warning("Job %s: index-on-demand timed out for doc %s", job_id, doc.id)
+            failed_docs[doc.filename] = "quá thời gian xử lý (file quá lớn hoặc xử lý timeout)"
         except Exception as exc:  # best-effort từng doc, không chặn cả job
             logger.warning("Job %s: index-on-demand failed for doc %s: %s", job_id, doc.id, exc)
+            err_str = str(exc)
+            if "NoSuchKey" in err_str or "not exist" in err_str.lower():
+                failed_docs[doc.filename] = "file không còn tồn tại trên kho lưu trữ đám mây"
+            else:
+                failed_docs[doc.filename] = f"lỗi xử lý ({type(exc).__name__})"
+    return failed_docs
 
 
 def _format_context(item: dict) -> str:
@@ -248,7 +257,7 @@ async def handle_workspace_questions(params: dict) -> dict:
 
     try:
         logger.info("Job %s: starting _ensure_indexed for workspace %s", job_id, workspace_id)
-        await _ensure_indexed(workspace_id, job_id=job_id)
+        failed_docs = await _ensure_indexed(workspace_id, job_id=job_id)
         logger.info("Job %s: finished _ensure_indexed for workspace %s", job_id, workspace_id)
         if job_id:
             await update_job(job_id, progress="50")
@@ -273,7 +282,11 @@ async def handle_workspace_questions(params: dict) -> dict:
             async with async_session_maker() as db:
                 row = await db.get(WorkspaceQuestion, question_id)
                 row.status = AssessmentStatus.failed
-                row.error = "Workspace chưa có nội dung nào được index để hỏi."
+                if failed_docs:
+                    details = "; ".join(f"'{k}': {v}" for k, v in failed_docs.items())
+                    row.error = f"Lỗi tài liệu ({details}). Vui lòng xoá và tải lại tài liệu vào Workspace."
+                else:
+                    row.error = "Workspace chưa có nội dung nào được index để hỏi."
                 await db.commit()
             return {"question_id": question_id, "status": "failed", "questions": [], "error": row.error}
 
@@ -329,6 +342,7 @@ async def handle_workspace_questions(params: dict) -> dict:
             row = await db.get(WorkspaceQuestion, question_id)
             if row:
                 row.status = AssessmentStatus.failed
-                row.error = str(exc)[:500]
+                err_msg = str(exc).strip()
+                row.error = (err_msg if err_msg else f"{type(exc).__name__}: {repr(exc)}")[:500]
                 await db.commit()
         raise

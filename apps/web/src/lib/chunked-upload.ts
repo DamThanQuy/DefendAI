@@ -298,13 +298,18 @@ function isPublicMinioUrl(url: string): boolean {
   }
 }
 
+let directBackendCircuitOpen = false;
+
+function markDirectBackendFailed(): void {
+  directBackendCircuitOpen = true;
+}
+
 /**
  * Lấy backend URL trực tiếp (ngrok tunnel) để upload chunks bypass BFF.
- * Trả về null nếu BACKEND_URL không được expose qua env (dev mode).
+ * Trả về null nếu BACKEND_URL không được expose qua env (dev mode) hoặc circuit breaker đang mở.
  */
 function getDirectBackendUrl(): string | null {
-  // Next.js public env: NEXT_PUBLIC_BACKEND_URL cho client-side access
-  // Fallback: không có → dùng BFF proxy (dev mode)
+  if (directBackendCircuitOpen) return null;
   if (typeof window === "undefined") return null;
   // Đọc từ meta tag hoặc env variable
   const meta = document.querySelector('meta[name="backend-url"]');
@@ -334,6 +339,11 @@ function putDirectMinio(
     }
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url, true);
+    // Timeout 90s cho chunk 64MB để tránh treo vô hạn nếu connection bị stall
+    xhr.timeout = 90_000;
+    xhr.ontimeout = () => {
+      reject(new Error(`Direct PUT part ${partNumber} timed out after 90s`));
+    };
 
     if (onProgress && xhr.upload) {
       xhr.upload.onprogress = (e) => {
@@ -404,23 +414,34 @@ async function putChunkViaBackend(
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(url, {
-    method: "PUT",
-    body,
-    signal,
-    headers,
-  });
-  if (!res.ok) {
-    throw new Error(
-      `Backend PUT part ${partNumber} failed: ${res.status} ${res.statusText}`,
-    );
+  // Timeout 6 giây để không treo nếu backend down/unreachable
+  const timeoutCtrl = new AbortController();
+  const timer = setTimeout(() => timeoutCtrl.abort(new Error("Direct backend timeout (6s)")), 6000);
+  const onAbort = () => timeoutCtrl.abort(new DOMException("Upload aborted", "AbortError"));
+  signal.addEventListener("abort", onAbort, { once: true });
+
+  try {
+    const res = await fetch(url, {
+      method: "PUT",
+      body,
+      signal: timeoutCtrl.signal,
+      headers,
+    });
+    if (!res.ok) {
+      throw new Error(
+        `Backend PUT part ${partNumber} failed: ${res.status} ${res.statusText}`,
+      );
+    }
+    const data = await res.json();
+    const etag = data?.etag ?? "";
+    if (!etag) {
+      throw new Error(`No ETag in backend response for part ${partNumber}`);
+    }
+    return etag;
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", onAbort);
   }
-  const data = await res.json();
-  const etag = data?.etag ?? "";
-  if (!etag) {
-    throw new Error(`No ETag in backend response for part ${partNumber}`);
-  }
-  return etag;
 }
 
 async function putChunk(
@@ -438,26 +459,9 @@ async function putChunk(
       throw new DOMException("Upload aborted", "AbortError");
     }
     try {
-      // ── Strategy 1: Direct backend (ngrok tunnel) ──
-      // Bypass Vercel BFF proxy — upload chunks trực tiếp đến FastAPI qua
-      // ngrok tunnel. Nhanh hơn nhiều vì không bị Vercel function timeout.
-      if (uploadId) {
-        const backendUrl = getDirectBackendUrl();
-        if (backendUrl) {
-          try {
-            return await putChunkViaBackend(
-              backendUrl, uploadId, body, partNumber, signal,
-            );
-          } catch (backendErr) {
-            console.warn(
-              `Direct backend PUT part ${partNumber} failed, falling back to proxy:`,
-              backendErr,
-            );
-          }
-        }
-      }
-
-      // ── Strategy 2: Direct MinIO / Cloudflare R2 (public presigned URL) ──
+      // ── Strategy 1: Direct MinIO / Cloudflare R2 (public presigned URL) ──
+      // Khi đã có presigned URL công khai (Cloudflare R2 / MinIO funnel), đẩy TRỰC TIẾP
+      // là con đường nhanh nhất và ổn định nhất, không phụ thuộc vào kết nối tới backend.
       const canTryDirect = uploadId && isPublicMinioUrl(url);
 
       if (canTryDirect) {
@@ -474,9 +478,28 @@ async function putChunk(
             throw directErr;
           }
           console.warn(
-            `Direct PUT part ${partNumber} failed, falling back to proxy:`,
+            `Direct PUT part ${partNumber} failed, falling back:`,
             directErr,
           );
+        }
+      }
+
+      // ── Strategy 2: Direct backend (ngrok tunnel) ──
+      // Chỉ thử khi Strategy 1 không áp dụng và circuit breaker chưa mở.
+      if (uploadId) {
+        const backendUrl = getDirectBackendUrl();
+        if (backendUrl) {
+          try {
+            return await putChunkViaBackend(
+              backendUrl, uploadId, body, partNumber, signal,
+            );
+          } catch (backendErr) {
+            markDirectBackendFailed();
+            console.warn(
+              `Direct backend PUT part ${partNumber} failed, opening circuit breaker:`,
+              backendErr,
+            );
+          }
         }
       }
 

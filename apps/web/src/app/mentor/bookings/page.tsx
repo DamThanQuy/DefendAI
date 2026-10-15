@@ -15,7 +15,17 @@ import {
   checkMeetingAccess,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, XCircle, Flag, Clock } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Flag, Clock, FileText, X } from "lucide-react";
+
+// --- Dữ liệu tài liệu (để mentor xem file của SV khi đang duyệt lịch) ---
+interface DocItem {
+  id: number;
+  filename: string;
+  doc_type: string;
+  size?: number | null;
+  created_at: string;
+  uploaded_by?: number | null;
+}
 
 function fmt(dt: string | null) {
   if (!dt) return "—";
@@ -48,6 +58,46 @@ export default function MentorBookingsPage() {
   const [reschedId, setReschedId] = useState<number | null>(null);
   const [reschedTime, setReschedTime] = useState("");
   const [reschedNote, setReschedNote] = useState("");
+
+  // Modal xem tài liệu của SV (luồng B: mentor xem file trước khi duyệt)
+  const [docsForStudent, setDocsForStudent] = useState<{
+    studentId: number | null;
+    docs: DocItem[];
+    loading: boolean;
+  } | null>(null);
+
+  async function openStudentDocs(b: Booking) {
+    setDocsForStudent({ studentId: b.student_id, docs: [], loading: true });
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      setDocsForStudent({ studentId: b.student_id, docs: [], loading: false });
+      return;
+    }
+    try {
+      // Mentor/admin được backend cho xem TẤT CẢ document (quyền _is_privileged).
+      const r = await fetch("/api/documents", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error(`Lỗi tải tài liệu (${r.status})`);
+      const data = await r.json();
+      const items: DocItem[] = data.items ?? [];
+      // Lọc chỉ file của SV này
+      const mine = items.filter((d) => d.uploaded_by === b.student_id);
+      setDocsForStudent({ studentId: b.student_id, docs: mine, loading: false });
+    } catch {
+      setDocsForStudent((prev) =>
+        prev ? { ...prev, loading: false } : { studentId: b.student_id, docs: [], loading: false },
+      );
+    }
+  }
+
+  function fmtSize(bytes?: number | null) {
+    if (bytes == null || bytes === 0) return "—";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  }
 
   async function load() {
     setLoading(true);
@@ -215,6 +265,14 @@ export default function MentorBookingsPage() {
                   {b.note && <div className="mt-1 text-xs text-muted-foreground">Ghi chú: {b.note}</div>}
                 </div>
                 <div className="flex gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openStudentDocs(b)}
+                    className="rounded-full border-border text-teal-300"
+                  >
+                    <FileText className="w-4 h-4 mr-1" /> Xem tài liệu SV
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -388,6 +446,70 @@ export default function MentorBookingsPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Modal xem tài liệu của SV (trước khi duyệt lịch) */}
+      {docsForStudent && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setDocsForStudent(null)}
+        >
+          <div
+            className="bg-card rounded-2xl shadow-2xl w-full max-w-lg p-6 border border-border"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-base font-bold text-foreground">Tài liệu của học viên</h3>
+                <p className="text-xs text-muted-foreground">
+                  {docsForStudent.studentId != null ? `Student ID #${docsForStudent.studentId}` : ""}
+                </p>
+              </div>
+              <button
+                onClick={() => setDocsForStudent(null)}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Đóng"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {docsForStudent.loading ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">Đang tải...</div>
+            ) : docsForStudent.docs.length === 0 ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                Học viên này chưa tải lên tài liệu nào.
+              </div>
+            ) : (
+              <div className="max-h-72 overflow-y-auto space-y-2">
+                {docsForStudent.docs.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-muted/40 border border-border"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="w-4 h-4 text-teal-400 shrink-0" />
+                      <span className="text-sm font-medium text-foreground truncate">
+                        {doc.filename}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0 text-xs text-muted-foreground">
+                      <span>{fmtSize(doc.size)}</span>
+                      <a
+                        href={`/api/documents/${doc.id}/download`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-teal-400 hover:underline"
+                      >
+                        Tải xuống
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

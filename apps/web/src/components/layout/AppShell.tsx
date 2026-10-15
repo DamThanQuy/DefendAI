@@ -61,8 +61,9 @@ const SIDEBAR_LINKS: SidebarLink[] = [
   // --- Mentor ---
   { href: "/mentor/dashboard", label: "Tổng quan Mentor", icon: LayoutDashboard, roles: ["mentor", "admin"] },
   { href: "/mentor/calendar", label: "Lịch rảnh", icon: CalendarDays, roles: ["mentor", "admin"] },
-  { href: "/mentor/bookings", label: "Quản lý lịch", icon: CalendarClock, roles: ["mentor", "admin"] },
-  { href: "/mentor/sessions", label: "Lịch sử Mentor", icon: Video, roles: ["mentor", "admin"] },
+   { href: "/mentor/bookings", label: "Quản lý lịch", icon: CalendarClock, roles: ["mentor", "admin"] },
+   { href: "/mentor/documents", label: "Tài liệu học viên", icon: FileText, roles: ["mentor", "admin"] },
+   { href: "/mentor/sessions", label: "Lịch sử Mentor", icon: Video, roles: ["mentor", "admin"] },
   { href: "/mentor/profile", label: "Hồ sơ cá nhân", icon: User, roles: ["mentor", "admin"] },
   { href: "/mentor/reviews", label: "Đánh giá học viên", icon: Star, roles: ["mentor", "admin"] },
   { href: "/mentor/wallet", label: "Ví & Thu nhập", icon: Wallet, roles: ["mentor", "admin"] },
