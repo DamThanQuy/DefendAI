@@ -117,12 +117,47 @@ export default function MockRoomPage() {
   const [remoteVideoActive, setRemoteVideoActive] = useState(false);
   const [signalStatus, setSignalStatus] = useState<"idle" | "connecting" | "ready" | "peer-left">("idle");
 
+  // Đồng bộ stream vào local video element (Google Meet pattern)
+  const syncLocalVideo = useCallback((el: HTMLVideoElement | null) => {
+    localVideoRef.current = el;
+    if (el) {
+      const stream = screenStreamRef.current || cameraStreamRef.current;
+      if ((cameraOn || sharing) && stream) {
+        if (el.srcObject !== stream) {
+          el.srcObject = stream;
+        }
+        el.play().catch(() => {});
+      } else if (!cameraOn && !sharing) {
+        el.srcObject = null;
+      }
+    }
+  }, [cameraOn, sharing]);
+
+  const syncRemoteVideo = useCallback((el: HTMLVideoElement | null) => {
+    remoteVideoRef.current = el;
+    if (el) {
+      // Nếu WebRTC đã có remote track hoặc stream
+      const receivers = pcRef.current?.getReceivers() || [];
+      const videoReceiver = receivers.find((r) => r.track && r.track.kind === "video");
+      if (videoReceiver?.track && remoteVideoActive) {
+        if (!el.srcObject) {
+          el.srcObject = new MediaStream([videoReceiver.track]);
+        }
+        el.play().catch(() => {});
+      } else if (!remoteVideoActive) {
+        el.srcObject = null;
+      }
+    }
+  }, [remoteVideoActive]);
+
   // Luôn đồng bộ stream vào thẻ video local khi bật camera hoặc chia sẻ màn hình
   useEffect(() => {
     const stream = screenStreamRef.current || cameraStreamRef.current;
     if (localVideoRef.current) {
       if ((cameraOn || sharing) && stream) {
-        localVideoRef.current.srcObject = stream;
+        if (localVideoRef.current.srcObject !== stream) {
+          localVideoRef.current.srcObject = stream;
+        }
         localVideoRef.current.play().catch(() => {});
       } else if (!cameraOn && !sharing) {
         localVideoRef.current.srcObject = null;
@@ -131,15 +166,15 @@ export default function MockRoomPage() {
   }, [cameraOn, sharing, participants]);
 
   // Đồng bộ srcObject vào video overlay mỗi khi phóng to hoặc stream thay đổi.
-  // (Tránh lỗi màn hình đen do tile gốc bị ẩn → ref chuyển sang overlay nhưng thiếu stream)
   useEffect(() => {
     if (expandedTile === null) return;
     const localStream = screenStreamRef.current || cameraStreamRef.current || localStreamRef.current;
     if (expandedLocalVideoRef.current && localStream) {
-      expandedLocalVideoRef.current.srcObject = localStream;
+      if (expandedLocalVideoRef.current.srcObject !== localStream) {
+        expandedLocalVideoRef.current.srcObject = localStream;
+      }
       expandedLocalVideoRef.current.play().catch(() => {});
     }
-    // Remote stream được gán trong ontrack; ở đây chỉ gán lại nếu đã có
     if (expandedRemoteVideoRef.current && remoteVideoRef.current?.srcObject) {
       expandedRemoteVideoRef.current.srcObject = remoteVideoRef.current.srcObject;
       expandedRemoteVideoRef.current.play().catch(() => {});
@@ -574,14 +609,28 @@ export default function MockRoomPage() {
   const toggleCamera = async () => {
     if (!cameraOn) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: "user",
+            },
+          });
+        } catch {
+          // Fallback nếu webcam không hỗ trợ constraint độ phân giải cao
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
+
         cameraStreamRef.current = stream;
         const videoTrack = stream.getVideoTracks()[0];
 
-        // Nếu không đang share screen thì ưu tiên hiện camera trên video local
+        // Nếu không đang share screen thì gán ngay cho local video element
         if (!sharing && localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
           localVideoRef.current.muted = true;
+          localVideoRef.current.play().catch(() => {});
         }
 
         if (!pcRef.current) await createPeerConnection();
@@ -605,9 +654,12 @@ export default function MockRoomPage() {
             JSON.stringify({ type: "media-state", payload: { kind: "video", enabled: true } })
           );
         }
-      } catch (err) {
-        alert("Không thể truy cập camera. Vui lòng cấp quyền.");
+      } catch (err: any) {
         console.error("Camera access error", err);
+        const msg = err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError"
+          ? "Trình duyệt đang chặn camera. Vui lòng bấm vào biểu tượng ổ khóa/camera trên thanh địa chỉ để cấp quyền."
+          : `Không thể mở camera: ${err?.message || "Thiết bị bận hoặc lỗi phần cứng."}`;
+        alert(msg);
       }
     } else {
       stopCamera();
@@ -1100,7 +1152,7 @@ export default function MockRoomPage() {
                 {/* Card 1: Local (bạn) — mic / camera / screen share */}
                 <div className="bg-[#121212] rounded-2xl border border-teal-900/40 relative overflow-hidden flex flex-col items-center justify-center group">
                   <video
-                    ref={localVideoRef}
+                    ref={syncLocalVideo}
                     autoPlay
                     muted
                     playsInline
@@ -1124,7 +1176,7 @@ export default function MockRoomPage() {
                 {/* Card 2: Remote peer (đối phương) */}
                 <div className="bg-[#121212] rounded-2xl border border-purple-900/30 relative overflow-hidden flex flex-col items-center justify-center group">
                   <video
-                    ref={remoteVideoRef}
+                    ref={syncRemoteVideo}
                     autoPlay
                     playsInline
                     className={`absolute inset-0 w-full h-full object-cover ${remoteVideoActive ? "block" : "hidden"}`}
@@ -1174,7 +1226,7 @@ export default function MockRoomPage() {
                   >
                     {isMe && (
                       <video
-                        ref={localVideoRef}
+                        ref={syncLocalVideo}
                         autoPlay
                         muted
                         playsInline
@@ -1183,7 +1235,7 @@ export default function MockRoomPage() {
                     )}
                     {!isMe && (
                       <video
-                        ref={remoteVideoRef}
+                        ref={syncRemoteVideo}
                         autoPlay
                         playsInline
                         className={`absolute inset-0 w-full h-full object-cover ${showRemoteVideo ? "block" : "hidden"}`}
