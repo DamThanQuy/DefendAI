@@ -991,29 +991,6 @@ export default function MockRoomPage() {
             {myRole === "mentor" ? "👔 Mentor" : myRole === "student" ? "🎓 Sinh viên" : "👤 Khác"}
           </span>
 
-          {/* Phase indicator */}
-          <div className="flex items-center gap-2 bg-[#1A1A1A] px-3 py-1.5 rounded-full border border-gray-800">
-            <Clock className="w-4 h-4 text-amber-400" />
-            <span className="text-xs font-semibold text-amber-300">{PHASES[phaseIdx].label}</span>
-            <span className="text-sm font-bold text-white tabular-nums">{fmtPhase(phaseRemaining)}</span>
-          </div>
-
-          {/* Phase controls */}
-          <div className="flex items-center gap-1">
-            {phaseRunning ? (
-              <button onClick={pausePhase} className="w-8 h-8 rounded-full bg-amber-500/20 hover:bg-amber-500/30 flex items-center justify-center text-amber-400 transition-colors" title="Tạm dừng">
-                <Pause className="w-4 h-4" />
-              </button>
-            ) : (
-              <button onClick={startPhase} className="w-8 h-8 rounded-full bg-green-500/20 hover:bg-green-500/30 flex items-center justify-center text-green-400 transition-colors" title="Bắt đầu đếm ngược">
-                <Play className="w-4 h-4" />
-              </button>
-            )}
-            <button onClick={resetPhase} className="w-8 h-8 rounded-full bg-[#202020] hover:bg-[#2A2A2A] flex items-center justify-center text-gray-300 transition-colors" title="Reset về giai đoạn 1">
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          </div>
-
           <button className="p-2 rounded-full hover:bg-gray-800 text-gray-400 transition-colors">
             <Settings className="w-5 h-5" />
           </button>
@@ -1023,45 +1000,8 @@ export default function MockRoomPage() {
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden relative h-full">
         
-        {/* Left Column (Video Grid + Captions + Bottom Toolbar) */}
+        {/* Left Column (Video Grid + Bottom Toolbar) */}
         <div className="flex-1 flex flex-col p-4 relative h-full">
-
-          {/* Phase stepper */}
-          <div className="flex items-center gap-2 mb-4">
-            {PHASES.map((p, i) => {
-              const active = i === phaseIdx;
-              const done = i < phaseIdx;
-              return (
-                <div key={p.key} className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      setPhaseIdx(i);
-                      setPhaseRemaining(PHASES[i].minutes * 60);
-                      setPhaseRunning(false);
-                    }}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors ${
-                      active
-                        ? "bg-amber-500/20 border-amber-500 text-amber-300"
-                        : done
-                          ? "bg-teal-900/30 border-teal-800 text-teal-400"
-                          : "bg-[#1A1A1A] border-gray-800 text-gray-400 hover:bg-[#202020]"
-                    }`}
-                    title={`Chuyển sang giai đoạn: ${p.label} (${p.minutes} phút)`}
-                  >
-                    <span
-                      className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${
-                        done ? "bg-teal-500 text-white" : active ? "bg-amber-500 text-black" : "bg-gray-700 text-gray-300"
-                      }`}
-                    >
-                      {done ? "✓" : i + 1}
-                    </span>
-                    {p.label}
-                  </button>
-                  {i < PHASES.length - 1 && <span className="text-gray-600">→</span>}
-                </div>
-              );
-            })}
-          </div>
 
           {/* Video Grid — render động theo danh sách người tham gia (presence) */}
           <div className="flex-1 grid grid-cols-2 gap-4 pb-20 relative">
