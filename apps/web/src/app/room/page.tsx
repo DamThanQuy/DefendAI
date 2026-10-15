@@ -1068,7 +1068,7 @@ export default function MockRoomPage() {
           </div>
 
           {/* Video Grid — render động theo danh sách người tham gia (presence) */}
-          <div className="flex-1 grid grid-cols-2 gap-4 pb-24 relative">
+          <div className="flex-1 grid grid-cols-2 gap-4 pb-20 relative">
             {participants.length === 0 ? (
               // Chưa có presence → fallback hiển thị 2 ô mặc định
               <>
@@ -1257,23 +1257,6 @@ export default function MockRoomPage() {
                   })}
               </>
             )}
-
-            {/* Live Captions */}
-            <div className="absolute bottom-24 left-0 right-0 px-4 z-10 pointer-events-none">
-              <div className="bg-[#0f1513]/95 border border-teal-900/60 rounded-xl p-4 shadow-2xl backdrop-blur-md pointer-events-auto max-w-4xl mx-auto">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="bg-teal-900/60 p-1 rounded text-teal-400">
-                    <MessageSquare className="w-3 h-3" />
-                  </div>
-                  <span className="text-[10px] font-bold text-teal-500 tracking-wider uppercase">PHỤ ĐỀ TRỰC TIẾP — AI HỘI ĐỒNG</span>
-                </div>
-                <p className="text-gray-200 text-sm font-medium leading-relaxed">
-                  {currentQuestion
-                    ? `🤖 ${currentQuestion.question}`
-                    : "Phòng họp đã sẵn sàng. Bắt đầu trò chuyện với hội đồng AI hoặc chia sẻ màn hình để bảo vệ đồ án."}
-                </p>
-              </div>
-            </div>
           </div>
 
           {/* Bottom Toolbar */}
