@@ -26,6 +26,7 @@ import {
   ScreenShareOff,
   PhoneOff,
   X,
+  Bot,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -786,7 +787,7 @@ export default function MockRoomAI() {
         >
           <Card className="max-w-2xl w-full p-8 text-center">
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_hsl(var(--primary)/0.2)]">
-              <Upload className="w-10 h-10 text-white" />
+              <Bot className="w-10 h-10 text-white" />
             </div>
             <h2 className="text-2xl font-serif font-black mb-3">
               Vào phòng chat với Giám khảo AI
@@ -823,8 +824,12 @@ export default function MockRoomAI() {
               )}
 
               {!docsLoading && !docsError && studentDocs.length === 0 && (
-                <div className="text-sm text-muted-foreground py-4 text-center border border-dashed border-border rounded-xl">
-                  Bạn chưa có tài liệu nào. Hãy tải lên file đầu tiên bên dưới.
+                <div className="text-sm text-muted-foreground py-6 text-center border border-dashed border-border rounded-xl">
+                  Bạn chưa có tài liệu nào trong hệ thống. Vui lòng vào mục{" "}
+                  <a href="/documents" className="text-primary underline hover:text-primary/80">
+                    Tài liệu
+                  </a>{" "}
+                  để tải lên trước khi vào phòng, hoặc chọn vào phòng hỏi tự do bên dưới.
                 </div>
               )}
 
@@ -856,67 +861,6 @@ export default function MockRoomAI() {
                 </div>
               )}
             </div>
-
-            {/* Upload file mới */}
-            <div
-              onClick={() => !contextLoading && fileInputRef.current?.click()}
-              className={`border-2 border-dashed border-border rounded-xl p-6 transition-all mb-4 ${
-                contextLoading
-                  ? "opacity-90 cursor-wait bg-muted/10 border-primary/40"
-                  : "cursor-pointer hover:border-primary/40 hover:bg-muted/20"
-              }`}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.docx,.pptx,.zip,.rar,.md"
-                onChange={handleFileUpload}
-                disabled={contextLoading}
-                className="hidden"
-              />
-              {contextLoading ? (
-                <div className="flex flex-col items-center">
-                  <Loader2 className="w-6 h-6 text-primary animate-spin mb-2" />
-                  <p className="text-sm font-medium text-foreground">
-                    {uploadStatusText || "Đang tải lên..."}
-                  </p>
-                  {uploadProgress > 0 && (
-                    <div className="w-full max-w-xs mt-3 bg-muted rounded-full h-2 overflow-hidden">
-                      <div
-                        className="bg-primary h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${uploadProgress}%` }}
-                      />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm font-medium">Hoặc tải lên tài liệu mới</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Hỗ trợ: PDF, Word, PowerPoint, ZIP, RAR (Tối đa 10GB, tự động chia nhỏ khi &gt; 4MB)
-                  </p>
-                </>
-              )}
-            </div>
-
-            {uploadedFile && !contextLoading && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-4 p-4 bg-muted/30 rounded-xl"
-              >
-                <div className="flex items-center gap-3">
-                  <FileText className="w-5 h-5 text-primary" />
-                  <div className="text-left">
-                    <p className="font-medium">{uploadedFile.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            )}
 
             {contextError && (
               <div className="mb-4 flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-left">
