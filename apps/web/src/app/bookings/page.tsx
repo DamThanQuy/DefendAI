@@ -52,26 +52,94 @@ export default function BookingsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Lịch rảnh của mentor đang chọn
-  const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
+  // Lịch rảnh của mentor đang chọn (các slot cụ thể trong 7 ngày tới tính từ hôm nay)
+  interface SuggestedSlot {
+    date: Date;
+    dayOfWeek: number;
+    dayName: string;
+    dateStr: string;
+    startTime: string;
+    endTime: string;
+    isoString: string;
+  }
+  const [suggestedSlots, setSuggestedSlots] = useState<SuggestedSlot[]>([]);
   const [availLoading, setAvailLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Lọc bỏ các slot đã có người đặt (confirmed/pending) của mentor
-  function filterFreeSlots(slots: AvailabilitySlot[], bookings: Booking[]): AvailabilitySlot[] {
-    // Tập hợp các "ngày trong tuần + giờ" đã bị占用
-    const booked = new Set<string>();
+  // Sinh các slot gợi ý trong vòng 7 ngày tới (tính từ thời điểm hiện tại của user)
+  function computeUpcomingSlots(
+    availabilitySlots: AvailabilitySlot[],
+    bookings: Booking[],
+  ): SuggestedSlot[] {
+    const now = new Date();
+    // Tập hợp các mốc thời gian (theo YYYY-MM-DD-HH:mm) đã có booking hợp lệ
+    const bookedTimestamps = new Set<string>();
     for (const b of bookings) {
-      if (b.status === "rejected" || b.status === "cancelled" || b.status === "completed") continue;
+      if (b.status === "rejected" || b.status === "cancelled") continue;
       const t = b.confirmed_time || b.proposed_time;
       if (!t) continue;
-      const d = new Date(t);
-      const dow = d.getDay(); // 0=CN
+      // b.confirmed_time / proposed_time có thể là UTC string kết thúc bằng Z hoặc naive
+      const d = new Date(t.endsWith("Z") ? t : t + "Z");
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
       const hh = String(d.getHours()).padStart(2, "0");
-      const mm = String(d.getMinutes()).padStart(2, "0");
-      booked.add(`${dow}-${hh}:${mm}`);
+      const min = String(d.getMinutes()).padStart(2, "0");
+      bookedTimestamps.add(`${yyyy}-${mm}-${dd}-${hh}:${min}`);
     }
-    return slots.filter((s) => !booked.has(`${s.day_of_week}-${s.start_time}`));
+
+    const availableRecurring = availabilitySlots.filter((s) => s.is_available);
+    const dayNames = ["CN", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
+    const results: SuggestedSlot[] = [];
+
+    // Duyệt qua 7 ngày tiếp theo (từ hôm nay ngày 0 đến ngày 7)
+    for (let dayOffset = 0; dayOffset <= 7; dayOffset++) {
+      const targetDay = new Date(now);
+      targetDay.setDate(now.getDate() + dayOffset);
+      const targetDow = targetDay.getDay(); // 0-6
+
+      const matchedSlots = availableRecurring.filter((s) => s.day_of_week === targetDow);
+      for (const slot of matchedSlots) {
+        const [h, m] = slot.start_time.split(":").map(Number);
+        const slotDateTime = new Date(targetDay);
+        slotDateTime.setHours(h, m, 0, 0);
+
+        // Bỏ qua các khung giờ đã trôi qua trong quá khứ so với thời điểm hiện tại của user
+        if (slotDateTime.getTime() <= now.getTime()) {
+          continue;
+        }
+
+        const yyyy = slotDateTime.getFullYear();
+        const mm = String(slotDateTime.getMonth() + 1).padStart(2, "0");
+        const dd = String(slotDateTime.getDate()).padStart(2, "0");
+        const hh = String(slotDateTime.getHours()).padStart(2, "0");
+        const min = String(slotDateTime.getMinutes()).padStart(2, "0");
+        const key = `${yyyy}-${mm}-${dd}-${hh}:${min}`;
+
+        // Kiểm tra xem slot ngày cụ thể này đã bị đặt hay chưa
+        if (bookedTimestamps.has(key)) {
+          continue;
+        }
+
+        const iso = new Date(slotDateTime.getTime() - slotDateTime.getTimezoneOffset() * 60000)
+          .toISOString()
+          .slice(0, 16);
+
+        results.push({
+          date: slotDateTime,
+          dayOfWeek: slot.day_of_week,
+          dayName: dayNames[slot.day_of_week] ?? `T${slot.day_of_week}`,
+          dateStr: `${dd}/${mm}`,
+          startTime: slot.start_time,
+          endTime: slot.end_time,
+          isoString: iso,
+        });
+      }
+    }
+
+    // Sắp xếp các slot theo trình tự thời gian tăng dần từ gần nhất tới xa nhất
+    results.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return results;
   }
 
   const isStudent = hasRole("student") || (!hasRole("mentor") && !hasRole("admin"));
@@ -91,19 +159,16 @@ export default function BookingsPage() {
 
   async function loadAvailability(id: number) {
     setAvailLoading(true);
-    setAvailability([]);
+    setSuggestedSlots([]);
     try {
       const [availRes, bookRes] = await Promise.all([
         getMentorAvailability(id),
         getMentorBookings(id),
       ]);
-      const free = filterFreeSlots(
-        availRes.data.filter((s) => s.is_available),
-        bookRes.data,
-      );
-      setAvailability(free);
+      const upcoming = computeUpcomingSlots(availRes.data, bookRes.data);
+      setSuggestedSlots(upcoming);
     } catch {
-      setAvailability([]);
+      setSuggestedSlots([]);
     } finally {
       setAvailLoading(false);
     }
@@ -236,8 +301,8 @@ export default function BookingsPage() {
                     <span className="text-xs text-muted-foreground flex items-center gap-1.5">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang tải gợi ý thời gian...
                     </span>
-                  ) : availability.length === 0 ? (
-                    <span className="text-xs text-amber-400">Mentor chưa cài lịch rảnh. Bạn vẫn có thể đề xuất giờ, mentor sẽ xác nhận.</span>
+                  ) : suggestedSlots.length === 0 ? (
+                    <span className="text-xs text-amber-400">Mentor không còn slot trống nào trong 7 ngày tới. Bạn vẫn có thể tự chọn giờ, mentor sẽ xem xét xác nhận.</span>
                   ) : (
                     <div className="space-y-2">
                       <button
@@ -248,7 +313,7 @@ export default function BookingsPage() {
                         <Clock className="w-3.5 h-3.5 text-teal-400" />
                         <span>{showSuggestions ? "Ẩn gợi ý thời gian" : "Bấm để xem gợi ý thời gian"}</span>
                         <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-teal-500/20 text-teal-200">
-                          {availability.length} slot
+                          {suggestedSlots.length} slot (7 ngày tới)
                         </span>
                         {showSuggestions ? (
                           <ChevronUp className="w-3.5 h-3.5 ml-0.5 text-teal-400" />
@@ -260,49 +325,26 @@ export default function BookingsPage() {
                       {showSuggestions && (
                         <div className="p-2.5 bg-background/60 rounded-xl border border-border/80 space-y-2 animate-in fade-in-50 duration-200">
                           <span className="text-[11px] text-muted-foreground block font-medium">
-                            Khung giờ rảnh chưa có ai đặt (bấm một khung giờ để tự động điền):
+                            Các slot rảnh trong 7 ngày tới tính từ hôm nay (bấm để chọn nhanh):
                           </span>
                           <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-1">
-                            {availability.map((s) => {
-                              const now = new Date();
-                              const curDow = now.getDay(); // 0=CN
-                              let diff = (s.day_of_week - curDow + 7) % 7;
-                              if (diff === 0) {
-                                // Nếu là hôm nay nhưng giờ slot đã trôi qua thì chuyển sang tuần tới
-                                const [h, m] = s.start_time.split(":").map(Number);
-                                const slotToday = new Date(now);
-                                slotToday.setHours(h, m, 0, 0);
-                                if (slotToday <= now) {
-                                  diff = 7;
-                                }
-                              }
-                              const targetDate = new Date(now);
-                              targetDate.setDate(now.getDate() + diff);
-                              const [h, m] = s.start_time.split(":").map(Number);
-                              targetDate.setHours(h, m, 0, 0);
-
-                              const dayName = ["CN", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"][s.day_of_week] ?? `T${s.day_of_week}`;
-                              const dateStr = `${String(targetDate.getDate()).padStart(2, "0")}/${String(targetDate.getMonth() + 1).padStart(2, "0")}`;
-                              const iso = new Date(targetDate.getTime() - targetDate.getTimezoneOffset() * 60000)
-                                .toISOString()
-                                .slice(0, 16);
-                              const isSelected = proposedTime === iso;
-
+                            {suggestedSlots.map((s) => {
+                              const isSelected = proposedTime === s.isoString;
                               return (
                                 <button
-                                  key={`${s.day_of_week}-${s.start_time}`}
+                                  key={`${s.isoString}`}
                                   type="button"
-                                  onClick={() => setProposedTime(iso)}
+                                  onClick={() => setProposedTime(s.isoString)}
                                   className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors flex items-center gap-1.5 shadow-sm ${
                                     isSelected
                                       ? "bg-teal-500 border-teal-400 text-black font-semibold shadow-teal-500/20"
                                       : "bg-teal-500/10 border-teal-500/30 text-teal-300 hover:bg-teal-500/20 hover:border-teal-400/50"
                                   }`}
-                                  title={`Chọn lúc ${s.start_time} ${dayName}, ngày ${dateStr}`}
+                                  title={`Chọn lúc ${s.startTime} ${s.dayName}, ngày ${s.dateStr}`}
                                 >
-                                  <span className="font-semibold">{dayName}</span>
-                                  <span className="opacity-80 text-[11px] font-normal">({dateStr})</span>
-                                  <span className={isSelected ? "font-bold text-black" : "text-teal-200 font-semibold"}>{s.start_time}</span>
+                                  <span className="font-semibold">{s.dayName}</span>
+                                  <span className="opacity-80 text-[11px] font-normal">({s.dateStr})</span>
+                                  <span className={isSelected ? "font-bold text-black" : "text-teal-200 font-semibold"}>{s.startTime}</span>
                                 </button>
                               );
                             })}
