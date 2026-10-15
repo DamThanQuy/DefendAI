@@ -792,14 +792,6 @@ export default function WorkspaceDetailPage() {
                 >
                   Chat đề tài
                 </button>
-                <button
-                  onClick={() => openTab("history")}
-                  className={`px-5 py-2 text-[13px] font-semibold rounded-xl transition-colors ${
-                    rightTab === "history" ? "bg-primary text-primary-foreground" : "text-zinc-500 hover:bg-zinc-800/60"
-                  }`}
-                >
-                  Lịch sử ({allSessions.length})
-                </button>
               </div>
 
               {/* Stage 4 — Kiểm tra file nộp */}
@@ -919,12 +911,26 @@ export default function WorkspaceDetailPage() {
                       ) : (
                         <button
                           onClick={() => askWorkspaceTopic()}
-                          className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-[14px] font-semibold hover:bg-primary/90 whitespace-nowrap"
+                          disabled={!ws.document_count || ws.document_count === 0}
+                          title={!ws.document_count || ws.document_count === 0 ? "Vui lòng thêm file vào Workspace trước" : ""}
+                          className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-[14px] font-semibold hover:bg-primary/90 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           Sinh câu hỏi
                         </button>
                       )}
                     </div>
+
+                    {(!ws.document_count || ws.document_count === 0) && (
+                      <div className="mt-3 flex items-center justify-between bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-2.5 text-amber-300 text-[12px]">
+                        <span>⚠️ Workspace này hiện chưa có tài liệu nào để AI phản biện.</span>
+                        <Link
+                          href="/documents"
+                          className="ml-3 px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 rounded-lg font-medium text-[11px] transition-colors whitespace-nowrap"
+                        >
+                          + Thêm tài liệu
+                        </Link>
+                      </div>
+                    )}
 
                     {wsRunning && (
                       <div className="mt-3 flex items-center gap-2 text-[12px] text-zinc-400">
