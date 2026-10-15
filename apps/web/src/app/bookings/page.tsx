@@ -236,35 +236,53 @@ export default function BookingsPage() {
                   ) : availability.length === 0 ? (
                     <span className="text-xs text-amber-400">Mentor chưa cài lịch rảnh. Bạn vẫn có thể đề xuất giờ, mentor sẽ xác nhận.</span>
                   ) : (
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      <span className="text-xs text-muted-foreground w-full">Khung giờ rảnh &amp; chưa ai đặt (bấm để chọn):</span>
-                      {availability.map((s) => {
-                        const dayName = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][s.day_of_week] ?? `T${s.day_of_week}`;
-                        return (
-                          <button
-                            key={`${s.day_of_week}-${s.start_time}`}
-                            type="button"
-                            onClick={() => {
-                              // Gợi ý ngày gần nhất có slot này
-                              const now = new Date();
-                              const curDow = now.getDay(); // 0=CN
-                              let diff = (s.day_of_week - curDow + 7) % 7;
-                              if (diff === 0) diff = 7;
-                              const d = new Date(now);
-                              d.setDate(now.getDate() + diff);
-                              const [h, m] = s.start_time.split(":").map(Number);
-                              d.setHours(h, m, 0, 0);
-                              const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
-                                .toISOString()
-                                .slice(0, 16);
-                              setProposedTime(iso);
-                            }}
-                            className="px-2 py-1 rounded-md bg-teal-500/10 border border-teal-500/30 text-teal-300 text-xs hover:bg-teal-500/20"
-                          >
-                            {dayName} {s.start_time}
-                          </button>
-                        );
-                      })}
+                    <div className="space-y-2 mt-1">
+                      <span className="text-xs text-muted-foreground block font-medium">Khung giờ rảnh &amp; chưa ai đặt (bấm để chọn):</span>
+                      <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-1 bg-background/50 rounded-lg border border-border/60">
+                        {availability.map((s) => {
+                          const now = new Date();
+                          const curDow = now.getDay(); // 0=CN
+                          let diff = (s.day_of_week - curDow + 7) % 7;
+                          if (diff === 0) {
+                            // Nếu là hôm nay nhưng giờ slot đã trôi qua thì chuyển sang tuần tới
+                            const [h, m] = s.start_time.split(":").map(Number);
+                            const slotToday = new Date(now);
+                            slotToday.setHours(h, m, 0, 0);
+                            if (slotToday <= now) {
+                              diff = 7;
+                            }
+                          }
+                          const targetDate = new Date(now);
+                          targetDate.setDate(now.getDate() + diff);
+                          const [h, m] = s.start_time.split(":").map(Number);
+                          targetDate.setHours(h, m, 0, 0);
+
+                          const dayName = ["CN", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"][s.day_of_week] ?? `T${s.day_of_week}`;
+                          const dateStr = `${String(targetDate.getDate()).padStart(2, "0")}/${String(targetDate.getMonth() + 1).padStart(2, "0")}`;
+                          const iso = new Date(targetDate.getTime() - targetDate.getTimezoneOffset() * 60000)
+                            .toISOString()
+                            .slice(0, 16);
+                          const isSelected = proposedTime === iso;
+
+                          return (
+                            <button
+                              key={`${s.day_of_week}-${s.start_time}`}
+                              type="button"
+                              onClick={() => setProposedTime(iso)}
+                              className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors flex items-center gap-1.5 shadow-sm ${
+                                isSelected
+                                  ? "bg-teal-500 border-teal-400 text-black font-semibold shadow-teal-500/20"
+                                  : "bg-teal-500/10 border-teal-500/30 text-teal-300 hover:bg-teal-500/20 hover:border-teal-400/50"
+                              }`}
+                              title={`Chọn lúc ${s.start_time} ${dayName}, ngày ${dateStr}`}
+                            >
+                              <span className="font-semibold">{dayName}</span>
+                              <span className="opacity-80 text-[11px] font-normal">({dateStr})</span>
+                              <span className={isSelected ? "font-bold text-black" : "text-teal-200 font-semibold"}>{s.start_time}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
