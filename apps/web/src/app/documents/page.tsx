@@ -100,15 +100,20 @@ export default function DocumentsPage() {
       return;
     }
     try {
+      setLoading(true);
+      setError("");
       const r = await fetch("/api/documents", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!r.ok) throw new Error("Failed to fetch");
+      if (!r.ok) {
+        const errJson = await r.json().catch(() => null);
+        throw new Error(errJson?.error || errJson?.detail || errJson?.message || `Lỗi tải danh sách tài liệu (${r.status})`);
+      }
       const data: DocumentsResponse = await r.json();
       setDocs(data.items ?? []);
       setError("");
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message || "Không thể kết nối đến máy chủ");
     } finally {
       setLoading(false);
     }
@@ -330,8 +335,14 @@ export default function DocumentsPage() {
         )}
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-[14px] mb-6">
-            {error}
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-[14px] mb-6 flex items-center justify-between gap-4">
+            <span>{error}</span>
+            <button
+              onClick={fetchDocs}
+              className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-xs font-semibold text-red-400 shrink-0 transition-colors"
+            >
+              Thử lại
+            </button>
           </div>
         )}
 
