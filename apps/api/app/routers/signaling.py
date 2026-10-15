@@ -116,7 +116,7 @@ async def meeting_signal(
             data = await websocket.receive_json()
             msg_type = data.get("type")
             # Chỉ relay các message signaling hợp lệ
-            if msg_type in ("offer", "answer", "ice-candidate"):
+            if msg_type in ("offer", "answer", "ice-candidate", "media-state"):
                 relay = {
                     "type": msg_type,
                     "from": user.id,
