@@ -117,6 +117,19 @@ export default function MockRoomPage() {
   const [remoteVideoActive, setRemoteVideoActive] = useState(false);
   const [signalStatus, setSignalStatus] = useState<"idle" | "connecting" | "ready" | "peer-left">("idle");
 
+  // Luôn đồng bộ stream vào thẻ video local khi bật camera hoặc chia sẻ màn hình
+  useEffect(() => {
+    const stream = screenStreamRef.current || cameraStreamRef.current;
+    if (localVideoRef.current) {
+      if ((cameraOn || sharing) && stream) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.play().catch(() => {});
+      } else if (!cameraOn && !sharing) {
+        localVideoRef.current.srcObject = null;
+      }
+    }
+  }, [cameraOn, sharing, participants]);
+
   // Đồng bộ srcObject vào video overlay mỗi khi phóng to hoặc stream thay đổi.
   // (Tránh lỗi màn hình đen do tile gốc bị ẩn → ref chuyển sang overlay nhưng thiếu stream)
   useEffect(() => {
@@ -1136,9 +1149,10 @@ export default function MockRoomPage() {
               // Đã có presence → render 1 ô cho mỗi người (bạn + đối phương + người được mời)
               <>
               {participants.map((p) => {
-                const isMe = userRef.current && p.user_id === userRef.current.id;
+                const currentUserId = user?.id ?? userRef.current?.id;
+                const isMe = currentUserId ? Number(p.user_id) === Number(currentUserId) : (p.role === myRole);
                 const displayName = isMe
-                  ? (userRef.current?.full_name || userRef.current?.email || "Bạn")
+                  ? (user?.full_name || user?.email || userRef.current?.full_name || userRef.current?.email || "Bạn")
                   : p.name;
                 const roleLabel = p.role === "mentor" ? "Mentor" : "Sinh viên";
                 const initials = displayName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
@@ -1213,9 +1227,10 @@ export default function MockRoomPage() {
                 participants
                   .filter((x) => x.user_id === expandedTile)
                   .map((p) => {
-                    const isMe = userRef.current && p.user_id === userRef.current.id;
+                    const currentUserId = user?.id ?? userRef.current?.id;
+                    const isMe = currentUserId ? Number(p.user_id) === Number(currentUserId) : (p.role === myRole);
                     const displayName = isMe
-                      ? (userRef.current?.full_name || userRef.current?.email || "Bạn")
+                      ? (user?.full_name || user?.email || userRef.current?.full_name || userRef.current?.email || "Bạn")
                       : p.name;
                     const roleLabel = p.role === "mentor" ? "Mentor" : "Sinh viên";
                     const isMentor = p.role === "mentor";
