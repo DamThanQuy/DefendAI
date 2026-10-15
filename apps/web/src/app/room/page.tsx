@@ -498,8 +498,6 @@ export default function MockRoomPage() {
         // onnegotiationneeded sẽ tự tạo offer khi thêm track; nếu WS chưa mở thì kết nối
         connectSignaling();
         setMicOn(true);
-        // Tích hợp STT vào mic: bật mic → bật nhận dạng giọng nói (nếu trình duyệt hỗ trợ)
-        startSTT();
       } catch (err) {
         alert("Không thể truy cập microphone. Vui lòng cấp quyền.");
         console.error(err);
@@ -510,8 +508,6 @@ export default function MockRoomPage() {
         localStreamRef.current = null;
       }
       setMicOn(false);
-      // Tắt mic → tắt nhận dạng giọng nói
-      stopSTT();
     }
   };
 
@@ -1268,10 +1264,10 @@ export default function MockRoomPage() {
                 onClick={toggleMic}
                 className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
                   micOn
-                    ? "bg-teal-500/20 border border-teal-500 text-teal-400" + (isRecording ? " animate-pulse" : "")
+                    ? "bg-teal-500/20 border border-teal-500 text-teal-400"
                     : "bg-[#202020] hover:bg-[#2A2A2A] text-gray-300"
                 }`}
-                title={micOn ? (isRecording ? "Tắt mic & nhận dạng giọng nói" : "Tắt mic") : "Bật mic & nhận dạng giọng nói (STT)"}
+                title={micOn ? "Tắt mic" : "Bật mic"}
               >
                 {micOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
               </button>
@@ -1362,49 +1358,13 @@ export default function MockRoomPage() {
 
           {/* Tab content */}
           {activeTab === "chat" && (
-          <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
-            
-            <div className="flex items-center gap-4">
-              <div className="h-px bg-gray-800 flex-1"></div>
-              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Phiên Mock Room</span>
-              <div className="h-px bg-gray-800 flex-1"></div>
-            </div>
-
-            {/* Current Question Display */}
-            {currentQuestion && (
-              <div className="bg-teal-900/20 border border-teal-800/50 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-bold text-teal-400 px-2 py-0.5 rounded bg-teal-900/30">
-                    {currentQuestion.clo}
-                  </span>
-                  <span className="text-xs text-gray-500 px-2 py-0.5 rounded bg-gray-800/50">
-                    {currentQuestion.type} • {currentQuestion.difficulty}
-                  </span>
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+              {messages.length === 0 && (
+                <div className="text-center py-12 text-gray-500 text-xs">
+                  Chưa có tin nhắn nào. Bạn có thể gửi câu hỏi hoặc trao đổi văn bản tại đây.
                 </div>
-                <p className="text-gray-200 font-medium">{currentQuestion.question}</p>
-              </div>)}
-            
-            {/* CLO Coverage (KHÔNG chấm điểm số) */}
-            <div className="bg-gray-900/50 border border-gray-800/50 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">PHỦ TIÊU CHÍ (CLO)</span>
-              </div>
-              <div className="mb-3">
-                <div className="flex flex-wrap gap-1">
-                  {Object.entries(coverage).map(([clo, count]) => (
-                    <span key={clo} className="bg-teal-900/30 border border-teal-800/50 rounded-full px-2 py-1 text-xs text-teal-300">
-                      {clo}: {count}/2
-                    </span>
-                  ))}
-                  {Object.keys(coverage).length === 0 && (
-                    <span className="text-xs text-gray-500">Chưa có tiêu chí nào được phủ</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Messages */}
-            <div className="space-y-4">
+              )}
               {messages.map((msg, index) => {
                 // Tin nhắn của chính mình → nằm bên phải; của người khác → bên trái
                 const isMine = msg.sender_name === "Bạn" || (userRef.current && msg.sender_name === (userRef.current.full_name || userRef.current.email));
@@ -1443,12 +1403,6 @@ export default function MockRoomPage() {
 
             {/* Chat Input */}
             <div className="p-4 border-t border-gray-800/60">
-              {isRecording && (
-                <div className="flex items-center gap-2 mb-2 text-xs text-red-400">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                  Đang nghe... giọng nói của bạn được ghi lại thành văn bản tự động
-                </div>
-              )}
               <div className="relative">
                 <input 
                   type="text" 
