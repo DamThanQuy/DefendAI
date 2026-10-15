@@ -1259,8 +1259,8 @@ export default function MockRoomPage() {
             )}
 
             {/* Live Captions */}
-            <div className="absolute bottom-4 left-0 right-0 px-4">
-              <div className="bg-[#0f1513] border border-teal-900/50 rounded-xl p-4 shadow-xl backdrop-blur-md">
+            <div className="absolute bottom-24 left-0 right-0 px-4 z-10 pointer-events-none">
+              <div className="bg-[#0f1513]/95 border border-teal-900/60 rounded-xl p-4 shadow-2xl backdrop-blur-md pointer-events-auto max-w-4xl mx-auto">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="bg-teal-900/60 p-1 rounded text-teal-400">
                     <MessageSquare className="w-3 h-3" />
