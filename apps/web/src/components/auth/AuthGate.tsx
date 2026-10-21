@@ -7,6 +7,7 @@ import { refreshAccessToken, clearSession, getTokenExpiry } from "@/lib/auth";
 
 // Trang cần đăng nhập mới truy cập được.
 const PROTECTED_PATHS = [
+  "/workspaces",
   "/questions",
   "/code-review",
   "/room",
@@ -15,6 +16,8 @@ const PROTECTED_PATHS = [
   "/documents",
   "/bookings",
   "/mock-room",
+  "/mock-room-ai",
+  "/profile",
   "/mentor/bookings",
 ];
 
