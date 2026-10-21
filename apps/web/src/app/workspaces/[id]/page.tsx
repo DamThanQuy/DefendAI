@@ -346,7 +346,10 @@ export default function WorkspaceDetailPage() {
   useEffect(() => {
     if (!wsId) return;
     const token = getToken();
-    if (!token) return;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     fetch(`/api/workspaces/${wsId}`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -630,6 +633,20 @@ export default function WorkspaceDetailPage() {
     new Date(iso + "Z").toLocaleString("vi-VN", {
       day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
     });
+
+  const token = typeof window !== "undefined" ? getToken() : null;
+
+  if (!token) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-foreground mb-2">Vui lòng đăng nhập</h2>
+          <p className="text-zinc-500 mb-4">Bạn cần đăng nhập để truy cập workspace này.</p>
+          <Link href="/login" className="text-primary font-semibold hover:underline">Đăng nhập ngay</Link>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
