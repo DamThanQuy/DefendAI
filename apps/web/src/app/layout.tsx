@@ -5,6 +5,7 @@ import "./globals.css";
 import { Navbar } from "@/components/layout/NavbarNew";
 import { Footer } from "@/components/layout/Footer";
 import { AppShell } from "@/components/layout/AppShell";
+import { UploadProvider } from "@/contexts/UploadContext";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { TopProgress } from "@/components/common/TopProgress";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -40,7 +41,9 @@ export default function RootLayout({
             <Navbar />
             <main className="flex-1">
               <AuthGate>
-                <AppShell>{children}</AppShell>
+                <UploadProvider>
+                  <AppShell>{children}</AppShell>
+                </UploadProvider>
               </AuthGate>
             </main>
             <Footer />
