@@ -33,6 +33,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { isPublicPath } from "@/lib/shell";
 import { UserMenu } from "./UserMenu";
+import { HeaderUploadIndicator } from "./HeaderUploadIndicator";
 
 /**
  * Shell cho các trang "app" (sau khi đăng nhập): sidebar trái + top bar.
@@ -230,6 +231,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            <HeaderUploadIndicator />
             <Button
               variant="ghost"
               size="icon"

@@ -23,6 +23,12 @@ services:
   # Backend API (FastAPI + AI Gateway)
   # ========================================================================
   api:
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+        mode: "non-blocking"
     build: ./apps/api
     container_name: defense-api
     restart: unless-stopped
@@ -78,6 +84,12 @@ services:
   # Database (PostgreSQL 16) - Optimized RAM Buffer
   # ========================================================================
   db:
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+        mode: "non-blocking"
     image: pgvector/pgvector:pg16
     container_name: defense-db
     restart: unless-stopped
@@ -102,6 +114,12 @@ services:
   # Object Storage (MinIO)
   # ========================================================================
   minio:
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+        mode: "non-blocking"
     image: minio/minio
     container_name: defense-minio
     restart: unless-stopped
@@ -128,6 +146,12 @@ services:
   # Background worker (single process) - with RAM Disk tmpfs
   # ========================================================================
   worker:
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+        mode: "non-blocking"
     build: ./apps/api
     container_name: defense-worker
     restart: unless-stopped
@@ -179,6 +203,12 @@ services:
   # Multi-process worker (2 processes for HDD stability + RAM Disk)
   # ========================================================================
   worker_multi:
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+        mode: "non-blocking"
     build: ./apps/api
     container_name: defense-worker-multi
     restart: unless-stopped
@@ -232,6 +262,12 @@ services:
   # Redis - in-memory queue
   # ========================================================================
   redis:
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+        mode: "non-blocking"
     image: redis:7-alpine
     container_name: defense-redis
     restart: unless-stopped
@@ -267,6 +303,12 @@ services:
   #      WEB_PUBLIC_API_URL=http://26.161.35.68:8000
   # ========================================================================
   web:
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+        mode: "non-blocking"
     build: ./apps/web
     image: defendai-web
     container_name: defense-web
