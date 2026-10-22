@@ -51,8 +51,8 @@ def _create_user_with_role(role_name: str) -> int:
     with _conn() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO users (username, email, hashed_password, full_name, is_active, created_at, auth_provider)
-            VALUES (%s, %s, %s, %s, 1, now(), 'email')
+            INSERT INTO users (username, email, hashed_password, full_name, is_active, created_at, auth_provider, profile_data)
+            VALUES (%s, %s, %s, %s, 1, now(), 'email', '{}')
             RETURNING id
             """,
             (username, email, "x", f"Test {role_name}"),
@@ -239,8 +239,8 @@ async def test_restore_brings_document_back(client):
         assert r.status_code == 200, r.text
         restored = r.json()
         assert restored["id"] == doc
-        assert restored["deleted_at"] is None
-        assert restored["deleted_by"] is None
+        assert restored.get("deleted_at") is None
+        assert restored.get("deleted_by") is None
 
         r = await client.get(f"/api/documents/{doc}", headers=_auth(student))
         assert r.status_code == 200

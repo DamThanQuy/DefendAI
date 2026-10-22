@@ -614,6 +614,14 @@ async def overview(
         .where(CodeAnalysis.status == CodeAnalysisStatus.completed))
     ).scalar_one()
 
+    from app.models.payment import PaymentOrder
+    total_revenue = (
+        await db.execute(
+            select(func.coalesce(func.sum(PaymentOrder.amount), 0))
+            .where(PaymentOrder.status == "paid")
+        )
+    ).scalar_one()
+
     return {
         "total_users": total_users,
         "new_users": new_users,
@@ -623,8 +631,7 @@ async def overview(
         "pending_bookings": pending_bookings,
         "total_reviews": total_reviews,
         "completed_reviews": completed_reviews,
-        # Doanh thu: chưa có module thanh toán — placeholder 0
-        "total_revenue": 0,
+        "total_revenue": int(total_revenue),
     }
 
 
@@ -664,3 +671,238 @@ async def list_all_bookings(
         for b in result.scalars().all()
     ]
     return {"items": items}
+
+
+# ---------------------------------------------------------------------------
+# Báo cáo tài chính & Đối soát giao dịch (Financial Reports & Reconciliation)
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/financial-reports",
+    summary="Báo cáo tài chính và đối soát (admin)",
+    description="Thống kê doanh thu, phân bổ theo phương thức/gói, biểu đồ thời gian và đối soát chi tiết. Chỉ admin.",
+)
+async def get_financial_reports(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    status: Optional[str] = None,
+    method: Optional[str] = None,
+    purpose: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_role("admin")),
+) -> dict:
+    from sqlalchemy import func, and_
+    from datetime import datetime, timedelta
+    from app.models.payment import PaymentOrder, Subscription, Wallet
+    from app.models.subscription_plan import SubscriptionPlan
+
+    conditions = []
+    dt_start = None
+    dt_end = None
+    if start_date:
+        try:
+            dt_start = datetime.strptime(start_date, "%Y-%m-%d")
+            conditions.append(PaymentOrder.created_at >= dt_start)
+        except ValueError:
+            pass
+    if end_date:
+        try:
+            dt_end = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
+            conditions.append(PaymentOrder.created_at < dt_end)
+        except ValueError:
+            pass
+    if status:
+        conditions.append(PaymentOrder.status == status)
+    if method:
+        conditions.append(PaymentOrder.method == method)
+    if purpose:
+        conditions.append(PaymentOrder.purpose == purpose)
+
+    where_clause = and_(*conditions) if conditions else True
+
+    # 1. Summary Metrics
+    paid_conditions = [PaymentOrder.status == "paid"]
+    if dt_start:
+        paid_conditions.append(PaymentOrder.created_at >= dt_start)
+    if dt_end:
+        paid_conditions.append(PaymentOrder.created_at < dt_end)
+    paid_clause = and_(*paid_conditions)
+
+    total_gross_revenue = (
+        await db.execute(
+            select(func.coalesce(func.sum(PaymentOrder.amount), 0))
+            .where(paid_clause)
+        )
+    ).scalar_one()
+
+    subscription_revenue = (
+        await db.execute(
+            select(func.coalesce(func.sum(PaymentOrder.amount), 0))
+            .where(and_(paid_clause, PaymentOrder.purpose == "subscription"))
+        )
+    ).scalar_one()
+
+    wallet_deposit_revenue = (
+        await db.execute(
+            select(func.coalesce(func.sum(PaymentOrder.amount), 0))
+            .where(and_(paid_clause, PaymentOrder.purpose == "wallet"))
+        )
+    ).scalar_one()
+
+    # Status counts
+    status_counts_rows = (
+        await db.execute(
+            select(PaymentOrder.status, func.count(PaymentOrder.id))
+            .group_by(PaymentOrder.status)
+        )
+    ).all()
+    status_counts = {row[0]: row[1] for row in status_counts_rows}
+
+    # Active subscribers
+    now = datetime.utcnow()
+    active_subscribers = (
+        await db.execute(
+            select(func.count(Subscription.id))
+            .where(and_(Subscription.status == "active", Subscription.expires_at > now))
+        )
+    ).scalar_one()
+
+    # Total wallet balance across system
+    total_wallet_balance = (
+        await db.execute(select(func.coalesce(func.sum(Wallet.balance), 0)))
+    ).scalar_one()
+
+    # 2. Revenue Breakdown by Payment Method (paid orders)
+    method_rows = (
+        await db.execute(
+            select(
+                PaymentOrder.method,
+                func.count(PaymentOrder.id),
+                func.coalesce(func.sum(PaymentOrder.amount), 0)
+            )
+            .where(paid_clause)
+            .group_by(PaymentOrder.method)
+        )
+    ).all()
+    by_method = [
+        {"method": r[0], "count": r[1], "amount": int(r[2])}
+        for r in method_rows
+    ]
+
+    # 3. Revenue Breakdown by Subscription Plan
+    plan_rows = (
+        await db.execute(
+            select(
+                SubscriptionPlan.name,
+                SubscriptionPlan.slug,
+                func.count(PaymentOrder.id),
+                func.coalesce(func.sum(PaymentOrder.amount), 0)
+            )
+            .join(SubscriptionPlan, PaymentOrder.plan_id == SubscriptionPlan.id)
+            .where(paid_clause)
+            .group_by(SubscriptionPlan.name, SubscriptionPlan.slug)
+        )
+    ).all()
+    by_plan = [
+        {"plan_name": r[0], "slug": r[1], "count": r[2], "amount": int(r[3])}
+        for r in plan_rows
+    ]
+
+    # 4. Daily Timeline
+    chart_start = dt_start or (now - timedelta(days=29)).replace(hour=0, minute=0, second=0, microsecond=0)
+    chart_end = dt_end or (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    timeline_rows = (
+        await db.execute(
+            select(
+                func.date(PaymentOrder.created_at).label("day"),
+                func.coalesce(func.sum(PaymentOrder.amount), 0).label("revenue"),
+                func.count(PaymentOrder.id).label("orders_count")
+            )
+            .where(and_(PaymentOrder.status == "paid", PaymentOrder.created_at >= chart_start, PaymentOrder.created_at < chart_end))
+            .group_by(func.date(PaymentOrder.created_at))
+            .order_by(func.date(PaymentOrder.created_at))
+        )
+    ).all()
+    timeline_map = {str(r[0]): {"revenue": int(r[1]), "orders_count": int(r[2])} for r in timeline_rows}
+
+    days_span = min(max(1, (chart_end - chart_start).days), 90)
+    timeline = []
+    for d in range(days_span):
+        curr_date = (chart_start + timedelta(days=d)).strftime("%Y-%m-%d")
+        item = timeline_map.get(curr_date, {"revenue": 0, "orders_count": 0})
+        timeline.append({"date": curr_date, **item})
+
+    # 5. Detailed Transactions List (Đối soát giao dịch)
+    total_transactions = (
+        await db.execute(
+            select(func.count(PaymentOrder.id))
+            .where(where_clause)
+        )
+    ).scalar_one()
+
+    tx_stmt = (
+        select(
+            PaymentOrder,
+            User.email,
+            User.full_name,
+            SubscriptionPlan.name.label("plan_name"),
+            SubscriptionPlan.slug.label("plan_slug")
+        )
+        .join(User, PaymentOrder.user_id == User.id)
+        .outerjoin(SubscriptionPlan, PaymentOrder.plan_id == SubscriptionPlan.id)
+        .where(where_clause)
+        .order_by(PaymentOrder.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    tx_results = (await db.execute(tx_stmt)).all()
+
+    transactions = [
+        {
+            "id": order.id,
+            "order_code": order.order_code,
+            "user_id": order.user_id,
+            "user_email": email,
+            "user_name": full_name,
+            "amount": order.amount,
+            "proration_credit": order.proration_credit,
+            "method": order.method,
+            "purpose": order.purpose,
+            "plan_name": plan_name,
+            "plan_slug": plan_slug,
+            "status": order.status,
+            "provider_reference": order.provider_reference,
+            "payment_url": order.payment_url,
+            "created_at": order.created_at.isoformat() if order.created_at else None,
+            "paid_at": order.paid_at.isoformat() if order.paid_at else None,
+            "reviewed_at": order.reviewed_at.isoformat() if order.reviewed_at else None,
+        }
+        for order, email, full_name, plan_name, plan_slug in tx_results
+    ]
+
+    return {
+        "summary": {
+            "total_gross_revenue": int(total_gross_revenue),
+            "subscription_revenue": int(subscription_revenue),
+            "wallet_deposit_revenue": int(wallet_deposit_revenue),
+            "total_orders_paid": status_counts.get("paid", 0),
+            "total_orders_pending": status_counts.get("pending", 0),
+            "total_orders_awaiting_review": status_counts.get("awaiting_review", 0),
+            "total_orders_failed": status_counts.get("cancelled", 0) + status_counts.get("failed", 0),
+            "status_counts": status_counts,
+            "active_subscribers": int(active_subscribers),
+            "total_wallet_balance": int(total_wallet_balance),
+        },
+        "by_method": by_method,
+        "by_plan": by_plan,
+        "timeline": timeline,
+        "transactions": transactions,
+        "pagination": {
+            "total": total_transactions,
+            "limit": limit,
+            "offset": offset,
+        }
+    }

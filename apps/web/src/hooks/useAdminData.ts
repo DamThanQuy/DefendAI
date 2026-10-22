@@ -781,3 +781,126 @@ export function statusBadge(status: string) {
   };
   return `px-2 py-0.5 text-[11px] font-bold rounded-full ${map[status] ?? "bg-zinc-700/40 text-zinc-300"}`;
 }
+
+// ---------------------------------------------------------------------------
+// Báo cáo tài chính & Đối soát giao dịch (Financial Reports)
+// ---------------------------------------------------------------------------
+export interface FinancialSummary {
+  total_gross_revenue: number;
+  subscription_revenue: number;
+  wallet_deposit_revenue: number;
+  total_orders_paid: number;
+  total_orders_pending: number;
+  total_orders_awaiting_review: number;
+  total_orders_failed: number;
+  status_counts: Record<string, number>;
+  active_subscribers: number;
+  total_wallet_balance: number;
+}
+
+export interface FinancialMethodBreakdown {
+  method: string;
+  count: number;
+  amount: number;
+}
+
+export interface FinancialPlanBreakdown {
+  plan_name: string;
+  slug: string;
+  count: number;
+  amount: number;
+}
+
+export interface FinancialTimelinePoint {
+  date: string;
+  revenue: number;
+  orders_count: number;
+}
+
+export interface FinancialTransaction {
+  id: number;
+  order_code: string;
+  user_id: number;
+  user_email: string;
+  user_name: string | null;
+  amount: number;
+  proration_credit: number;
+  method: string;
+  purpose: string;
+  plan_name: string | null;
+  plan_slug: string | null;
+  status: string;
+  provider_reference: string | null;
+  payment_url: string | null;
+  created_at: string | null;
+  paid_at: string | null;
+  reviewed_at: string | null;
+}
+
+export interface FinancialReportsData {
+  summary: FinancialSummary;
+  by_method: FinancialMethodBreakdown[];
+  by_plan: FinancialPlanBreakdown[];
+  timeline: FinancialTimelinePoint[];
+  transactions: FinancialTransaction[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
+}
+
+export interface FinancialFilterParams {
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  method?: string;
+  purpose?: string;
+  page?: number;
+  limit?: number;
+}
+
+export function useAdminFinancialReports(initialFilters?: FinancialFilterParams) {
+  const [data, setData] = useState<FinancialReportsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<FinancialFilterParams>(initialFilters || {});
+
+  const loadData = async (currentFilters = filters) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (currentFilters.startDate) params.append("start_date", currentFilters.startDate);
+      if (currentFilters.endDate) params.append("end_date", currentFilters.endDate);
+      if (currentFilters.status && currentFilters.status !== "all") params.append("status", currentFilters.status);
+      if (currentFilters.method && currentFilters.method !== "all") params.append("method", currentFilters.method);
+      if (currentFilters.purpose && currentFilters.purpose !== "all") params.append("purpose", currentFilters.purpose);
+      const limit = currentFilters.limit || 50;
+      const offset = ((currentFilters.page || 1) - 1) * limit;
+      params.append("limit", String(limit));
+      params.append("offset", String(offset));
+
+      const res = await fetch(`/api/admin/financial-reports?${params.toString()}`, {
+        headers: authHeaders(),
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: Không tải được báo cáo tài chính`);
+      }
+      const json = await res.json();
+      setData(json);
+    } catch (err: any) {
+      setError(err?.message || "Lỗi tải dữ liệu tài chính");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
+
+  return { data, loading, error, filters, setFilters, refetch: loadData };
+}
