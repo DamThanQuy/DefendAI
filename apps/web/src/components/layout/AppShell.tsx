@@ -72,7 +72,7 @@ const SIDEBAR_LINKS: SidebarLink[] = [
   { href: "/admin/overview", label: "Tổng quan", icon: LayoutDashboard, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/mentor-verification", label: "Duyệt Mentor", icon: Star, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/dispute", label: "Dispute Center", icon: Scale, roles: ["admin"], section: "Quản trị" },
-  { href: "/admin/payout", label: "Tài chính & Rút tiền", icon: Wallet, roles: ["admin"], section: "Quản trị" },
+  { href: "/admin/payout", label: "Báo cáo tài chính", icon: Wallet, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/users", label: "Quản lý người dùng", icon: Users, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/settings", label: "Cấu hình hệ thống", icon: Settings, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/moderation", label: "Kiểm duyệt nội dung", icon: ShieldCheck, roles: ["admin"], section: "Quản trị" },

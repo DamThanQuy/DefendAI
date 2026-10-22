@@ -9,6 +9,11 @@ const PROXY_URL =
   "http://localhost:8000";
 
 const nextConfig = {
+  // Giới hạn worker để tránh OOM trên Windows dev
+  experimental: {
+    workerThreads: false,
+    cpus: 1,
+  },
   // output: "standalone" chỉ dùng cho Docker/Node server.
   // Vercel tự build & serve nên không cần (tránh conflict với vercel.json).
   // Nếu deploy bằng Docker, bỏ comment dòng dưới:

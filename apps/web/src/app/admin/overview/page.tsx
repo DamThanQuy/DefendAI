@@ -7,7 +7,7 @@ export default function AdminOverviewPage() {
   const { overview, overviewLoading } = useAdminOverview();
 
   const cards = [
-    { label: "Tổng doanh thu", value: overviewLoading ? "..." : `${(overview?.total_revenue ?? 0).toLocaleString("vi-VN")} ₫`, sub: "Chưa có module thanh toán (placeholder)" },
+    { label: "Tổng doanh thu", value: overviewLoading ? "..." : `${(overview?.total_revenue ?? 0).toLocaleString("vi-VN")} ₫`, sub: "Doanh thu thực nhận từ giao dịch" },
     { label: "User hoạt động", value: overviewLoading ? "..." : overview?.total_users, sub: `Mới: ${overview?.new_users ?? 0}` },
     { label: "Mentor", value: overviewLoading ? "..." : overview?.total_mentors, sub: "Đang hoạt động" },
     { label: "Session thành công", value: overviewLoading ? "..." : overview?.completed_bookings, sub: `/${overview?.total_bookings ?? 0} lịch hẹn` },
