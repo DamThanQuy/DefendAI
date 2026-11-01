@@ -36,6 +36,7 @@ const ROLE_ROUTES: Record<string, string[]> = {
   "/admin/settings": ["admin"],
   "/admin/moderation": ["admin"],
   "/admin/ai-monitor": ["admin"],
+  "/admin/feedbacks": ["admin"],
 };
 
 export function AuthGate({ children }: { children: React.ReactNode }) {

@@ -27,6 +27,10 @@ class User(Base):
     # Google subject ID (chỉ khi auth_provider = google)
     google_sub = Column(String(255), nullable=True)
 
+    # Ngành học (chọn khi đăng ký, phục vụ thống kê) — NULL với user cũ / Google OAuth
+    major = Column(String(100), nullable=True)
+
     sessions = relationship("Session", back_populates="creator", foreign_keys="Session.created_by")
     roles = relationship("Role", secondary=user_roles, back_populates="users")
     refresh_tokens = relationship("RefreshToken", back_populates="user")
+    feedbacks = relationship("Feedback", back_populates="user", cascade="all, delete-orphan")

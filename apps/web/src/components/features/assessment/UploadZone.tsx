@@ -8,8 +8,6 @@ import { ChunkedUploader } from "@/lib/chunked-upload";
 // File >= ngưỡng này chuyển sang chunked (S3 Multipart) để bypass giới hạn 1MB của Next.js BFF.
 const CHUNKED_THRESHOLD = 4 * 1024 * 1024; // 4 MB
 
-export type UploadSpeedMode = "fast" | "eco" | "gentle";
-
 type Props = {
   onFileSelected?: (file: File) => void;
   onDone?: () => void;
@@ -43,19 +41,6 @@ export function UploadZone({
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [uploaded, setUploaded] = useState(false);
-  const [speedMode, setSpeedMode] = useState<UploadSpeedMode>(() => {
-    if (typeof window !== "undefined") {
-      return (localStorage.getItem("defendai:upload-speed-mode") as UploadSpeedMode) || "eco";
-    }
-    return "eco";
-  });
-
-  const handleSetSpeedMode = (mode: UploadSpeedMode) => {
-    setSpeedMode(mode);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("defendai:upload-speed-mode", mode);
-    }
-  };
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusText, setStatusText] = useState("");
@@ -212,13 +197,12 @@ export function UploadZone({
     try {
       const token = localStorage.getItem("access_token");
       if (file.size >= CHUNKED_THRESHOLD) {
-        // File lớn → dùng chunked (S3 Multipart) qua MinIO presigned URLs
-        const concurrency = speedMode === "fast" ? 3 : 1;
-        const delayBetweenChunksMs = speedMode === "fast" ? 0 : speedMode === "eco" ? 500 : 1500;
-
+        // File lớn → dùng chunked (S3 Multipart) qua MinIO presigned URLs.
+        // Cố định chế độ "Chống lag": 1 luồng tuần tự, nghỉ 0.5s giữa các chunk
+        // để tránh nghẽn băng thông WiFi gia đình.
         uploader = new ChunkedUploader(file, {
-          concurrency,
-          delayBetweenChunksMs,
+          concurrency: 1,
+          delayBetweenChunksMs: 500,
           signal: ac.signal,
           onProgress: (uploaded, total) => {
             updateProgress(uploaded, total);
@@ -399,57 +383,7 @@ export function UploadZone({
             {/* Bước 1b: Chưa upload → nút "Tải lên" */}
             {!isProcessing && !uploaded && (
               <div className="flex flex-col gap-3 pt-4 border-t border-border/60">
-                {/* Tùy chọn tốc độ đường truyền (Tránh nghẽn WiFi gia đình) */}
-                <div className="text-left w-full">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[12px] font-semibold text-foreground">Chế độ tải lên:</span>
-                    <span className="text-[11px] text-muted-foreground font-mono">
-                      {speedMode === "fast" && "3 luồng song song"}
-                      {speedMode === "eco" && "1 luồng · nghỉ 0.5s"}
-                      {speedMode === "gentle" && "1 luồng · nghỉ 1.5s"}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1 p-1 bg-muted/60 rounded-xl text-[12px]">
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handleSetSpeedMode("fast"); }}
-                      className={`py-1.5 px-2 rounded-lg transition-all ${
-                        speedMode === "fast"
-                          ? "bg-background text-foreground shadow-sm font-semibold"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                      title="Tải nhanh nhất (chiếm toàn bộ băng thông)"
-                    >
-                      🚀 Tối đa
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handleSetSpeedMode("eco"); }}
-                      className={`py-1.5 px-2 rounded-lg transition-all ${
-                        speedMode === "eco"
-                          ? "bg-background text-teal-400 shadow-sm font-semibold"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                      title="Tải tuần tự, giãn cách - Giữ WiFi gia đình ổn định"
-                    >
-                      ⚖️ Chống lag
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handleSetSpeedMode("gentle"); }}
-                      className={`py-1.5 px-2 rounded-lg transition-all ${
-                        speedMode === "gentle"
-                          ? "bg-background text-amber-400 shadow-sm font-semibold"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                      title="Tải rất nhẹ, nhường băng thông cho người khác xem video/gọi điện"
-                    >
-                      🐢 Rất nhẹ
-                    </button>
-                  </div>
-                </div>
-
-                <button onClick={(e) => { e.stopPropagation(); processFile(); }} className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full shadow-md transition-colors text-sm mt-1">
+                <button onClick={(e) => { e.stopPropagation(); processFile(); }} className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full shadow-md transition-colors text-sm">
                   Tải lên
                 </button>
                 <button onClick={(e) => { e.stopPropagation(); setFile(null); setUploaded(false); }} className="w-full py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">

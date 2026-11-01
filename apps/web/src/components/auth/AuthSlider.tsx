@@ -22,8 +22,35 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AuthField, AuthPasswordField } from "@/components/auth/AuthField";
+import { MAJORS } from "@/constants/majors";
+import { markTourPending } from "@/lib/tour";
 
 const googleConfigured = Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
+
+/**
+ * Chuẩn hoá `detail` lỗi từ backend (FastAPI) về chuỗi.
+ * Với lỗi 422 FastAPI trả detail là MẢNG object [{type, loc, msg, input, ctx}];
+ * gắn thẳng object/mảng vào setError sẽ làm React crash khi render
+ * ("Objects are not valid as a React child") → trắng cả trang.
+ */
+function detailToMessage(detail: unknown, fallback: string): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const msgs = detail
+      .map((d) =>
+        typeof d === "string" ? d : (d as { msg?: unknown } | null)?.msg
+      )
+      .filter((m): m is string => typeof m === "string" && m.length > 0);
+    if (msgs.length > 0) return msgs.join(", ");
+  } else if (
+    detail !== null &&
+    typeof detail === "object" &&
+    typeof (detail as { msg?: unknown }).msg === "string"
+  ) {
+    return (detail as { msg: string }).msg;
+  }
+  return fallback;
+}
 
 /* ---------- Floating illustration for the promo panel ---------- */
 function PromoArt() {
@@ -208,6 +235,8 @@ function RegisterForm(props: {
   setEmail: (v: string) => void;
   password: string;
   setPassword: (v: string) => void;
+  major: string;
+  setMajor: (v: string) => void;
   loading: boolean;
   error: string;
   onSubmit: (e: React.FormEvent) => void;
@@ -269,6 +298,32 @@ function RegisterForm(props: {
           </p>
         </div>
 
+        <div className="space-y-2">
+          <Label htmlFor="major" className="font-semibold text-slate-700">
+            Ngành học
+          </Label>
+          <div className="relative">
+            <GraduationCap className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+            <select
+              id="major"
+              value={props.major}
+              onChange={(e) => props.setMajor(e.target.value)}
+              className={`h-12 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-3 text-sm transition-colors focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/30 ${
+                props.major ? "text-zinc-900" : "text-muted-foreground"
+              }`}
+            >
+              <option value="" disabled>
+                — Chọn ngành học —
+              </option>
+              {MAJORS.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <Button
           type="submit"
           disabled={props.loading}
@@ -326,6 +381,7 @@ export function AuthSlider({
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
+  const [major, setMajor] = useState("");
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -348,22 +404,27 @@ export function AuthSlider({
       setError(`Mật khẩu còn thiếu: ${missing.join(", ")}.`);
       return;
     }
+    if (!major) {
+      setError("Vui lòng chọn ngành học.");
+      return;
+    }
 
     setLoading(true);
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ full_name: fullName, email, password }),
+        body: JSON.stringify({ full_name: fullName, email, password, major }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.detail || "Đăng ký thất bại");
+        setError(detailToMessage(data.detail, "Đăng ký thất bại"));
         return;
       }
       localStorage.setItem("access_token", data.token);
       localStorage.setItem("refresh_token", data.refresh_token || "");
       localStorage.setItem("user", JSON.stringify(data.user));
+      markTourPending(Number(data.user.id)); // Product tour: chỉ user vừa signup mới được xem
       window.dispatchEvent(new Event("storage"));
       router.push("/documents");
     } catch {
@@ -385,7 +446,7 @@ export function AuthSlider({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.detail || "Đăng nhập thất bại");
+        setError(detailToMessage(data.detail, "Đăng nhập thất bại"));
         return;
       }
       localStorage.setItem("access_token", data.token);
@@ -422,7 +483,7 @@ export function AuthSlider({
       console.log("Google login - response status:", res.status);
       console.log("Google login - response data:", data);
       if (!res.ok) {
-        setError(data.detail || "Đăng nhập Google thất bại");
+        setError(detailToMessage(data.detail, "Đăng nhập Google thất bại"));
         return;
       }
       localStorage.setItem("access_token", data.token);
@@ -482,6 +543,8 @@ export function AuthSlider({
           setEmail={setEmail}
           password={password}
           setPassword={setPassword}
+          major={major}
+          setMajor={setMajor}
           loading={loading}
           error={error}
           onSubmit={handleRegister}

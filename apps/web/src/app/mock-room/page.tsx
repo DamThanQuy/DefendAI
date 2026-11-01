@@ -24,6 +24,8 @@ import {
   Users,
   Bot,
   Crown,
+  Sparkles,
+  Gift,
 } from "lucide-react";
 
 const STATUS_META: Record<
@@ -74,9 +76,62 @@ export default function MockRoomLandingPage() {
     }
   }, [user]);
 
+  // Số vé trải nghiệm Mock AI (nhận từ khảo sát Feedback hoặc user profile)
+  const [trialTickets, setTrialTickets] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    const fromProfile = Number((user?.profile_data as any)?.mock_ai_trial_tickets);
+    if (!isNaN(fromProfile) && fromProfile > 0) return fromProfile;
+    try {
+      const fromStorage = Number(localStorage.getItem("mock_ai_trial_tickets"));
+      if (!isNaN(fromStorage) && fromStorage > 0) return fromStorage;
+    } catch {}
+    return 0;
+  });
+
+  // Đồng bộ vé trải nghiệm tự động từ profile, localStorage hoặc API
+  useEffect(() => {
+    const updateTickets = () => {
+      const fromProfile = Number((user?.profile_data as any)?.mock_ai_trial_tickets);
+      let t = 0;
+      if (!isNaN(fromProfile) && fromProfile > 0) t = fromProfile;
+      try {
+        const fromStorage = Number(localStorage.getItem("mock_ai_trial_tickets"));
+        if (!isNaN(fromStorage) && fromStorage > t) t = fromStorage;
+      } catch {}
+      setTrialTickets(t);
+    };
+
+    updateTickets();
+    window.addEventListener("storage", updateTickets);
+
+    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+    if (token) {
+      import("@/lib/api").then(({ api }) => {
+        api
+          .get("/api/feedback/user-context")
+          .then((res) => {
+            const tickets = Number(res.data?.mock_ai_trial_tickets);
+            if (!isNaN(tickets) && tickets >= 0) {
+              setTrialTickets(tickets);
+              try {
+                localStorage.setItem("mock_ai_trial_tickets", String(tickets));
+              } catch {}
+            }
+          })
+          .catch(() => {});
+      });
+    }
+
+    return () => {
+      window.removeEventListener("storage", updateTickets);
+    };
+  }, [user]);
+
+  const hasMockAIAccess = isVip || trialTickets > 0;
+
   const handleEnterMockAI = () => {
-    if (!isVip) {
-      alert("Phòng Mock AI chỉ dành cho thành viên VIP. Hãy nâng cấp để sử dụng!");
+    if (!hasMockAIAccess) {
+      alert("Phòng Mock AI chỉ dành cho thành viên VIP hoặc người dùng có vé trải nghiệm. Hãy nâng cấp hoặc làm khảo sát để nhận vé!");
       router.push("/checkout?plan=vip&cycle=monthly");
       return;
     }
@@ -203,12 +258,24 @@ export default function MockRoomLandingPage() {
                 <h3 className="text-lg font-serif font-bold text-foreground">
                   Phòng Mock AI
                 </h3>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-accent to-orange-500 text-white">
-                  <Crown className="w-3 h-3" /> VIP
-                </span>
+                {isVip ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-accent to-orange-500 text-white">
+                    <Crown className="w-3 h-3" /> VIP
+                  </span>
+                ) : trialTickets > 0 ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-sm">
+                    <Sparkles className="w-3 h-3" /> Có {trialTickets} vé trải nghiệm
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-accent to-orange-500 text-white">
+                    <Crown className="w-3 h-3" /> VIP
+                  </span>
+                )}
               </div>
               <p className="text-sm text-muted-foreground">
-                Luyện phòng chat với AI mentor — trò chuyện chất vấn tự do, không cần đặt lịch.
+                {trialTickets > 0 && !isVip
+                  ? `Bạn đang có ${trialTickets} vé trải nghiệm Mock Room AI miễn phí từ khảo sát. Nhấp để tham gia ngay!`
+                  : "Luyện phòng chat với AI mentor — trò chuyện chất vấn tự do, không cần đặt lịch."}
               </p>
             </div>
             <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />

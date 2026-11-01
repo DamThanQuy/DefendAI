@@ -87,3 +87,7 @@ test-google-login.mjs
 # Local large test fixture (manual checkpoint only, not used by CI)
 apps/api/report-cua-long.docx
 apps/web/tsconfig.tsbuildinfo
+
+# Playwright / test artifacts
+playwright-report/
+test-results/

@@ -45,6 +45,7 @@ from app.models.analysis_job import (  # noqa: F401
     ProjectManifest,
     RequirementMatch,
 )
+from app.models.feedback import Feedback
 
 __all__ = [
     "User",
@@ -82,4 +83,5 @@ __all__ = [
     "ProjectEvidence",
     "ProjectManifest",
     "RequirementMatch",
+    "Feedback",
 ]

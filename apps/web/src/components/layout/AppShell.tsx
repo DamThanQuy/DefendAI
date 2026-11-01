@@ -29,6 +29,7 @@ import {
   Bell,
   Search,
   CreditCard,
+  MessageSquareHeart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isPublicPath } from "@/lib/shell";
@@ -79,6 +80,7 @@ const SIDEBAR_LINKS: SidebarLink[] = [
   { href: "/admin/ai-monitor", label: "Giám sát AI", icon: Bot, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/subscriptions", label: "Quản lý gói", icon: Crown, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/payments", label: "Duyệt thanh toán", icon: CreditCard, roles: ["admin"], section: "Quản trị" },
+  { href: "/admin/feedbacks", label: "Phản hồi người dùng", icon: MessageSquareHeart, roles: ["admin"], section: "Quản trị" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -161,6 +163,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Link
                     key={l.href}
                     href={l.href}
+                    data-testid={`sidebar-link-${l.href}`}
                     className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                       active
                         ? "bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.3)]"
@@ -208,7 +211,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }`}
       >
         {/* Top bar */}
-        <header className="shrink-0 z-30 h-16 border-b border-border bg-background/80 backdrop-blur-md flex items-center px-6 gap-4">
+        <header className="shrink-0 z-20 h-16 border-b border-border bg-background/80 backdrop-blur-md flex items-center px-6 gap-4">
           {/* Breadcrumb */}
           <nav className="flex items-center text-[13px] font-medium gap-1.5 min-w-0">
             <Link
@@ -237,6 +240,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               size="icon"
               className="rounded-full hover:bg-muted"
               aria-label="Trợ giúp"
+              data-testid="topbar-help"
             >
               <HelpCircle className="w-5 h-5 text-muted-foreground" />
             </Button>
