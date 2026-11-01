@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  GraduationCap,
   Sparkles,
   Loader2,
   Lock,
@@ -22,8 +21,34 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AuthField, AuthPasswordField } from "@/components/auth/AuthField";
+import { markTourPending } from "@/lib/tour";
 
 const googleConfigured = Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
+
+/**
+ * Chuẩn hoá `detail` lỗi từ backend (FastAPI) về chuỗi.
+ * Với lỗi 422 FastAPI trả detail là MẢNG object [{type, loc, msg, input, ctx}];
+ * gắn thẳng object/mảng vào setError sẽ làm React crash khi render
+ * ("Objects are not valid as a React child") → trắng cả trang.
+ */
+function detailToMessage(detail: unknown, fallback: string): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const msgs = detail
+      .map((d) =>
+        typeof d === "string" ? d : (d as { msg?: unknown } | null)?.msg
+      )
+      .filter((m): m is string => typeof m === "string" && m.length > 0);
+    if (msgs.length > 0) return msgs.join(", ");
+  } else if (
+    detail !== null &&
+    typeof detail === "object" &&
+    typeof (detail as { msg?: unknown }).msg === "string"
+  ) {
+    return (detail as { msg: string }).msg;
+  }
+  return fallback;
+}
 
 /* ---------- Floating illustration for the promo panel ---------- */
 function PromoArt() {
@@ -358,14 +383,16 @@ export function AuthSlider({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.detail || "Đăng ký thất bại");
+        setError(detailToMessage(data.detail, "Đăng ký thất bại"));
         return;
       }
       localStorage.setItem("access_token", data.token);
       localStorage.setItem("refresh_token", data.refresh_token || "");
       localStorage.setItem("user", JSON.stringify(data.user));
+      markTourPending(Number(data.user.id)); // Product tour: chỉ user vừa signup mới được xem
       window.dispatchEvent(new Event("storage"));
-      router.push("/documents");
+      // Sang bước onboarding chọn ngành TRƯỚC khi vào màn hình chính.
+      router.push("/onboarding");
     } catch {
       setError("Không thể kết nối server");
     } finally {
@@ -385,7 +412,7 @@ export function AuthSlider({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.detail || "Đăng nhập thất bại");
+        setError(detailToMessage(data.detail, "Đăng nhập thất bại"));
         return;
       }
       localStorage.setItem("access_token", data.token);
@@ -422,7 +449,7 @@ export function AuthSlider({
       console.log("Google login - response status:", res.status);
       console.log("Google login - response data:", data);
       if (!res.ok) {
-        setError(data.detail || "Đăng nhập Google thất bại");
+        setError(detailToMessage(data.detail, "Đăng nhập Google thất bại"));
         return;
       }
       localStorage.setItem("access_token", data.token);

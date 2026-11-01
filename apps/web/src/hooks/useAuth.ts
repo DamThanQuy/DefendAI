@@ -15,6 +15,8 @@ export interface AuthUser {
   profile_data?: Record<string, unknown>;
   avatar?: string | null;
   wallpaper?: string | null;
+  /** Ngành học (onboarding sau signup) — null nghĩa là chưa chọn. */
+  major?: string | null;
 }
 
 // Hiển thị sidebar TỨC THÌ từ localStorage cache (tránh flash trống menu sau
@@ -46,6 +48,7 @@ function readCachedUser(): AuthUser | null {
       created_at: u.created_at ?? null,
       roles: u.roles ?? [],
       profile_data: u.profile_data,
+      major: u.major ?? null,
       avatar: u.avatar ?? null,
       wallpaper: u.wallpaper ?? null,
     };
@@ -125,6 +128,7 @@ export function useAuth() {
           created_at: me.created_at ?? null,
           roles: me.roles ?? [],
           profile_data: me.profile_data ?? {},
+          major: me.major ?? null,
         };
         setUser(synced);
         // Ghi đè cache cũ để các lần sau đọc đúng

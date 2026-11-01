@@ -261,6 +261,7 @@ export default function DocumentsPage() {
           </div>
           <button
             onClick={() => openUploadModal()}
+            data-testid="documents-upload-button"
             className="px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90 transition-colors shrink-0"
           >
             + Tải lên tài liệu mới

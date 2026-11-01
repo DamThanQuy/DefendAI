@@ -10,6 +10,8 @@ import { AuthGate } from "@/components/auth/AuthGate";
 import { TopProgress } from "@/components/common/TopProgress";
 import { ThemeProvider } from "@/components/theme-provider";
 import { FloatingThemeToggle } from "@/components/theme-toggle-floating";
+import { FeedbackFloatingButton } from "@/components/feedback/FeedbackFloatingButton";
+import { ProductTourGate } from "@/components/tour/ProductTourGate";
 import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -48,6 +50,8 @@ export default function RootLayout({
             </main>
             <Footer />
             <FloatingThemeToggle />
+            <FeedbackFloatingButton />
+            <ProductTourGate />
             <Toaster position="top-right" richColors />
           </ThemeProvider>
         </body>

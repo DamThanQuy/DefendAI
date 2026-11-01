@@ -309,6 +309,7 @@ export default function WorkspacesPage() {
           </div>
           <button
             onClick={() => setShowCreate(true)}
+            data-testid="workspaces-create-button"
             className="px-6 py-2.5 bg-primary text-primary-foreground rounded-full text-[14px] font-semibold shadow-[0_0_18px_hsl(var(--primary)/0.4)] hover:brightness-110 transition-all shrink-0"
           >
             + Tạo workspace

@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic';
 // (auth/*, workspaces/[...], questions/*, documents/*, ...) take precedence.
 async function proxy(request: NextRequest, { params }: { params: any }) {
   const sub = (params.path || []).join('/');
-  const url = `${backendUrl()}/api/${sub}`;
+  const search = request.nextUrl.search || '';
+  const url = `${backendUrl()}/api/${sub}${search}`;
   const authHeader = request.headers.get('authorization') || '';
   const headers: Record<string, string> = { ...ngrokHeaders() };
   if (authHeader) headers['Authorization'] = authHeader;
