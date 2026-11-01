@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Tài liệu Hướng dẫn Sử dụng Hệ thống DefendAI</title>
+  <style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@page {
+  size: A4 portrait;
+  margin: 18mm 16mm 20mm 16mm;
+  @bottom-right {
+    content: "Trang " counter(page);
+    font-size: 8.5pt;
+    font-family: 'Inter', sans-serif;
+    color: #64748b;
+  }
+  @bottom-left {
+    content: "DefendAI — Hướng Dẫn Sử Dụng Toàn Diện";
+    font-size: 8.5pt;
+    font-family: 'Inter', sans-serif;
+    color: #94a3b8;
+  }
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.65;
+  color: #1e293b;
+  background-color: #ffffff;
+  margin: 0;
+  padding: 0;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ==========================================================================
+   COVER PAGE
+   ========================================================================== */
+.cover-page {
+  page-break-after: always;
+  height: 96vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 40px 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 60%, #f1f5f9 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.cover-header {
+  border-bottom: 2px solid #6366f1;
+  padding-bottom: 24px;
+}
+
+.cover-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #4f46e5, #06b6d4);
+  color: white;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 9pt;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.cover-title {
+  font-size: 26pt;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.25;
+  margin: 0 0 10px 0;
+}
+
+.cover-subtitle {
+  font-size: 13pt;
+  font-weight: 500;
+  color: #475569;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.cover-middle {
+  margin: 40px 0;
+  padding: 24px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+}
+
+.cover-middle h4 {
+  margin: 0 0 12px 0;
+  color: #1e293b;
+  font-size: 11pt;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cover-middle ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.cover-middle li {
+  margin-bottom: 6px;
+  color: #334155;
+  font-size: 10pt;
+}
+
+.cover-meta {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  background: #f8fafc;
+  padding: 18px 24px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.meta-item {
+  font-size: 9pt;
+  color: #64748b;
+}
+
+.meta-item strong {
+  display: block;
+  font-size: 10pt;
+  color: #0f172a;
+  margin-top: 2px;
+}
+
+/* ==========================================================================
+   HEADINGS & TYPOGRAPHY
+   ========================================================================== */
+h1 {
+  font-size: 18pt;
+  font-weight: 800;
+  color: #0f172a;
+  margin-top: 32px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e2e8f0;
+  page-break-after: avoid;
+}
+
+.chapter-title {
+  page-break-before: always;
+  font-size: 20pt;
+  font-weight: 800;
+  color: #1e1b4b;
+  background: #eef2ff;
+  padding: 14px 20px;
+  border-left: 6px solid #4f46e5;
+  border-radius: 0 8px 8px 0;
+  margin-top: 0;
+  margin-bottom: 24px;
+}
+
+h2 {
+  font-size: 14pt;
+  font-weight: 700;
+  color: #1e293b;
+  margin-top: 24px;
+  margin-bottom: 12px;
+  border-left: 4px solid #6366f1;
+  padding-left: 10px;
+  page-break-after: avoid;
+}
+
+h3 {
+  font-size: 11.5pt;
+  font-weight: 600;
+  color: #334155;
+  margin-top: 18px;
+  margin-bottom: 8px;
+  page-break-after: avoid;
+}
+
+p {
+  margin: 0 0 12px 0;
+  color: #334155;
+}
+
+strong {
+  color: #0f172a;
+}
+
+/* ==========================================================================
+   IMAGES & SCREENSHOTS
+   ========================================================================== */
+.img-container {
+  margin: 18px 0 22px 0;
+  text-align: center;
+  page-break-inside: avoid;
+}
+
+.img-container img, img {
+  max-width: 100%;
+  max-height: 480px;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  display: block;
+  margin: 0 auto;
+}
+
+.caption, figcaption {
+  font-size: 8.5pt;
+  color: #64748b;
+  font-style: italic;
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* ==========================================================================
+   CALLOUTS & NOTICES
+   ========================================================================== */
+.callout {
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin: 16px 0;
+  font-size: 9.5pt;
+  page-break-inside: avoid;
+}
+
+.callout-info {
+  background-color: #f0fdf4;
+  border-left: 4px solid #22c55e;
+  color: #14532d;
+}
+
+.callout-tip {
+  background-color: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  color: #1e3a8a;
+}
+
+.callout-warning {
+  background-color: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  color: #78350f;
+}
+
+.callout-danger {
+  background-color: #fef2f2;
+  border-left: 4px solid #ef4444;
+  color: #7f1d1d;
+}
+
+.callout strong {
+  display: inline-block;
+  margin-bottom: 2px;
+}
+
+/* ==========================================================================
+   TABLES
+   ========================================================================== */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 20px 0;
+  font-size: 9.5pt;
+  page-break-inside: avoid;
+}
+
+th {
+  background-color: #f1f5f9;
+  color: #0f172a;
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+}
+
+td {
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  vertical-align: top;
+}
+
+tr:nth-child(even) td {
+  background-color: #f8fafc;
+}
+
+/* ==========================================================================
+   CODE & PRE
+   ========================================================================== */
+code {
+  font-family: 'JetBrains Mono', Consolas, Monaco, monospace;
+  font-size: 8.5pt;
+  background-color: #f1f5f9;
+  color: #e11d48;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+pre {
+  background-color: #0f172a;
+  color: #f8fafc;
+  padding: 14px;
+  border-radius: 6px;
+  font-size: 8.5pt;
+  overflow-x: auto;
+  page-break-inside: avoid;
+}
+
+pre code {
+  background-color: transparent;
+  color: inherit;
+  border: none;
+  padding: 0;
+}
+
+/* ==========================================================================
+   LISTS & STEPS
+   ========================================================================== */
+ol, ul {
+  margin: 0 0 14px 0;
+  padding-left: 22px;
+}
+
+li {
+  margin-bottom: 5px;
+  color: #334155;
+}
+
+.step-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  page-break-inside: avoid;
+}
+
+.step-num {
+  display: inline-block;
+  background: #4f46e5;
+  color: white;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  text-align: center;
+  font-size: 8pt;
+  line-height: 20px;
+  font-weight: bold;
+  margin-right: 8px;
+}
+
+.page-break {
+  page-break-before: always;
+}
+
+  </style>
+  <script>
+/**
+ * marked v15.0.12 - a markdown parser
+ * Copyright (c) 2011-2025, Christopher Jeffrey. (MIT Licensed)
+ * https://github.com/markedjs/marked
+ */
+
+/**
+ * DO NOT EDIT THIS FILE
+ * The code in this file is generated from files in ./src/
+ */
+(function(g,f){if(typeof exports=="object"&&typeof module<"u"){module.exports=f()}else if("function"==typeof define && define.amd){define("marked",f)}else {g["marked"]=f()}}(typeof globalThis < "u" ? globalThis : typeof self < "u" ? self : this,function(){var exports={};var __exports=exports;var module={exports};
+"use strict";var H=Object.defineProperty;var be=Object.getOwnPropertyDescriptor;var Te=Object.getOwnPropertyNames;var we=Object.prototype.hasOwnProperty;var ye=(l,e)=>{for(var t in e)H(l,t,{get:e[t],enumerable:!0})},Re=(l,e,t,n)=>{if(e&&typeof e=="object"||typeof e=="function")for(let s of Te(e))!we.call(l,s)&&s!==t&&H(l,s,{get:()=>e[s],enumerable:!(n=be(e,s))||n.enumerable});return l};var Se=l=>Re(H({},"__esModule",{value:!0}),l);var kt={};ye(kt,{Hooks:()=>L,Lexer:()=>x,Marked:()=>E,Parser:()=>b,Renderer:()=>$,TextRenderer:()=>_,Tokenizer:()=>S,defaults:()=>w,getDefaults:()=>z,lexer:()=>ht,marked:()=>k,options:()=>it,parse:()=>pt,parseInline:()=>ct,parser:()=>ut,setOptions:()=>ot,use:()=>lt,walkTokens:()=>at});module.exports=Se(kt);function z(){return{async:!1,breaks:!1,extensions:null,gfm:!0,hooks:null,pedantic:!1,renderer:null,silent:!1,tokenizer:null,walkTokens:null}}var w=z();function N(l){w=l}var I={exec:()=>null};function h(l,e=""){let t=typeof l=="string"?l:l.source,n={replace:(s,i)=>{let r=typeof i=="string"?i:i.source;return r=r.replace(m.caret,"$1"),t=t.replace(s,r),n},getRegex:()=>new RegExp(t,e)};return n}var m={codeRemoveIndent:/^(?: {1,4}| {0,3}\t)/gm,outputLinkReplace:/\\([\[\]])/g,indentCodeCompensation:/^(\s+)(?:```)/,beginningSpace:/^\s+/,endingHash:/#$/,startingSpaceChar:/^ /,endingSpaceChar:/ $/,nonSpaceChar:/[^ ]/,newLineCharGlobal:/\n/g,tabCharGlobal:/\t/g,multipleSpaceGlobal:/\s+/g,blankLine:/^[ \t]*$/,doubleBlankLine:/\n[ \t]*\n[ \t]*$/,blockquoteStart:/^ {0,3}>/,blockquoteSetextReplace:/\n {0,3}((?:=+|-+) *)(?=\n|$)/g,blockquoteSetextReplace2:/^ {0,3}>[ \t]?/gm,listReplaceTabs:/^\t+/,listReplaceNesting:/^ {1,4}(?=( {4})*[^ ])/g,listIsTask:/^\[[ xX]\] /,listReplaceTask:/^\[[ xX]\] +/,anyLine:/\n.*\n/,hrefBrackets:/^<(.*)>$/,tableDelimiter:/[:|]/,tableAlignChars:/^\||\| *$/g,tableRowBlankLine:/\n[ \t]*$/,tableAlignRight:/^ *-+: *$/,tableAlignCenter:/^ *:-+: *$/,tableAlignLeft:/^ *:-+ *$/,startATag:/^<a /i,endATag:/^<\/a>/i,startPreScriptTag:/^<(pre|code|kbd|script)(\s|>)/i,endPreScriptTag:/^<\/(pre|code|kbd|script)(\s|>)/i,startAngleBracket:/^</,endAngleBracket:/>$/,pedanticHrefTitle:/^([^'"]*[^\s])\s+(['"])(.*)\2/,unicodeAlphaNumeric:/[\p{L}\p{N}]/u,escapeTest:/[&<>"']/,escapeReplace:/[&<>"']/g,escapeTestNoEncode:/[<>"']|&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/,escapeReplaceNoEncode:/[<>"']|&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/g,unescapeTest:/&(#(?:\d+)|(?:#x[0-9A-Fa-f]+)|(?:\w+));?/ig,caret:/(^|[^\[])\^/g,percentDecode:/%25/g,findPipe:/\|/g,splitPipe:/ \|/,slashPipe:/\\\|/g,carriageReturn:/\r\n|\r/g,spaceLine:/^ +$/gm,notSpaceStart:/^\S*/,endingNewline:/\n$/,listItemRegex:l=>new RegExp(`^( {0,3}${l})((?:[	 ][^\\n]*)?(?:\\n|$))`),nextBulletRegex:l=>new RegExp(`^ {0,${Math.min(3,l-1)}}(?:[*+-]|\\d{1,9}[.)])((?:[ 	][^\\n]*)?(?:\\n|$))`),hrRegex:l=>new RegExp(`^ {0,${Math.min(3,l-1)}}((?:- *){3,}|(?:_ *){3,}|(?:\\* *){3,})(?:\\n+|$)`),fencesBeginRegex:l=>new RegExp(`^ {0,${Math.min(3,l-1)}}(?:\`\`\`|~~~)`),headingBeginRegex:l=>new RegExp(`^ {0,${Math.min(3,l-1)}}#`),htmlBeginRegex:l=>new RegExp(`^ {0,${Math.min(3,l-1)}}<(?:[a-z].*>|!--)`,"i")},$e=/^(?:[ \t]*(?:\n|$))+/,_e=/^((?: {4}| {0,3}\t)[^\n]+(?:\n(?:[ \t]*(?:\n|$))*)?)+/,Le=/^ {0,3}(`{3,}(?=[^`\n]*(?:\n|$))|~{3,})([^\n]*)(?:\n|$)(?:|([\s\S]*?)(?:\n|$))(?: {0,3}\1[~`]* *(?=\n|$)|$)/,O=/^ {0,3}((?:-[\t ]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})(?:\n+|$)/,ze=/^ {0,3}(#{1,6})(?=\s|$)(.*)(?:\n+|$)/,F=/(?:[*+-]|\d{1,9}[.)])/,ie=/^(?!bull |blockCode|fences|blockquote|heading|html|table)((?:.|\n(?!\s*?\n|bull |blockCode|fences|blockquote|heading|html|table))+?)\n {0,3}(=+|-+) *(?:\n+|$)/,oe=h(ie).replace(/bull/g,F).replace(/blockCode/g,/(?: {4}| {0,3}\t)/).replace(/fences/g,/ {0,3}(?:`{3,}|~{3,})/).replace(/blockquote/g,/ {0,3}>/).replace(/heading/g,/ {0,3}#{1,6}/).replace(/html/g,/ {0,3}<[^\n>]+>\n/).replace(/\|table/g,"").getRegex(),Me=h(ie).replace(/bull/g,F).replace(/blockCode/g,/(?: {4}| {0,3}\t)/).replace(/fences/g,/ {0,3}(?:`{3,}|~{3,})/).replace(/blockquote/g,/ {0,3}>/).replace(/heading/g,/ {0,3}#{1,6}/).replace(/html/g,/ {0,3}<[^\n>]+>\n/).replace(/table/g,/ {0,3}\|?(?:[:\- ]*\|)+[\:\- ]*\n/).getRegex(),Q=/^([^\n]+(?:\n(?!hr|heading|lheading|blockquote|fences|list|html|table| +\n)[^\n]+)*)/,Pe=/^[^\n]+/,U=/(?!\s*\])(?:\\.|[^\[\]\\])+/,Ae=h(/^ {0,3}\[(label)\]: *(?:\n[ \t]*)?([^<\s][^\s]*|<.*?>)(?:(?: +(?:\n[ \t]*)?| *\n[ \t]*)(title))? *(?:\n+|$)/).replace("label",U).replace("title",/(?:"(?:\\"?|[^"\\])*"|'[^'\n]*(?:\n[^'\n]+)*\n?'|\([^()]*\))/).getRegex(),Ee=h(/^( {0,3}bull)([ \t][^\n]+?)?(?:\n|$)/).replace(/bull/g,F).getRegex(),v="address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul",K=/<!--(?:-?>|[\s\S]*?(?:-->|$))/,Ce=h("^ {0,3}(?:<(script|pre|style|textarea)[\\s>][\\s\\S]*?(?:</\\1>[^\\n]*\\n+|$)|comment[^\\n]*(\\n+|$)|<\\?[\\s\\S]*?(?:\\?>\\n*|$)|<![A-Z][\\s\\S]*?(?:>\\n*|$)|<!\\[CDATA\\[[\\s\\S]*?(?:\\]\\]>\\n*|$)|</?(tag)(?: +|\\n|/?>)[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$)|<(?!script|pre|style|textarea)([a-z][\\w-]*)(?:attribute)*? */?>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$)|</(?!script|pre|style|textarea)[a-z][\\w-]*\\s*>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$))","i").replace("comment",K).replace("tag",v).replace("attribute",/ +[a-zA-Z:_][\w.:-]*(?: *= *"[^"\n]*"| *= *'[^'\n]*'| *= *[^\s"'=<>`]+)?/).getRegex(),le=h(Q).replace("hr",O).replace("heading"," {0,3}#{1,6}(?:\\s|$)").replace("|lheading","").replace("|table","").replace("blockquote"," {0,3}>").replace("fences"," {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list"," {0,3}(?:[*+-]|1[.)]) ").replace("html","</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag",v).getRegex(),Ie=h(/^( {0,3}> ?(paragraph|[^\n]*)(?:\n|$))+/).replace("paragraph",le).getRegex(),X={blockquote:Ie,code:_e,def:Ae,fences:Le,heading:ze,hr:O,html:Ce,lheading:oe,list:Ee,newline:$e,paragraph:le,table:I,text:Pe},re=h("^ *([^\\n ].*)\\n {0,3}((?:\\| *)?:?-+:? *(?:\\| *:?-+:? *)*(?:\\| *)?)(?:\\n((?:(?! *\\n|hr|heading|blockquote|code|fences|list|html).*(?:\\n|$))*)\\n*|$)").replace("hr",O).replace("heading"," {0,3}#{1,6}(?:\\s|$)").replace("blockquote"," {0,3}>").replace("code","(?: {4}| {0,3}	)[^\\n]").replace("fences"," {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list"," {0,3}(?:[*+-]|1[.)]) ").replace("html","</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag",v).getRegex(),Oe={...X,lheading:Me,table:re,paragraph:h(Q).replace("hr",O).replace("heading"," {0,3}#{1,6}(?:\\s|$)").replace("|lheading","").replace("table",re).replace("blockquote"," {0,3}>").replace("fences"," {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list"," {0,3}(?:[*+-]|1[.)]) ").replace("html","</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag",v).getRegex()},Be={...X,html:h(`^ *(?:comment *(?:\\n|\\s*$)|<(tag)[\\s\\S]+?</\\1> *(?:\\n{2,}|\\s*$)|<tag(?:"[^"]*"|'[^']*'|\\s[^'"/>\\s]*)*?/?> *(?:\\n{2,}|\\s*$))`).replace("comment",K).replace(/tag/g,"(?!(?:a|em|strong|small|s|cite|q|dfn|abbr|data|time|code|var|samp|kbd|sub|sup|i|b|u|mark|ruby|rt|rp|bdi|bdo|span|br|wbr|ins|del|img)\\b)\\w+(?!:|[^\\w\\s@]*@)\\b").getRegex(),def:/^ *\[([^\]]+)\]: *<?([^\s>]+)>?(?: +(["(][^\n]+[")]))? *(?:\n+|$)/,heading:/^(#{1,6})(.*)(?:\n+|$)/,fences:I,lheading:/^(.+?)\n {0,3}(=+|-+) *(?:\n+|$)/,paragraph:h(Q).replace("hr",O).replace("heading",` *#{1,6} *[^
+]`).replace("lheading",oe).replace("|table","").replace("blockquote"," {0,3}>").replace("|fences","").replace("|list","").replace("|html","").replace("|tag","").getRegex()},qe=/^\\([!"#$%&'()*+,\-./:;<=>?@\[\]\\^_`{|}~])/,ve=/^(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)/,ae=/^( {2,}|\\)\n(?!\s*$)/,De=/^(`+|[^`])(?:(?= {2,}\n)|[\s\S]*?(?:(?=[\\<!\[`*_]|\b_|$)|[^ ](?= {2,}\n)))/,D=/[\p{P}\p{S}]/u,W=/[\s\p{P}\p{S}]/u,ce=/[^\s\p{P}\p{S}]/u,Ze=h(/^((?![*_])punctSpace)/,"u").replace(/punctSpace/g,W).getRegex(),pe=/(?!~)[\p{P}\p{S}]/u,Ge=/(?!~)[\s\p{P}\p{S}]/u,He=/(?:[^\s\p{P}\p{S}]|~)/u,Ne=/\[[^[\]]*?\]\((?:\\.|[^\\\(\)]|\((?:\\.|[^\\\(\)])*\))*\)|`[^`]*?`|<[^<>]*?>/g,ue=/^(?:\*+(?:((?!\*)punct)|[^\s*]))|^_+(?:((?!_)punct)|([^\s_]))/,je=h(ue,"u").replace(/punct/g,D).getRegex(),Fe=h(ue,"u").replace(/punct/g,pe).getRegex(),he="^[^_*]*?__[^_*]*?\\*[^_*]*?(?=__)|[^*]+(?=[^*])|(?!\\*)punct(\\*+)(?=[\\s]|$)|notPunctSpace(\\*+)(?!\\*)(?=punctSpace|$)|(?!\\*)punctSpace(\\*+)(?=notPunctSpace)|[\\s](\\*+)(?!\\*)(?=punct)|(?!\\*)punct(\\*+)(?!\\*)(?=punct)|notPunctSpace(\\*+)(?=notPunctSpace)",Qe=h(he,"gu").replace(/notPunctSpace/g,ce).replace(/punctSpace/g,W).replace(/punct/g,D).getRegex(),Ue=h(he,"gu").replace(/notPunctSpace/g,He).replace(/punctSpace/g,Ge).replace(/punct/g,pe).getRegex(),Ke=h("^[^_*]*?\\*\\*[^_*]*?_[^_*]*?(?=\\*\\*)|[^_]+(?=[^_])|(?!_)punct(_+)(?=[\\s]|$)|notPunctSpace(_+)(?!_)(?=punctSpace|$)|(?!_)punctSpace(_+)(?=notPunctSpace)|[\\s](_+)(?!_)(?=punct)|(?!_)punct(_+)(?!_)(?=punct)","gu").replace(/notPunctSpace/g,ce).replace(/punctSpace/g,W).replace(/punct/g,D).getRegex(),Xe=h(/\\(punct)/,"gu").replace(/punct/g,D).getRegex(),We=h(/^<(scheme:[^\s\x00-\x1f<>]*|email)>/).replace("scheme",/[a-zA-Z][a-zA-Z0-9+.-]{1,31}/).replace("email",/[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+(@)[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+(?![-_])/).getRegex(),Je=h(K).replace("(?:-->|$)","-->").getRegex(),Ve=h("^comment|^</[a-zA-Z][\\w:-]*\\s*>|^<[a-zA-Z][\\w-]*(?:attribute)*?\\s*/?>|^<\\?[\\s\\S]*?\\?>|^<![a-zA-Z]+\\s[\\s\\S]*?>|^<!\\[CDATA\\[[\\s\\S]*?\\]\\]>").replace("comment",Je).replace("attribute",/\s+[a-zA-Z:_][\w.:-]*(?:\s*=\s*"[^"]*"|\s*=\s*'[^']*'|\s*=\s*[^\s"'=<>`]+)?/).getRegex(),q=/(?:\[(?:\\.|[^\[\]\\])*\]|\\.|`[^`]*`|[^\[\]\\`])*?/,Ye=h(/^!?\[(label)\]\(\s*(href)(?:(?:[ \t]*(?:\n[ \t]*)?)(title))?\s*\)/).replace("label",q).replace("href",/<(?:\\.|[^\n<>\\])+>|[^ \t\n\x00-\x1f]*/).replace("title",/"(?:\\"?|[^"\\])*"|'(?:\\'?|[^'\\])*'|\((?:\\\)?|[^)\\])*\)/).getRegex(),ke=h(/^!?\[(label)\]\[(ref)\]/).replace("label",q).replace("ref",U).getRegex(),ge=h(/^!?\[(ref)\](?:\[\])?/).replace("ref",U).getRegex(),et=h("reflink|nolink(?!\\()","g").replace("reflink",ke).replace("nolink",ge).getRegex(),J={_backpedal:I,anyPunctuation:Xe,autolink:We,blockSkip:Ne,br:ae,code:ve,del:I,emStrongLDelim:je,emStrongRDelimAst:Qe,emStrongRDelimUnd:Ke,escape:qe,link:Ye,nolink:ge,punctuation:Ze,reflink:ke,reflinkSearch:et,tag:Ve,text:De,url:I},tt={...J,link:h(/^!?\[(label)\]\((.*?)\)/).replace("label",q).getRegex(),reflink:h(/^!?\[(label)\]\s*\[([^\]]*)\]/).replace("label",q).getRegex()},j={...J,emStrongRDelimAst:Ue,emStrongLDelim:Fe,url:h(/^((?:ftp|https?):\/\/|www\.)(?:[a-zA-Z0-9\-]+\.?)+[^\s<]*|^email/,"i").replace("email",/[A-Za-z0-9._+-]+(@)[a-zA-Z0-9-_]+(?:\.[a-zA-Z0-9-_]*[a-zA-Z0-9])+(?![-_])/).getRegex(),_backpedal:/(?:[^?!.,:;*_'"~()&]+|\([^)]*\)|&(?![a-zA-Z0-9]+;$)|[?!.,:;*_'"~)]+(?!$))+/,del:/^(~~?)(?=[^\s~])((?:\\.|[^\\])*?(?:\\.|[^\s~\\]))\1(?=[^~]|$)/,text:/^([`~]+|[^`~])(?:(?= {2,}\n)|(?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@)|[\s\S]*?(?:(?=[\\<!\[`*~_]|\b_|https?:\/\/|ftp:\/\/|www\.|$)|[^ ](?= {2,}\n)|[^a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-](?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@)))/},nt={...j,br:h(ae).replace("{2,}","*").getRegex(),text:h(j.text).replace("\\b_","\\b_| {2,}\\n").replace(/\{2,\}/g,"*").getRegex()},B={normal:X,gfm:Oe,pedantic:Be},P={normal:J,gfm:j,breaks:nt,pedantic:tt};var st={"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"},fe=l=>st[l];function R(l,e){if(e){if(m.escapeTest.test(l))return l.replace(m.escapeReplace,fe)}else if(m.escapeTestNoEncode.test(l))return l.replace(m.escapeReplaceNoEncode,fe);return l}function V(l){try{l=encodeURI(l).replace(m.percentDecode,"%")}catch{return null}return l}function Y(l,e){let t=l.replace(m.findPipe,(i,r,o)=>{let a=!1,c=r;for(;--c>=0&&o[c]==="\\";)a=!a;return a?"|":" |"}),n=t.split(m.splitPipe),s=0;if(n[0].trim()||n.shift(),n.length>0&&!n.at(-1)?.trim()&&n.pop(),e)if(n.length>e)n.splice(e);else for(;n.length<e;)n.push("");for(;s<n.length;s++)n[s]=n[s].trim().replace(m.slashPipe,"|");return n}function A(l,e,t){let n=l.length;if(n===0)return"";let s=0;for(;s<n;){let i=l.charAt(n-s-1);if(i===e&&!t)s++;else if(i!==e&&t)s++;else break}return l.slice(0,n-s)}function de(l,e){if(l.indexOf(e[1])===-1)return-1;let t=0;for(let n=0;n<l.length;n++)if(l[n]==="\\")n++;else if(l[n]===e[0])t++;else if(l[n]===e[1]&&(t--,t<0))return n;return t>0?-2:-1}function me(l,e,t,n,s){let i=e.href,r=e.title||null,o=l[1].replace(s.other.outputLinkReplace,"$1");n.state.inLink=!0;let a={type:l[0].charAt(0)==="!"?"image":"link",raw:t,href:i,title:r,text:o,tokens:n.inlineTokens(o)};return n.state.inLink=!1,a}function rt(l,e,t){let n=l.match(t.other.indentCodeCompensation);if(n===null)return e;let s=n[1];return e.split(`
+`).map(i=>{let r=i.match(t.other.beginningSpace);if(r===null)return i;let[o]=r;return o.length>=s.length?i.slice(s.length):i}).join(`
+`)}var S=class{options;rules;lexer;constructor(e){this.options=e||w}space(e){let t=this.rules.block.newline.exec(e);if(t&&t[0].length>0)return{type:"space",raw:t[0]}}code(e){let t=this.rules.block.code.exec(e);if(t){let n=t[0].replace(this.rules.other.codeRemoveIndent,"");return{type:"code",raw:t[0],codeBlockStyle:"indented",text:this.options.pedantic?n:A(n,`
+`)}}}fences(e){let t=this.rules.block.fences.exec(e);if(t){let n=t[0],s=rt(n,t[3]||"",this.rules);return{type:"code",raw:n,lang:t[2]?t[2].trim().replace(this.rules.inline.anyPunctuation,"$1"):t[2],text:s}}}heading(e){let t=this.rules.block.heading.exec(e);if(t){let n=t[2].trim();if(this.rules.other.endingHash.test(n)){let s=A(n,"#");(this.options.pedantic||!s||this.rules.other.endingSpaceChar.test(s))&&(n=s.trim())}return{type:"heading",raw:t[0],depth:t[1].length,text:n,tokens:this.lexer.inline(n)}}}hr(e){let t=this.rules.block.hr.exec(e);if(t)return{type:"hr",raw:A(t[0],`
+`)}}blockquote(e){let t=this.rules.block.blockquote.exec(e);if(t){let n=A(t[0],`
+`).split(`
+`),s="",i="",r=[];for(;n.length>0;){let o=!1,a=[],c;for(c=0;c<n.length;c++)if(this.rules.other.blockquoteStart.test(n[c]))a.push(n[c]),o=!0;else if(!o)a.push(n[c]);else break;n=n.slice(c);let p=a.join(`
+`),u=p.replace(this.rules.other.blockquoteSetextReplace,`
+    $1`).replace(this.rules.other.blockquoteSetextReplace2,"");s=s?`${s}
+${p}`:p,i=i?`${i}
+${u}`:u;let d=this.lexer.state.top;if(this.lexer.state.top=!0,this.lexer.blockTokens(u,r,!0),this.lexer.state.top=d,n.length===0)break;let g=r.at(-1);if(g?.type==="code")break;if(g?.type==="blockquote"){let T=g,f=T.raw+`
+`+n.join(`
+`),y=this.blockquote(f);r[r.length-1]=y,s=s.substring(0,s.length-T.raw.length)+y.raw,i=i.substring(0,i.length-T.text.length)+y.text;break}else if(g?.type==="list"){let T=g,f=T.raw+`
+`+n.join(`
+`),y=this.list(f);r[r.length-1]=y,s=s.substring(0,s.length-g.raw.length)+y.raw,i=i.substring(0,i.length-T.raw.length)+y.raw,n=f.substring(r.at(-1).raw.length).split(`
+`);continue}}return{type:"blockquote",raw:s,tokens:r,text:i}}}list(e){let t=this.rules.block.list.exec(e);if(t){let n=t[1].trim(),s=n.length>1,i={type:"list",raw:"",ordered:s,start:s?+n.slice(0,-1):"",loose:!1,items:[]};n=s?`\\d{1,9}\\${n.slice(-1)}`:`\\${n}`,this.options.pedantic&&(n=s?n:"[*+-]");let r=this.rules.other.listItemRegex(n),o=!1;for(;e;){let c=!1,p="",u="";if(!(t=r.exec(e))||this.rules.block.hr.test(e))break;p=t[0],e=e.substring(p.length);let d=t[2].split(`
+`,1)[0].replace(this.rules.other.listReplaceTabs,Z=>" ".repeat(3*Z.length)),g=e.split(`
+`,1)[0],T=!d.trim(),f=0;if(this.options.pedantic?(f=2,u=d.trimStart()):T?f=t[1].length+1:(f=t[2].search(this.rules.other.nonSpaceChar),f=f>4?1:f,u=d.slice(f),f+=t[1].length),T&&this.rules.other.blankLine.test(g)&&(p+=g+`
+`,e=e.substring(g.length+1),c=!0),!c){let Z=this.rules.other.nextBulletRegex(f),te=this.rules.other.hrRegex(f),ne=this.rules.other.fencesBeginRegex(f),se=this.rules.other.headingBeginRegex(f),xe=this.rules.other.htmlBeginRegex(f);for(;e;){let G=e.split(`
+`,1)[0],C;if(g=G,this.options.pedantic?(g=g.replace(this.rules.other.listReplaceNesting,"  "),C=g):C=g.replace(this.rules.other.tabCharGlobal,"    "),ne.test(g)||se.test(g)||xe.test(g)||Z.test(g)||te.test(g))break;if(C.search(this.rules.other.nonSpaceChar)>=f||!g.trim())u+=`
+`+C.slice(f);else{if(T||d.replace(this.rules.other.tabCharGlobal,"    ").search(this.rules.other.nonSpaceChar)>=4||ne.test(d)||se.test(d)||te.test(d))break;u+=`
+`+g}!T&&!g.trim()&&(T=!0),p+=G+`
+`,e=e.substring(G.length+1),d=C.slice(f)}}i.loose||(o?i.loose=!0:this.rules.other.doubleBlankLine.test(p)&&(o=!0));let y=null,ee;this.options.gfm&&(y=this.rules.other.listIsTask.exec(u),y&&(ee=y[0]!=="[ ] ",u=u.replace(this.rules.other.listReplaceTask,""))),i.items.push({type:"list_item",raw:p,task:!!y,checked:ee,loose:!1,text:u,tokens:[]}),i.raw+=p}let a=i.items.at(-1);if(a)a.raw=a.raw.trimEnd(),a.text=a.text.trimEnd();else return;i.raw=i.raw.trimEnd();for(let c=0;c<i.items.length;c++)if(this.lexer.state.top=!1,i.items[c].tokens=this.lexer.blockTokens(i.items[c].text,[]),!i.loose){let p=i.items[c].tokens.filter(d=>d.type==="space"),u=p.length>0&&p.some(d=>this.rules.other.anyLine.test(d.raw));i.loose=u}if(i.loose)for(let c=0;c<i.items.length;c++)i.items[c].loose=!0;return i}}html(e){let t=this.rules.block.html.exec(e);if(t)return{type:"html",block:!0,raw:t[0],pre:t[1]==="pre"||t[1]==="script"||t[1]==="style",text:t[0]}}def(e){let t=this.rules.block.def.exec(e);if(t){let n=t[1].toLowerCase().replace(this.rules.other.multipleSpaceGlobal," "),s=t[2]?t[2].replace(this.rules.other.hrefBrackets,"$1").replace(this.rules.inline.anyPunctuation,"$1"):"",i=t[3]?t[3].substring(1,t[3].length-1).replace(this.rules.inline.anyPunctuation,"$1"):t[3];return{type:"def",tag:n,raw:t[0],href:s,title:i}}}table(e){let t=this.rules.block.table.exec(e);if(!t||!this.rules.other.tableDelimiter.test(t[2]))return;let n=Y(t[1]),s=t[2].replace(this.rules.other.tableAlignChars,"").split("|"),i=t[3]?.trim()?t[3].replace(this.rules.other.tableRowBlankLine,"").split(`
+`):[],r={type:"table",raw:t[0],header:[],align:[],rows:[]};if(n.length===s.length){for(let o of s)this.rules.other.tableAlignRight.test(o)?r.align.push("right"):this.rules.other.tableAlignCenter.test(o)?r.align.push("center"):this.rules.other.tableAlignLeft.test(o)?r.align.push("left"):r.align.push(null);for(let o=0;o<n.length;o++)r.header.push({text:n[o],tokens:this.lexer.inline(n[o]),header:!0,align:r.align[o]});for(let o of i)r.rows.push(Y(o,r.header.length).map((a,c)=>({text:a,tokens:this.lexer.inline(a),header:!1,align:r.align[c]})));return r}}lheading(e){let t=this.rules.block.lheading.exec(e);if(t)return{type:"heading",raw:t[0],depth:t[2].charAt(0)==="="?1:2,text:t[1],tokens:this.lexer.inline(t[1])}}paragraph(e){let t=this.rules.block.paragraph.exec(e);if(t){let n=t[1].charAt(t[1].length-1)===`
+`?t[1].slice(0,-1):t[1];return{type:"paragraph",raw:t[0],text:n,tokens:this.lexer.inline(n)}}}text(e){let t=this.rules.block.text.exec(e);if(t)return{type:"text",raw:t[0],text:t[0],tokens:this.lexer.inline(t[0])}}escape(e){let t=this.rules.inline.escape.exec(e);if(t)return{type:"escape",raw:t[0],text:t[1]}}tag(e){let t=this.rules.inline.tag.exec(e);if(t)return!this.lexer.state.inLink&&this.rules.other.startATag.test(t[0])?this.lexer.state.inLink=!0:this.lexer.state.inLink&&this.rules.other.endATag.test(t[0])&&(this.lexer.state.inLink=!1),!this.lexer.state.inRawBlock&&this.rules.other.startPreScriptTag.test(t[0])?this.lexer.state.inRawBlock=!0:this.lexer.state.inRawBlock&&this.rules.other.endPreScriptTag.test(t[0])&&(this.lexer.state.inRawBlock=!1),{type:"html",raw:t[0],inLink:this.lexer.state.inLink,inRawBlock:this.lexer.state.inRawBlock,block:!1,text:t[0]}}link(e){let t=this.rules.inline.link.exec(e);if(t){let n=t[2].trim();if(!this.options.pedantic&&this.rules.other.startAngleBracket.test(n)){if(!this.rules.other.endAngleBracket.test(n))return;let r=A(n.slice(0,-1),"\\");if((n.length-r.length)%2===0)return}else{let r=de(t[2],"()");if(r===-2)return;if(r>-1){let a=(t[0].indexOf("!")===0?5:4)+t[1].length+r;t[2]=t[2].substring(0,r),t[0]=t[0].substring(0,a).trim(),t[3]=""}}let s=t[2],i="";if(this.options.pedantic){let r=this.rules.other.pedanticHrefTitle.exec(s);r&&(s=r[1],i=r[3])}else i=t[3]?t[3].slice(1,-1):"";return s=s.trim(),this.rules.other.startAngleBracket.test(s)&&(this.options.pedantic&&!this.rules.other.endAngleBracket.test(n)?s=s.slice(1):s=s.slice(1,-1)),me(t,{href:s&&s.replace(this.rules.inline.anyPunctuation,"$1"),title:i&&i.replace(this.rules.inline.anyPunctuation,"$1")},t[0],this.lexer,this.rules)}}reflink(e,t){let n;if((n=this.rules.inline.reflink.exec(e))||(n=this.rules.inline.nolink.exec(e))){let s=(n[2]||n[1]).replace(this.rules.other.multipleSpaceGlobal," "),i=t[s.toLowerCase()];if(!i){let r=n[0].charAt(0);return{type:"text",raw:r,text:r}}return me(n,i,n[0],this.lexer,this.rules)}}emStrong(e,t,n=""){let s=this.rules.inline.emStrongLDelim.exec(e);if(!s||s[3]&&n.match(this.rules.other.unicodeAlphaNumeric))return;if(!(s[1]||s[2]||"")||!n||this.rules.inline.punctuation.exec(n)){let r=[...s[0]].length-1,o,a,c=r,p=0,u=s[0][0]==="*"?this.rules.inline.emStrongRDelimAst:this.rules.inline.emStrongRDelimUnd;for(u.lastIndex=0,t=t.slice(-1*e.length+r);(s=u.exec(t))!=null;){if(o=s[1]||s[2]||s[3]||s[4]||s[5]||s[6],!o)continue;if(a=[...o].length,s[3]||s[4]){c+=a;continue}else if((s[5]||s[6])&&r%3&&!((r+a)%3)){p+=a;continue}if(c-=a,c>0)continue;a=Math.min(a,a+c+p);let d=[...s[0]][0].length,g=e.slice(0,r+s.index+d+a);if(Math.min(r,a)%2){let f=g.slice(1,-1);return{type:"em",raw:g,text:f,tokens:this.lexer.inlineTokens(f)}}let T=g.slice(2,-2);return{type:"strong",raw:g,text:T,tokens:this.lexer.inlineTokens(T)}}}}codespan(e){let t=this.rules.inline.code.exec(e);if(t){let n=t[2].replace(this.rules.other.newLineCharGlobal," "),s=this.rules.other.nonSpaceChar.test(n),i=this.rules.other.startingSpaceChar.test(n)&&this.rules.other.endingSpaceChar.test(n);return s&&i&&(n=n.substring(1,n.length-1)),{type:"codespan",raw:t[0],text:n}}}br(e){let t=this.rules.inline.br.exec(e);if(t)return{type:"br",raw:t[0]}}del(e){let t=this.rules.inline.del.exec(e);if(t)return{type:"del",raw:t[0],text:t[2],tokens:this.lexer.inlineTokens(t[2])}}autolink(e){let t=this.rules.inline.autolink.exec(e);if(t){let n,s;return t[2]==="@"?(n=t[1],s="mailto:"+n):(n=t[1],s=n),{type:"link",raw:t[0],text:n,href:s,tokens:[{type:"text",raw:n,text:n}]}}}url(e){let t;if(t=this.rules.inline.url.exec(e)){let n,s;if(t[2]==="@")n=t[0],s="mailto:"+n;else{let i;do i=t[0],t[0]=this.rules.inline._backpedal.exec(t[0])?.[0]??"";while(i!==t[0]);n=t[0],t[1]==="www."?s="http://"+t[0]:s=t[0]}return{type:"link",raw:t[0],text:n,href:s,tokens:[{type:"text",raw:n,text:n}]}}}inlineText(e){let t=this.rules.inline.text.exec(e);if(t){let n=this.lexer.state.inRawBlock;return{type:"text",raw:t[0],text:t[0],escaped:n}}}};var x=class l{tokens;options;state;tokenizer;inlineQueue;constructor(e){this.tokens=[],this.tokens.links=Object.create(null),this.options=e||w,this.options.tokenizer=this.options.tokenizer||new S,this.tokenizer=this.options.tokenizer,this.tokenizer.options=this.options,this.tokenizer.lexer=this,this.inlineQueue=[],this.state={inLink:!1,inRawBlock:!1,top:!0};let t={other:m,block:B.normal,inline:P.normal};this.options.pedantic?(t.block=B.pedantic,t.inline=P.pedantic):this.options.gfm&&(t.block=B.gfm,this.options.breaks?t.inline=P.breaks:t.inline=P.gfm),this.tokenizer.rules=t}static get rules(){return{block:B,inline:P}}static lex(e,t){return new l(t).lex(e)}static lexInline(e,t){return new l(t).inlineTokens(e)}lex(e){e=e.replace(m.carriageReturn,`
+`),this.blockTokens(e,this.tokens);for(let t=0;t<this.inlineQueue.length;t++){let n=this.inlineQueue[t];this.inlineTokens(n.src,n.tokens)}return this.inlineQueue=[],this.tokens}blockTokens(e,t=[],n=!1){for(this.options.pedantic&&(e=e.replace(m.tabCharGlobal,"    ").replace(m.spaceLine,""));e;){let s;if(this.options.extensions?.block?.some(r=>(s=r.call({lexer:this},e,t))?(e=e.substring(s.raw.length),t.push(s),!0):!1))continue;if(s=this.tokenizer.space(e)){e=e.substring(s.raw.length);let r=t.at(-1);s.raw.length===1&&r!==void 0?r.raw+=`
+`:t.push(s);continue}if(s=this.tokenizer.code(e)){e=e.substring(s.raw.length);let r=t.at(-1);r?.type==="paragraph"||r?.type==="text"?(r.raw+=`
+`+s.raw,r.text+=`
+`+s.text,this.inlineQueue.at(-1).src=r.text):t.push(s);continue}if(s=this.tokenizer.fences(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.heading(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.hr(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.blockquote(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.list(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.html(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.def(e)){e=e.substring(s.raw.length);let r=t.at(-1);r?.type==="paragraph"||r?.type==="text"?(r.raw+=`
+`+s.raw,r.text+=`
+`+s.raw,this.inlineQueue.at(-1).src=r.text):this.tokens.links[s.tag]||(this.tokens.links[s.tag]={href:s.href,title:s.title});continue}if(s=this.tokenizer.table(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.lheading(e)){e=e.substring(s.raw.length),t.push(s);continue}let i=e;if(this.options.extensions?.startBlock){let r=1/0,o=e.slice(1),a;this.options.extensions.startBlock.forEach(c=>{a=c.call({lexer:this},o),typeof a=="number"&&a>=0&&(r=Math.min(r,a))}),r<1/0&&r>=0&&(i=e.substring(0,r+1))}if(this.state.top&&(s=this.tokenizer.paragraph(i))){let r=t.at(-1);n&&r?.type==="paragraph"?(r.raw+=`
+`+s.raw,r.text+=`
+`+s.text,this.inlineQueue.pop(),this.inlineQueue.at(-1).src=r.text):t.push(s),n=i.length!==e.length,e=e.substring(s.raw.length);continue}if(s=this.tokenizer.text(e)){e=e.substring(s.raw.length);let r=t.at(-1);r?.type==="text"?(r.raw+=`
+`+s.raw,r.text+=`
+`+s.text,this.inlineQueue.pop(),this.inlineQueue.at(-1).src=r.text):t.push(s);continue}if(e){let r="Infinite loop on byte: "+e.charCodeAt(0);if(this.options.silent){console.error(r);break}else throw new Error(r)}}return this.state.top=!0,t}inline(e,t=[]){return this.inlineQueue.push({src:e,tokens:t}),t}inlineTokens(e,t=[]){let n=e,s=null;if(this.tokens.links){let o=Object.keys(this.tokens.links);if(o.length>0)for(;(s=this.tokenizer.rules.inline.reflinkSearch.exec(n))!=null;)o.includes(s[0].slice(s[0].lastIndexOf("[")+1,-1))&&(n=n.slice(0,s.index)+"["+"a".repeat(s[0].length-2)+"]"+n.slice(this.tokenizer.rules.inline.reflinkSearch.lastIndex))}for(;(s=this.tokenizer.rules.inline.anyPunctuation.exec(n))!=null;)n=n.slice(0,s.index)+"++"+n.slice(this.tokenizer.rules.inline.anyPunctuation.lastIndex);for(;(s=this.tokenizer.rules.inline.blockSkip.exec(n))!=null;)n=n.slice(0,s.index)+"["+"a".repeat(s[0].length-2)+"]"+n.slice(this.tokenizer.rules.inline.blockSkip.lastIndex);let i=!1,r="";for(;e;){i||(r=""),i=!1;let o;if(this.options.extensions?.inline?.some(c=>(o=c.call({lexer:this},e,t))?(e=e.substring(o.raw.length),t.push(o),!0):!1))continue;if(o=this.tokenizer.escape(e)){e=e.substring(o.raw.length),t.push(o);continue}if(o=this.tokenizer.tag(e)){e=e.substring(o.raw.length),t.push(o);continue}if(o=this.tokenizer.link(e)){e=e.substring(o.raw.length),t.push(o);continue}if(o=this.tokenizer.reflink(e,this.tokens.links)){e=e.substring(o.raw.length);let c=t.at(-1);o.type==="text"&&c?.type==="text"?(c.raw+=o.raw,c.text+=o.text):t.push(o);continue}if(o=this.tokenizer.emStrong(e,n,r)){e=e.substring(o.raw.length),t.push(o);continue}if(o=this.tokenizer.codespan(e)){e=e.substring(o.raw.length),t.push(o);continue}if(o=this.tokenizer.br(e)){e=e.substring(o.raw.length),t.push(o);continue}if(o=this.tokenizer.del(e)){e=e.substring(o.raw.length),t.push(o);continue}if(o=this.tokenizer.autolink(e)){e=e.substring(o.raw.length),t.push(o);continue}if(!this.state.inLink&&(o=this.tokenizer.url(e))){e=e.substring(o.raw.length),t.push(o);continue}let a=e;if(this.options.extensions?.startInline){let c=1/0,p=e.slice(1),u;this.options.extensions.startInline.forEach(d=>{u=d.call({lexer:this},p),typeof u=="number"&&u>=0&&(c=Math.min(c,u))}),c<1/0&&c>=0&&(a=e.substring(0,c+1))}if(o=this.tokenizer.inlineText(a)){e=e.substring(o.raw.length),o.raw.slice(-1)!=="_"&&(r=o.raw.slice(-1)),i=!0;let c=t.at(-1);c?.type==="text"?(c.raw+=o.raw,c.text+=o.text):t.push(o);continue}if(e){let c="Infinite loop on byte: "+e.charCodeAt(0);if(this.options.silent){console.error(c);break}else throw new Error(c)}}return t}};var $=class{options;parser;constructor(e){this.options=e||w}space(e){return""}code({text:e,lang:t,escaped:n}){let s=(t||"").match(m.notSpaceStart)?.[0],i=e.replace(m.endingNewline,"")+`
+`;return s?'<pre><code class="language-'+R(s)+'">'+(n?i:R(i,!0))+`</code></pre>
+`:"<pre><code>"+(n?i:R(i,!0))+`</code></pre>
+`}blockquote({tokens:e}){return`<blockquote>
+${this.parser.parse(e)}</blockquote>
+`}html({text:e}){return e}heading({tokens:e,depth:t}){return`<h${t}>${this.parser.parseInline(e)}</h${t}>
+`}hr(e){return`<hr>
+`}list(e){let t=e.ordered,n=e.start,s="";for(let o=0;o<e.items.length;o++){let a=e.items[o];s+=this.listitem(a)}let i=t?"ol":"ul",r=t&&n!==1?' start="'+n+'"':"";return"<"+i+r+`>
+`+s+"</"+i+`>
+`}listitem(e){let t="";if(e.task){let n=this.checkbox({checked:!!e.checked});e.loose?e.tokens[0]?.type==="paragraph"?(e.tokens[0].text=n+" "+e.tokens[0].text,e.tokens[0].tokens&&e.tokens[0].tokens.length>0&&e.tokens[0].tokens[0].type==="text"&&(e.tokens[0].tokens[0].text=n+" "+R(e.tokens[0].tokens[0].text),e.tokens[0].tokens[0].escaped=!0)):e.tokens.unshift({type:"text",raw:n+" ",text:n+" ",escaped:!0}):t+=n+" "}return t+=this.parser.parse(e.tokens,!!e.loose),`<li>${t}</li>
+`}checkbox({checked:e}){return"<input "+(e?'checked="" ':"")+'disabled="" type="checkbox">'}paragraph({tokens:e}){return`<p>${this.parser.parseInline(e)}</p>
+`}table(e){let t="",n="";for(let i=0;i<e.header.length;i++)n+=this.tablecell(e.header[i]);t+=this.tablerow({text:n});let s="";for(let i=0;i<e.rows.length;i++){let r=e.rows[i];n="";for(let o=0;o<r.length;o++)n+=this.tablecell(r[o]);s+=this.tablerow({text:n})}return s&&(s=`<tbody>${s}</tbody>`),`<table>
+<thead>
+`+t+`</thead>
+`+s+`</table>
+`}tablerow({text:e}){return`<tr>
+${e}</tr>
+`}tablecell(e){let t=this.parser.parseInline(e.tokens),n=e.header?"th":"td";return(e.align?`<${n} align="${e.align}">`:`<${n}>`)+t+`</${n}>
+`}strong({tokens:e}){return`<strong>${this.parser.parseInline(e)}</strong>`}em({tokens:e}){return`<em>${this.parser.parseInline(e)}</em>`}codespan({text:e}){return`<code>${R(e,!0)}</code>`}br(e){return"<br>"}del({tokens:e}){return`<del>${this.parser.parseInline(e)}</del>`}link({href:e,title:t,tokens:n}){let s=this.parser.parseInline(n),i=V(e);if(i===null)return s;e=i;let r='<a href="'+e+'"';return t&&(r+=' title="'+R(t)+'"'),r+=">"+s+"</a>",r}image({href:e,title:t,text:n,tokens:s}){s&&(n=this.parser.parseInline(s,this.parser.textRenderer));let i=V(e);if(i===null)return R(n);e=i;let r=`<img src="${e}" alt="${n}"`;return t&&(r+=` title="${R(t)}"`),r+=">",r}text(e){return"tokens"in e&&e.tokens?this.parser.parseInline(e.tokens):"escaped"in e&&e.escaped?e.text:R(e.text)}};var _=class{strong({text:e}){return e}em({text:e}){return e}codespan({text:e}){return e}del({text:e}){return e}html({text:e}){return e}text({text:e}){return e}link({text:e}){return""+e}image({text:e}){return""+e}br(){return""}};var b=class l{options;renderer;textRenderer;constructor(e){this.options=e||w,this.options.renderer=this.options.renderer||new $,this.renderer=this.options.renderer,this.renderer.options=this.options,this.renderer.parser=this,this.textRenderer=new _}static parse(e,t){return new l(t).parse(e)}static parseInline(e,t){return new l(t).parseInline(e)}parse(e,t=!0){let n="";for(let s=0;s<e.length;s++){let i=e[s];if(this.options.extensions?.renderers?.[i.type]){let o=i,a=this.options.extensions.renderers[o.type].call({parser:this},o);if(a!==!1||!["space","hr","heading","code","table","blockquote","list","html","paragraph","text"].includes(o.type)){n+=a||"";continue}}let r=i;switch(r.type){case"space":{n+=this.renderer.space(r);continue}case"hr":{n+=this.renderer.hr(r);continue}case"heading":{n+=this.renderer.heading(r);continue}case"code":{n+=this.renderer.code(r);continue}case"table":{n+=this.renderer.table(r);continue}case"blockquote":{n+=this.renderer.blockquote(r);continue}case"list":{n+=this.renderer.list(r);continue}case"html":{n+=this.renderer.html(r);continue}case"paragraph":{n+=this.renderer.paragraph(r);continue}case"text":{let o=r,a=this.renderer.text(o);for(;s+1<e.length&&e[s+1].type==="text";)o=e[++s],a+=`
+`+this.renderer.text(o);t?n+=this.renderer.paragraph({type:"paragraph",raw:a,text:a,tokens:[{type:"text",raw:a,text:a,escaped:!0}]}):n+=a;continue}default:{let o='Token with "'+r.type+'" type was not found.';if(this.options.silent)return console.error(o),"";throw new Error(o)}}}return n}parseInline(e,t=this.renderer){let n="";for(let s=0;s<e.length;s++){let i=e[s];if(this.options.extensions?.renderers?.[i.type]){let o=this.options.extensions.renderers[i.type].call({parser:this},i);if(o!==!1||!["escape","html","link","image","strong","em","codespan","br","del","text"].includes(i.type)){n+=o||"";continue}}let r=i;switch(r.type){case"escape":{n+=t.text(r);break}case"html":{n+=t.html(r);break}case"link":{n+=t.link(r);break}case"image":{n+=t.image(r);break}case"strong":{n+=t.strong(r);break}case"em":{n+=t.em(r);break}case"codespan":{n+=t.codespan(r);break}case"br":{n+=t.br(r);break}case"del":{n+=t.del(r);break}case"text":{n+=t.text(r);break}default:{let o='Token with "'+r.type+'" type was not found.';if(this.options.silent)return console.error(o),"";throw new Error(o)}}}return n}};var L=class{options;block;constructor(e){this.options=e||w}static passThroughHooks=new Set(["preprocess","postprocess","processAllTokens"]);preprocess(e){return e}postprocess(e){return e}processAllTokens(e){return e}provideLexer(){return this.block?x.lex:x.lexInline}provideParser(){return this.block?b.parse:b.parseInline}};var E=class{defaults=z();options=this.setOptions;parse=this.parseMarkdown(!0);parseInline=this.parseMarkdown(!1);Parser=b;Renderer=$;TextRenderer=_;Lexer=x;Tokenizer=S;Hooks=L;constructor(...e){this.use(...e)}walkTokens(e,t){let n=[];for(let s of e)switch(n=n.concat(t.call(this,s)),s.type){case"table":{let i=s;for(let r of i.header)n=n.concat(this.walkTokens(r.tokens,t));for(let r of i.rows)for(let o of r)n=n.concat(this.walkTokens(o.tokens,t));break}case"list":{let i=s;n=n.concat(this.walkTokens(i.items,t));break}default:{let i=s;this.defaults.extensions?.childTokens?.[i.type]?this.defaults.extensions.childTokens[i.type].forEach(r=>{let o=i[r].flat(1/0);n=n.concat(this.walkTokens(o,t))}):i.tokens&&(n=n.concat(this.walkTokens(i.tokens,t)))}}return n}use(...e){let t=this.defaults.extensions||{renderers:{},childTokens:{}};return e.forEach(n=>{let s={...n};if(s.async=this.defaults.async||s.async||!1,n.extensions&&(n.extensions.forEach(i=>{if(!i.name)throw new Error("extension name required");if("renderer"in i){let r=t.renderers[i.name];r?t.renderers[i.name]=function(...o){let a=i.renderer.apply(this,o);return a===!1&&(a=r.apply(this,o)),a}:t.renderers[i.name]=i.renderer}if("tokenizer"in i){if(!i.level||i.level!=="block"&&i.level!=="inline")throw new Error("extension level must be 'block' or 'inline'");let r=t[i.level];r?r.unshift(i.tokenizer):t[i.level]=[i.tokenizer],i.start&&(i.level==="block"?t.startBlock?t.startBlock.push(i.start):t.startBlock=[i.start]:i.level==="inline"&&(t.startInline?t.startInline.push(i.start):t.startInline=[i.start]))}"childTokens"in i&&i.childTokens&&(t.childTokens[i.name]=i.childTokens)}),s.extensions=t),n.renderer){let i=this.defaults.renderer||new $(this.defaults);for(let r in n.renderer){if(!(r in i))throw new Error(`renderer '${r}' does not exist`);if(["options","parser"].includes(r))continue;let o=r,a=n.renderer[o],c=i[o];i[o]=(...p)=>{let u=a.apply(i,p);return u===!1&&(u=c.apply(i,p)),u||""}}s.renderer=i}if(n.tokenizer){let i=this.defaults.tokenizer||new S(this.defaults);for(let r in n.tokenizer){if(!(r in i))throw new Error(`tokenizer '${r}' does not exist`);if(["options","rules","lexer"].includes(r))continue;let o=r,a=n.tokenizer[o],c=i[o];i[o]=(...p)=>{let u=a.apply(i,p);return u===!1&&(u=c.apply(i,p)),u}}s.tokenizer=i}if(n.hooks){let i=this.defaults.hooks||new L;for(let r in n.hooks){if(!(r in i))throw new Error(`hook '${r}' does not exist`);if(["options","block"].includes(r))continue;let o=r,a=n.hooks[o],c=i[o];L.passThroughHooks.has(r)?i[o]=p=>{if(this.defaults.async)return Promise.resolve(a.call(i,p)).then(d=>c.call(i,d));let u=a.call(i,p);return c.call(i,u)}:i[o]=(...p)=>{let u=a.apply(i,p);return u===!1&&(u=c.apply(i,p)),u}}s.hooks=i}if(n.walkTokens){let i=this.defaults.walkTokens,r=n.walkTokens;s.walkTokens=function(o){let a=[];return a.push(r.call(this,o)),i&&(a=a.concat(i.call(this,o))),a}}this.defaults={...this.defaults,...s}}),this}setOptions(e){return this.defaults={...this.defaults,...e},this}lexer(e,t){return x.lex(e,t??this.defaults)}parser(e,t){return b.parse(e,t??this.defaults)}parseMarkdown(e){return(n,s)=>{let i={...s},r={...this.defaults,...i},o=this.onError(!!r.silent,!!r.async);if(this.defaults.async===!0&&i.async===!1)return o(new Error("marked(): The async option was set to true by an extension. Remove async: false from the parse options object to return a Promise."));if(typeof n>"u"||n===null)return o(new Error("marked(): input parameter is undefined or null"));if(typeof n!="string")return o(new Error("marked(): input parameter is of type "+Object.prototype.toString.call(n)+", string expected"));r.hooks&&(r.hooks.options=r,r.hooks.block=e);let a=r.hooks?r.hooks.provideLexer():e?x.lex:x.lexInline,c=r.hooks?r.hooks.provideParser():e?b.parse:b.parseInline;if(r.async)return Promise.resolve(r.hooks?r.hooks.preprocess(n):n).then(p=>a(p,r)).then(p=>r.hooks?r.hooks.processAllTokens(p):p).then(p=>r.walkTokens?Promise.all(this.walkTokens(p,r.walkTokens)).then(()=>p):p).then(p=>c(p,r)).then(p=>r.hooks?r.hooks.postprocess(p):p).catch(o);try{r.hooks&&(n=r.hooks.preprocess(n));let p=a(n,r);r.hooks&&(p=r.hooks.processAllTokens(p)),r.walkTokens&&this.walkTokens(p,r.walkTokens);let u=c(p,r);return r.hooks&&(u=r.hooks.postprocess(u)),u}catch(p){return o(p)}}}onError(e,t){return n=>{if(n.message+=`
+Please report this to https://github.com/markedjs/marked.`,e){let s="<p>An error occurred:</p><pre>"+R(n.message+"",!0)+"</pre>";return t?Promise.resolve(s):s}if(t)return Promise.reject(n);throw n}}};var M=new E;function k(l,e){return M.parse(l,e)}k.options=k.setOptions=function(l){return M.setOptions(l),k.defaults=M.defaults,N(k.defaults),k};k.getDefaults=z;k.defaults=w;k.use=function(...l){return M.use(...l),k.defaults=M.defaults,N(k.defaults),k};k.walkTokens=function(l,e){return M.walkTokens(l,e)};k.parseInline=M.parseInline;k.Parser=b;k.parser=b.parse;k.Renderer=$;k.TextRenderer=_;k.Lexer=x;k.lexer=x.lex;k.Tokenizer=S;k.Hooks=L;k.parse=k;var it=k.options,ot=k.setOptions,lt=k.use,at=k.walkTokens,ct=k.parseInline,pt=k,ut=b.parse,ht=x.lex;
+
+if(__exports != exports)module.exports = exports;return module.exports}));
+
+  </script>
+</head>
+<body>
+  <div id="content"></div>
+  <script>
+    const markdown = "<div class=\"cover-page\">\n  <div class=\"cover-header\">\n    <span class=\"cover-badge\">DEFEND-AI OFFICIAL MANUAL</span>\n    <h1 class=\"cover-title\">TÀI LIỆU HƯỚNG DẪN SỬ DỤNG HỆ THỐNG</h1>\n    <p class=\"cover-subtitle\">Nền tảng Luyện tập Phản biện Bảo vệ Đồ án & Đánh giá Chất lượng Mã nguồn Tích hợp AI</p>\n  </div>\n\n  <div class=\"cover-middle\">\n    <h4>Phạm vi & Đối tượng áp dụng</h4>\n    <ul>\n      <li><strong>Sinh viên (Student):</strong> Luyện tập bảo vệ đồ án, kiểm tra mã nguồn, nhận câu hỏi phản biện, mô phỏng phòng thi và nhận Bệnh án đồ án.</li>\n      <li><strong>Cố vấn / Giảng viên (Mentor):</strong> Quản lý lịch hướng dẫn, chấm điểm phản biện và hỗ trợ sinh viên hoàn thiện đồ án.</li>\n      <li><strong>Quản trị viên (Admin):</strong> Vận hành hệ thống, kiểm duyệt hồ sơ cố vấn, quản lý tài chính, đối soát và giám sát AI Gateway.</li>\n    </ul>\n  </div>\n\n  <div class=\"cover-meta\">\n    <div class=\"meta-item\">\n      Phiên bản tài liệu\n      <strong>Version 1.0.0 (Release 2026)</strong>\n    </div>\n    <div class=\"meta-item\">\n      Ngày phát hành\n      <strong>Tháng 10 / 2026</strong>\n    </div>\n    <div class=\"meta-item\">\n      Địa chỉ truy cập Web\n      <strong>https://defend-ai.vercel.app</strong>\n    </div>\n    <div class=\"meta-item\">\n      Đơn vị phát triển\n      <strong>DefendAI Core Engineering Team</strong>\n    </div>\n  </div>\n</div>\n\n<div class=\"page-break\"></div>\n\n## MỤC LỤC TỔNG QUAN\n\n- [CHƯƠNG 1: GIỚI THIỆU CHUNG & KHỞI ĐỘNG](#chương-1-giới-thiệu-chung--khởi-động)\n  - [1.1 Giới thiệu về DefendAI](#11-giới-thiệu-về-defendai)\n  - [1.2 Ma trận phân quyền 3 vai trò (Roles & Permissions)](#12-ma-trận-phân-quyền-3-vai-trò-roles--permissions)\n  - [1.3 Đăng ký, Đăng nhập & Xác thực](#13-đăng-ký-đăng-nhập--xác-thực)\n  - [1.4 Khám phá Bảng giá & Các gói dịch vụ](#14-khám-phá-bảng-giá--các-gói-dịch-vụ)\n- [CHƯƠNG 2: HƯỚNG DẪN DÀNH CHO SINH VIÊN (STUDENT ROLE)](#chương-2-hướng-dẫn-dành-cho-sinh-viên-student-role)\n  - [2.1 Quản lý Không gian làm việc (Workspaces & Đề tài)](#21-quản-lý-không-gian-làm-việc-workspaces--đề-tài)\n  - [2.2 Tải lên & Quản lý Tài liệu Đồ án (PDF / DOCX)](#22-tải-lên--quản-lý-tài-liệu-đồ-án-pdf--docx)\n  - [2.3 Đánh giá chất lượng Mã nguồn (AI Code Review)](#23-đánh-giá-chất-lượng-mã-nguồn-ai-code-review)\n  - [2.4 Sinh Bộ câu hỏi phản biện bảo vệ (AI Question Generation)](#24-sinh-bộ-câu-hỏi-phản-biện-bảo-vệ-ai-question-generation)\n  - [2.5 Phòng phản biện thử nghiệm (Mock Defense Room)](#25-phòng-phản-biện-thử-nghiệm-mock-defense-room)\n  - [2.6 Tra cứu Báo cáo & Xuất \"Bệnh án đồ án\" (Report PDF)](#26-tra-cứu-báo-cáo--xuất-bệnh-án-đồ-án-report-pdf)\n  - [2.7 Đặt lịch hẹn cố vấn chuyên sâu (Bookings)](#27-đặt-lịch-hẹn-cố-vấn-chuyên-sâu-bookings)\n- [CHƯƠNG 3: HƯỚNG DẪN DÀNH CHO CỐ VẤN / GIẢNG VIÊN (MENTOR ROLE)](#chương-3-hướng-dẫn-dành-cho-cố-vấn--giảng-viên-mentor-role)\n  - [3.1 Tổng quan Bảng điều khiển Mentor (Dashboard)](#31-tổng-quan-bảng-điều-khiển-mentor-dashboard)\n  - [3.2 Quản lý Phiên hướng dẫn (Sessions & Meetings)](#32-quản-lý-phiên-hướng-dẫn-sessions--meetings)\n  - [3.3 Thiết lập Lịch rảnh & Tiếp nhận yêu cầu (Calendar & Bookings)](#33-thiết-lập-lịch-rảnh--tiếp-nhận-yêu-cầu-calendar--bookings)\n  - [3.4 Quản lý Ví thu nhập & Yêu cầu rút tiền (Wallet & Payout)](#34-quản-lý-ví-thu-nhập--yêu-cầu-rút-tiền-wallet--payout)\n- [CHƯƠNG 4: HƯỚNG DẪN DÀNH CHO QUẢN TRỊ VIÊN (ADMIN ROLE)](#chương-4-hướng-dẫn-dành-cho-quản-trị-viên-admin-role)\n  - [4.1 Bảng điều khiển Tổng quan Vận hành (Overview Dashboard)](#41-bảng-điều-khiển-tổng-quan-vận-hành-overview-dashboard)\n  - [4.2 Quản trị Người dùng & Phân quyền (User Management)](#42-quản-trị-người-dùng--phân-quyền-user-management)\n  - [4.3 Thẩm định & Phê duyệt Hồ sơ Mentor (Mentor Verification)](#43-thẩm-định--phê-duyệt-hồ-sơ-mentor-mentor-verification)\n  - [4.4 Trung tâm Hòa giải Khiếu nại (Dispute Center)](#44-trung-tâm-hòa-giải-khiếu-nại-dispute-center)\n  - [4.5 Đối soát Tài chính & Duyệt Lệnh Rút tiền (Payout Settlement)](#45-đối-soát-tài-chính--duyệt-lệnh-rút-tiền-payout-settlement)\n  - [4.6 Cấu hình Tham số Hệ thống & AI Gateway (System Settings)](#46-cấu-hình-tham-số-hệ-thống--ai-gateway-system-settings)\n- [CHƯƠNG 5: GIẢI ĐÁP THẮC MẮC & XỬ LÝ SỰ CỐ (FAQ & TROUBLESHOOTING)](#chương-5-giải-đáp-thắc-mắc--xử-lý-sự-cố-faq--troubleshooting)\n\n---\n\n<div class=\"page-break\"></div>\n\n# CHƯƠNG 1: GIỚI THIỆU CHUNG & KHỞI ĐỘNG\n\n## 1.1 Giới thiệu về DefendAI\n\n**DefendAI** là giải pháp EdTech tiên phong ứng dụng Trí tuệ Nhân tạo hỗ trợ sinh viên chuẩn bị cho kỳ bảo vệ đồ án tốt nghiệp đại học. Nền tảng giải quyết triệt để nỗi lo sợ của sinh viên trước hội đồng phản biện thông qua quy trình 4 giai đoạn khép kín:\n1. **Phân tích chiều sâu:** Quét tài liệu báo cáo (PDF/DOCX) và mã nguồn dự án (ZIP/RAR) để phát hiện lỗ hổng logic, kiến trúc, bảo mật.\n2. **Chuẩn bị phản biện:** Tự động mô phỏng các Persona hội đồng khó tính để sinh ra bộ câu hỏi sát thực tế kèm gợi ý câu trả lời.\n3. **Phòng thi giả định (Mock Defense):** Thực hành thuyết trình và ứng đáp với AI qua âm thanh và hình ảnh trong không gian trực tuyến.\n4. **Bệnh án đồ án (Diagnostic Report):** Chẩn đoán toàn diện theo 7 tiêu chí chuẩn đầu ra (CLO / SEP490), chỉ rõ điểm yếu và giải pháp khắc phục.\n\n<div class=\"img-container\">\n  <img src=\"./images/common/01_homepage.png\" alt=\"Giao diện Trang chủ DefendAI\" />\n  <div class=\"caption\">Hình 1.1: Giao diện Trang chủ nền tảng DefendAI</div>\n</div>\n\n---\n\n## 1.2 Ma trận phân quyền 3 vai trò (Roles & Permissions)\n\nDefendAI phân định rành mạch thẩm quyền và trách nhiệm của từng nhóm người dùng:\n\n| Tính năng cốt lõi | Sinh viên (Student) | Cố vấn (Mentor) | Quản trị viên (Admin) |\n| :--- | :---: | :---: | :---: |\n| Quản lý Workspace & Đề tài cá nhân | ✅ Toàn quyền | 👁️ Xem khi được mời | 👁️ Quản lý giám sát |\n| Upload Đồ án & AI Code Review | ✅ Sử dụng | 👁️ Nhận xét / Đánh giá | ⚙️ Cấu hình Engine |\n| Sinh câu hỏi phản biện AI | ✅ Tạo & Sinh lại | 👁️ Góp ý / Bổ sung | ⚙️ Cấu hình Prompt |\n| Phòng bảo vệ giả lập (Mock Room AI) | ✅ Thực hành | ❌ (Có phòng riêng) | ❌ |\n| Phòng bảo vệ Mentor (1-on-1 Session) | ✅ Đặt lịch & Tham gia | ✅ Chủ trì & Chấm điểm | 👁️ Tra cứu Log |\n| Xuất \"Bệnh án đồ án\" (Report PDF) | ✅ Tải về | ✅ Nhập nhận xét | 👁️ Xem lịch sử |\n| Quản lý Ví & Rút tiền hoa hồng | ❌ | ✅ Tạo yêu cầu | ✅ Đối soát & Duyệt |\n| Quản lý Users & Cấu hình AI Provider | ❌ | ❌ | ✅ Toàn quyền |\n\n---\n\n## 1.3 Đăng ký, Đăng nhập & Xác thực\n\n### Quy trình đăng nhập\n1. Truy cập đường dẫn: `/login`.\n2. Nhập thông tin **Email** và **Mật khẩu** đã đăng ký.\n3. Nhấp chọn **\"Đăng nhập\"** hoặc sử dụng tùy chọn **\"Đăng nhập với Google\"**.\n4. Hệ thống tự động phân loại quyền và điều hướng đến Dashboard tương ứng:\n   - *Sinh viên:* Điều hướng đến `/documents` hoặc `/workspaces`.\n   - *Mentor:* Điều hướng đến `/mentor/dashboard`.\n   - *Admin:* Xuất hiện biểu tượng menu Quản trị và truy cập `/admin`.\n\n<div class=\"img-container\">\n  <img src=\"./images/common/02_login_page.png\" alt=\"Màn hình Đăng nhập và Đăng ký\" />\n  <div class=\"caption\">Hình 1.2: Màn hình Đăng nhập / Đăng ký tài khoản DefendAI</div>\n</div>\n\n<div class=\"callout callout-tip\">\n  <strong>Mẹo bảo mật:</strong> Nếu sử dụng thiết bị công cộng, bạn không nên tích chọn <em>\"Ghi nhớ đăng nhập\"</em> và hãy luôn đăng xuất khỏi hệ thống sau khi kết thúc phiên luyện tập.\n</div>\n\n---\n\n## 1.4 Khám phá Bảng giá & Các gói dịch vụ\n\nDefendAI cung cấp các gói dịch vụ linh hoạt phù hợp với nhu cầu từ ôn luyện cơ bản đến tăng tốc cấp tốc trước ngày bảo vệ chính thức:\n\n<div class=\"img-container\">\n  <img src=\"./images/common/03_pricing.png\" alt=\"Bảng giá các gói dịch vụ\" />\n  <div class=\"caption\">Hình 1.3: Giao diện Bảng giá và Gói dịch vụ thành viên</div>\n</div>\n\n- **Gói Miễn phí (Free Starter):** Thích hợp trải nghiệm thử — 1 lần Code Review, 1 bộ câu hỏi cơ bản, 1 lượt Mock Room AI ngắn.\n- **Gói Chuẩn (Standard Defense):** Phổ biến nhất — Không giới hạn Code Review, mở khóa toàn bộ Persona phản biện nâng cao và xuất file Bệnh án PDF hoàn chỉnh.\n- **Gói Cố vấn Chuyên sâu (Pro Mentoring):** Toàn bộ quyền lợi gói Chuẩn cộng thêm các buổi 1-on-1 trực tiếp cùng giảng viên/chuyên gia đầu ngành.\n\n---\n\n<div class=\"page-break\"></div>\n\n# CHƯƠNG 2: HƯỚNG DẪN DÀNH CHO SINH VIÊN (STUDENT ROLE)\n\n## 2.1 Quản lý Không gian làm việc (Workspaces & Đề tài)\n\nKhông gian làm việc (*Workspace*) là nơi lưu trữ toàn bộ tiến trình ôn luyện, tài liệu, mã nguồn và lịch sử các lần thi thử của một đề tài đồ án cụ thể.\n\n<div class=\"img-container\">\n  <img src=\"./images/student/01_workspaces.png\" alt=\"Giao diện Quản lý Workspace\" />\n  <div class=\"caption\">Hình 2.1: Danh sách Không gian làm việc của Sinh viên</div>\n</div>\n\n### Các thao tác chính:\n- **Tạo Workspace mới:** Nhấp chọn nút **\"➕ Tạo Workspace mới\"**, nhập tên đề tài, chuyên ngành (SE, IA, AI, IS...) và mô tả ngắn.\n- **Truy cập Workspace:** Nhấp vào thẻ đồ án tương ứng để tiếp tục làm việc.\n- **Trò chuyện đề tài (Chat đề tài):** Sử dụng trợ lý AI chuyên biệt để thảo luận về kiến trúc dự án, công nghệ sử dụng và nhận định sơ bộ trước khi nộp.\n\n---\n\n## 2.2 Tải lên & Quản lý Tài liệu Đồ án (PDF / DOCX)\n\nTài liệu đồ án là cơ sở dữ liệu quan trọng nhất để AI đọc hiểu nghiệp vụ, các biểu đồ ca sử dụng (Use Case), sơ đồ cơ sở dữ liệu và yêu cầu phi chức năng.\n\n<div class=\"img-container\">\n  <img src=\"./images/student/02_documents.png\" alt=\"Màn hình Tải lên Tài liệu Đồ án\" />\n  <div class=\"caption\">Hình 2.2: Khu vực Tải lên & Quản lý Tài liệu Đồ án</div>\n</div>\n\n### Hướng dẫn tải tệp:\n1. Truy cập menu **\"Tài liệu\"** (`/documents`).\n2. Kéo thả hoặc bấm chọn tệp tài liệu đồ án của bạn (định dạng hỗ trợ: `.pdf`, `.docx`, dung lượng tối đa 50MB).\n3. Hệ thống sẽ tiến hành bóc tách văn bản, trích xuất cấu trúc chương mục và hiển thị trạng thái xử lý:\n   - 🟡 **Đang xử lý (Processing):** AI đang phân tích nội dung.\n   - 🟢 **Sẵn sàng (Ready):** Đã phân tích xong, sẵn sàng sinh câu hỏi và phản biện.\n   - 🔴 **Lỗi (Failed):** Tệp bị lỗi định dạng hoặc khóa mật khẩu.\n\n<div class=\"callout callout-warning\">\n  <strong>Lưu ý:</strong> Vui lòng không upload tài liệu chỉ chứa slide tóm tắt quá ngắn hoặc tài liệu scan dạng ảnh không có lớp ký tự (OCR text layer). Tệp cần có mục lục và nội dung chi tiết từ 30 trang trở lên để AI đạt độ chính xác cao nhất.\n</div>\n\n---\n\n## 2.3 Đánh giá chất lượng Mã nguồn (AI Code Review)\n\nTính năng **AI Code Review** hỗ trợ sinh viên nộp toàn bộ source code của đồ án dưới dạng nén `.zip` hoặc `.rar` để rà soát lỗi bảo mật, vi phạm Clean Architecture, vi phạm quy ước đặt tên và các rủi ro kỹ thuật.\n\n<div class=\"img-container\">\n  <img src=\"./images/student/03_code_review.png\" alt=\"Giao diện AI Code Review\" />\n  <div class=\"caption\">Hình 2.3: Bàn làm việc phân tích mã nguồn AI Code Review</div>\n</div>\n\n### Cách sử dụng:\n1. Truy cập trang **\"Code Review\"** (`/code-review`).\n2. Nhấp nút **\"Chọn file ZIP/RAR\"** để tải mã nguồn dự án lên.\n3. Bấm **\"🔍 Chạy Code Review\"** để kích hoạt tiến trình rà soát.\n4. **Bố cục giao diện 3 cột trực quan:**\n   - **Cột trái (File Tree):** Cây thư mục dự án, hiển thị biểu tượng cảnh báo màu đỏ/vàng cạnh các tệp chứa vấn đề.\n   - **Cột giữa (Code Preview):** Trình xem mã nguồn với đánh số dòng và đánh dấu chính xác dòng bị vi phạm.\n   - **Cột phải (Danh sách Vấn đề - Issues):** Bộ lọc theo mức độ nghiêm trọng:\n     - 🔴 **CRITICAL / HIGH:** Lỗ hổng bảo mật nghiêm trọng (SQL Injection, lộ secret key, hardcode password).\n     - 🟠 **MEDIUM / WARNING:** Vi phạm kiến trúc, thiếu validate dữ liệu, tiềm ẩn leak bộ nhớ.\n     - 🔵 **LOW / OPTIMIZATION:** Gợi ý tối ưu hiệu năng, cải thiện Clean Code.\n\n---\n\n## 2.4 Sinh Bộ câu hỏi phản biện bảo vệ (AI Question Generation)\n\nDựa trên tài liệu đồ án và mã nguồn đã phân tích, hệ thống tự động sinh ra bộ 10 câu hỏi phản biện mô phỏng chính xác các góc độ chất vấn của Hội đồng chấm tốt nghiệp.\n\n<div class=\"img-container\">\n  <img src=\"./images/student/04_questions.png\" alt=\"Bộ câu hỏi phản biện AI sinh\" />\n  <div class=\"caption\">Hình 2.4: Danh sách câu hỏi phản biện chuyên sâu kèm phân loại</div>\n</div>\n\n### Đặc điểm bộ câu hỏi:\n- **Phân loại độ khó:** Dễ (Hiểu nghiệp vụ cơ bản), Trung bình (Kiến trúc & Công nghệ), Khó (Khả năng chịu tải, Bảo mật & Xử lý tình huống biên).\n- **Xem gợi ý trả lời (Guideline):** Mỗi câu hỏi đều đi kèm dàn ý hướng dẫn trả lời, trích dẫn số trang tài liệu liên quan giúp sinh viên tra cứu nhanh.\n- **Tính năng Sinh lại (Regenerate):** Nếu muốn đổi góc nhìn phản biện hoặc tập trung vào một chương cụ thể, bạn có thể bấm **\"🔄 Sinh lại câu hỏi\"**.\n\n---\n\n## 2.5 Phòng phản biện thử nghiệm (Mock Defense Room)\n\nĐây là tính năng độc quyền cho phép bạn bước vào phòng bảo vệ giả định trực tuyến với Hội đồng Giám khảo AI.\n\n<div class=\"img-container\">\n  <img src=\"./images/student/05_mock_defense.png\" alt=\"Phòng bảo vệ giả định Mock Room\" />\n  <div class=\"caption\">Hình 2.5: Giao diện Phòng bảo vệ giả định (Mock Defense Room)</div>\n</div>\n\n### Quy trình diễn tập:\n1. **Kiểm tra thiết bị:** Bật Micro và Camera trên trình duyệt khi có thông báo cấp quyền.\n2. **Chọn Persona Hội đồng:** Chọn phong cách giám khảo (Khắt khe - Chuyên gia Kỹ thuật, Tỉ mỉ - Chuyên gia Nghiệp vụ kinh doanh, Thân thiện - Động viên).\n3. **Thuyết trình đồ án (Presentation):** Sinh viên có 10-15 phút trình bày slide tóm tắt đề tài.\n4. **Hỏi & Đáp (Q&A Session):** Giám khảo AI sẽ đặt câu hỏi bằng giọng nói tự nhiên, sinh viên trả lời trực tiếp qua mic. Hệ thống tự động ghi âm và chuyển đổi thành văn bản (Speech-to-Text).\n5. **Kết thúc phiên:** Nhấp **\"Hoàn thành bảo vệ\"** để hệ thống tổng hợp dữ liệu chấm điểm.\n\n---\n\n## 2.6 Tra cứu Báo cáo & Xuất \"Bệnh án đồ án\" (Report PDF)\n\nSau khi hoàn tất phiên bảo vệ giả định, hệ thống lập tức xuất Báo cáo Đánh giá Chi tiết (còn gọi là *\"Bệnh án đồ án\"*).\n\n<div class=\"img-container\">\n  <img src=\"./images/student/06_report.png\" alt=\"Báo cáo đánh giá và Bệnh án đồ án\" />\n  <div class=\"caption\">Hình 2.6: Báo cáo Bệnh án đồ án và Bảng điểm năng lực CLO</div>\n</div>\n\n### Các chỉ số then chốt:\n- **Điểm OGA (Oral Grading Assessment):** Đánh giá năng lực thuyết trình, phản xạ trả lời, độ tự tin và tính lưu loát.\n- **Điểm TDA (Technical Documentation Assessment):** Đánh giá chất lượng văn bản, sơ đồ thiết kế và độ hoàn thiện mã nguồn.\n- **Bảng điểm 7 Chuẩn đầu ra (CLO / SEP490):** Thể hiện chi tiết từng kỹ năng: Phân tích yêu cầu, Thiết kế hệ thống, Hiện thực hóa mã nguồn, Kiểm thử, Quản lý dự án, Kỹ năng giao tiếp và Đạo đức nghề nghiệp.\n- **Nút \"Xuất PDF\":** Tải toàn bộ hồ sơ bệnh án về máy tính để gửi cho giảng viên hướng dẫn xem xét.\n\n---\n\n## 2.7 Đặt lịch hẹn cố vấn chuyên sâu (Bookings)\n\nNếu sinh viên cần được giảng viên hoặc chuyên gia đầu ngành cố vấn trực tiếp 1-on-1 để hoàn thiện đồ án trước kỳ thi chính thức:\n\n<div class=\"img-container\">\n  <img src=\"./images/student/07_bookings.png\" alt=\"Giao diện Đặt lịch Cố vấn\" />\n  <div class=\"caption\">Hình 2.7: Màn hình Đặt lịch hẹn Cố vấn chuyên môn</div>\n</div>\n\n1. Truy cập mục **\"Lịch hẹn\"** (`/bookings`).\n2. Xem danh sách các Mentor phù hợp theo chuyên ngành (Web, Mobile, AI/ML, DevOps, Security).\n3. Chọn khung giờ rảnh mong muốn trên lịch của Mentor và xác nhận đặt lịch.\n4. Tham gia buổi tư vấn trực tuyến vào thời gian đã hẹn.\n\n---\n\n<div class=\"page-break\"></div>\n\n# CHƯƠNG 3: HƯỚNG DẪN DÀNH CHO CỐ VẤN / GIẢNG VIÊN (MENTOR ROLE)\n\n## 3.1 Tổng quan Bảng điều khiển Mentor (Dashboard)\n\nKhi đăng nhập với tài khoản có vai trò **Mentor**, giảng viên được điều hướng đến Trung tâm Điều hành Chuyên môn (`/mentor/dashboard`).\n\n<div class=\"img-container\">\n  <img src=\"./images/mentor/01_mentor_dashboard.png\" alt=\"Dashboard dành cho Mentor\" />\n  <div class=\"caption\">Hình 3.1: Bảng điều khiển trung tâm dành cho Mentor</div>\n</div>\n\n### Các khối thông tin quan trọng:\n- **Tổng số phiên đã hướng dẫn:** Số lượt sinh viên đã hoàn thành buổi tư vấn.\n- **Đánh giá trung bình (Rating):** Điểm phản hồi từ các nhóm sinh viên.\n- **Số dư khả dụng trong ví:** Thu nhập có thể tạo lệnh rút về tài khoản ngân hàng.\n- **Lịch hẹn sắp tới:** Danh sách các phiên tư vấn sắp diễn ra trong ngày/tuần.\n\n---\n\n## 3.2 Quản lý Phiên hướng dẫn (Sessions & Meetings)\n\nMục **\"Quản lý phiên hướng dẫn\"** (`/mentor/sessions`) lưu trữ toàn bộ lịch sử các buổi phản biện và tư vấn đồ án.\n\n<div class=\"img-container\">\n  <img src=\"./images/mentor/02_mentor_sessions.png\" alt=\"Quản lý Phiên hướng dẫn\" />\n  <div class=\"caption\">Hình 3.2: Danh sách các phiên hướng dẫn của Mentor</div>\n</div>\n\n- **Chuẩn bị trước phiên:** Mentor có thể mở xem trước tệp tài liệu đồ án và kết quả Code Review do AI đã phân tích của nhóm sinh viên đó.\n- **Vào phòng họp:** Nhấp **\"Vào phòng\"** tại thời điểm diễn ra buổi hẹn để kết nối trực tiếp với sinh viên qua phòng Video Call tích hợp.\n- **Ghi chú & Nhận xét:** Nhập các lưu ý chuyên môn trong suốt phiên làm việc.\n\n---\n\n## 3.3 Thiết lập Lịch rảnh & Tiếp nhận yêu cầu (Calendar & Bookings)\n\nĐể sinh viên có thể chủ động đặt lịch tư vấn, Mentor cần cấu hình các khung giờ khả dụng trong tuần.\n\n<div class=\"img-container\">\n  <img src=\"./images/mentor/03_mentor_calendar.png\" alt=\"Lịch làm việc và quản lý thời gian rảnh\" />\n  <div class=\"caption\">Hình 3.3: Giao diện Lịch làm việc và Thiết lập khung giờ rảnh</div>\n</div>\n\n1. Truy cập **\"Lịch làm việc\"** (`/mentor/calendar`).\n2. Chọn các ngày trong tuần và nhấp để bật/tắt các slot giờ rảnh (Ví dụ: 19:00 - 20:00, 20:30 - 21:30).\n3. Khi sinh viên đăng ký một khung giờ, hệ thống sẽ tự động gửi thông báo xác nhận và khóa khung giờ đó trên lịch.\n\n---\n\n## 3.4 Quản lý Ví thu nhập & Yêu cầu rút tiền (Wallet & Payout)\n\nToàn bộ chi phí thù lao hướng dẫn sau mỗi phiên hoàn thành sẽ được cộng trực tiếp vào ví của Mentor sau khi khấu trừ phí dịch vụ nền tảng.\n\n<div class=\"img-container\">\n  <img src=\"./images/mentor/04_mentor_wallet.png\" alt=\"Ví thu nhập và Rút tiền Mentor\" />\n  <div class=\"caption\">Hình 3.4: Giao diện Ví thu nhập và Lịch sử giao dịch của Mentor</div>\n</div>\n\n### Quy trình tạo yêu cầu rút tiền:\n1. Truy cập mục **\"Ví cá nhân\"** (`/mentor/wallet`).\n2. Kiểm tra **Số dư khả dụng**.\n3. Nhập số tiền cần rút (tối thiểu 200.000 VNĐ).\n4. Điền thông tin tài khoản ngân hàng thụ hưởng (Tên ngân hàng, Số tài khoản, Tên chủ thẻ).\n5. Nhấp **\"Gửi yêu cầu rút tiền\"**. Yêu cầu sẽ được chuyển đến Bộ phận Tài chính (Admin) để duyệt trong vòng 24 giờ làm việc.\n\n---\n\n<div class=\"page-break\"></div>\n\n# CHƯƠNG 4: HƯỚNG DẪN DÀNH CHO QUẢN TRỊ VIÊN (ADMIN ROLE)\n\n## 4.1 Bảng điều khiển Tổng quan Vận hành (Overview Dashboard)\n\nTrang Tổng quan Quản trị (`/admin`) cung cấp cái nhìn toàn cảnh thời gian thực về sức khỏe và hiệu suất hoạt động của toàn bộ hệ thống DefendAI.\n\n<div class=\"img-container\">\n  <img src=\"./images/admin/01_admin_overview.png\" alt=\"Dashboard Quản trị Tổng quan\" />\n  <div class=\"caption\">Hình 4.1: Bảng điều khiển Tổng quan Vận hành Nền tảng (Admin Dashboard)</div>\n</div>\n\n### Các chỉ số điều hành then chốt:\n- **Tổng doanh thu nền tảng:** Doanh thu gộp từ các gói thành viên và hoa hồng dịch vụ cố vấn.\n- **Người dùng hoạt động (Active Users):** Lượng sinh viên và giảng viên truy cập trong kỳ bảo vệ.\n- **Tổng phiên bảo vệ đã hoàn thành:** Số lượng đồ án đã được kiểm thử qua Mock Room và Mentoring.\n- **Biểu đồ tăng trưởng:** Phân bổ người dùng theo chuyên ngành và lưu lượng sử dụng dịch vụ.\n\n---\n\n## 4.2 Quản trị Người dùng & Phân quyền (User Management)\n\nKhu vực **\"Quản lý Người dùng\"** (`/admin/users`) cho phép Admin kiểm soát toàn bộ danh sách tài khoản trong cơ sở dữ liệu.\n\n<div class=\"img-container\">\n  <img src=\"./images/admin/02_admin_users.png\" alt=\"Quản lý Người dùng và Phân quyền\" />\n  <div class=\"caption\">Hình 4.2: Danh sách Người dùng và Công cụ Phân quyền Quản trị</div>\n</div>\n\n- **Tìm kiếm & Lọc:** Tra cứu nhanh người dùng theo Email, Tên đầy đủ, hoặc Vai trò (Student, Mentor, Admin).\n- **Phân quyền vai trò:** Cấp quyền hoặc thu hồi quyền Mentor/Admin.\n- **Khóa tài khoản:** Tạm khóa tài khoản trong trường hợp vi phạm quy chế hoặc gian lận học thuật.\n\n---\n\n## 4.3 Thẩm định & Phê duyệt Hồ sơ Mentor (Mentor Verification)\n\nĐể đảm bảo chất lượng chuyên môn cao nhất cho đội ngũ cố vấn trên sàn, tất cả hồ sơ Mentor đăng ký mới đều phải trải qua quy trình xác minh nghiêm ngặt.\n\n<div class=\"img-container\">\n  <img src=\"./images/admin/03_mentor_verification.png\" alt=\"Duyệt Hồ sơ Mentor\" />\n  <div class=\"caption\">Hình 4.3: Trung tâm Duyệt và Xác minh Hồ sơ Cố vấn mới</div>\n</div>\n\n### Các bước thẩm định của Admin:\n1. Kiểm tra bằng cấp chuyên môn, chứng chỉ kỹ thuật, hồ sơ LinkedIn và kinh nghiệm hướng dẫn đồ án.\n2. **Phê duyệt (Approve):** Nhấp `Approve` để kích hoạt vai trò Mentor công khai trên hệ thống.\n3. **Từ chối (Reject):** Chọn lý do từ chối (thiếu chứng chỉ, thông tin không chính xác) để hệ thống gửi email phản hồi yêu cầu bổ sung.\n\n---\n\n## 4.4 Trung tâm Hòa giải Khiếu nại (Dispute Center)\n\nKhi có tranh chấp phát sinh giữa Sinh viên và Mentor (ví dụ: vắng mặt không lý do, hủy lịch muộn, sự cố đường truyền mạng), Ticket khiếu nại sẽ được đưa về **Dispute Center** (`/admin/dispute`).\n\n<div class=\"img-container\">\n  <img src=\"./images/admin/04_dispute_center.png\" alt=\"Trung tâm Xử lý Tranh chấp và Khiếu nại\" />\n  <div class=\"caption\">Hình 4.4: Bàn làm việc Phân xử Khiếu nại & Tranh chấp lịch hẹn</div>\n</div>\n\n### Thẩm quyền xử lý của Admin:\n- **Lỗi do Mentor:** Hoàn tiền 100% cho sinh viên, gửi cảnh báo hoặc trừ điểm uy tín của Mentor.\n- **Lỗi do Sinh viên:** Duyệt giải ngân chi phí buổi học cho Mentor nếu sinh viên không tham gia không báo trước.\n- **Sự cố kỹ thuật:** Tặng voucher đền bù buổi học khác và chuyển ticket cho bộ phận phát triển.\n\n---\n\n## 4.5 Đối soát Tài chính & Duyệt Lệnh Rút tiền (Payout Settlement)\n\nMàn hình **Đối soát & Rút tiền** (`/admin/payout`) đảm bảo dòng tiền trên sàn minh bạch và tuân thủ các quy tắc tài chính.\n\n<div class=\"img-container\">\n  <img src=\"./images/admin/05_payout_settlement.png\" alt=\"Đối soát Tài chính và Duyệt Rút tiền\" />\n  <div class=\"caption\">Hình 4.5: Danh sách Lệnh rút tiền và Bảng đối soát tài chính</div>\n</div>\n\n1. Admin đối chiếu số dư khả dụng với số phiên học thực tế đã hoàn thành.\n2. Kiểm tra thông tin tài khoản ngân hàng thụ hưởng của Mentor.\n3. Nhấp **\"Duyệt chi trả\"** (`Approve Payout`) để hoàn tất thanh toán.\n\n---\n\n## 4.6 Cấu hình Tham số Hệ thống & AI Gateway (System Settings)\n\nTrang Cấu hình (`/admin/settings`) cho phép Super Admin điều chỉnh các tham số vận hành cốt lõi của nền tảng:\n\n<div class=\"img-container\">\n  <img src=\"./images/admin/06_system_settings.png\" alt=\"Cấu hình Hệ thống và AI Gateway\" />\n  <div class=\"caption\">Hình 4.6: Giao diện Cấu hình Tham số Hệ thống & AI Gateway</div>\n</div>\n\n- **Quản lý AI Providers:** Thêm mới, thay đổi API Key, Base URL của các nhà cung cấp mô hình (OpenAI, Gemini, NVIDIA NIM, OpenRouter).\n- **Chỉ định Model theo tính năng:** Gán model tối ưu riêng cho từng module (VD: `gpt-4o` cho Question Gen, `deepseek-coder` cho Code Review, `nemotron` cho Speech Defense).\n- **Tỷ lệ hoa hồng sàn:** Thiết lập phần trăm chiết khấu hoa hồng trên mỗi phiên cố vấn.\n\n---\n\n<div class=\"page-break\"></div>\n\n# CHƯƠNG 5: GIẢI ĐÁP THẮC MẮC & XỬ LÝ SỰ CỐ (FAQ & TROUBLESHOOTING)\n\n### ❓ 1. Tôi tải tệp ZIP mã nguồn lên nhưng hệ thống báo \"File này không được xác định là source code\"?\n- **Nguyên nhân:** Tệp ZIP của bạn chỉ chứa các tệp văn bản (Word, PDF) hoặc tệp nén rỗng, không chứa các định dạng mã nguồn tiêu chuẩn (`.java`, `.cs`, `.py`, `.ts`, `.cpp`...).\n- **Khắc phục:** Nén trực tiếp thư mục `src/` của dự án và loại bỏ các thư mục rác như `node_modules/`, `bin/`, `obj/`, `target/` để giảm dung lượng.\n\n### ❓ 2. Tôi có thể đổi người cố vấn (Mentor) sau khi đã đặt lịch hẹn không?\n- Bạn có thể hủy lịch hẹn trước ít nhất **12 tiếng** so với giờ hẹn để được hoàn 100% số dư vào tài khoản và chủ động chọn Mentor khác. Hủy trong vòng 12 tiếng sẽ áp dụng chính sách hoàn phí một phần theo quy định.\n\n### ❓ 3. Trong phòng Mock Room, nếu AI không nghe thấy giọng của tôi thì phải làm sao?\n- Kiểm tra quyền truy cập Micro trên thanh địa chỉ của trình duyệt (nhấp biểu tượng ổ khóa 🔒 bên cạnh URL và chọn Cho phép Micro).\n- Đảm bảo thiết bị thu âm mặc định trên hệ điều hành đang hoạt động tốt.\n\n### ❓ 4. Bệnh án đồ án xuất file PDF có giá trị pháp lý chính thức không?\n- File \"Bệnh án đồ án\" là tài liệu chẩn đoán học thuật mang tính chất định hướng và tự đánh giá dựa trên thang chuẩn đầu ra (CLO / SEP490). Kết quả thi tốt nghiệp chính thức vẫn phụ thuộc vào quyết định của Hội đồng chấm thi tại trường đại học của bạn.\n\n---\n\n<div class=\"callout callout-info\">\n  <strong>Kênh hỗ trợ kỹ thuật chính thức:</strong><br>\n  📧 Email: <code>support@defendai.dev</code> | 🌐 Website: <code>https://defend-ai.vercel.app</code><br>\n  🛡️ <em>DefendAI — Vững bước bảo vệ, tự tin tốt nghiệp!</em>\n</div>\n";
+    // Configure marked
+    marked.setOptions({
+      gfm: true,
+      breaks: true
+    });
+    document.getElementById('content').innerHTML = marked.parse(markdown);
+  </script>
+</body>
+</html>
