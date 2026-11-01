@@ -906,3 +906,42 @@ async def get_financial_reports(
             "offset": offset,
         }
     }
+
+
+# ---------------------------------------------------------------------------
+# Thống kê sinh viên theo ngành học — đọc live từ DB, phản ánh ngay khi user
+# chọn ngành lúc onboarding hoặc đổi ngành ở trang hồ sơ cá nhân.
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/major-stats",
+    summary="Thống kê số lượng sinh viên theo ngành học (admin)",
+)
+async def major_stats(
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_role("admin")),
+) -> dict:
+    from sqlalchemy import func
+
+    rows = (
+        await db.execute(
+            select(User.major, func.count(User.id))
+            .join(user_roles, User.id == user_roles.c.user_id)
+            .join(Role, Role.id == user_roles.c.role_id)
+            .where(Role.name == "student")
+            .group_by(User.major)
+        )
+    ).all()
+    stats = [
+        {"major": major, "count": int(count)}
+        for major, count in rows
+    ]
+    stats.sort(key=lambda s: (s["major"] is None, -s["count"]))  # có ngành trước, giảm dần
+    total_students = sum(s["count"] for s in stats)
+    with_major = sum(s["count"] for s in stats if s["major"])
+    return {
+        "total_students": total_students,
+        "with_major": with_major,
+        "without_major": total_students - with_major,
+        "rows": stats,
+    }

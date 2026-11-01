@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { clearSession } from "@/lib/auth";
+import { TOUR_REPLAY_EVENT, TOUR_START_ROUTE } from "@/lib/tour";
 import {
   FileText,
   FolderKanban,
@@ -71,6 +73,7 @@ const SIDEBAR_LINKS: SidebarLink[] = [
   { href: "/mentor/wallet", label: "Ví & Thu nhập", icon: Wallet, roles: ["mentor", "admin"] },
   // --- Admin ---
   { href: "/admin/overview", label: "Tổng quan", icon: LayoutDashboard, roles: ["admin"], section: "Quản trị" },
+  { href: "/admin/majors", label: "Thống kê ngành", icon: BarChart3, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/mentor-verification", label: "Duyệt Mentor", icon: Star, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/dispute", label: "Dispute Center", icon: Scale, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/payout", label: "Báo cáo tài chính", icon: Wallet, roles: ["admin"], section: "Quản trị" },
@@ -85,7 +88,20 @@ const SIDEBAR_LINKS: SidebarLink[] = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, hasRole } = useAuth();
+
+  // Onboarding ngành học: student chưa chọn major bị đưa về /onboarding TRƯỚC
+  // khi vào màn hình chính (chặn cả F5 / gõ URL trực tiếp). Admin/mentor bỏ qua;
+  // user đã có major đi qua bình thường. Hook phải đứng trước early-return
+  // isPublicPath để không vi phạm rules of hooks.
+  useEffect(() => {
+    if (!user || isPublicPath(pathname)) return;
+    const roles = user.roles ?? [];
+    const studentOnly =
+      roles.includes("student") && !roles.includes("admin") && !roles.includes("mentor");
+    if (studentOnly && !user.major) router.replace("/onboarding");
+  }, [user, pathname, router]);
 
   if (isPublicPath(pathname)) {
     return <>{children}</>;
@@ -241,6 +257,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="rounded-full hover:bg-muted"
               aria-label="Trợ giúp"
               data-testid="topbar-help"
+              onClick={() => {
+                // Mở lại hướng dẫn sử dụng (Product Tour) từ bước 1: về route
+                // bắt đầu nếu đang ở trang khác rồi phát sự kiện cho Gate.
+                if (pathname !== TOUR_START_ROUTE) router.push(TOUR_START_ROUTE);
+                window.dispatchEvent(new Event(TOUR_REPLAY_EVENT));
+              }}
             >
               <HelpCircle className="w-5 h-5 text-muted-foreground" />
             </Button>

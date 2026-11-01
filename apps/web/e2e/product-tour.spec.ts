@@ -23,6 +23,7 @@ const STEP_TITLES = [
   "Chào mừng đến với GraduAI! 🎉",
   "Tải lên tài liệu của bạn",
   "Sắp xếp gọn với Workspace",
+  "Thêm tài liệu vào workspace",
   "Luyện phản biện tại Mock Room",
   "Theo dõi tiến độ của bạn",
   "Luôn có người giúp bạn 🚀",
@@ -35,6 +36,7 @@ const mockStudentUser = {
   is_active: true,
   roles: ["student"],
   profile_data: {},
+  major: "Khác", // /me trả major → trang onboarding tự chuyển tiếp sang /documents
 };
 
 /**
@@ -170,8 +172,10 @@ async function signupStudent(page: Page) {
   await registerForm.locator("#name").fill("New Student");
   await registerForm.locator("#email").fill(mockStudentUser.email);
   await registerForm.locator("#password").fill("Abcdef1!");
-  await registerForm.locator("#major").selectOption("Khác"); // Ngành học là bắt buộc ở form đăng ký
   await registerForm.locator('button[type="submit"]').click();
+  // Đăng ký xong → /onboarding (chọn ngành); /me mock có sẵn major → tự
+  // chuyển tiếp sang /documents và tour mở ở đó.
+  await page.waitForURL((url) => url.pathname.includes("/onboarding"), { timeout: 10000 });
   await page.waitForURL((url) => url.pathname.includes("/documents"), { timeout: 10000 });
 }
 
@@ -180,7 +184,8 @@ async function signupStudent(page: Page) {
  * KHÔNG xuất hiện — dùng cho các assertion "không dính tour".
  */
 async function expectTourNotShown(page: Page) {
-  await page.waitForTimeout(3500);
+  // 4200ms > cửa sổ mở tour tối đa ~3800ms (delay 800ms + poll 20×150ms).
+  await page.waitForTimeout(4200);
   await expect(page.locator('[data-testid="product-tour-card"]')).not.toBeVisible();
 }
 
@@ -195,27 +200,31 @@ test.describe("Product Tour cho user mới signup", () => {
 
     // 1. Tour tự hiện sau delay gate (~800ms) với bước chào mừng ở giữa màn hình
     await expect(tourCard).toBeVisible();
-    await expect(tourCard).toContainText("Bước 1/6");
+    await expect(tourCard).toContainText("Bước 1/7");
     await expect(tourCard).toContainText(STEP_TITLES[0]);
     // Bước 1 không có target → KHÔNG có spotlight
     await expect(page.locator('[data-testid="product-tour-spotlight"]')).toHaveCount(0);
 
     // 2. Next → bước 2 spotlight đúng nút upload
     await page.locator('[data-testid="tour-next"]').click();
-    await expect(tourCard).toContainText("Bước 2/6");
+    await expect(tourCard).toContainText("Bước 2/7");
     await expect(tourCard).toContainText(STEP_TITLES[1]);
     await expect(page.locator('[data-testid="product-tour-spotlight"]')).toBeVisible();
 
     // 3. Back → quay về bước 1
     await page.locator('[data-testid="tour-back"]').click();
-    await expect(tourCard).toContainText("Bước 1/6");
+    await expect(tourCard).toContainText("Bước 1/7");
     await expect(tourCard).toContainText(STEP_TITLES[0]);
 
-    // 4. Next lần lượt tới bước cuối, kiểm tra thứ tự tiêu đề các bước
+    // 4. Next lần lượt tới bước cuối; qua bước 3 → 4 tour tự điều hướng sang /workspaces
     for (let i = 1; i < STEP_TITLES.length; i++) {
       await page.locator('[data-testid="tour-next"]').click();
-      await expect(tourCard).toContainText(`Bước ${i + 1}/6`);
+      await expect(tourCard).toContainText(`Bước ${i + 1}/7`);
       await expect(tourCard).toContainText(STEP_TITLES[i]);
+      if (i === 3) {
+        await expect(page).toHaveURL(/\/workspaces/);
+        await expect(tourCard).toContainText(STEP_TITLES[3]); // bước ví dụ "Thêm tài liệu vào workspace"
+      }
     }
 
     // 5. Bước cuối: nút đổi thành "Hoàn thành" → bấm xong tour đóng
@@ -242,7 +251,7 @@ test.describe("Product Tour cho user mới signup", () => {
 
     const tourCard = page.locator('[data-testid="product-tour-card"]');
     await expect(tourCard).toBeVisible();
-    await expect(tourCard).toContainText("Bước 1/6");
+    await expect(tourCard).toContainText("Bước 1/7");
 
     // 1. ESC = skip
     await page.keyboard.press("Escape");
@@ -310,7 +319,7 @@ test.describe("Product Tour cho user mới signup", () => {
 
     // 1. Tour đang mở trên /documents
     await expect(tourCard).toBeVisible();
-    await expect(tourCard).toContainText("Bước 1/6");
+    await expect(tourCard).toContainText("Bước 1/7");
 
     // 2. Client-side Back (popstate — root layout KHÔNG remount, đúng đường
     //    mà bug từng lọt: gate chỉ return sớm, không setShowTour(false)) về
@@ -323,12 +332,31 @@ test.describe("Product Tour cho user mới signup", () => {
     await page.goForward();
     await expect(page).toHaveURL(/\/documents/);
     await expect(tourCard).toBeVisible();
-    await expect(tourCard).toContainText("Bước 1/6");
+    await expect(tourCard).toContainText("Bước 1/7");
 
     // 4. Dọn dẹp: ESC = skip để kết thúc phiên sạch sẽ
     await page.keyboard.press("Escape");
     await expect(tourCard).not.toBeVisible();
     const done = await page.evaluate((key) => localStorage.getItem(key), DONE_KEY);
     expect(done).toBe("skipped");
+  });
+
+  test("Kịch bản 6: Bấm Trợ giúp trên topbar → tour mở lại từ bước 1 (kể cả đã xem)", async ({
+    page,
+  }) => {
+    await setupApiMocks(page);
+    await signupStudent(page);
+
+    const tourCard = page.locator('[data-testid="product-tour-card"]');
+    await expect(tourCard).toBeVisible();
+
+    // Đóng tour (skip → có cờ done) rồi bấm Trợ giúp: replay phải bỏ qua cờ done
+    await page.keyboard.press("Escape");
+    await expect(tourCard).not.toBeVisible();
+
+    await page.locator('[data-testid="topbar-help"]').click();
+    await expect(tourCard).toBeVisible();
+    await expect(tourCard).toContainText("Bước 1/7");
+    await expect(tourCard).toContainText(STEP_TITLES[0]);
   });
 });

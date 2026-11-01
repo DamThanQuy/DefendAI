@@ -201,7 +201,11 @@ async def update_me(
         if not name:
             raise HTTPException(status_code=400, detail="Họ và tên không được để trống")
         user.full_name = name
-    user.profile_data = req.profile_data
+    if req.major is not None:
+        user.major = req.major
+    # None = "không đổi" — onboarding chỉ gửi major, không được xoá sạch profile_data cũ.
+    if req.profile_data is not None:
+        user.profile_data = req.profile_data
     await db.commit()
     await db.refresh(user, ["roles"])
     return UserResponse.from_user(user)

@@ -23,6 +23,20 @@ VALID_MAJORS: List[str] = [
 ]
 
 
+def validate_major_value(v: Optional[str]) -> Optional[str]:
+    """Chấp nhận None/rỗng (không chọn); giá trị khác phải nằm trong VALID_MAJORS."""
+    if v is None:
+        return None
+    v = v.strip()
+    if not v:
+        return None
+    if v not in VALID_MAJORS:
+        raise ValueError(
+            "Ngành học không hợp lệ. Vui lòng chọn một ngành trong danh sách được hỗ trợ."
+        )
+    return v
+
+
 class RegisterRequest(BaseModel):
     email: str = Field(..., min_length=5, examples=["user@example.com"])
     password: str = Field(..., min_length=6)
@@ -32,17 +46,7 @@ class RegisterRequest(BaseModel):
     @field_validator("major")
     @classmethod
     def validate_major(cls, v: Optional[str]) -> Optional[str]:
-        """Chấp nhận None/rỗng (không chọn); giá trị khác phải nằm trong VALID_MAJORS."""
-        if v is None:
-            return None
-        v = v.strip()
-        if not v:
-            return None
-        if v not in VALID_MAJORS:
-            raise ValueError(
-                "Ngành học không hợp lệ. Vui lòng chọn một ngành trong danh sách được hỗ trợ."
-            )
-        return v
+        return validate_major_value(v)
 
 
 class LoginRequest(BaseModel):
@@ -82,7 +86,14 @@ class UserResponse(BaseModel):
 
 class UserProfileUpdate(BaseModel):
     full_name: Optional[str] = Field(None, max_length=255)
-    profile_data: dict = Field(default_factory=dict)
+    # Optional + None = "không đổi": onboarding chỉ gửi major, không được xoá sạch profile_data cũ.
+    profile_data: Optional[dict] = None
+    major: Optional[str] = None
+
+    @field_validator("major")
+    @classmethod
+    def validate_major(cls, v: Optional[str]) -> Optional[str]:
+        return validate_major_value(v)
 class UpdateMeRequest(BaseModel):
     full_name: Optional[str] = None
     avatar: Optional[str] = None

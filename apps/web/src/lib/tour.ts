@@ -25,7 +25,7 @@ export type TourDoneStatus = "completed" | "skipped";
 export interface TourStep {
   /** Thứ tự bước (1-based, chỉ để tham chiếu — mảng đã xếp đúng thứ tự). */
   order: number;
-  /** Route nơi bước này diễn ra (hiện tại toàn bộ tour chạy trên /documents). */
+  /** Route nơi bước này diễn ra — ProductTour tự điều hướng khi bước active có route khác hiện tại. */
   route: string;
   title: string;
   body: string;
@@ -86,15 +86,17 @@ export function markTourDone(userId: number | string, status: TourDoneStatus): v
 }
 
 /**
- * Kịch bản tour 6 bước — chạy trên /documents vì trang này luôn render đủ
- * anchor: nút upload ở header, sidebar link (AppShell) và nút Trợ giúp topbar.
+ * Kịch bản tour 7 bước trên 2 route (/documents → /workspaces — ProductTour tự
+ * điều hướng khi đổi bước, kể cả bấm Quay lại). /documents luôn render đủ
+ * anchor mở đầu (nút upload, sidebar link); /workspaces có nút Tạo workspace +
+ * cùng sidebar/topbar (AppShell) cho các bước còn lại.
  */
 export const TOUR_STEPS: TourStep[] = [
   {
     order: 1,
     route: "/documents",
     title: "Chào mừng đến với GraduAI! 🎉",
-    body: "Mình sẽ dẫn bạn đi nhanh qua 5 khu vực chính của app — chưa tới 1 phút thôi, bắt đầu nhé?",
+    body: "Mình sẽ dẫn bạn đi nhanh qua các khu vực chính của app — chưa tới 1 phút thôi, bắt đầu nhé?",
     target: "",
     placement: "bottom",
   },
@@ -110,32 +112,50 @@ export const TOUR_STEPS: TourStep[] = [
     order: 3,
     route: "/documents",
     title: "Sắp xếp gọn với Workspace",
-    body: "Mỗi đồ án một workspace: gom tài liệu và mã nguồn vào một chỗ để AI đối chiếu yêu cầu với code.",
+    body: "Mỗi đồ án một workspace: gom tài liệu và mã nguồn vào một chỗ để AI đối chiếu yêu cầu với code. Bấm Tiếp theo để mình dẫn bạn sang thẳng trang Workspace nhé!",
     target: '[data-testid="sidebar-link-/workspaces"]',
     placement: "bottom",
   },
   {
     order: 4,
-    route: "/documents",
+    route: "/workspaces",
+    title: "Thêm tài liệu vào workspace",
+    body: "Ví dụ nhé: bấm “+ Tạo workspace” cho đề tài của bạn, rồi vào trong workspace bấm “+ Thêm tài liệu” để gắn các file đã tải lên — AI sẽ đối chiếu yêu cầu đề tài với đúng tài liệu và code của workspace đó.",
+    target: '[data-testid="workspaces-create-button"]',
+    placement: "bottom",
+  },
+  {
+    order: 5,
+    route: "/workspaces",
     title: "Luyện phản biện tại Mock Room",
     body: "Vào Mock Room để đối mặt câu hỏi hội đồng AI, hoặc đặt lịch luyện cùng mentor thật ở mục Đặt lịch.",
     target: '[data-testid="sidebar-link-/mock-room"]',
     placement: "bottom",
   },
   {
-    order: 5,
-    route: "/documents",
+    order: 6,
+    route: "/workspaces",
     title: "Theo dõi tiến độ của bạn",
     body: "Xem báo cáo điểm số và các buổi luyện tập để biết mình đang tiến bộ ở đâu.",
     target: '[data-testid="sidebar-link-/report"]',
     placement: "bottom",
   },
   {
-    order: 6,
-    route: "/documents",
+    order: 7,
+    route: "/workspaces",
     title: "Luôn có người giúp bạn 🚀",
-    body: "Kẹt ở đâu cứ bấm nút Trợ giúp này — vậy là bạn đã sẵn sàng, chúc bạn bảo vệ thành công!",
+    body: "Quên cách dùng chỗ nào? Bấm lại nút Trợ giúp này bất cứ lúc nào để xem lại hướng dẫn từ đầu. Chúc bạn bảo vệ thành công! 🎓",
     target: '[data-testid="topbar-help"]',
     placement: "bottom",
   },
 ];
+
+/**
+ * Sự kiện "xem lại hướng dẫn" — nút Trợ giúp trên topbar (AppShell) phát khi
+ * bấm; ProductTourGate nghe và mở lại tour từ bước 1 (bỏ qua điều kiện
+ * pending/done — replay là hành động chủ động của user).
+ */
+export const TOUR_REPLAY_EVENT = "defendai:replay-tour";
+
+/** Route mở tour (bước 1) — nút Trợ giúp điều hướng về đây trước khi phát sự kiện. */
+export const TOUR_START_ROUTE = TOUR_STEPS[0].route;

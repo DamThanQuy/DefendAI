@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { TOUR_STEPS, type TourStep, type TourDoneStatus } from "@/lib/tour";
 
@@ -84,6 +85,8 @@ function computeCardPosition(
 
 export function ProductTour({ steps = TOUR_STEPS, onDone }: ProductTourProps) {
   const [index, setIndex] = useState(0);
+  const router = useRouter();
+  const pathname = usePathname();
   const [rect, setRect] = useState<SpotlightRect | null>(null);
   // Target có selector nhưng chưa tìm thấy sau khi poll hết hạn → fallback giữa.
   const [targetMissing, setTargetMissing] = useState(false);
@@ -94,6 +97,8 @@ export function ProductTour({ steps = TOUR_STEPS, onDone }: ProductTourProps) {
   // Ref giữ onDone mới nhất cho listener ESC đăng ký 1 lần (tránh stale closure).
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
+  // pathname lần trước effect chạy — để phân biệt "user Back/Forward" với "bước đổi".
+  const prevPathnameRef = useRef<string | null>(null);
 
   const step = steps[index];
 
@@ -101,6 +106,30 @@ export function ProductTour({ steps = TOUR_STEPS, onDone }: ProductTourProps) {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Tour đa route (/documents ↔ /workspaces): đồng bộ bước với route.
+  // - Bước đổi sang bước có route khác (bước 3 → 4) → router.push sang route đó;
+  //   spotlight tự poll chờ anchor của trang mới (~3s) nên không cần đợi load.
+  // - pathname đổi mà route của bước hiện tại không khớp (user bấm Back/Forward
+  //   vì overlay không có focus trap) → nhảy tour tới bước ĐẦU TIÊN của route
+  //   đó, theo liền chuyển hướng của user thay vì fighting lại navigation.
+  // - pathname rơi ngoài mọi route của tour → ProductTourGate tự đóng tour.
+  useEffect(() => {
+    if (!mounted) return;
+    // Lần chạy ĐẦU TIÊN (prevPathname null) không coi là "user vừa điều hướng" —
+    // chỉ so sánh pathname giữa các lần chạy effect sau đó.
+    const pathnameChanged =
+      prevPathnameRef.current !== null && pathname !== prevPathnameRef.current;
+    prevPathnameRef.current = pathname;
+    const route = steps[index]?.route;
+    if (!pathname || !route || pathname === route) return;
+    if (!pathnameChanged) {
+      router.push(route);
+      return;
+    }
+    const matchIndex = steps.findIndex((s) => s.route === pathname);
+    if (matchIndex >= 0) setIndex(matchIndex);
+  }, [mounted, index, steps, pathname, router]);
 
   // Khoá scroll nền + ESC = skip — đăng ký 1 lần lúc mount (pattern ConfirmModal.tsx:68-86).
   useEffect(() => {

@@ -261,6 +261,7 @@ export interface MeResponse {
   is_active: boolean;
   roles: string[];
   profile_data?: any;
+  major?: string | null;
 }
 export function getMe() {
   return api.get<MeResponse>("/api/auth/me");
@@ -270,10 +271,30 @@ export interface UpdateMePayload {
   full_name?: string;
   school?: string;
   about?: string;
+  major?: string;
 }
 // Sửa hồ sơ cá nhân (tên hiển thị, trường, giới thiệu)
 export function updateMe(payload: UpdateMePayload) {
   return api.put<MeResponse>("/api/auth/me", payload);
+}
+
+// ---------------------------------------------------------------------------
+// Admin — thống kê sinh viên theo ngành học (đọc live từ DB)
+// ---------------------------------------------------------------------------
+
+export interface MajorStatRow {
+  /** Tên ngành; null = sinh viên chưa chọn ngành. */
+  major: string | null;
+  count: number;
+}
+export interface MajorStats {
+  total_students: number;
+  with_major: number;
+  without_major: number;
+  rows: MajorStatRow[];
+}
+export function getMajorStats() {
+  return api.get<MajorStats>("/api/admin/major-stats");
 }
 
 // ---------------------------------------------------------------------------
