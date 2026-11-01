@@ -1,12 +1,20 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { MAX_FILE_SIZE } from "@/lib/constants";
 import { ChunkedUploader } from "@/lib/chunked-upload";
 
 // File nhỏ dùng FormData upload truyền thống (nhanh, ít overhead).
 // File >= ngưỡng này chuyển sang chunked (S3 Multipart) để bypass giới hạn 1MB của Next.js BFF.
 const CHUNKED_THRESHOLD = 4 * 1024 * 1024; // 4 MB
+
+type QuotaInfo = {
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  plan: string;
+} | null;
 
 type Props = {
   onFileSelected?: (file: File) => void;
@@ -49,6 +57,29 @@ export function UploadZone({
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [speed, setSpeed] = useState(0);
   const [eta, setEta] = useState<number | null>(null);
+  const [quota, setQuota] = useState<QuotaInfo>(null);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
+
+  // Hạn mức upload theo gói (Free = 3 đồ án/tháng). Lỗi fetch quota không chặn upload.
+  const loadQuota = async () => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch("/api/documents/quota", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return;
+      setQuota((await res.json()) as QuotaInfo);
+    } catch {
+      /* ignore — backend lỗi thì vẫn cho upload, BE sẽ chặn khi cần */
+    }
+  };
+
+  useEffect(() => {
+    loadQuota();
+  }, []);
+
+  const quotaExhausted =
+    !!quota && quota.limit !== null && quota.remaining !== null && quota.remaining <= 0;
   const startTimeRef = useRef<number>(0);
   const startLoadedRef = useRef<number>(0);
   const historyRef = useRef<Array<{ ts: number; loaded: number }>>([]);
@@ -147,6 +178,7 @@ export function UploadZone({
   // Kiểm tra kích thước trước khi nhận file (khớp MAX_FILE_SIZE backend, 10GB)
   const selectFile = (f: File): boolean => {
     setError("");
+    setQuotaExceeded(false);
     if (f.size > MAX_FILE_SIZE) {
       setError(`Tệp vượt quá ${MAX_FILE_SIZE / (1024 * 1024 * 1024)}GB. Vui lòng chọn tệp nhỏ hơn.`);
       return false;
@@ -164,6 +196,15 @@ export function UploadZone({
 
   const processFile = async () => {
     if (!file) return;
+
+    // Chặn trước khi gọi API khi đã hết lượt upload trong tháng (gói Free)
+    if (quotaExhausted) {
+      setQuotaExceeded(true);
+      setError(
+        `Bạn đã hết lượt upload đồ án trong tháng này (tối đa ${quota?.limit} lượt).`,
+      );
+      return;
+    }
 
     if (onFileSelected) {
       onFileSelected(file);
@@ -211,6 +252,7 @@ export function UploadZone({
         const result = await uploader.start();
         if (result?.document_id) {
           setUploaded(true);
+          loadQuota();
           emitProgress({ progress: 100, loaded: file.size, total: file.size, speed: 0, eta: 0, status: "success" });
         } else {
           const msg = "Tải lên thất bại: không nhận được document_id";
@@ -234,11 +276,13 @@ export function UploadZone({
               const data = JSON.parse(xhr.responseText || "{}");
               if (xhr.status >= 200 && xhr.status < 300 && data.success) {
                 setUploaded(true);
+                loadQuota();
                 emitProgress({ progress: 100, loaded: file.size, total: file.size, speed: 0, eta: 0, status: "success" });
                 resolve();
               } else {
                 const msg =
                   data.error || data.detail?.detail || data.message || `HTTP ${xhr.status}`;
+                if (xhr.status === 402) setQuotaExceeded(true);
                 setError(msg);
                 emitProgress({ progress, loaded: 0, total: file.size, speed: 0, eta: null, status: "error", error: msg });
                 reject(new Error(msg));
@@ -267,6 +311,7 @@ export function UploadZone({
       }
       console.error(error);
       const msg = error?.message ?? "Không thể kết nối đến máy chủ phân tích";
+      if ((error as { status?: number })?.status === 402) setQuotaExceeded(true);
       setError(msg);
       emitProgress({ progress, loaded: 0, total: file?.size ?? 0, speed: 0, eta: null, status: "error", error: msg });
     } finally {
@@ -286,6 +331,7 @@ export function UploadZone({
     setProgress(0);
     setStatusText("");
     setError("");
+    setQuotaExceeded(false);
     setSpeed(0);
     setEta(null);
     startTimeRef.current = 0;
@@ -353,6 +399,29 @@ export function UploadZone({
           );
         })}
       </div>
+
+      {/* Banner hạn mức upload theo gói (limit null = không giới hạn) */}
+      {quota && quota.limit !== null && (
+        <div
+          className={`mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-[13px] ${
+            quotaExhausted
+              ? "bg-red-500/10 border-red-500/20"
+              : "bg-teal-500/5 border-teal-500/20"
+          }`}
+        >
+          <span className={quotaExhausted ? "text-red-400 font-semibold" : "text-muted-foreground"}>
+            {quotaExhausted
+              ? "Bạn đã hết lượt upload đồ án trong tháng này."
+              : `Còn ${quota.remaining}/${quota.limit} lượt upload đồ án trong tháng này.`}
+          </span>
+          <Link
+            href="/pricing"
+            className="shrink-0 px-3 py-1.5 rounded-full bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors"
+          >
+            Nâng cấp gói
+          </Link>
+        </div>
+      )}
 
       <div
         className={`w-full h-full border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ease-in-out cursor-pointer flex flex-col items-center justify-center min-h-[460px] relative overflow-hidden bg-card ${
@@ -431,6 +500,14 @@ export function UploadZone({
           <div>
             <p className="text-[14px] font-semibold text-red-400 mb-1">Không thể tải tài liệu này</p>
             <p className="text-[13px] text-red-400 leading-relaxed">{error}</p>
+            {quotaExceeded && (
+              <Link
+                href="/pricing"
+                className="inline-block mt-2 px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-[13px] font-semibold hover:bg-primary/90 transition-colors"
+              >
+                Nâng cấp gói Premium → upload không giới hạn
+              </Link>
+            )}
           </div>
         </div>
       )}

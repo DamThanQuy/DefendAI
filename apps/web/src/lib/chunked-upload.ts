@@ -80,7 +80,11 @@ async function callInit(
       errBody?.detail ??
       errBody?.error ??
       `Init failed (${res.status})`;
-    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+    const err: Error & { status?: number } = new Error(
+      typeof msg === "string" ? msg : JSON.stringify(msg),
+    );
+    err.status = res.status;
+    throw err;
   }
   return res.json();
 }
@@ -105,7 +109,11 @@ async function callComplete(
     const errBody = await res.json().catch(() => ({}));
     const msg =
       errBody?.detail ?? errBody?.error ?? `Complete failed (${res.status})`;
-    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+    const err: Error & { status?: number } = new Error(
+      typeof msg === "string" ? msg : JSON.stringify(msg),
+    );
+    err.status = res.status;
+    throw err;
   }
   return res.json();
 }
@@ -281,11 +289,15 @@ async function waitForOnline(
 /**
  * Kiểm tra xem presigned URL có phải là public endpoint (MinIO funnel) hay không.
  * Nếu có → browser có thể PUT trực tiếp, bypass Vercel BFF proxy → nhanh hơn.
- * Chỉ áp dụng cho HTTPS URL từ taildec640.ts.net (Tailscale funnel).
+ * HTTPS URL từ taildec640.ts.net / cloudflare / defendai.dev, hoặc URL MinIO
+ * cục bộ http://localhost:9000 khi chạy Docker Compose trên chính máy dev.
  */
 function isPublicMinioUrl(url: string): boolean {
   try {
     const u = new URL(url);
+    if (u.protocol === "http:" && ["localhost", "127.0.0.1"].includes(u.hostname)) {
+      return true; // MinIO local (docker compose, dev máy này)
+    }
     return (
       u.protocol === "https:" &&
       (u.hostname.includes("taildec640.ts.net") ||

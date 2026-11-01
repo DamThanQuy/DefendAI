@@ -53,6 +53,7 @@ from app.schemas.document import (
     MultipartCompleteResponse,
     MultipartStatusResponse,
 )
+from app.services.quota import assert_upload_quota, get_monthly_upload_quota
 from app.services.storage import (
     save_doc,
     get_doc,
@@ -276,6 +277,15 @@ async def _delete_object_best_effort(bucket: str, key: str) -> None:
 # ===== Endpoints =====
 
 
+@router.get("/quota")
+async def get_upload_quota(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Hạn mức upload đồ án trong tháng theo gói cước (limit None = không giới hạn)."""
+    return await get_monthly_upload_quota(user, db)
+
+
 @router.post("/upload", response_model=DocumentResponse, status_code=201)
 async def upload_document(
     file: UploadFile = File(..., description="File upload (PDF/DOCX/PPTX/ZIP, max 100MB)"),
@@ -284,6 +294,8 @@ async def upload_document(
     db: AsyncSession = Depends(get_db),
 ):
     """Upload 1 file lên hệ thống."""
+    await assert_upload_quota(user, db)
+
     doc_type = _get_doc_type(file.filename or "unknown")
 
     content = await file.read()
@@ -371,6 +383,8 @@ async def multipart_init(
     db: AsyncSession = Depends(get_db),
 ):
     """Initialize multipart upload session."""
+    await assert_upload_quota(user, db)
+
     doc_type = _get_doc_type(payload.filename)
     safe_filename = _sanitize_filename(payload.filename)
 
@@ -510,6 +524,9 @@ async def multipart_complete(
                 f"got {len(payload.parts)}"
             ),
         )
+
+    # Re-check quota: session có thể init trước khi user hết lượt trong tháng
+    await assert_upload_quota(user, db)
 
     doc_type = _get_doc_type(sess.filename)
 

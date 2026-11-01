@@ -9,11 +9,12 @@ import { authHeaders } from "@/hooks/useAdminData";
 interface Feature { label: string; included: boolean; highlight?: boolean }
 interface Plan {
   id: number; slug: string; name: string; tagline: string; icon: string;
-  price: number; featured: boolean; special: boolean; features: Feature[]; active: boolean; sort_order: number;
+  price: number; featured: boolean; special: boolean; features: Feature[];
+  max_documents_per_month: number | null; active: boolean; sort_order: number;
 }
-type Form = Omit<Plan, "id" | "features" | "slug" | "price" | "sort_order"> & { slug: string; price: string; features: string };
+type Form = Omit<Plan, "id" | "features" | "slug" | "price" | "sort_order" | "max_documents_per_month"> & { slug: string; price: string; features: string; maxPerMonth: string };
 
-const emptyForm: Form = { slug: "", name: "", tagline: "", icon: "sparkles", price: "0", featured: false, special: false, features: "", active: true };
+const emptyForm: Form = { slug: "", name: "", tagline: "", icon: "sparkles", price: "0", featured: false, special: false, features: "", maxPerMonth: "", active: true };
 
 export default function AdminSubscriptionsPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -38,7 +39,7 @@ export default function AdminSubscriptionsPage() {
 
   function edit(plan: Plan) {
     setEditingId(plan.id);
-    setForm({ ...plan, price: String(plan.price), features: plan.features.map((feature) => `${feature.included ? "" : "!"}${feature.label}`).join("\n") });
+    setForm({ ...plan, price: String(plan.price), maxPerMonth: plan.max_documents_per_month == null ? "" : String(plan.max_documents_per_month), features: plan.features.map((feature) => `${feature.included ? "" : "!"}${feature.label}`).join("\n") });
     setMessage(null);
   }
 
@@ -66,7 +67,12 @@ export default function AdminSubscriptionsPage() {
       setSaving(false);
       return;
     }
-    const payload = { slug: form.slug, name: form.name, tagline: form.tagline, price: Number(form.price), featured: form.featured, special: form.special, active: form.active, features: form.features.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => ({ label: line.replace(/^!/, ""), included: !line.startsWith("!") })) };
+    if (form.maxPerMonth && !/^\d{1,4}$/.test(form.maxPerMonth)) {
+      setMessage({ type: "err", text: "Số lượt upload/tháng phải là số nguyên (để trống = không giới hạn)." });
+      setSaving(false);
+      return;
+    }
+    const payload = { slug: form.slug, name: form.name, tagline: form.tagline, price: Number(form.price), featured: form.featured, special: form.special, active: form.active, max_documents_per_month: form.maxPerMonth.trim() === "" ? null : Number(form.maxPerMonth), features: form.features.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => ({ label: line.replace(/^!/, ""), included: !line.startsWith("!") })) };
     try {
       const res = await fetch(editingId ? `/api/admin/subscriptions/${editingId}` : "/api/admin/subscriptions", { method: editingId ? "PUT" : "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(payload) });
       const data = await res.json();
@@ -95,6 +101,7 @@ export default function AdminSubscriptionsPage() {
       <Input required placeholder="Tên gói" value={form.name} onChange={(e) => update("name", e.target.value)} />
       <Input placeholder="Mô tả ngắn" value={form.tagline} onChange={(e) => update("tagline", e.target.value)} />
       <div className="relative"><Input required inputMode="numeric" maxLength={9} placeholder="Giá" value={form.price ? Number(form.price).toLocaleString("en-US") : ""} onChange={(e) => update("price", e.target.value.replace(/[^0-9]/g, "").slice(0, 7))} /><span className="absolute right-3 top-2.5 text-sm text-muted-foreground">VND</span></div>
+      <div className="relative"><Input inputMode="numeric" maxLength={4} placeholder="Số lượt upload / tháng" value={form.maxPerMonth} onChange={(e) => update("maxPerMonth", e.target.value.replace(/[^0-9]/g, "").slice(0, 4))} /><span className="absolute right-3 top-2.5 text-sm text-muted-foreground">để trống = ∞</span></div>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.featured} onChange={(e) => update("featured", e.target.checked)} /> Gói nổi bật</label>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.special} onChange={(e) => update("special", e.target.checked)} /> Gói đặc biệt</label>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.active} onChange={(e) => update("active", e.target.checked)} /> Đang hiển thị</label>

@@ -21,6 +21,7 @@ class SubscriptionPlan(Base):
     badge = Column(String(100), nullable=True)
     cta = Column(String(100), nullable=False, default="Đăng ký")
     features = Column(JSON, nullable=False, default=list)
+    max_documents_per_month = Column(Integer, nullable=True)  # NULL = không giới hạn
     active = Column(Boolean, nullable=False, default=True)
     sort_order = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
