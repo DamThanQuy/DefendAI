@@ -62,8 +62,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       if (exp === null) return;
       const now = Date.now();
       if (now >= exp - 5 * 60 * 1000) {
-        const ok = await refreshAccessToken();
-        if (!ok) {
+        const r = await refreshAccessToken();
+        // Chỉ đăng xuất khi hết phiên THẬT (401/422 từ backend). Lỗi tạm thời
+        // (backend unreachable, 5xx tunnel) → bỏ qua, chu kỳ 60s sau sẽ retry.
+        if (!r.token && !r.transient) {
           clearSession();
           router.replace("/login");
         }
