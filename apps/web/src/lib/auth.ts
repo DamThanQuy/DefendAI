@@ -6,31 +6,49 @@
  */
 
 // Single-flight: mọi caller chờ cùng 1 promise, chỉ 1 request refresh được gửi.
-let refreshPromise: Promise<string | null> | null = null;
+let refreshPromise: Promise<RefreshResult> | null = null;
+
+/**
+ * Kết quả refresh: `token === null` khi refresh không thành công, và
+ * `transient === true` khi lỗi là TẠM THỜI (backend unreachable, 5xx từ
+ * tunnel/proxy) — caller KHÔNG được đăng xuất trong trường hợp này, chỉ cần
+ * thử lại ở chu kỳ sau. `transient === false` mới là "hết phiên thật"
+ * (401/422 từ backend: refresh token hết hạn hoặc revoked).
+ */
+export interface RefreshResult {
+  token: string | null;
+  transient: boolean;
+}
 
 // Gọi qua Next.js proxy (relative URL) thay vì API_BASE_URL trực tiếp:
 // trong docker API_BASE_URL = http://api:8000 mà browser không resolve được host `api`.
-export async function refreshAccessToken(): Promise<string | null> {
+export async function refreshAccessToken(): Promise<RefreshResult> {
   const refreshToken = localStorage.getItem("refresh_token");
-  if (!refreshToken) return null;
+  if (!refreshToken) return { token: null, transient: false };
 
   if (!refreshPromise) {
-    refreshPromise = (async () => {
+    refreshPromise = (async (): Promise<RefreshResult> => {
       try {
         const res = await fetch("/api/auth/refresh", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refresh_token: refreshToken }),
         });
-        if (!res.ok) return null;
+        if (res.status >= 500) {
+          // Lỗi hạ tầng (backend unreachable / tunnel hiccup) — tạm thời,
+          // không được clearSession (bug đã gặp: 1 hiccup = mất phiên).
+          return { token: null, transient: true };
+        }
+        if (!res.ok) return { token: null, transient: false };
         const data = await res.json();
         localStorage.setItem("access_token", data.token);
         if (data.refresh_token) {
           localStorage.setItem("refresh_token", data.refresh_token);
         }
-        return data.token as string;
+        return { token: data.token as string, transient: false };
       } catch {
-        return null;
+        // fetch fail (mạng, proxy chết) — tạm thời như 5xx.
+        return { token: null, transient: true };
       }
     })().finally(() => {
       refreshPromise = null;

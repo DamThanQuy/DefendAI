@@ -39,14 +39,18 @@ api.interceptors.response.use(
 
     original._retry = true;
     // refreshAccessToken là single-flight trong auth.ts — mọi caller dùng chung 1 queue
-    const newToken = await refreshAccessToken();
+    const r = await refreshAccessToken();
 
-    if (!newToken) {
-      handleSessionExpired();
+    if (!r.token) {
+      // Lỗi tạm thời (backend unreachable / 5xx): chỉ hủy request này, GIỮ phiên —
+      // request tiếp theo sẽ tự retry refresh. Chỉ 401/422 mới là hết phiên thật.
+      if (!r.transient) {
+        handleSessionExpired();
+      }
       return Promise.reject(err);
     }
 
-    original.headers = { ...original.headers, Authorization: `Bearer ${newToken}` };
+    original.headers = { ...original.headers, Authorization: `Bearer ${r.token}` };
     return api(original);
   },
 );
