@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { parseApiDate } from "@/lib/datetime";
 import Link from "next/link";
 
 interface WorkspaceFile {
@@ -111,7 +112,7 @@ export default function WorkspacesPage() {
   }, []);
 
   const formatDate = (iso: string) => {
-    const d = new Date(iso);
+    const d = parseApiDate(iso);
     return d.toLocaleDateString("vi-VN", {
       day: "2-digit",
       month: "2-digit",

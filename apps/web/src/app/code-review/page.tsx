@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { parseApiDate } from "@/lib/datetime";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CodePreview } from "@/components/features/code-review/CodePreview";
 import { FileTree } from "@/components/features/assessment/FileTree";
@@ -534,7 +535,7 @@ export default function CodeReviewPage() {
                     <span className="text-lg">🗜️</span>
                     <span className="flex-1 text-[13px] font-semibold text-foreground truncate">{d.filename}</span>
                     <span className="text-[11px] text-muted-foreground">
-                      {d.doc_type === "rar" ? "RAR" : "ZIP"} • {new Date(d.created_at).toLocaleDateString("vi-VN")}
+                      {d.doc_type === "rar" ? "RAR" : "ZIP"} • {parseApiDate(d.created_at).toLocaleDateString("vi-VN")}
                     </span>
                   </button>
                 ))}

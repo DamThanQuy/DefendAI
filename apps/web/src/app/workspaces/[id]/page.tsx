@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { parseApiDate } from "@/lib/datetime";
 import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -583,7 +584,7 @@ export default function WorkspaceDetailPage() {
     return wqAll.filter((q) => {
       if (wqFStatus !== "all" && q.status !== wqFStatus) return false;
       if (wqFDate !== "all") {
-        const age = now - new Date(q.created_at).getTime();
+        const age = now - parseApiDate(q.created_at).getTime();
         if (wqFDate === "today" && age > day) return false;
         if (wqFDate === "7d" && age > 7 * day) return false;
         if (wqFDate === "30d" && age > 30 * day) return false;
@@ -625,7 +626,7 @@ export default function WorkspaceDetailPage() {
         detail: s.status,
         question_count: s.question_count,
       })),
-    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    ].sort((a, b) => parseApiDate(b.created_at).getTime() - parseApiDate(a.created_at).getTime());
   }, [sessions]);
 
   const formatDate = (iso: string) =>

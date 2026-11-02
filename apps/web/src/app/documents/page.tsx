@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { parseApiDate } from "@/lib/datetime";
 import { useUpload } from "@/contexts/UploadContext";
 import { TrashIcon } from "@/components/icons/TrashIcon";
 import { PlusIcon } from "@/components/icons/PlusIcon";
@@ -108,7 +109,7 @@ export default function DocumentsPage() {
   };
 
   const formatDate = (iso: string) => {
-    const d = new Date(iso);
+    const d = parseApiDate(iso);
     return d.toLocaleDateString("vi-VN", {
       day: "2-digit",
       month: "2-digit",

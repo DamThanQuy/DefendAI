@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import { parseApiDate } from "@/lib/datetime";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAdminBookings, statusBadge } from "@/hooks/useAdminData";
 
@@ -63,8 +64,8 @@ export default function AdminDisputePage() {
                             <div className="bg-card/60 rounded-xl p-4 space-y-2 text-[12px] text-muted-foreground">
                               <p><span className="text-primary font-semibold">Ghi chú:</span> {b.note ?? "—"}</p>
                               <p><span className="text-primary font-semibold">Lý do từ chối:</span> {b.reject_reason ?? "—"}</p>
-                              <p><span className="text-primary font-semibold">Giờ đề xuất:</span> {b.proposed_time ? new Date(b.proposed_time).toLocaleString("vi-VN") : "—"}</p>
-                              <p><span className="text-primary font-semibold">Giờ chốt:</span> {b.confirmed_time ? new Date(b.confirmed_time).toLocaleString("vi-VN") : "—"}</p>
+                              <p><span className="text-primary font-semibold">Giờ đề xuất:</span> {b.proposed_time ? parseApiDate(b.proposed_time).toLocaleString("vi-VN") : "—"}</p>
+                              <p><span className="text-primary font-semibold">Giờ chốt:</span> {b.confirmed_time ? parseApiDate(b.confirmed_time).toLocaleString("vi-VN") : "—"}</p>
                               <p className="pt-2 text-muted-foreground">Phân xử hoàn tiền / giải ngân: chưa có (cần module tài chính).</p>
                             </div>
                           </td>

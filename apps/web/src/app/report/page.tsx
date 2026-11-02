@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { parseApiDate } from "@/lib/datetime";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -184,7 +185,7 @@ export default function ReportPage() {
                               <div className="flex items-center gap-2">
                                 <Clock className="h-4 w-4 text-amber-500" />
                                 <span className="text-muted-foreground">
-                                  {new Date(report.updated_at).toLocaleDateString("vi-VN")}
+                                  {parseApiDate(report.updated_at).toLocaleDateString("vi-VN")}
                                 </span>
                               </div>
                             </div>
@@ -317,7 +318,7 @@ export default function ReportPage() {
                   <div>
                     <h2 className="text-2xl font-bold text-foreground">{selectedProject.title}</h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {new Date(selectedProject.updated_at).toLocaleDateString("vi-VN", {
+                      {parseApiDate(selectedProject.updated_at).toLocaleDateString("vi-VN", {
                         year: "numeric",
                         month: "long",
                         day: "numeric"

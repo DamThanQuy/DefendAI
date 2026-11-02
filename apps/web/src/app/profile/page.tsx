@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { parseApiDate } from "@/lib/datetime";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -246,7 +247,7 @@ export default function ProfileOverviewPage() {
                   </div>
                   <div className="font-semibold text-foreground text-[13px] mt-0.5">
                     {user?.created_at
-                      ? new Date(user.created_at).toLocaleDateString("vi-VN")
+                      ? parseApiDate(user.created_at).toLocaleDateString("vi-VN")
                       : "—"}
                   </div>
                 </div>
@@ -426,7 +427,7 @@ export default function ProfileOverviewPage() {
 
 function formatRelative(iso: string) {
   try {
-    const d = new Date(iso);
+    const d = parseApiDate(iso);
     const now = new Date();
     const diff = Math.floor((now.getTime() - d.getTime()) / 1000);
     if (diff < 60) return "Vừa xong";

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { parseApiDate } from "@/lib/datetime";
 import Link from "next/link";
 import { History, TrendingUp, CheckCircle2, Clock, ArrowLeft, FileText } from "lucide-react";
 
@@ -87,7 +88,7 @@ export default function HistoryPage() {
                       {d.filename}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(d.created_at).toLocaleDateString("vi-VN")}
+                      {parseApiDate(d.created_at).toLocaleDateString("vi-VN")}
                     </p>
                   </div>
                 </div>
