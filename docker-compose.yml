@@ -319,7 +319,11 @@ services:
     environment:
       # Server-side (BFF routes + next.config.js rewrites) → đi trong docker network
       BACKEND_URL: ${WEB_BACKEND_URL:-http://api:8000}
-      NEXT_PUBLIC_BACKEND_URL: ${WEB_BACKEND_URL:-http://api:8000}
+      # NEXT_PUBLIC_* được nhúng vào client (meta backend-url cho chunked upload)
+      # → phải là URL browser ở host resolve được, KHÔNG phải hostname nội bộ Docker.
+      # (NEXT_PUBLIC_BACKEND_URL cũ trỏ ${WEB_BACKEND_URL}=http://api:8000 làm browser
+      # treo ở 0% vì không resolve được 'api'.)
+      NEXT_PUBLIC_BACKEND_URL: ${WEB_PUBLIC_API_URL:-http://localhost:8000}
       # Client-side (browser) → phải là host reachable
       NEXT_PUBLIC_API_URL: ${WEB_PUBLIC_API_URL:-http://localhost:8000}
       NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}

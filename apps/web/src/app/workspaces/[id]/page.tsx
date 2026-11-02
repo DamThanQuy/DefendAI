@@ -6,7 +6,7 @@ import { parseApiDate } from "@/lib/datetime";
 import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { FileTree } from "@/components/features/assessment/FileTree";
 import { FilePreview } from "@/components/features/assessment/FilePreview";
 import WorkspaceChat from "@/components/features/workspace/WorkspaceChat";
@@ -386,6 +386,17 @@ export default function WorkspaceDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wsId, ws?.document_count]);
 
+  // Tự động poll danh sách câu hỏi nếu có phiên đang ở trạng thái processing/pending
+  useEffect(() => {
+    const hasProcessing = wqAll.some((q) => q.status === "processing" || q.status === "pending");
+    if (!hasProcessing) return;
+    const interval = setInterval(() => {
+      loadWorkspaceQuestions();
+    }, 4000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wqAll]);
+
   const openZip = async (docId: number) => {
     const token = getToken();
     if (!token) return;
@@ -533,9 +544,9 @@ export default function WorkspaceDetailPage() {
       if (!r.ok) throw new Error("Không tạo được yêu cầu sinh câu hỏi");
       const created = await r.json();
       wsJobId.current = created.job_id;
-      // Poll job (pattern giống các luồng async khác: 1.5s × tối đa 60 lần)
-      for (let attempt = 0; attempt < 60; attempt++) {
-        await new Promise((res) => setTimeout(res, 1500));
+      // Poll job với timeout dài hơn (2s × 180 lần = 360s ~ 6 phút cho các file lớn nhiều GB)
+      for (let attempt = 0; attempt < 180; attempt++) {
+        await new Promise((res) => setTimeout(res, 2000));
         const jr = await fetch(`/api/jobs/${created.job_id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -1009,13 +1020,14 @@ export default function WorkspaceDetailPage() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {wqPageItems.map((q) => {
                               const failed = q.status === "failed";
+                              const processing = q.status === "processing" || q.status === "pending";
                               const qCount = q.questions?.length ?? 0;
                               return (
                                 <div
                                   key={q.id}
                                   onClick={() => { if (!failed) window.location.href = `/workspaces/${wsId}/questions/${q.id}`; }}
                                   className={`relative bg-zinc-900/60 border rounded-xl p-3.5 cursor-pointer transition-colors hover:border-primary/50 ${
-                                    failed ? "border-red-500/30" : "border-zinc-800"
+                                    failed ? "border-red-500/30" : processing ? "border-amber-500/40 bg-amber-500/[0.03]" : "border-zinc-800"
                                   }`}
                                 >
                                   <button
@@ -1027,14 +1039,27 @@ export default function WorkspaceDetailPage() {
                                   </button>
                                   <div className="flex items-center gap-2 mb-2 pr-8">
                                     <span className="px-2 py-0.5 text-[11px] font-mono font-bold rounded-full bg-zinc-800 text-zinc-400 shrink-0">#{q.id}</span>
-                                    <span className={`w-2 h-2 rounded-full ${failed ? "bg-red-400" : "bg-green-400"}`} />
+                                    {processing ? (
+                                      <span className="flex items-center gap-1.5 text-[11px] font-medium text-amber-400">
+                                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                                        Đang tạo...
+                                      </span>
+                                    ) : (
+                                      <span className={`w-2 h-2 rounded-full ${failed ? "bg-red-400" : "bg-green-400"}`} />
+                                    )}
                                   </div>
-                                  <p className={`text-[13px] font-semibold leading-snug line-clamp-2 mb-3 ${failed ? "text-red-400 italic" : "text-zinc-200"}`}>
+                                  <p className={`text-[13px] font-semibold leading-snug line-clamp-2 mb-3 ${failed ? "text-red-400 italic" : processing ? "text-amber-200/90" : "text-zinc-200"}`}>
                                     {wqTitle(q)}
                                   </p>
                                   <div className="flex items-center justify-between">
                                     <span className="text-[11px] text-zinc-500">{formatDate(q.created_at)}</span>
-                                    <span className="text-[11px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full">{qCount} câu</span>
+                                    {processing ? (
+                                      <span className="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                        <Loader2 className="w-3 h-3 animate-spin" /> Đang soạn câu hỏi...
+                                      </span>
+                                    ) : (
+                                      <span className="text-[11px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full">{qCount} câu</span>
+                                    )}
                                   </div>
                                 </div>
                               );

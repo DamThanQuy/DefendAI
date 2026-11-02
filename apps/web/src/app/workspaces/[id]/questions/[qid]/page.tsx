@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { parseApiDate } from "@/lib/datetime";
 interface Question {
   id: number;
   question: string;
@@ -72,22 +74,41 @@ export default function WqDetailPage() {
     if (!wsId || !qid) return;
     const token = getToken();
     if (!token) return;
-    setLoading(true);
-    fetch(`/api/workspaces/${wsId}/questions/${qid}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(async (r) => {
+
+    let isMounted = true;
+    const fetchDetail = async (isInitial = false) => {
+      if (isInitial) setLoading(true);
+      try {
+        const r = await fetch(`/api/workspaces/${wsId}/questions/${qid}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (!r.ok) throw new Error("Không tìm thấy phiên này");
-        return r.json();
-      })
-      .then((d: WorkspaceQuestionDetail) => setData(d))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [wsId, qid]);
+        const d: WorkspaceQuestionDetail = await r.json();
+        if (isMounted) setData(d);
+      } catch (e: any) {
+        if (isMounted && isInitial) setError(e.message);
+      } finally {
+        if (isMounted && isInitial) setLoading(false);
+      }
+    };
+
+    fetchDetail(true);
+
+    // Tự động thăm dò lại mỗi 3 giây nếu phiên đang trong quá trình xử lý
+    const interval = setInterval(() => {
+      if (!data || data.status === "processing" || data.status === "pending") {
+        fetchDetail(false);
+      }
+    }, 3000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [wsId, qid, data?.status]);
 
   const formatDate = (iso: string) =>
-    // backend returns naive UTC; treat as UTC then localize to viewer TZ
-    new Date(iso + "Z").toLocaleString("vi-VN", {
+    parseApiDate(iso).toLocaleString("vi-VN", {
       day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
     });
   const difficulty = (d: string) => diffCfg[d] ?? diffCfg.medium;
@@ -128,11 +149,15 @@ export default function WqDetailPage() {
         <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-5 mb-5">
           <div className="flex items-center gap-2 flex-wrap mb-2">
             <span className="text-[14px] font-bold text-foreground">🎓 Phiên luyện phản biện #{data.id}</span>
-            <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${
+            <span className={`px-2.5 py-0.5 text-[11px] font-bold rounded-full ${
               data.status === "completed" ? "bg-green-500/10 text-green-400"
               : data.status === "failed" ? "bg-red-500/10 text-red-400"
-              : "bg-blue-500/10 text-blue-400"
-            }`}>{data.status}</span>
+              : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+            }`}>
+              {data.status === "completed" ? "Hoàn thành"
+                : data.status === "failed" ? "Thất bại"
+                : "Đang xử lý..."}
+            </span>
           </div>
           <p className="text-[12px] text-muted-foreground">{formatDate(data.created_at)}</p>
         </div>
@@ -140,6 +165,20 @@ export default function WqDetailPage() {
         {data.status === "failed" ? (
           <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-5 text-red-400 text-[14px]">
             {data.error || "Tạo câu hỏi thất bại."}
+          </div>
+        ) : (data.status === "processing" || data.status === "pending") ? (
+          <div className="bg-card rounded-2xl border border-amber-500/30 bg-amber-500/[0.04] p-8 text-center my-4">
+            <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-400 mx-auto flex items-center justify-center mb-4">
+              <Loader2 className="w-6 h-6 animate-spin" />
+            </div>
+            <h3 className="text-base font-bold text-foreground mb-2">Hội đồng AI đang phân tích đồ án & soạn câu hỏi...</h3>
+            <p className="text-sm text-muted-foreground max-w-lg mx-auto mb-4 leading-relaxed">
+              Hệ thống đang trích xuất nội dung mã nguồn, đối chiếu tiêu chí chấm chuẩn SEP490 và tạo bộ câu hỏi bắt bẻ chuyên sâu. Quá trình có thể mất từ 1 - 5 phút tuỳ dung lượng file.
+            </p>
+            <div className="inline-flex items-center gap-2 text-xs text-amber-400 font-medium bg-amber-500/10 border border-amber-500/20 px-3.5 py-1.5 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              Trang sẽ tự động hiển thị câu hỏi ngay khi AI hoàn tất
+            </div>
           </div>
         ) : !data.questions || data.questions.length === 0 ? (
           <div className="bg-card rounded-2xl border border-border/60 p-8 text-center text-muted-foreground text-[14px]">
