@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { parseApiDate } from "@/lib/datetime";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { DocumentDetailSidebar } from "@/components/features/assessment/DocumentDetailSidebar";
@@ -120,7 +121,7 @@ export default function MentorDocumentsPage() {
   };
 
   const formatDate = (iso: string) => {
-    const d = new Date(iso);
+    const d = parseApiDate(iso);
     return d.toLocaleDateString("vi-VN", {
       day: "2-digit",
       month: "2-digit",

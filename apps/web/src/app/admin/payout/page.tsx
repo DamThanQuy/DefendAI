@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { parseApiDate } from "@/lib/datetime";
 import Link from "next/link";
 import {
   Wallet,
@@ -663,9 +664,9 @@ export default function AdminPayoutPage() {
                     {/* Time */}
                     <td className="py-3 px-4 text-right text-zinc-400 font-mono text-[11px]">
                       {tx.paid_at
-                        ? new Date(tx.paid_at).toLocaleString("vi-VN")
+                        ? parseApiDate(tx.paid_at).toLocaleString("vi-VN")
                         : tx.created_at
-                        ? new Date(tx.created_at).toLocaleString("vi-VN")
+                        ? parseApiDate(tx.created_at).toLocaleString("vi-VN")
                         : "-"}
                     </td>
                   </tr>

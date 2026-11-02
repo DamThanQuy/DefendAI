@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
+import { parseApiDate } from "@/lib/datetime";
 import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
 import {
@@ -192,7 +193,7 @@ export default function AdminFeedbacksPage() {
   function formatDate(iso: string) {
     if (!iso) return "—";
     try {
-      const d = new Date(iso);
+      const d = parseApiDate(iso);
       return d.toLocaleDateString("vi-VN", {
         day: "2-digit",
         month: "2-digit",

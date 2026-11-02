@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from "react";
+import { parseApiDate } from "@/lib/datetime";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -40,7 +41,7 @@ function bookingToTab(status: Booking["status"]): "upcoming" | "completed" | "ca
 // Format thời gian chốt (hoặc đề xuất) thành "HH:mm, DD/MM/YYYY"
 function fmtDateTime(dt: string | null) {
   if (!dt) return "—";
-  const d = new Date(dt);
+  const d = parseApiDate(dt);
   const date = d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
   const time = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
   return `${time}, ${date}`;

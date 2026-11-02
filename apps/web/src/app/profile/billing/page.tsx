@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { parseApiDate } from "@/lib/datetime";
 import Link from "next/link";
 import { CreditCard, Crown, Zap, Sparkles, ArrowRight, ArrowLeft, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -112,7 +113,7 @@ export default function BillingPage() {
             </h2>
             <p className="text-muted-foreground text-sm max-w-md">
               {effectivePlan !== "free"
-                ? `Gói ${displayPlanName} đang hoạt động${subscription?.expires_at ? ` đến ${new Date(subscription.expires_at).toLocaleDateString("vi-VN")}` : ""}.`
+                ? `Gói ${displayPlanName} đang hoạt động${subscription?.expires_at ? ` đến ${parseApiDate(subscription.expires_at).toLocaleDateString("vi-VN")}` : ""}.`
                 : "Bạn đang dùng gói miễn phí. Nâng cấp để mở khóa tính năng cao cấp."}
             </p>
           </div>

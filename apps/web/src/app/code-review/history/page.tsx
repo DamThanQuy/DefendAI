@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { parseApiDate } from "@/lib/datetime";
 import Link from "next/link";
 
 interface AnalysisItem {
@@ -40,7 +41,7 @@ export default function CodeReviewHistoryPage() {
 
   const formatDate = (iso: string | null) => {
     if (!iso) return "";
-    const d = new Date(iso);
+    const d = parseApiDate(iso);
     return `${d.toLocaleDateString("vi-VN")} ${d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
   };
 
