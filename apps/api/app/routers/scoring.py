@@ -21,6 +21,8 @@ from app.core.deps import get_current_user
 from app.models.defense_score import DefenseScore, DefenseScoreAudit
 from app.models.meeting import Meeting
 from app.models.user import User
+from app.services.meeting_access import can_score_meeting, can_view_meeting
+from app.services.report_builder import group_items, item_labels
 from app.services.rubric_service import get_rubric_by_key
 from app.services.scoring_service import final_score
 
@@ -65,10 +67,10 @@ async def get_scoring_rubric(db: AsyncSession = Depends(get_db)) -> dict:
     config = await _load_rubric_config(db)
     grading = config["grading"]
     subject = config.get("subject", {})
+    labels = item_labels(config)
 
     def _items(key: str) -> list[dict]:
-        weights = grading.get(key, {}).get("items", {})
-        return [{"code": c, "weight": w} for c, w in weights.items()]
+        return [{"code": c, "label": labels.get(c, c), "weight": w} for c, w in group_items(config, key)]
 
     return {
         "key": RUBRIC_KEY,
@@ -94,6 +96,11 @@ async def upsert_scores(
     ).scalar_one_or_none()
     if not meeting:
         raise HTTPException(status_code=404, detail="Phòng họp không tồn tại")
+    if not await can_score_meeting(db, user, meeting):
+        raise HTTPException(
+            status_code=403,
+            detail="Chỉ mentor phụ trách buổi này hoặc admin mới được chấm điểm",
+        )
     config = await _load_rubric_config(db)
 
     upserted = 0
@@ -150,9 +157,20 @@ async def upsert_scores(
     "/meetings/{meeting_id}/summary",
     summary="Điểm tổng hợp OGA/TDA/Final + verdict (per nhóm)",
 )
-async def scoring_summary(meeting_id: int, db: AsyncSession = Depends(get_db)) -> dict:
+async def scoring_summary(
+    meeting_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
     """Tính điểm per nhóm — nhiều reviewer trên cùng item → trung bình trước,
     rồi weighted-average theo rubric (sinh viên đồng điểm cả nhóm)."""
+    meeting = (
+        await db.execute(select(Meeting).where(Meeting.id == meeting_id))
+    ).scalar_one_or_none()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Phòng họp không tồn tại")
+    if not await can_view_meeting(db, user, meeting):
+        raise HTTPException(status_code=403, detail="Không đủ quyền xem điểm buổi này")
     config = await _load_rubric_config(db)
     rows = (
         await db.execute(

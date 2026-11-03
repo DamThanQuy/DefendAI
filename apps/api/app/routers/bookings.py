@@ -295,6 +295,7 @@ async def confirm_booking(
         status=MeetingStatus.scheduled,
         phase="presentation",
         timer_seconds=1800,  # 30 phút mặc định
+        student_id=booking.student_id,
     )
     db.add(meeting)
     await db.flush()

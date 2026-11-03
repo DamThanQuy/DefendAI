@@ -12,6 +12,7 @@ from app.handlers.archive_extraction import handle_selective_extraction
 from app.handlers.analysis_pipeline import handle_analysis_pipeline
 from app.handlers.matching_pipeline import handle_matching_pipeline
 from app.handlers.explanation_pipeline import handle_explanation_pipeline
+from app.handlers.mock_report import handle_mock_report
 
 __all__ = [
     "handle_chat_ask",
@@ -24,4 +25,5 @@ __all__ = [
     "handle_analysis_pipeline",
     "handle_matching_pipeline",
     "handle_explanation_pipeline",
+    "handle_mock_report",
 ]
