@@ -43,6 +43,8 @@ from app.services.mock_qa_rag import MockQARAGService
 from app.services.rag_service import RAGService
 from app.models.booking import MockBooking, BookingStatus
 from app.models.meeting import Meeting
+from app.models.payment import Subscription
+from app.models.subscription_plan import SubscriptionPlan
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +125,34 @@ class SaveSessionRequest(BaseModel):
 # REST Endpoints for Mock Room AI
 # ─────────────────────────────────────────────────────────────────────────────
 
+async def is_vip_or_pro(user: User, db: AsyncSession) -> bool:
+    """Kiểm tra người dùng có gói VIP hoặc Pro hay không."""
+    if user.profile_data and isinstance(user.profile_data, dict):
+        m = user.profile_data.get("membership", {})
+        if isinstance(m, dict) and m.get("status") == "active":
+            if str(m.get("plan", "")).lower() in ("vip", "pro"):
+                return True
+
+    try:
+        now = datetime.utcnow()
+        stmt = (
+            select(SubscriptionPlan.slug)
+            .join(Subscription, Subscription.plan_id == SubscriptionPlan.id)
+            .where(
+                Subscription.user_id == user.id,
+                Subscription.status == "active",
+                Subscription.expires_at > now,
+            )
+        )
+        slug = (await db.execute(stmt)).scalar_one_or_none()
+        if slug and slug.lower() in ("vip", "pro"):
+            return True
+    except Exception:
+        await db.rollback()
+
+    return False
+
+
 @router.post("/chat", response_model=MockChatResponse)
 async def mock_ai_chat(
     req: MockChatRequest,
@@ -135,6 +165,15 @@ async def mock_ai_chat(
     """
     if not req.messages:
         raise HTTPException(status_code=400, detail="Danh sách tin nhắn không được để trống")
+
+    # Giới hạn 5 câu hỏi / lượt trả lời đối với Free user (dùng vé trải nghiệm)
+    student_turns = sum(1 for m in req.messages if m.role == "user" and m.content.strip())
+    if student_turns > 5:
+        if not await is_vip_or_pro(user, db):
+            raise HTTPException(
+                status_code=403,
+                detail="Tài khoản dùng thử đã đạt giới hạn 5 câu hỏi trong phiên Mock AI. Vui lòng bấm 'Kết thúc & nhận báo cáo' để nhận đánh giá hoặc nâng cấp VIP để tiếp tục.",
+            )
 
     system_prompt = (
         "BẠN LÀ: Giám khảo AI — Thành viên Hội đồng chấm và phản biện bảo vệ đồ án tốt nghiệp Đại học ngành CNTT / Phần mềm.\n"

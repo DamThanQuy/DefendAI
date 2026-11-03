@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useAuth } from "@/hooks/useAuth";
 import { MarkdownMessage } from "@/components/features/workspace/MarkdownMessage";
 import { type MockMessage, extractContextSummary } from "@/lib/mock-ai-data";
 import { ChunkedUploader } from "@/lib/chunked-upload";
@@ -91,6 +92,15 @@ function getToken(): string | null {
 
 export default function MockRoomAI() {
   const router = useRouter();
+  const { user } = useAuth();
+
+  // Kiểm tra gói VIP / Pro (không giới hạn câu hỏi)
+  const isVip = useMemo(() => {
+    const plan = (user?.profile_data as any)?.membership?.plan || (typeof window !== "undefined" ? localStorage.getItem("membership_plan") : null);
+    return plan === "vip" || plan === "pro";
+  }, [user]);
+
+  const FREE_MAX_QUESTIONS = 5;
   // ── State ──────────────────────────────────────────────
   // Workflow steps — "upload" (tuỳ chọn) → "room" (chất vấn với Giám khảo AI)
   const [step, setStep] = useState<"upload" | "room">("upload");
@@ -122,6 +132,14 @@ export default function MockRoomAI() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  // Đếm số câu trả lời của sinh viên trong phiên hiện tại
+  const studentAnswerCount = useMemo(() => {
+    return messages.filter((m) => m.role === "user" && m.content.trim()).length;
+  }, [messages]);
+
+  // Giới hạn 5 câu hỏi đối với Free User (dùng vé trải nghiệm)
+  const isLimitReached = !isVip && studentAnswerCount >= FREE_MAX_QUESTIONS;
 
   // Voice state
   const [isRecording, setIsRecording] = useState(false);
@@ -674,6 +692,11 @@ export default function MockRoomAI() {
 
   // ── Gửi tin nhắn ───────────────────────────────────────
   const sendMessage = useCallback((overrideText?: string) => {
+    if (isLimitReached) {
+      alert("Bạn đã hoàn thành 5 câu hỏi trải nghiệm Mock AI. Vui lòng bấm 'Kết thúc & nhận báo cáo' để xem đánh giá hoặc nâng cấp VIP để tiếp tục.");
+      return;
+    }
+
     const trimmed = (overrideText ?? input).trim();
     if (!trimmed || isTyping) return;
 
@@ -697,7 +720,7 @@ export default function MockRoomAI() {
     setInput("");
     setIsTyping(true);
     void askMentor(trimmed);
-  }, [input, isTyping, isRecording, askMentor, stopSTT]);
+  }, [input, isTyping, isRecording, askMentor, stopSTT, isLimitReached]);
 
   // ── Quick action ───────────────────────────────────────
   const handleQuickAction = (prompt: string) => {
@@ -1089,6 +1112,18 @@ export default function MockRoomAI() {
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium hidden sm:inline-block">
                 Hội đồng phản biện trực tuyến
               </span>
+              {!isVip && (
+                <span
+                  className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold border transition-colors hidden md:inline-block ${
+                    isLimitReached
+                      ? "bg-amber-500/15 text-amber-400 border-amber-500/30 animate-pulse"
+                      : "bg-teal-500/10 text-teal-400 border-teal-500/20"
+                  }`}
+                  title={isLimitReached ? "Đã đạt số câu hỏi tối đa của lượt trải nghiệm" : "Số câu hỏi đã trả lời trong lượt trải nghiệm"}
+                >
+                  {isLimitReached ? "Đạt giới hạn: 5/5 câu" : `Lượt thử: ${studentAnswerCount}/${FREE_MAX_QUESTIONS} câu`}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -1101,7 +1136,11 @@ export default function MockRoomAI() {
               <button
                 onClick={handleEndSession}
                 disabled={isEnding || isTyping || !hasStudentAnswer}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isLimitReached
+                    ? "bg-teal-500 hover:bg-teal-400 text-white shadow-md shadow-teal-500/20 animate-pulse"
+                    : "bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary"
+                }`}
                 title={hasStudentAnswer ? "Kết thúc buổi và nhận báo cáo nhận xét" : "Trả lời ít nhất 1 câu để nhận báo cáo"}
               >
                 {isEnding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
@@ -1231,6 +1270,36 @@ export default function MockRoomAI() {
             {/* Chat Input Bar */}
             <div className="p-4 border-t border-border bg-card/70 backdrop-blur-md shrink-0">
               <div className="max-w-4xl mx-auto w-full">
+                {/* Banner cảnh báo khi Free user đạt giới hạn 5 câu */}
+                {isLimitReached && (
+                  <div className="mb-3 p-3.5 bg-gradient-to-r from-teal-500/15 via-emerald-500/10 to-teal-500/15 border border-teal-500/30 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-sm animate-in fade-in duration-300">
+                    <div className="flex items-center gap-2 text-teal-300">
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-teal-400" />
+                      <span>
+                        Bạn đã hoàn thành <strong>5/5 câu hỏi trải nghiệm</strong>. Hãy kết thúc buổi để nhận phiếu đánh giá chuẩn SEP490 hoặc nâng cấp VIP để luyện tập không giới hạn!
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+                      <Button
+                        size="sm"
+                        onClick={handleEndSession}
+                        className="bg-teal-500 hover:bg-teal-400 text-white font-semibold text-xs h-8 px-3 gap-1.5 shadow-sm"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Nhận báo cáo ngay
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => router.push("/pricing")}
+                        className="text-xs h-8 px-3 border-amber-500/30 text-amber-300 hover:bg-amber-500/10"
+                      >
+                        Nâng cấp VIP
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {isRecording && (
                   <div className="flex items-center gap-2 mb-2 text-xs text-rose-400 font-medium animate-pulse">
                     <span className="w-2 h-2 rounded-full bg-rose-500" />
@@ -1241,11 +1310,12 @@ export default function MockRoomAI() {
                   <button
                     onClick={isRecording ? stopSTT : startSTT}
                     type="button"
-                    title={isRecording ? "Dừng ghi âm" : "Nói câu trả lời bằng Micro"}
+                    disabled={isLimitReached}
+                    title={isLimitReached ? "Đã đạt giới hạn câu hỏi" : isRecording ? "Dừng ghi âm" : "Nói câu trả lời bằng Micro"}
                     className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border transition-all ${
                       isRecording
                         ? "bg-rose-500/20 border-rose-500/50 text-rose-400 animate-pulse"
-                        : "bg-muted/40 border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                        : "bg-muted/40 border-border hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
                     }`}
                   >
                     {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -1255,8 +1325,13 @@ export default function MockRoomAI() {
                     <input
                       ref={inputRef}
                       type="text"
-                      placeholder="Gửi câu trả lời hoặc tin nhắn bảo vệ đồ án..."
-                      className="w-full bg-muted/40 border border-border rounded-xl py-3 pl-4 pr-12 text-sm text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-muted-foreground"
+                      disabled={isLimitReached}
+                      placeholder={
+                        isLimitReached
+                          ? "Đã hoàn thành 5/5 câu hỏi trải nghiệm. Bấm 'Nhận báo cáo ngay' để xem kết quả..."
+                          : "Gửi câu trả lời hoặc tin nhắn bảo vệ đồ án..."
+                      }
+                      className="w-full bg-muted/40 border border-border rounded-xl py-3 pl-4 pr-12 text-sm text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={(e) => {
@@ -1268,8 +1343,9 @@ export default function MockRoomAI() {
                     />
                     <button
                       onClick={() => sendMessage()}
-                      disabled={!input.trim() || isTyping}
-                      className="absolute right-1.5 top-1.5 w-8 h-8 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:hover:bg-primary flex items-center justify-center text-primary-foreground transition-colors"
+                      disabled={!input.trim() || isTyping || isLimitReached}
+                      title={isLimitReached ? "Đã đạt giới hạn 5 câu hỏi trải nghiệm" : "Gửi câu trả lời"}
+                      className="absolute right-1.5 top-1.5 w-8 h-8 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:hover:bg-primary flex items-center justify-center text-primary-foreground transition-colors disabled:cursor-not-allowed"
                     >
                       {isTyping ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
