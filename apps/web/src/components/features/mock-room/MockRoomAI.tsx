@@ -223,21 +223,21 @@ export default function MockRoomAI() {
   // Ref để callback trong timeout gọi được fetchSessions mới nhất
   const fetchSessionsRef = useRef<typeof fetchSessions | null>(null);
   fetchSessionsRef.current = fetchSessions;
+  // Lần lưu đang chạy — các lần lưu xếp hàng nối tiếp để không tạo 2 phiên trùng
+  const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
 
-  useEffect(() => {
-    if (step !== "room" || messages.length === 0) return;
-    const token = getToken();
-    if (!token) return;
-
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
-      try {
+  // Lưu toàn bộ tin nhắn vào phiên active; trả về id phiên. Lỗi → throw.
+  const persistSession = useCallback(
+    (msgs: MockMessage[]): Promise<number | null> => {
+      const run = saveChainRef.current.catch(() => undefined).then(async () => {
+        const token = getToken();
+        if (!token || msgs.length === 0) return activeSessionRef.current;
         const headers = {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         };
         const payload = {
-          messages: messages.map((m) => ({
+          messages: msgs.map((m) => ({
             role: m.role,
             content: m.content,
             time: m.time,
@@ -248,7 +248,7 @@ export default function MockRoomAI() {
         let sid = activeSessionRef.current;
         if (sid == null) {
           // Tạo phiên mới — tiêu đề lấy từ tin nhắn user đầu tiên
-          const firstUser = messages.find((m) => m.role === "user");
+          const firstUser = msgs.find((m) => m.role === "user");
           const r = await fetch("/api/mock-qa/sessions", {
             method: "POST",
             headers,
@@ -257,29 +257,42 @@ export default function MockRoomAI() {
               title: (firstUser?.content || "Phiên chất vấn").slice(0, 100),
             }),
           });
-          if (!r.ok) return;
+          if (!r.ok) throw new Error("Không tạo được phiên chat");
           const created = await r.json();
-          sid = created.id;
+          sid = created.id as number;
           setActiveSessionId(sid);
           activeSessionRef.current = sid;
         }
 
-        await fetch(`/api/mock-qa/sessions/${sid}`, {
+        const r = await fetch(`/api/mock-qa/sessions/${sid}`, {
           method: "PUT",
           headers,
           body: JSON.stringify(payload),
         });
+        if (!r.ok) throw new Error("Không lưu được phiên chat");
         // Refresh danh sách ở màn hình chọn file (fetchSessions khi quay lại)
         void fetchSessionsRef.current?.();
-      } catch {
-        // lưu thất bại không chặn chat — thử lại ở lần tin sau
-      }
+        return sid;
+      });
+      saveChainRef.current = run;
+      return run;
+    },
+    [projectContext, selectedDocId],
+  );
+
+  useEffect(() => {
+    if (step !== "room" || messages.length === 0) return;
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      // lưu thất bại không chặn chat — thử lại ở lần tin sau
+      persistSession(messages).catch(() => undefined);
     }, 800);
 
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [messages, step, projectContext, selectedDocId]);
+  }, [messages, step, persistSession]);
 
   // ── Bắt đầu phiên mới — không xoá dữ liệu cũ, chỉ reset phiên active ──
   const clearHistory = useCallback(async () => {
@@ -699,9 +712,17 @@ export default function MockRoomAI() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // ── Kết thúc buổi Mock AI ───────────────────────────────
+  // ── Kết thúc buổi Mock AI → tạo báo cáo cho phiên hiện tại ──────
+  const [isEnding, setIsEnding] = useState(false);
+  const hasStudentAnswer = messages.some((m) => m.role === "user" && m.content.trim());
+
   const handleEndSession = async () => {
-    if (!confirm("Bạn có chắc chắn muốn kết thúc buổi Mock AI? Sau khi kết thúc, buổi sẽ được đánh giá và báo cáo sẽ được tạo.")) {
+    if (isEnding) return;
+    if (!hasStudentAnswer) {
+      alert("Bạn chưa trả lời câu hỏi nào nên chưa có gì để đánh giá.");
+      return;
+    }
+    if (!confirm("Kết thúc buổi Mock AI? Giám khảo AI sẽ tổng hợp nhận xét theo tiêu chí chấm thành báo cáo.")) {
       return;
     }
 
@@ -711,21 +732,29 @@ export default function MockRoomAI() {
       return;
     }
 
+    setIsEnding(true);
     try {
+      // Lưu nốt các tin chưa kịp autosave để báo cáo có đủ hội thoại
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      const sessionId = await persistSession(stateRef.current.messages);
+      if (sessionId == null) throw new Error("Chưa lưu được phiên chat");
+
       const res = await fetch("/api/mock-ai/end-session", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ session_id: sessionId }),
       });
-
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.detail || data.error || "Kết thúc buổi thất bại");
       }
-
-      alert("Kết thúc buổi Mock AI thành công! Báo cáo đã được tạo.");
-      router.push("/report");
+      router.push(`/report/${data.report_id}`);
     } catch (err: any) {
       alert(`Lỗi: ${err.message || "Không thể kết thúc buổi"}`);
+      setIsEnding(false);
     }
   };
 
@@ -1068,6 +1097,15 @@ export default function MockRoomAI() {
                 title="Bắt đầu phiên thi mới"
               >
                 Phiên mới
+              </button>
+              <button
+                onClick={handleEndSession}
+                disabled={isEnding || isTyping || !hasStudentAnswer}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={hasStudentAnswer ? "Kết thúc buổi và nhận báo cáo nhận xét" : "Trả lời ít nhất 1 câu để nhận báo cáo"}
+              >
+                {isEnding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                {isEnding ? "Đang tạo báo cáo…" : "Kết thúc & nhận báo cáo"}
               </button>
               <button
                 onClick={() => setShowLeaveConfirm(true)}

@@ -90,16 +90,46 @@ RUBRICS: list[dict] = [
                     },
                 },
             },
+            # Nhãn hiển thị cho item_code trong grading (FE báo cáo đọc, không hard-code)
+            "item_labels": {
+                "introduction": "Project Introduction",
+                "pmp": "Project Management Plan",
+                "srs": "Software Requirement (SRS)",
+                "sdd": "Software Design (SDD)",
+                "testing": "Testing (STD)",
+                "user_guides": "User Guides",
+                "implementation": "Implementation",
+                "presentation": "Presentation Skills",
+                "qa": "Q&A",
+            },
+            # Thứ tự hiển thị hạng mục (cột config là JSONB → key của object bị
+            # Postgres sắp lại, chỉ list giữ thứ tự)
+            "item_order": [
+                "introduction", "pmp", "srs", "sdd", "testing",
+                "user_guides", "implementation", "presentation", "qa",
+            ],
             "clo_map": {
                 "CLO1": "srs", "CLO2": "sdd", "CLO3": "implementation+testing",
                 "CLO4": "pmp", "CLO5": "user_guides+report", "CLO6": "presentation+qa",
                 "CLO7": "attitude",
             },
             "quality_criteria": [
-                {"key": "tinh_thuc_te", "label": "Tính thực tế", "levels": ["Đạt", "Khá", "Chưa đạt"]},
-                {"key": "tinh_giai_quyet_van_de", "label": "Tính giải quyết vấn đề", "levels": ["Đạt", "Khá", "Chưa đạt"]},
-                {"key": "br_chac", "label": "BR chắc", "levels": ["Đạt", "Khá", "Chưa đạt"]},
-                {"key": "giai_quyet_van_de_hien_tai", "label": "Giải quyết 1 vấn đề hiện tại", "levels": ["Đạt", "Khá", "Chưa đạt"]},
+                {
+                    "key": "tinh_thuc_te", "label": "Tính thực tế", "levels": ["Đạt", "Khá", "Chưa đạt"],
+                    "description": "Đồ án chạy được với người dùng thật? Đạt: chạy end-to-end, UI/UX dùng được, deploy được, dữ liệu thật. Chưa đạt: chỉ demo trên máy dev, hardcode, UI vỡ.",
+                },
+                {
+                    "key": "tinh_giai_quyet_van_de", "label": "Tính giải quyết vấn đề", "levels": ["Đạt", "Khá", "Chưa đạt"],
+                    "description": "Có tư duy phân tích? Đạt: phân tích nguyên nhân rõ, chọn giải pháp có trade-off, xử lý edge case. Chưa đạt: copy/paste không hiểu, không giải thích được vì sao chọn cách làm.",
+                },
+                {
+                    "key": "br_chac", "label": "BR chắc", "levels": ["Đạt", "Khá", "Chưa đạt"],
+                    "description": "Yêu cầu nghiệp vụ rõ, đầy đủ, nhất quán? Đạt: SRS/use case rõ, coverage đủ, map được BR → chức năng. Chưa đạt: BR mơ hồ, thiếu use case trọng yếu, tự bịa yêu cầu.",
+                },
+                {
+                    "key": "giai_quyet_van_de_hien_tai", "label": "Giải quyết 1 vấn đề hiện tại", "levels": ["Đạt", "Khá", "Chưa đạt"],
+                    "description": "Đồ án giải quyết pain-point thực tế (không làm lại cái đã có)? Đạt: nêu được pain-point, có khảo sát/so sánh, giá trị rõ. Chưa đạt: đề tài chung chung kiểu 'hệ thống quản lý X', không chỉ rõ vấn đề.",
+                },
             ],
             "deliverables": [
                 {"code": "R1", "name": "Project Introduction", "file_types": [".docx", ".pdf"]},

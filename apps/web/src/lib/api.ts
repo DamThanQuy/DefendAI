@@ -456,3 +456,174 @@ export function listWorkspaceAnalyses(workspaceId: number, limit = 20) {
   }>(`/api/workspaces/${workspaceId}/analyses`, { params: { limit } });
 }
 
+
+// ---------------------------------------------------------------------------
+// Báo cáo sinh viên sau Mock Defense (BE: routers/reports.py, routers/mock_ai.py)
+// AI chỉ nhận xét định tính; điểm OGA/TDA đến từ mentor/admin (DefenseScore).
+// ---------------------------------------------------------------------------
+
+export type ReportStatus = "pending" | "in_review" | "completed";
+export type ReportGenerationStatus = "pending" | "ready" | "failed";
+export type VerdictCode =
+  | "pass"
+  | "fail"
+  | "banned"
+  | "redo"
+  | "deferred"
+  | "fail_individual"
+  | "insufficient_data";
+
+export interface ReportCriterionBrief {
+  key: string;
+  label: string;
+  level: string | null;
+}
+
+export interface ReportListItem {
+  id: number;
+  title: string;
+  description: string;
+  source: string;
+  status: ReportStatus;
+  generation_status: ReportGenerationStatus;
+  final_score: number | null;
+  reviewer_count: number;
+  quality_criteria: ReportCriterionBrief[];
+  workspace_id: number | null;
+  workspace_name: string | null;
+  document_name: string | null;
+  meeting_id: number;
+  mock_session_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MyReportsResponse {
+  reports: ReportListItem[];
+  summary: {
+    total: number;
+    completed: number;
+    in_review: number;
+    pending: number;
+    average_score: number | null;
+    scale_max: number;
+  };
+}
+
+export interface RubricGroupView {
+  group: "OGA" | "TDA";
+  weight_pct: number;
+  items: { code: string; label: string; weight: number }[];
+}
+
+export interface ReportRubric {
+  key: string;
+  name: string;
+  version: string;
+  scale_max: number;
+  pass_mark: number;
+  groups: RubricGroupView[];
+  quality_criteria: { key: string; label: string; levels: string[]; description: string | null }[];
+  clo: { code: string; desc: string }[];
+}
+
+export interface ScoreGroupResult {
+  score: number | null;
+  scored_items: number;
+  total_items: number;
+  missing_items: string[];
+}
+
+export interface ScoreResult {
+  oga: ScoreGroupResult;
+  tda: ScoreGroupResult;
+  final: number | null;
+  verdict: string;
+  pass_mark: number;
+  scale_max: number;
+}
+
+export interface ScoreItem {
+  code: string;
+  label: string;
+  weight: number;
+  mark: number | null;
+  ai_mark: number | null;
+  reviews: { reviewer_name: string; mark: number; comment: string | null; is_ai: boolean }[];
+}
+
+export interface ReportRule {
+  rule_id: string;
+  rule_name: string;
+  auto_status: "pass" | "violated" | "pending_data" | "na";
+  input_summary: string;
+  evidence: string[];
+  needs_human: boolean;
+  human_decision: "confirm" | "reject" | null;
+  human_comment: string | null;
+  human_reviewer: string | null;
+}
+
+export interface ReportDetail {
+  id: number;
+  title: string;
+  source: string;
+  status: ReportStatus;
+  generation_status: ReportGenerationStatus;
+  generation_error: string | null;
+  created_at: string;
+  updated_at: string;
+  meeting_id: number;
+  mock_session_id: number | null;
+  workspace: { id: number; name: string } | null;
+  document: { id: number; filename: string } | null;
+  rubric: ReportRubric | null;
+  ai_review: {
+    overall_comment: string;
+    quality_criteria: {
+      key: string;
+      label: string;
+      level: string | null;
+      comment: string;
+      evidence: string;
+    }[];
+    strengths: string[];
+    weaknesses: string[];
+    action_items: string[];
+    clo_coverage: { clo: string; desc: string; covered: boolean; comment: string }[];
+  } | null;
+  scores: {
+    official: ScoreResult | null;
+    ai: ScoreResult | null;
+    items: { OGA: ScoreItem[]; TDA: ScoreItem[] };
+    reviewer_count: number;
+  };
+  rules: {
+    workspace_id: number | null;
+    total_uc: number | null;
+    completion_ratio: number | null;
+    n_logic: number | null;
+    n_showstopper: number | null;
+    rules: ReportRule[];
+  };
+  verdict: { code: VerdictCode; label: string; reasons: string[]; is_official: boolean };
+  transcript: { role: "student" | "examiner"; content: string; time: string }[];
+  can_regenerate: boolean;
+}
+
+/** GET /api/reports/my-reports — báo cáo của user hiện tại + thống kê. */
+export function getMyReports() {
+  return api.get<MyReportsResponse>("/api/reports/my-reports");
+}
+
+/** GET /api/reports/{id} — chi tiết báo cáo (403 nếu không phải của mình). */
+export function getReportDetail(reportId: number) {
+  return api.get<ReportDetail>(`/api/reports/${reportId}`);
+}
+
+/** POST /api/reports/{id}/regenerate — tổng hợp lại nhận xét AI khi lần trước lỗi. */
+export function regenerateReport(reportId: number) {
+  return api.post<{ report_id: number; generation_status: ReportGenerationStatus }>(
+    `/api/reports/${reportId}/regenerate`,
+  );
+}
