@@ -307,14 +307,21 @@ async def submit_feedback(
     )
     db.add(feedback)
 
-    # Atomic ticket granting: mock_ai_trial_tickets += 1
+    # Atomic ticket granting: mock_ai_trial_tickets += 1 (chỉ cộng vé ở lần đầu)
     profile = dict(user.profile_data or {})
     raw_tickets = profile.get("mock_ai_trial_tickets", 0)
     try:
         tickets = int(raw_tickets)
     except (ValueError, TypeError):
         tickets = 0
-    new_tickets = tickets + 1
+
+    already_granted = bool(profile.get("feedback_status", {}).get("reward_ticket_granted"))
+    if not already_granted:
+        new_tickets = tickets + 1
+        msg = "Cảm ơn bạn đã phản hồi! Bạn đã nhận được 01 vé trải nghiệm Mock Room AI."
+    else:
+        new_tickets = tickets
+        msg = "Cảm ơn bạn đã tiếp tục đóng góp ý kiến giúp GraduAI ngày càng hoàn thiện hơn!"
 
     profile["mock_ai_trial_tickets"] = new_tickets
     profile["feedback_status"] = {
@@ -333,7 +340,7 @@ async def submit_feedback(
         success=True,
         feedback_id=feedback.id,
         mock_ai_trial_tickets=new_tickets,
-        message="Cảm ơn bạn đã phản hồi! Bạn đã nhận được 01 vé trải nghiệm Mock Room AI.",
+        message=msg,
     )
 
 

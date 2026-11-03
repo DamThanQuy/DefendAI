@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Crown,
   Heart,
+  MessageSquareHeart,
   Lightbulb,
   DollarSign,
   TrendingUp,
@@ -195,6 +196,7 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
 
   // Kết quả sau khi submit
   const [newTicketsCount, setNewTicketsCount] = useState<number>(1);
+  const [rewardGranted, setRewardGranted] = useState<boolean>(false);
 
   // Load user context khi modal mở
   useEffect(() => {
@@ -311,6 +313,8 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
       const res = await api.post("/api/feedback", payload);
       const tickets = res.data?.mock_ai_trial_tickets ?? 1;
       setNewTicketsCount(tickets);
+      const isReward = !context?.has_submitted;
+      setRewardGranted(isReward);
 
       // Cập nhật localStorage để các trang khác (mock-room) nhận ngay lập tức
       try {
@@ -318,12 +322,14 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
         window.dispatchEvent(new Event("storage"));
       } catch {}
 
-      toast.success("Gửi khảo sát thành công!", {
-        description: "Bạn đã nhận được 01 vé trải nghiệm Mock Room AI.",
+      toast.success("Gửi phản hồi thành công!", {
+        description: isReward
+          ? "Bạn đã nhận được 01 vé trải nghiệm Mock Room AI."
+          : "Cảm ơn bạn đã đóng góp ý kiến giúp hoàn thiện GraduAI!",
       });
 
       if (onSuccess) onSuccess();
-      setStep(3); // Chuyển sang màn hình nhận quà
+      setStep(3); // Chuyển sang màn hình nhận quà hoặc hoàn tất
     } catch (err: any) {
       const msg = err?.response?.data?.detail || "Gửi phản hồi thất bại. Vui lòng thử lại.";
       toast.error("Lỗi khi gửi phản hồi", { description: msg });
@@ -378,12 +384,16 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/40 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center text-white shadow-md shadow-teal-500/20">
-              <Gift className="w-5 h-5" />
+              {context?.has_submitted ? (
+                <MessageSquareHeart className="w-5 h-5" />
+              ) : (
+                <Gift className="w-5 h-5" />
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-serif font-bold text-foreground">
-                  Khảo sát Trải nghiệm & Nhận Quà
+                  {context?.has_submitted ? "Góp ý & Đánh giá" : "Khảo sát Trải nghiệm & Nhận Quà"}
                 </h2>
                 {/* Badge gói tài khoản tự động */}
                 {context && (
@@ -396,7 +406,9 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Đóng góp ý kiến để nhận ngay 01 vé trải nghiệm Mock Room AI
+                {context?.has_submitted
+                  ? "Đóng góp ý kiến giúp GraduAI ngày càng hoàn thiện hơn"
+                  : "Đóng góp ý kiến để nhận ngay 01 vé trải nghiệm Mock Room AI"}
               </p>
             </div>
           </div>
@@ -784,65 +796,90 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
             </div>
           ) : (
             /* ========================================================
-               BƯỚC 3: MÀN HÌNH NHẬN QUÀ (GIFT SCREEN)
+               BƯỚC 3: MÀN HÌNH HOÀN TẤT / NHẬN QUÀ
                ======================================================== */
             <div className="py-6 text-center space-y-6 animate-in zoom-in-95 duration-300">
-              {/* Animation icon quà tặng */}
+              {/* Animation icon quà tặng hoặc trái tim */}
               <div className="relative mx-auto w-20 h-20 rounded-3xl bg-gradient-to-tr from-teal-500 via-emerald-400 to-cyan-400 flex items-center justify-center text-white shadow-xl shadow-teal-500/25 animate-bounce">
-                <Gift className="w-10 h-10" />
-                <Sparkles className="w-5 h-5 absolute -top-1 -right-1 text-amber-300 animate-pulse" />
+                {rewardGranted ? (
+                  <>
+                    <Gift className="w-10 h-10" />
+                    <Sparkles className="w-5 h-5 absolute -top-1 -right-1 text-amber-300 animate-pulse" />
+                  </>
+                ) : (
+                  <MessageSquareHeart className="w-10 h-10" />
+                )}
               </div>
 
               <div className="space-y-2">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  Hoàn thành khảo sát
+                  {rewardGranted ? "Hoàn thành khảo sát" : "Gửi góp ý thành công"}
                 </div>
                 <h3 className="text-xl font-serif font-bold text-foreground">
                   Cảm ơn bạn đã đóng góp ý kiến!
                 </h3>
                 <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
-                  DefendAI trân trọng từng chia sẻ của bạn để hoàn thiện hệ thống tốt hơn. Bạn đã được cộng thêm{" "}
-                  <span className="font-semibold text-teal-400">01 vé trải nghiệm Mock Room AI</span> vào tài khoản.
+                  {rewardGranted ? (
+                    <>
+                      GraduAI trân trọng từng chia sẻ của bạn để hoàn thiện hệ thống tốt hơn. Bạn đã được cộng thêm{" "}
+                      <span className="font-semibold text-teal-400">01 vé trải nghiệm Mock Room AI</span> vào tài khoản.
+                    </>
+                  ) : (
+                    "GraduAI đã ghi nhận phản hồi của bạn để tiếp tục tối ưu hóa trải nghiệm tốt nhất cho sinh viên."
+                  )}
                 </p>
               </div>
 
-              {/* Card vé quà tặng */}
-              <div className="max-w-sm mx-auto p-4 rounded-2xl bg-gradient-to-br from-card to-muted border border-teal-500/30 shadow-md">
-                <div className="flex items-center justify-between text-left">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
-                      <MonitorPlay className="w-6 h-6" />
+              {/* Card vé quà tặng nếu được tặng */}
+              {rewardGranted && (
+                <div className="max-w-sm mx-auto p-4 rounded-2xl bg-gradient-to-br from-card to-muted border border-teal-500/30 shadow-md">
+                  <div className="flex items-center justify-between text-left">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
+                        <MonitorPlay className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-foreground">Vé Mock Room AI 1-on-1</div>
+                        <div className="text-[11px] text-muted-foreground">Phỏng vấn giả định không giới hạn tính năng</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-xs font-bold text-foreground">Vé Mock Room AI 1-on-1</div>
-                      <div className="text-[11px] text-muted-foreground">Phỏng vấn giả định không giới hạn tính năng</div>
+                    <div className="text-right">
+                      <span className="px-2 py-1 text-xs font-bold bg-teal-500/20 text-teal-400 rounded-md">
+                        +1 Vé
+                      </span>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="px-2 py-1 text-xs font-bold bg-teal-500/20 text-teal-400 rounded-md">
-                      +1 Vé
-                    </span>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Nút CTA: Kích hoạt & Trải nghiệm ngay */}
+              {/* Nút CTA */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-                <Button
-                  onClick={handleGoToMockRoom}
-                  className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-semibold text-sm shadow-lg shadow-teal-500/25 gap-2"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  Kích hoạt & Trải nghiệm ngay
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleClose}
-                  className="w-full sm:w-auto px-5 py-2.5 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Để sau
-                </Button>
+                {rewardGranted ? (
+                  <>
+                    <Button
+                      onClick={handleGoToMockRoom}
+                      className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-semibold text-sm shadow-lg shadow-teal-500/25 gap-2"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Kích hoạt & Trải nghiệm ngay
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleClose}
+                      className="w-full sm:w-auto px-5 py-2.5 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Để sau
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    onClick={handleClose}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-semibold text-sm shadow-lg shadow-teal-500/25"
+                  >
+                    Hoàn tất
+                  </Button>
+                )}
               </div>
             </div>
           )}
