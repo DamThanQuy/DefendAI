@@ -429,6 +429,9 @@ export default function WorkspaceChat({
               );
               ended = true;
               done();
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("feedback-refresh"));
+              }
             } else if (evt.type === "error") {
               // Đánh dấu failed ngay (không chờ stream kết thúc) — tránh UI kẹt
               // "AI đang suy nghĩ..." trong khoảng trống giữa error frame và khi

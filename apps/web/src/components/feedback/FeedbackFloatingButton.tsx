@@ -19,33 +19,41 @@ export function FeedbackFloatingButton() {
       return;
     }
 
-    // 1. Kiểm tra nhanh từ profile_data đã lưu trong session user
-    const profile = (user.profile_data as any) || {};
-    if (profile.feedback_status?.submitted) {
-      setHasSubmitted(true);
-      setIsEligible(false);
-      return;
-    }
-
-    // 2. Đồng bộ chính xác với backend qua endpoint user-context (kiểm tra điều kiện trải nghiệm tính năng)
     let cancelled = false;
-    api
-      .get("/api/feedback/user-context")
-      .then((res) => {
-        if (!cancelled && res.data) {
-          setHasSubmitted(!!res.data.has_submitted);
-          setIsEligible(!!res.data.eligible_for_feedback);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setHasSubmitted(!!profile.feedback_status?.submitted);
-          setIsEligible(false);
-        }
-      });
+
+    const checkEligibility = () => {
+      // 1. Kiểm tra nhanh từ profile_data đã lưu trong session user
+      const profile = (user.profile_data as any) || {};
+      if (profile.feedback_status?.submitted) {
+        setHasSubmitted(true);
+        setIsEligible(false);
+        return;
+      }
+
+      // 2. Đồng bộ chính xác với backend qua endpoint user-context (kiểm tra điều kiện trải nghiệm tính năng)
+      api
+        .get("/api/feedback/user-context")
+        .then((res) => {
+          if (!cancelled && res.data) {
+            setHasSubmitted(!!res.data.has_submitted);
+            setIsEligible(!!res.data.eligible_for_feedback);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setHasSubmitted(!!profile.feedback_status?.submitted);
+            setIsEligible(false);
+          }
+        });
+    };
+
+    checkEligibility();
+
+    window.addEventListener("feedback-refresh", checkEligibility);
 
     return () => {
       cancelled = true;
+      window.removeEventListener("feedback-refresh", checkEligibility);
     };
   }, [isAuthed, user]);
 

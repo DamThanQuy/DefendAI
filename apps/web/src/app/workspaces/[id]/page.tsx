@@ -563,6 +563,9 @@ export default function WorkspaceDetailPage() {
         if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") break;
       }
       await loadWorkspaceQuestions();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("feedback-refresh"));
+      }
     } catch (e: any) {
       setWsQError(e.message);
     } finally {

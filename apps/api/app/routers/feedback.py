@@ -25,7 +25,6 @@ from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.workspace_question import WorkspaceQuestion
 from app.models.workspace_chat import WorkspaceChat
-from app.models.message import Message
 from app.schemas.feedback import (
     AdoptionFunnelStats,
     CSATStats,
@@ -62,6 +61,7 @@ async def detect_user_plan(user: User, db: AsyncSession) -> str:
         if slug:
             return slug
     except Exception as exc:
+        await db.rollback()
         logger.warning("Error checking active subscription for user %s: %s", user.id, exc)
 
     if user.profile_data and isinstance(user.profile_data, dict):
@@ -91,13 +91,6 @@ async def scan_user_features(user: User, db: AsyncSession) -> tuple[List[str], D
                 .where(Workspace.user_id == user.id)
             )
         ).scalar() or 0
-        msg_cnt = (
-            await db.execute(
-                select(func.count(Message.id))
-                .join(Workspace, Message.workspace_id == Workspace.id)
-                .where(Workspace.user_id == user.id)
-            )
-        ).scalar() or 0
         chat_cnt = (
             await db.execute(
                 select(func.count(WorkspaceChat.id))
@@ -105,8 +98,9 @@ async def scan_user_features(user: User, db: AsyncSession) -> tuple[List[str], D
                 .where(Workspace.user_id == user.id)
             )
         ).scalar() or 0
-        counts["workspaces"] = q_cnt + msg_cnt + chat_cnt
+        counts["workspaces"] = q_cnt + chat_cnt
     except Exception as exc:
+        await db.rollback()
         logger.warning("Error scanning workspace active interactions for user %s: %s", user.id, exc)
 
     # 2. analysis (AnalysisJob + CodeAnalysis)
@@ -125,6 +119,7 @@ async def scan_user_features(user: User, db: AsyncSession) -> tuple[List[str], D
         ).scalar() or 0
         counts["analysis"] = job_cnt + code_cnt
     except Exception as exc:
+        await db.rollback()
         logger.warning("Error scanning analysis for user %s: %s", user.id, exc)
 
     # 3. bookings
@@ -138,6 +133,7 @@ async def scan_user_features(user: User, db: AsyncSession) -> tuple[List[str], D
         ).scalar() or 0
         counts["bookings"] = booking_cnt
     except Exception as exc:
+        await db.rollback()
         logger.warning("Error scanning bookings for user %s: %s", user.id, exc)
 
     # 4. meetings (mock booking meetings, member entries, sessions)
@@ -159,6 +155,7 @@ async def scan_user_features(user: User, db: AsyncSession) -> tuple[List[str], D
 
         counts["meetings"] = meeting_cnt + session_cnt
     except Exception as exc:
+        await db.rollback()
         logger.warning("Error scanning meetings for user %s: %s", user.id, exc)
 
     # 5. reports (evaluations with reports linked to user bookings/sessions)
@@ -186,6 +183,7 @@ async def scan_user_features(user: User, db: AsyncSession) -> tuple[List[str], D
 
         counts["reports"] = rep_from_booking + rep_from_session
     except Exception as exc:
+        await db.rollback()
         logger.warning("Error scanning reports for user %s: %s", user.id, exc)
 
     detected: List[str] = [k for k, v in counts.items() if v > 0]
