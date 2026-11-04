@@ -101,6 +101,12 @@ export default function MockRoomAI() {
     return plan === "vip" || plan === "pro";
   }, [user]);
 
+  // Kiểm tra user đã từng nhận vé từ khảo sát chưa
+  const hasRewardGranted = useMemo(() => {
+    const profile = (user?.profile_data as any) || {};
+    return Boolean(profile.feedback_status?.reward_ticket_granted || profile.feedback_status?.submitted);
+  }, [user]);
+
   // Số vé trải nghiệm Mock AI
   const [trialTickets, setTrialTickets] = useState<number>(() => {
     if (typeof window === "undefined") return 0;
@@ -1130,19 +1136,51 @@ export default function MockRoomAI() {
               })()}
             </div>
 
-            {/* Cảnh báo khi hết vé trải nghiệm */}
+            {/* Banner vé trải nghiệm Mock AI */}
             {!isVip && trialTickets <= 0 && (
-              <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
-                <span>⚠️ Bạn đã sử dụng hết vé trải nghiệm Mock AI. Hãy chọn phiên đã lưu bên dưới để tiếp tục hoặc nâng cấp VIP để tạo phiên mới.</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => router.push("/pricing")}
-                  className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10 text-xs h-8 px-3 shrink-0"
-                >
-                  Nâng cấp VIP
-                </Button>
-              </div>
+              hasRewardGranted ? (
+                <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base shrink-0">⚠️</span>
+                    <span>Bạn đã sử dụng hết vé trải nghiệm Mock AI. Hãy chọn phiên đã lưu bên dưới để xem lại hoặc nâng cấp VIP để tạo phiên mới.</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => router.push("/pricing")}
+                    className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10 text-xs h-8 px-3 shrink-0"
+                  >
+                    Nâng cấp VIP
+                  </Button>
+                </div>
+              ) : (
+                <div className="mb-4 p-3.5 bg-teal-500/10 border border-teal-500/30 rounded-xl text-teal-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base shrink-0">🎁</span>
+                    <span>
+                      Bạn chưa có vé trải nghiệm Mock AI. Hãy góp ý nhanh để nhận <strong>1 vé trải nghiệm miễn phí</strong>, hoặc nâng cấp VIP để phản biện không giới hạn!
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => window.dispatchEvent(new CustomEvent("open-feedback-modal"))}
+                      className="border-teal-500/40 text-teal-300 hover:bg-teal-500/10 text-xs h-8 px-3"
+                    >
+                      Góp ý nhận vé
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.push("/pricing")}
+                      className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10 text-xs h-8 px-3"
+                    >
+                      Nâng cấp VIP
+                    </Button>
+                  </div>
+                </div>
+              )
             )}
 
             <div className="flex flex-col gap-3">

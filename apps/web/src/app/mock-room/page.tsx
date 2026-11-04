@@ -91,7 +91,7 @@ export default function MockRoomLandingPage() {
     return 0;
   });
 
-  // Đồng bộ vé trải nghiệm tự động từ profile, localStorage hoặc API
+  // Đồng bộ vé trải nghiệm tự động từ profile hoặc localStorage
   useEffect(() => {
     const updateTickets = () => {
       const fromProfile = Number((user?.profile_data as any)?.mock_ai_trial_tickets);
@@ -106,24 +106,6 @@ export default function MockRoomLandingPage() {
 
     updateTickets();
     window.addEventListener("storage", updateTickets);
-
-    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-    if (token) {
-      import("@/lib/api").then(({ api }) => {
-        api
-          .get("/api/feedback/user-context")
-          .then((res) => {
-            const tickets = Number(res.data?.mock_ai_trial_tickets);
-            if (!isNaN(tickets) && tickets >= 0) {
-              setTrialTickets(tickets);
-              try {
-                localStorage.setItem("mock_ai_trial_tickets", String(tickets));
-              } catch {}
-            }
-          })
-          .catch(() => {});
-      });
-    }
 
     return () => {
       window.removeEventListener("storage", updateTickets);
@@ -290,7 +272,7 @@ export default function MockRoomLandingPage() {
                 {trialTickets > 0 && !isVip
                   ? `Bạn đang có ${trialTickets} vé trải nghiệm Mock Room AI miễn phí từ khảo sát. Nhấp để tham gia ngay!`
                   : hasPastSessions && !isVip
-                  ? "Bạn đã dùng hết vé trải nghiệm. Nhấp để xem lại các phiên phỏng vấn đã lưu."
+                  ? "Xem lại các phiên chất vấn đã lưu hoặc nâng cấp VIP để tạo phiên mới."
                   : "Luyện phòng chat với AI mentor — trò chuyện chất vấn tự do, không cần đặt lịch."}
               </p>
             </div>
