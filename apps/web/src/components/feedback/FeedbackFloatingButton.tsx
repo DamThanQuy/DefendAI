@@ -67,7 +67,7 @@ export function FeedbackFloatingButton() {
 
   return (
     <>
-      <div className="fixed bottom-20 right-5 z-[95] print:hidden">
+      <div className="fixed bottom-5 right-5 z-[95] print:hidden">
         <button
           onClick={() => setModalOpen(true)}
           className="group relative flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-teal-600 via-teal-500 to-cyan-500 hover:from-teal-500 hover:to-cyan-400 text-white rounded-full shadow-lg shadow-teal-500/25 hover:shadow-xl hover:shadow-teal-500/35 border border-white/20 transition-all duration-300 hover:scale-105 active:scale-95"
