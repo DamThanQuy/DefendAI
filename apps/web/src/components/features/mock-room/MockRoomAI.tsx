@@ -100,6 +100,35 @@ export default function MockRoomAI() {
     return plan === "vip" || plan === "pro";
   }, [user]);
 
+  // Số vé trải nghiệm Mock AI
+  const [trialTickets, setTrialTickets] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    const fromProfile = Number((user?.profile_data as any)?.mock_ai_trial_tickets);
+    if (!isNaN(fromProfile) && fromProfile >= 0) return fromProfile;
+    try {
+      const fromStorage = Number(localStorage.getItem("mock_ai_trial_tickets"));
+      if (!isNaN(fromStorage) && fromStorage >= 0) return fromStorage;
+    } catch {}
+    return 0;
+  });
+
+  useEffect(() => {
+    const updateTickets = () => {
+      const fromProfile = Number((user?.profile_data as any)?.mock_ai_trial_tickets);
+      let t = 0;
+      if (!isNaN(fromProfile) && fromProfile >= 0) t = fromProfile;
+      try {
+        const fromStorage = Number(localStorage.getItem("mock_ai_trial_tickets"));
+        if (!isNaN(fromStorage) && fromStorage >= 0) t = fromStorage;
+      } catch {}
+      setTrialTickets(t);
+    };
+
+    updateTickets();
+    window.addEventListener("storage", updateTickets);
+    return () => window.removeEventListener("storage", updateTickets);
+  }, [user]);
+
   const FREE_MAX_QUESTIONS = 5;
   // ── State ──────────────────────────────────────────────
   // Workflow steps — "upload" (tuỳ chọn) → "room" (chất vấn với Giám khảo AI)
@@ -275,11 +304,22 @@ export default function MockRoomAI() {
               title: (firstUser?.content || "Phiên chất vấn").slice(0, 100),
             }),
           });
-          if (!r.ok) throw new Error("Không tạo được phiên chat");
+          if (!r.ok) {
+            const err = await r.json().catch(() => ({}));
+            throw new Error(err.detail || "Không tạo được phiên chat");
+          }
           const created = await r.json();
           sid = created.id as number;
           setActiveSessionId(sid);
           activeSessionRef.current = sid;
+
+          if (created.remaining_tickets !== undefined && created.remaining_tickets !== null) {
+            setTrialTickets(created.remaining_tickets);
+            try {
+              localStorage.setItem("mock_ai_trial_tickets", String(created.remaining_tickets));
+              window.dispatchEvent(new Event("storage"));
+            } catch {}
+          }
         }
 
         const r = await fetch(`/api/mock-qa/sessions/${sid}`, {
@@ -314,13 +354,17 @@ export default function MockRoomAI() {
 
   // ── Bắt đầu phiên mới — không xoá dữ liệu cũ, chỉ reset phiên active ──
   const clearHistory = useCallback(async () => {
+    if (!isVip && trialTickets <= 0) {
+      alert("Bạn đã sử dụng hết vé trải nghiệm Mock AI. Không thể tạo thêm phiên mới. Vui lòng chọn phiên đã lưu hoặc nâng cấp VIP.");
+      return;
+    }
     setMessages([]);
     setActiveSessionId(null);
     activeSessionRef.current = null;
     stateRef.current = { messages: [], context: "" };
     // Danh sách các phiên cũ vẫn giữ nguyên để xem lại sau
     void fetchSessions();
-  }, [fetchSessions]);
+  }, [fetchSessions, isVip, trialTickets]);
 
   // ── Lấy nội dung text đã trích xuất của tài liệu được chọn ──
   const loadDocContext = useCallback(async (docId: number): Promise<string> => {
@@ -523,6 +567,10 @@ export default function MockRoomAI() {
 
   // ── Vào phòng chat MỚI (tài liệu là TUỲ CHỌN, không bắt buộc) ──
   const enterRoom = useCallback(async (useDoc: boolean) => {
+    if (!isVip && trialTickets <= 0) {
+      alert("Bạn đã sử dụng hết vé trải nghiệm Mock Room AI. Vui lòng chọn phiên đã lưu bên dưới để tiếp tục hoặc nâng cấp VIP.");
+      return;
+    }
 
     let context = "";
     if (useDoc && selectedDocId) {
@@ -573,7 +621,7 @@ export default function MockRoomAI() {
         { hidden: true }
       );
     }
-  }, [selectedDocId, studentDocs, uploadedFile, loadDocContext]);
+  }, [selectedDocId, studentDocs, uploadedFile, loadDocContext, isVip, trialTickets]);
 
   // ── Gọi Mentor AI (backend /api/mock-qa/chat) ──────────
   // Nhận thêm một lượt của sinh viên → gửi toàn bộ history + context tài liệu
@@ -1070,10 +1118,25 @@ export default function MockRoomAI() {
               })()}
             </div>
 
+            {/* Cảnh báo khi hết vé trải nghiệm */}
+            {!isVip && trialTickets <= 0 && (
+              <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                <span>⚠️ Bạn đã sử dụng hết vé trải nghiệm Mock AI. Hãy chọn phiên đã lưu bên dưới để tiếp tục hoặc nâng cấp VIP để tạo phiên mới.</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => router.push("/pricing")}
+                  className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10 text-xs h-8 px-3 shrink-0"
+                >
+                  Nâng cấp VIP
+                </Button>
+              </div>
+            )}
+
             <div className="flex flex-col gap-3">
               <Button
                 onClick={() => enterRoom(true)}
-                disabled={!selectedDocId || contextLoading}
+                disabled={!selectedDocId || contextLoading || (!isVip && trialTickets <= 0)}
                 className="w-full h-12 text-lg font-bold rounded-xl"
               >
                 {contextLoading ? (
@@ -1091,7 +1154,7 @@ export default function MockRoomAI() {
               <Button
                 variant="outline"
                 onClick={() => enterRoom(false)}
-                disabled={contextLoading}
+                disabled={contextLoading || (!isVip && trialTickets <= 0)}
                 className="w-full h-11 rounded-xl"
               >
                 Vào phòng hỏi tự do (không cần tài liệu)

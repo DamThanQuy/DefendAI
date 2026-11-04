@@ -30,6 +30,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select, delete as sa_delete
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -95,6 +96,7 @@ class SessionSummary(BaseModel):
     preview: str = ""
     created_at: datetime
     updated_at: datetime
+    remaining_tickets: Optional[int] = None
 
 
 class SessionListResponse(BaseModel):
@@ -379,6 +381,28 @@ async def create_mock_session(
     db: AsyncSession = Depends(get_db),
 ):
     """Tạo phiên chat mới (thay vì ghi đè toàn cục như PUT /history cũ)."""
+    vip = await is_vip_or_pro(user, db)
+    remaining_tickets: Optional[int] = None
+    if not vip:
+        profile = dict(user.profile_data or {})
+        raw_tickets = profile.get("mock_ai_trial_tickets", 0)
+        try:
+            tickets = int(raw_tickets)
+        except (ValueError, TypeError):
+            tickets = 0
+
+        if tickets <= 0:
+            raise HTTPException(
+                status_code=403,
+                detail="Bạn đã sử dụng hết vé trải nghiệm Mock Room AI. Vui lòng nâng cấp VIP để tiếp tục luyện tập.",
+            )
+
+        tickets -= 1
+        remaining_tickets = tickets
+        profile["mock_ai_trial_tickets"] = tickets
+        user.profile_data = profile
+        flag_modified(user, "profile_data")
+
     session = MockChatSession(
         user_id=user.id,
         document_id=body.document_id,
@@ -396,6 +420,7 @@ async def create_mock_session(
         preview="",
         created_at=session.created_at,
         updated_at=session.updated_at,
+        remaining_tickets=remaining_tickets,
     )
 
 

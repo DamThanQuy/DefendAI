@@ -61,6 +61,7 @@ export default function MockRoomLandingPage() {
   const [inviting, setInviting] = useState<Record<number, boolean>>({});
   // booking_id -> thông báo lỗi mời
   const [inviteError, setInviteError] = useState<Record<number, string>>({});
+  const [hasPastSessions, setHasPastSessions] = useState(false);
 
   const isStudent = hasRole("student") || (!hasRole("mentor") && !hasRole("admin"));
 
@@ -127,7 +128,7 @@ export default function MockRoomLandingPage() {
     };
   }, [user]);
 
-  const hasMockAIAccess = isVip || trialTickets > 0;
+  const hasMockAIAccess = isVip || trialTickets > 0 || hasPastSessions;
 
   const handleEnterMockAI = () => {
     if (!hasMockAIAccess) {
@@ -141,6 +142,14 @@ export default function MockRoomLandingPage() {
   async function load() {
     setLoading(true);
     try {
+      import("@/lib/api").then(({ api }) => {
+        api.get("/api/mock-qa/sessions").then((r) => {
+          if (Array.isArray(r.data?.items) && r.data.items.length > 0) {
+            setHasPastSessions(true);
+          }
+        }).catch(() => {});
+      });
+
       const res = await getMyBookings();
       const list = res.data;
       setBookings(list);
@@ -266,6 +275,10 @@ export default function MockRoomLandingPage() {
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-sm">
                     <Sparkles className="w-3 h-3" /> Có {trialTickets} vé trải nghiệm
                   </span>
+                ) : hasPastSessions ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-muted text-muted-foreground border border-border">
+                    Xem lại phiên đã lưu
+                  </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-accent to-orange-500 text-white">
                     <Crown className="w-3 h-3" /> VIP
@@ -275,6 +288,8 @@ export default function MockRoomLandingPage() {
               <p className="text-sm text-muted-foreground">
                 {trialTickets > 0 && !isVip
                   ? `Bạn đang có ${trialTickets} vé trải nghiệm Mock Room AI miễn phí từ khảo sát. Nhấp để tham gia ngay!`
+                  : hasPastSessions && !isVip
+                  ? "Bạn đã dùng hết vé trải nghiệm. Nhấp để xem lại các phiên phỏng vấn đã lưu."
                   : "Luyện phòng chat với AI mentor — trò chuyện chất vấn tự do, không cần đặt lịch."}
               </p>
             </div>
