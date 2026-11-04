@@ -33,6 +33,7 @@ import { Card } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { MarkdownMessage } from "@/components/features/workspace/MarkdownMessage";
 import { type MockMessage, extractContextSummary } from "@/lib/mock-ai-data";
+import { toast } from "sonner";
 import { ChunkedUploader } from "@/lib/chunked-upload";
 import { MAX_FILE_SIZE } from "@/lib/constants";
 
@@ -149,6 +150,7 @@ export default function MockRoomAI() {
   // Danh sách phiên chat đã lưu — xem lại / tiếp tục theo từng tài liệu
   const [sessions, setSessions] = useState<MockSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [hasLoadedSessions, setHasLoadedSessions] = useState(false);
   // Phiên đang active trong phòng (null = chưa có, sẽ tạo khi autosave)
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   // Modal xem lại 1 phiên cũ (chỉ đọc)
@@ -250,12 +252,22 @@ export default function MockRoomAI() {
       // tải thất bại không chặn UI
     } finally {
       setSessionsLoading(false);
+      setHasLoadedSessions(true);
     }
   }, []);
 
   useEffect(() => {
     fetchSessions();
   }, [fetchSessions]);
+
+  // Chặn người dùng Free không có vé trải nghiệm và không có phiên đã lưu truy cập thẳng /mock-room-ai
+  useEffect(() => {
+    if (!hasLoadedSessions || !user) return;
+    if (!isVip && trialTickets <= 0 && sessions.length === 0) {
+      toast.error("Phòng Mock AI chỉ dành cho thành viên VIP hoặc người dùng có vé trải nghiệm. Hãy nâng cấp hoặc làm khảo sát để nhận vé!");
+      router.push("/mock-room");
+    }
+  }, [hasLoadedSessions, user, isVip, trialTickets, sessions.length, router]);
 
   // Refresh danh sách phiên mỗi khi quay về màn hình chọn tài liệu
   useEffect(() => {

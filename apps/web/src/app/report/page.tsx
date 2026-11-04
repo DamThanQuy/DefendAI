@@ -148,7 +148,7 @@ export default function ReportPage() {
             </p>
           </div>
           <Button asChild>
-            <Link href="/mock-room-ai" className="gap-2">
+            <Link href="/mock-room" className="gap-2">
               <Sparkles className="h-4 w-4" />
               Luyện Mock AI
             </Link>
@@ -218,7 +218,7 @@ export default function ReportPage() {
                     nhận nhận xét theo tiêu chí chấm.
                   </p>
                   <Button asChild size="sm">
-                    <Link href="/mock-room-ai">Vào phòng Mock AI</Link>
+                    <Link href="/mock-room">Vào phòng Mock AI</Link>
                   </Button>
                 </>
               )}

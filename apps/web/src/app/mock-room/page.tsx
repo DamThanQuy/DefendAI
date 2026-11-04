@@ -11,6 +11,7 @@ import {
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import {
   Loader2,
   MonitorPlay,
@@ -62,6 +63,7 @@ export default function MockRoomLandingPage() {
   // booking_id -> thông báo lỗi mời
   const [inviteError, setInviteError] = useState<Record<number, string>>({});
   const [hasPastSessions, setHasPastSessions] = useState(false);
+  const [showVipModal, setShowVipModal] = useState(false);
 
   const isStudent = hasRole("student") || (!hasRole("mentor") && !hasRole("admin"));
 
@@ -132,8 +134,7 @@ export default function MockRoomLandingPage() {
 
   const handleEnterMockAI = () => {
     if (!hasMockAIAccess) {
-      alert("Phòng Mock AI chỉ dành cho thành viên VIP hoặc người dùng có vé trải nghiệm. Hãy nâng cấp hoặc làm khảo sát để nhận vé!");
-      router.push("/checkout?plan=vip&cycle=monthly");
+      setShowVipModal(true);
       return;
     }
     router.push("/mock-room-ai");
@@ -451,6 +452,29 @@ export default function MockRoomLandingPage() {
           Ghi chú: Mentor truy cập phòng từ mục &quot;Quản lý lịch&quot; hoặc &quot;Lịch sử Mentor&quot;.
         </p>
       )}
+
+      <ConfirmModal
+        open={showVipModal}
+        tone="warning"
+        title="Yêu cầu thành viên VIP"
+        description={
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              Phòng Mock AI phản biện trực tuyến dành riêng cho thành viên <strong>VIP</strong> hoặc người dùng có <strong>vé trải nghiệm</strong>.
+            </p>
+            <p className="text-xs text-amber-500 font-medium">
+              💡 Nâng cấp gói VIP để mở khóa không giới hạn, hoặc tham gia khảo sát góp ý để nhận vé trải nghiệm miễn phí!
+            </p>
+          </div>
+        }
+        confirmLabel="Nâng cấp gói VIP"
+        cancelLabel="Để sau"
+        onConfirm={() => {
+          setShowVipModal(false);
+          router.push("/checkout?plan=vip&cycle=monthly");
+        }}
+        onCancel={() => setShowVipModal(false)}
+      />
     </div>
   );
 }

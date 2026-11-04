@@ -168,10 +168,27 @@ async def mock_ai_chat(
     if not req.messages:
         raise HTTPException(status_code=400, detail="Danh sách tin nhắn không được để trống")
 
-    # Giới hạn 5 câu hỏi / lượt trả lời đối với Free user (dùng vé trải nghiệm)
-    student_turns = sum(1 for m in req.messages if m.role == "user" and m.content.strip())
-    if student_turns > 5:
-        if not await is_vip_or_pro(user, db):
+    # Kiểm tra quyền truy cập: VIP hoặc có vé trải nghiệm hoặc có phiên đã lưu
+    vip = await is_vip_or_pro(user, db)
+    if not vip:
+        profile = dict(user.profile_data or {})
+        try:
+            tickets = int(profile.get("mock_ai_trial_tickets", 0))
+        except (ValueError, TypeError):
+            tickets = 0
+
+        if tickets <= 0:
+            stmt = select(MockChatSession.id).where(MockChatSession.user_id == user.id).limit(1)
+            has_session = (await db.execute(stmt)).scalar_one_or_none() is not None
+            if not has_session:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Phòng Mock AI chỉ dành cho thành viên VIP hoặc người dùng có vé trải nghiệm. Hãy nâng cấp VIP để trải nghiệm!",
+                )
+
+        # Giới hạn 5 câu hỏi / lượt trả lời đối với Free user (dùng vé trải nghiệm)
+        student_turns = sum(1 for m in req.messages if m.role == "user" and m.content.strip())
+        if student_turns > 5:
             raise HTTPException(
                 status_code=403,
                 detail="Tài khoản dùng thử đã đạt giới hạn 5 câu hỏi trong phiên Mock AI. Vui lòng bấm 'Kết thúc & nhận báo cáo' để nhận đánh giá hoặc nâng cấp VIP để tiếp tục.",
