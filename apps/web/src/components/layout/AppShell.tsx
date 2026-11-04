@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { isPublicPath } from "@/lib/shell";
 import { UserMenu } from "./UserMenu";
 import { HeaderUploadIndicator } from "./HeaderUploadIndicator";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
  * Shell cho các trang "app" (sau khi đăng nhập): sidebar trái + top bar.
@@ -251,6 +252,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center gap-2 ml-auto">
             <HeaderUploadIndicator />
+            <ThemeToggle />
             <Button
               variant="ghost"
               size="icon"

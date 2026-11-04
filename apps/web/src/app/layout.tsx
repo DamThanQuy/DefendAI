@@ -9,7 +9,6 @@ import { UploadProvider } from "@/contexts/UploadContext";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { TopProgress } from "@/components/common/TopProgress";
 import { ThemeProvider } from "@/components/theme-provider";
-import { FloatingThemeToggle } from "@/components/theme-toggle-floating";
 import { FeedbackFloatingButton } from "@/components/feedback/FeedbackFloatingButton";
 import { ProductTourGate } from "@/components/tour/ProductTourGate";
 import { Toaster } from "sonner";
@@ -49,7 +48,6 @@ export default function RootLayout({
               </AuthGate>
             </main>
             <Footer />
-            <FloatingThemeToggle />
             <FeedbackFloatingButton />
             <ProductTourGate />
             <Toaster position="top-right" richColors />
