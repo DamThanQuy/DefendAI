@@ -7,6 +7,7 @@ import { Footer } from "@/components/layout/Footer";
 import { AppShell } from "@/components/layout/AppShell";
 import { UploadProvider } from "@/contexts/UploadContext";
 import { AuthGate } from "@/components/auth/AuthGate";
+import { AuthProvider } from "@/providers/AuthProvider";
 import { TopProgress } from "@/components/common/TopProgress";
 import { ThemeProvider } from "@/components/theme-provider";
 import { FeedbackFloatingButton } from "@/components/feedback/FeedbackFloatingButton";
@@ -38,19 +39,21 @@ export default function RootLayout({
       <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}>
         <body className="font-sans min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           <ThemeProvider defaultTheme="dark" storageKey="defendai-theme">
-            <TopProgress />
-            <Navbar />
-            <main className="flex-1">
-              <AuthGate>
-                <UploadProvider>
-                  <AppShell>{children}</AppShell>
-                </UploadProvider>
-              </AuthGate>
-            </main>
-            <Footer />
-            <FeedbackFloatingButton />
-            <ProductTourGate />
-            <Toaster position="top-right" richColors />
+            <AuthProvider>
+              <TopProgress />
+              <Navbar />
+              <main className="flex-1">
+                <AuthGate>
+                  <UploadProvider>
+                    <AppShell>{children}</AppShell>
+                  </UploadProvider>
+                </AuthGate>
+              </main>
+              <Footer />
+              <FeedbackFloatingButton />
+              <ProductTourGate />
+              <Toaster position="top-right" richColors />
+            </AuthProvider>
           </ThemeProvider>
         </body>
       </GoogleOAuthProvider>

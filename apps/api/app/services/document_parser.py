@@ -321,7 +321,7 @@ async def _extract_zip_streaming(storage_key: str) -> str:
             total += len(raw)
             if total > MAX_ARCHIVE_TOTAL_TEXT:
                 break
-            text = _extract_member_text(raw, name, ext)
+            text = await asyncio.to_thread(_extract_member_text, raw, name, ext)
             if text:
                 parts.append(f"### {name}\n{text}")
         return "\n\n".join(parts).strip()
@@ -450,10 +450,10 @@ async def extract_text(document) -> ParseResult:
                 # tài liệu), chỉ gửi ảnh RASTER có caption lên vision theo batch.
                 # Ảnh vector (EMF/WMF) và ảnh trùng được loại; ảnh không caption
                 # vẫn vào text qua inventory summary nhưng không tốn token mô tả.
-                native_text = _extract_office_text(data, document.doc_type)
+                native_text = await asyncio.to_thread(_extract_office_text, data, document.doc_type)
                 kind = "pptx" if document.doc_type == DocType.PPTX else "docx"
-                inventory = build_figure_inventory(data, kind)
-                images = _inventory_images(data, inventory)
+                inventory = await asyncio.to_thread(build_figure_inventory, data, kind)
+                images = await asyncio.to_thread(_inventory_images, data, inventory)
                 if inventory.total_figures:
                     native_text = (
                         native_text
@@ -505,7 +505,10 @@ async def extract_text(document) -> ParseResult:
 
     file_io = BytesIO(data)
     try:
-        text = extractor(file_io)
+        if asyncio.iscoroutinefunction(extractor):
+            text = await extractor(file_io)
+        else:
+            text = await asyncio.to_thread(extractor, file_io)
     except DocumentParserError:
         raise
     except Exception as exc:

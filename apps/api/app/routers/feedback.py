@@ -25,6 +25,7 @@ from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.workspace_question import WorkspaceQuestion
 from app.models.workspace_chat import WorkspaceChat
+from app.models.message import Message
 from app.schemas.feedback import (
     AdoptionFunnelStats,
     CSATStats,
@@ -98,7 +99,14 @@ async def scan_user_features(user: User, db: AsyncSession) -> tuple[List[str], D
                 .where(Workspace.user_id == user.id)
             )
         ).scalar() or 0
-        counts["workspaces"] = q_cnt + chat_cnt
+        msg_cnt = (
+            await db.execute(
+                select(func.count(Message.id))
+                .join(Workspace, Message.workspace_id == Workspace.id)
+                .where(Workspace.user_id == user.id)
+            )
+        ).scalar() or 0
+        counts["workspaces"] = q_cnt + chat_cnt + msg_cnt
     except Exception as exc:
         await db.rollback()
         logger.warning("Error scanning workspace active interactions for user %s: %s", user.id, exc)

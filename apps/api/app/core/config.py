@@ -170,6 +170,10 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/defense_db"
+    db_pool_size: int = 20
+    db_max_overflow: int = 10
+    db_pool_timeout: float = 30.0
+    db_pool_recycle: int = 1800
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
