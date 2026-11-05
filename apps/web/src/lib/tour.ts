@@ -7,8 +7,7 @@
  * is_new_user nên không thể phân biệt new/existing từ login/Google.
  *
  * Persistence: 2 key localStorage per-userId (clearSession trong lib/auth.ts
- * chỉ xoá access_token/refresh_token/user nên 2 key này sống sót qua
- * đăng xuất/đăng nhập lại):
+ * không xoá 2 key này nên chúng sống sót qua đăng xuất/đăng nhập lại):
  * - `defendai_tour_pending_<userId>` — đặt lúc signup, xoá khi tour đóng.
  * - `defendai_tour_done_<userId>` — ghi ở cả hoàn thành lẫn skip.
  * Gate chỉ mở tour khi pending && !done → user cũ (không bao giờ có pending)

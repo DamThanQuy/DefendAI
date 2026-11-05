@@ -6,6 +6,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -86,6 +87,17 @@ function getAuthSnapshot(): AuthUser | null {
 
 const getServerSnapshot = (): AuthUser | null => null;
 
+/** Cờ gói đi theo tài khoản: không có gói active thì phải xoá, nếu không
+ *  tài khoản mới trên cùng trình duyệt sẽ thừa hưởng gói của người dùng trước. */
+function syncMembershipFlag(profileData: AuthUser["profile_data"]) {
+  const membership = profileData?.membership as { status?: string; plan?: string } | undefined;
+  if (membership?.status === "active" && membership.plan) {
+    localStorage.setItem("membership_plan", membership.plan);
+  } else {
+    localStorage.removeItem("membership_plan");
+  }
+}
+
 const emptySubscribe = (notify: () => void) => {
   if (typeof window === "undefined") return () => {};
   window.addEventListener("storage", notify);
@@ -96,6 +108,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const cachedUser = useSyncExternalStore(emptySubscribe, getAuthSnapshot, getServerSnapshot);
+  // Tài khoản mà các cờ trong localStorage đang đi theo.
+  const flagsOwnerId = useRef<AuthUser["id"]>();
 
   const fetchUser = useCallback(async () => {
     const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
@@ -107,6 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const cached = readCachedUser();
     if (cached) {
+      flagsOwnerId.current = cached.id;
       setUser(cached);
     }
 
@@ -128,10 +143,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
       setUser(synced);
       localStorage.setItem("user", JSON.stringify(synced));
-      const plan = (me.profile_data as any)?.membership?.plan;
-      if (plan) {
-        localStorage.setItem("membership_plan", plan);
-      }
+      flagsOwnerId.current = synced.id;
+      syncMembershipFlag(synced.profile_data);
       invalidateCache();
     } catch (error: any) {
       if (error?.response?.status === 401) {
@@ -162,11 +175,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const onStorage = () => {
       invalidateCache();
       if (!localStorage.getItem("access_token")) {
+        flagsOwnerId.current = undefined;
         setUser(null);
         setLoading(false);
       } else {
         const fresh = readCachedUser();
-        if (fresh) setUser(fresh);
+        if (fresh) {
+          // Đăng nhập / đăng ký chuyển trang không reload nên không gọi lại /me:
+          // đổi tài khoản thì phải đồng bộ cờ ngay. Cùng tài khoản thì giữ nguyên,
+          // vì cache có thể cũ hơn cờ (vd vừa thanh toán xong).
+          if (fresh.id !== flagsOwnerId.current) {
+            flagsOwnerId.current = fresh.id;
+            syncMembershipFlag(fresh.profile_data);
+            localStorage.removeItem("mock_ai_trial_tickets");
+          }
+          setUser(fresh);
+        }
       }
     };
     window.addEventListener("storage", onStorage);

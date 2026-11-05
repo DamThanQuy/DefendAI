@@ -7,6 +7,11 @@ import { CreditCard, Crown, Zap, Sparkles, ArrowRight, ArrowLeft, Check } from "
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getMembershipPlan, type MembershipPlan } from "@/lib/mock-ai-data";
+import { PLANS } from "@/app/pricing/pricing-data";
+
+const FREE_BENEFITS = (PLANS.find((plan) => plan.id === "free")?.features ?? [])
+  .filter((feature) => feature.included)
+  .map((feature) => feature.label);
 
 const PLAN_INFO: Record<MembershipPlan, { name: string; color: string; icon: React.ReactNode; nextPlan: "premium" | "vip" }> = {
   free: { name: "Free", color: "text-muted-foreground", icon: <Sparkles className="w-5 h-5" />, nextPlan: "premium" },
@@ -67,12 +72,15 @@ export default function BillingPage() {
     setLocalPlan(getMembershipPlan());
   }, []);
 
-  const effectivePlan: MembershipPlan =
-    (subscription?.plan_id?.toLowerCase().includes("vip") || subscription?.plan_name?.toLowerCase().includes("vip") || localPlan === "vip")
-      ? "vip"
-      : (subscription?.plan_id?.toLowerCase().includes("premium") || subscription?.plan_name?.toLowerCase().includes("premium") || localPlan === "premium")
-      ? "premium"
-      : "free";
+  // Server là nguồn chân lý; cờ localStorage chỉ dùng khi chưa lấy được account từ API.
+  const serverPlan = `${subscription?.plan_id ?? ""} ${subscription?.plan_name ?? ""}`.toLowerCase();
+  const effectivePlan: MembershipPlan = !account
+    ? localPlan
+    : serverPlan.includes("vip")
+    ? "vip"
+    : serverPlan.includes("premium")
+    ? "premium"
+    : "free";
 
   const planInfo = PLAN_INFO[effectivePlan];
   const isVip = effectivePlan === "vip";
@@ -156,7 +164,7 @@ export default function BillingPage() {
           Quyền lợi của gói {displayPlanName}
         </h3>
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-          {(subscription?.features?.filter((feature) => feature.included).map((feature) => feature.label) || [
+          {(subscription?.features?.filter((feature) => feature.included).map((feature) => feature.label) || (effectivePlan === "free" ? FREE_BENEFITS : [
             "Upload không giới hạn đồ án",
             "Mock defense không giới hạn",
             "Phân tích code chuyên sâu",
@@ -166,7 +174,7 @@ export default function BillingPage() {
             ...(isVip
               ? ["Phòng Mock AI trực tuyến 24/7", "Hội đồng AI 3 chuyên gia"]
               : []),
-          ]).map((b) => (
+          ])).map((b) => (
             <li
               key={b}
               className="flex items-center gap-2 text-muted-foreground"
