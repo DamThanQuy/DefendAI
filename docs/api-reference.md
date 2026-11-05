@@ -166,6 +166,11 @@ Token obtained from:
 - `POST /api/auth/register`
 - `GET /api/auth/google` (OAuth)
 
+Password reset (no token required):
+- `POST /api/auth/forgot-password` — body `{ "email": "..." }`. Emails a 6-digit code valid for 10 minutes. Same response whether or not the email exists, including `resend_after_seconds`; `503` if `SMTP_*` is not configured.
+- `POST /api/auth/verify-reset-otp` — body `{ "email": "...", "otp": "123456" }`. Checks the code without using it and extends it by 10 minutes, so the user has time to type a new password. `400` with one generic message if the code is wrong, used or expired, or the email is unknown. 5 wrong attempts cancel the code; wrong attempts here and on `reset-password` count together.
+- `POST /api/auth/reset-password` — body `{ "email": "...", "otp": "123456", "new_password": "..." }`. Checks the code again and uses it, with the same `400` as above. Revokes all refresh tokens of the account.
+
 ---
 
 ## 🛡️ Error Responses
