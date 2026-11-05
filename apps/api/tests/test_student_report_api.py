@@ -238,8 +238,54 @@ async def test_admin_scores_make_report_completed(client: AsyncClient, users):
     )
     assert put.status_code == 200
 
-    detail = (await client.get(f"/api/reports/{report_id}", headers=_auth(owner, "student"))).json()
+    detail = (await client.get(f"/api/reports/{report_id}", headers=_auth(admin, "admin"))).json()
     assert detail["status"] == "completed"
+    assert detail["rubric_locked"] is False
+    srs = next(i for i in detail["scores"]["items"]["TDA"] if i["code"] == "srs")
+    assert srs["mark"] == 8.0
+
+
+@pytest.mark.asyncio
+async def test_free_student_sees_the_result_but_not_rubric_details(client: AsyncClient, users):
+    owner, admin = users("student"), users("admin")
+    report_id, meeting_id = _create_report(owner)
+    await client.put(
+        f"/api/scoring/meetings/{meeting_id}/scores",
+        headers=_auth(admin, "admin"),
+        json={"scores": [{"group": "TDA", "item_code": "srs", "mark": 8, "comment": "Ổn"}]},
+    )
+
+    detail = (await client.get(f"/api/reports/{report_id}", headers=_auth(owner, "student"))).json()
+
+    assert detail["rubric_locked"] is True
+    assert detail["status"] == "completed"
+    assert detail["scores"]["official"]["oga"] is None
+    assert detail["scores"]["official"]["tda"] is None
+    srs = next(i for i in detail["scores"]["items"]["TDA"] if i["code"] == "srs")
+    assert (srs["mark"], srs["ai_mark"], srs["reviews"]) == (None, None, [])
+    summary = await client.get(f"/api/scoring/meetings/{meeting_id}/summary", headers=_auth(owner, "student"))
+    assert summary.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_premium_student_sees_rubric_details(client: AsyncClient, users):
+    owner, admin = users("student"), users("admin")
+    report_id, meeting_id = _create_report(owner)
+    await client.put(
+        f"/api/scoring/meetings/{meeting_id}/scores",
+        headers=_auth(admin, "admin"),
+        json={"scores": [{"group": "TDA", "item_code": "srs", "mark": 8}]},
+    )
+    with _conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE users SET profile_data = %s WHERE id = %s",
+            (json.dumps({"membership": {"plan": "premium", "status": "active", "expires_at": "2099-01-01T00:00:00"}}), owner),
+        )
+        conn.commit()
+
+    detail = (await client.get(f"/api/reports/{report_id}", headers=_auth(owner, "student"))).json()
+
+    assert detail["rubric_locked"] is False
     srs = next(i for i in detail["scores"]["items"]["TDA"] if i["code"] == "srs")
     assert srs["mark"] == 8.0
 

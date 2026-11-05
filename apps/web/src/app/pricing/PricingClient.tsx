@@ -21,9 +21,12 @@ import {
   Plan,
   formatVND,
   planIcon,
+  yearlyDiscountPercent,
 } from "./pricing-data";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchPlans } from "./pricing-api";
+
+type ActivePlan = { plan_id?: string; plan_name?: string; cycle?: BillingCycle | null };
 
 export default function PricingClient() {
   const router = useRouter();
@@ -31,7 +34,7 @@ export default function PricingClient() {
   const [plans, setPlans] = useState<Plan[]>(PLANS);
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [activePlanId, setActivePlanId] = useState<string | null>(null);
+  const [activePlan, setActivePlan] = useState<ActivePlan | null>(null);
 
   useEffect(() => {
     fetchPlans().then(setPlans).catch(() => {
@@ -40,7 +43,7 @@ export default function PricingClient() {
     if (isAuthed) {
       fetch("/api/payment/account", { headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` }, cache: "no-store" })
         .then((response) => response.ok ? response.json() : null)
-        .then((data) => setActivePlanId(data?.subscription?.plan_id || null))
+        .then((data) => setActivePlan(data?.subscription || null))
         .catch(() => undefined);
     }
   }, [isAuthed]);
@@ -56,6 +59,8 @@ export default function PricingClient() {
   if (loading || (isAuthed && !isStudentOnly)) {
     return null;
   }
+
+  const yearlySaving = Math.max(0, ...plans.map(yearlyDiscountPercent));
 
   return (
     <div className="relative overflow-hidden">
@@ -111,9 +116,17 @@ export default function PricingClient() {
               }`}
             >
               Theo năm
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 text-[10px] font-bold">
-                -17%
-              </span>
+              {yearlySaving > 0 && (
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    cycle === "yearly"
+                      ? "bg-primary-foreground/20 text-primary-foreground"
+                      : "bg-emerald-500/20 text-emerald-500"
+                  }`}
+                >
+                  -{yearlySaving}%
+                </span>
+              )}
             </button>
           </div>
         </motion.div>
@@ -121,7 +134,7 @@ export default function PricingClient() {
         {/* Plans */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 mt-14 max-w-6xl mx-auto">
           {plans.map((plan, idx) => (
-            <PlanCard key={plan.id} plan={plan} cycle={cycle} idx={idx} activePlanId={activePlanId} />
+            <PlanCard key={plan.id} plan={plan} cycle={cycle} idx={idx} activePlan={activePlan} />
           ))}
         </div>
 
@@ -250,16 +263,20 @@ function PlanCard({
   plan,
   cycle,
   idx,
-  activePlanId,
+  activePlan,
 }: {
   plan: Plan;
   cycle: BillingCycle;
   idx: number;
-  activePlanId: string | null;
+  activePlan: ActivePlan | null;
 }) {
   const price = cycle === "monthly" ? plan.monthly : plan.yearly;
-  const perMonth = cycle === "yearly" ? Math.round(plan.yearly / 12) : plan.monthly;
-  const isActive = activePlanId === plan.id;
+  // Membership cũ gọi gói bằng "vip" / "premium" thay vì mã gói nên so thêm theo tên.
+  const isCurrentPlan = !!activePlan && (activePlan.plan_id === plan.id || activePlan.plan_name === plan.name);
+  // Đang trả theo tháng thì vẫn mua được gói năm; đang trả theo năm thì tab tháng không mời mua xuống.
+  const canSwitchToYearly = isCurrentPlan && activePlan?.cycle === "monthly" && cycle === "yearly";
+  const isActive = isCurrentPlan && !canSwitchToYearly;
+  const activeLabel = activePlan?.cycle === "yearly" && cycle === "monthly" ? "Đang dùng gói năm" : "Đang sử dụng";
   const checkoutHref = plan.monthly === 0 ? "/profile" : `/checkout?plan=${encodeURIComponent(plan.id)}&cycle=${cycle}`;
 
   return (
@@ -312,19 +329,24 @@ function PlanCard({
             </div>
           ) : (
             <div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-5xl font-black font-serif">
-                  {formatVND(perMonth)}
+              <div className="flex flex-wrap items-baseline gap-x-1">
+                <span data-testid="plan-price" className="text-4xl md:text-2xl lg:text-4xl xl:text-5xl font-black font-serif">
+                  {formatVND(price)}
                 </span>
-                <span className="text-muted-foreground text-sm">/tháng</span>
+                <span className="text-muted-foreground text-sm">
+                  {cycle === "yearly" ? "/năm" : "/tháng"}
+                </span>
               </div>
-              <div className="text-xs text-muted-foreground mt-2 h-4">
+              {/* Thẻ hẹp thì dòng này xuống 2 hàng: chừa sẵn chỗ để nút của các thẻ vẫn thẳng hàng. */}
+              <div className="text-xs text-muted-foreground mt-2 min-h-4 md:min-h-8 xl:min-h-4">
                 {cycle === "yearly" ? (
                   <>
-                    Thanh toán {formatVND(price)} / năm
-                    <span className="ml-2 line-through opacity-50">
-                      {formatVND(plan.monthly * 12)}
-                    </span>
+                    Tương đương {formatVND(Math.round(price / 12))} / tháng
+                    {plan.monthly * 12 > price && (
+                      <span className="ml-2 line-through opacity-50 whitespace-nowrap">
+                        {formatVND(plan.monthly * 12)}
+                      </span>
+                    )}
                   </>
                 ) : (
                   <>Thanh toán {formatVND(price)} / tháng</>
@@ -348,7 +370,7 @@ function PlanCard({
             }`}
             variant={plan.special || plan.featured || plan.id === "vip" ? "default" : "outline"}
           >
-            {isActive ? "Đang sử dụng" : plan.cta}
+            {isActive ? activeLabel : canSwitchToYearly ? "Chuyển sang gói năm" : plan.cta}
             {!isActive && <ArrowRight className="w-4 h-4 ml-2" />}
           </Button>
         </Link>

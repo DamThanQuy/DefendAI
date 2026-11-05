@@ -333,6 +333,20 @@ def summarize_scores(rows: Iterable[Any], rubric_cfg: dict[str, Any]) -> dict[st
     }
 
 
+def hide_rubric_details(scores: dict[str, Any]) -> dict[str, Any]:
+    """Bản cho gói chưa có "đánh giá theo rubric chi tiết": còn điểm tổng, ẩn điểm từng hạng mục."""
+    official = scores["official"]
+    return {
+        **scores,
+        "official": {**official, "oga": None, "tda": None} if official else None,
+        "ai": None,
+        "items": {
+            group: [{**item, "mark": None, "ai_mark": None, "reviews": []} for item in items]
+            for group, items in scores["items"].items()
+        },
+    }
+
+
 # ── Trạng thái & kết luận ───────────────────────────────────────────────────
 
 def effective_generation_status(report: Any, now: Optional[datetime] = None) -> str:

@@ -32,10 +32,14 @@ import {
 } from "./payment-data";
 import { fetchPlans } from "@/app/pricing/pricing-api";
 import { PLANS } from "@/app/pricing/pricing-data";
+import { detailToMessage } from "@/lib/auth-form";
+import { parseApiDate } from "@/lib/datetime";
 import { setMembershipPlan } from "@/lib/mock-ai-data";
 import { toast } from "sonner";
 
 type CheckoutPlan = { id: string; name: string; monthly: number; yearly: number };
+
+type CurrentPlan = { plan_id?: string; plan_name?: string; expires_at?: string };
 
 type OrderResponse = {
   success: boolean;
@@ -50,21 +54,43 @@ type OrderResponse = {
   bin?: string;
   status: string;
   isSandbox?: boolean;
+  /** `id` là tên gói lưu trong membership ("vip", "premium" hoặc mã gói tự tạo). */
+  plan?: { id: string; name: string; monthly?: number; yearly?: number };
 };
+
+// Link cũ và nút nâng cấp gọi gói bằng tên thay vì mã gói.
+const PLAN_ALIASES: Record<string, string> = { free: "100001", premium: "100002", vip: "100003" };
+
+function findPlan<T extends { id: string; name: string }>(plans: T[], requested: string) {
+  const key = requested.toLowerCase();
+  return plans.find(
+    (plan) =>
+      plan.id.toLowerCase() === key ||
+      plan.id === PLAN_ALIASES[key] ||
+      plan.name.toLowerCase() === key
+  );
+}
+
+function toCheckoutPlan({ id, name, monthly, yearly }: CheckoutPlan): CheckoutPlan {
+  return { id, name, monthly, yearly };
+}
 
 export default function CheckoutClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const planId = searchParams.get("plan") || "premium";
-  const cycle = (searchParams.get("cycle") || "monthly") as "monthly" | "yearly";
+  const cycle = searchParams.get("cycle") === "yearly" ? "yearly" : "monthly";
 
   const [plan, setPlan] = useState<CheckoutPlan | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<CurrentPlan | null>(null);
+  const [planNotFound, setPlanNotFound] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethodId>("payos");
   const [isCreatingOrder, setIsCreatingOrder] = useState(true);
   const [isConfirming, setIsConfirming] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // PayOS Order details
   const [orderData, setOrderData] = useState<OrderResponse | null>(null);
@@ -72,61 +98,28 @@ export default function CheckoutClient() {
 
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch plan info with fallback
+  // Giá lấy từ bảng giá của hệ thống. Bảng giá tĩnh chỉ để hiển thị khi API lỗi:
+  // số tiền phải trả luôn do backend quyết định lúc tạo đơn.
   useEffect(() => {
-    const rawId = (planId || "").toLowerCase();
-    const isVip = rawId.includes("vip") || rawId === "100003";
-    const isFree = rawId.includes("free") || rawId === "100001";
-    const defaultStatic = isVip
-      ? (PLANS.find((p) => p.id === "vip") || { id: "vip", name: "VIP", monthly: 199000, yearly: 1990000 })
-      : isFree
-      ? (PLANS.find((p) => p.id === "free") || { id: "free", name: "Free", monthly: 0, yearly: 0 })
-      : (PLANS.find((p) => p.id === "premium") || { id: "premium", name: "Premium", monthly: 99000, yearly: 990000 });
-
-    const staticPlan =
-      PLANS.find(
-        (p) =>
-          p.id.toLowerCase() === rawId ||
-          p.name.toLowerCase() === rawId ||
-          (isVip && p.id === "vip") ||
-          (isFree && p.id === "free")
-      ) || defaultStatic;
-
+    setPlanNotFound(false);
+    const showPlan = (selected: CheckoutPlan | undefined) => {
+      if (selected) setPlan(toCheckoutPlan(selected));
+      else setPlanNotFound(true);
+    };
     fetchPlans()
-      .then((plans) => {
-        const selected = plans.find(
-          (item) =>
-            item.id.toLowerCase() === rawId ||
-            item.name.toLowerCase() === rawId ||
-            (isVip && (item.id === "100003" || item.id === "vip" || item.name.toLowerCase().includes("vip"))) ||
-            (isFree && (item.id === "100001" || item.id === "free" || item.name.toLowerCase().includes("free"))) ||
-            (!isVip && !isFree && (item.id === "100002" || item.id === "premium" || item.name.toLowerCase().includes("premium")))
-        );
-        if (selected) {
-          setPlan({
-            id: isVip ? "vip" : (isFree ? "free" : selected.id),
-            name: selected.name,
-            monthly: isVip ? 199000 : (isFree ? 0 : (selected.monthly || 99000)),
-            yearly: isVip ? 1990000 : (isFree ? 0 : (selected.yearly || 990000)),
-          });
-        } else {
-          setPlan({
-            id: staticPlan.id,
-            name: staticPlan.name,
-            monthly: staticPlan.monthly,
-            yearly: staticPlan.yearly,
-          });
-        }
-      })
-      .catch(() => {
-        setPlan({
-          id: staticPlan.id,
-          name: staticPlan.name,
-          monthly: staticPlan.monthly,
-          yearly: staticPlan.yearly,
-        });
-      });
+      .then((plans) => showPlan(findPlan(plans, planId)))
+      .catch(() => showPlan(findPlan(PLANS, planId)));
   }, [planId]);
+
+  // Gói đang dùng quyết định hạn sử dụng của gói mới.
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+    fetch("/api/payment/account", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => setCurrentPlan(data?.subscription || null))
+      .catch(() => undefined);
+  }, []);
 
   // Create payment order via API
   useEffect(() => {
@@ -135,14 +128,9 @@ export default function CheckoutClient() {
     let isMounted = true;
     setIsCreatingOrder(true);
     setErrorMsg("");
+    setOrderData(null);
 
     const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-    const normalizedPlanId =
-      plan.name.toLowerCase() === "vip" || plan.id === "100003" || plan.id === "vip"
-        ? "vip"
-        : plan.name.toLowerCase() === "premium" || plan.id === "100002" || plan.id === "premium"
-        ? "premium"
-        : plan.id;
 
     fetch("/api/payment/create-order", {
       method: "POST",
@@ -151,7 +139,7 @@ export default function CheckoutClient() {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
-        plan_id: normalizedPlanId,
+        plan_id: plan.id,
         cycle: cycle,
         method: selectedMethod,
       }),
@@ -159,19 +147,19 @@ export default function CheckoutClient() {
       .then(async (res) => {
         const data = await res.json();
         if (isMounted) {
-          if (data.orderCode) {
+          if (res.ok && data.orderCode) {
             setOrderData(data);
             setPaymentStatus((data.status as any) || "PENDING");
-          } else if (data.status === "PAID") {
+          } else if (res.ok && data.status === "PAID") {
             handlePaymentSuccess(data.orderCode || 0);
           } else {
-            setErrorMsg(data.message || data.error || "Không thể tạo mã thanh toán.");
+            setErrorMsg(detailToMessage(data.detail ?? data.message ?? data.error, "Không thể tạo mã thanh toán."));
           }
         }
       })
-      .catch((err) => {
+      .catch(() => {
         if (isMounted) {
-          setErrorMsg("Lỗi kết nối khi tạo đơn hàng. Đang sử dụng chế độ dự phòng.");
+          setErrorMsg("Lỗi kết nối khi tạo đơn hàng. Vui lòng thử lại.");
         }
       })
       .finally(() => {
@@ -181,7 +169,7 @@ export default function CheckoutClient() {
     return () => {
       isMounted = false;
     };
-  }, [plan, cycle, selectedMethod]);
+  }, [plan, cycle, selectedMethod, retryCount]);
 
   // Auto-polling payment status
   useEffect(() => {
@@ -228,16 +216,23 @@ export default function CheckoutClient() {
     setPaymentStatus("PAID");
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
 
+    const planKey = orderData?.plan?.id ?? plan?.id ?? "premium";
     try {
-      if (plan?.id === "vip" || plan?.id === "premium") {
-        setMembershipPlan(plan.id);
+      if (planKey === "vip" || planKey === "premium") {
+        setMembershipPlan(planKey);
       }
     } catch {}
 
     toast.success("Thanh toán thành công! Gói hội viên của bạn đã được kích hoạt.");
 
+    const query = new URLSearchParams({
+      plan: planKey,
+      plan_name: orderData?.plan?.name ?? plan?.name ?? "",
+      cycle,
+      order_id: String(code),
+    });
     setTimeout(() => {
-      router.push(`/payment-success?plan=${plan?.id || "premium"}&cycle=${cycle}&order_id=${code}`);
+      router.push(`/payment-success?${query}`);
     }, 1200);
   };
 
@@ -269,28 +264,29 @@ export default function CheckoutClient() {
   };
 
   const handleSandboxConfirm = async () => {
-    const code = orderData?.orderCode || Math.floor(Date.now() / 1000) % 100000000;
+    if (!orderData?.orderCode) return;
     setIsConfirming(true);
 
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-      const res = await fetch(`/api/payment/mock-confirm/${code}`, {
+      const res = await fetch(`/api/payment/mock-confirm/${orderData.orderCode}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
+      const data = await res.json();
       if (res.ok) {
-        const data = await res.json();
-        if (data.membership?.plan) {
-          setMembershipPlan(data.membership.plan);
-        }
+        handlePaymentSuccess(orderData.orderCode);
+      } else {
+        toast.error(detailToMessage(data.detail, "Không kích hoạt được đơn hàng này."));
       }
-    } catch {}
-
-    handlePaymentSuccess(code);
-    setIsConfirming(false);
+    } catch {
+      toast.error("Không thể kết nối đến máy chủ thanh toán. Vui lòng thử lại!");
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
   const copyToClipboard = (text: string, label: string) => {
@@ -299,6 +295,18 @@ export default function CheckoutClient() {
     toast.success(`Đã sao chép ${label}!`);
     setTimeout(() => setCopiedField(null), 2000);
   };
+
+  if (planNotFound) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-muted-foreground">
+        <AlertCircle className="w-8 h-8 text-red-500" />
+        <p>Gói này không tồn tại hoặc đã ngừng bán.</p>
+        <Link href="/pricing" className="text-sm font-semibold text-primary hover:underline">
+          Quay lại bảng giá
+        </Link>
+      </div>
+    );
+  }
 
   if (!plan) {
     return (
@@ -309,9 +317,20 @@ export default function CheckoutClient() {
     );
   }
 
-  const order = getOrderSummary(plan, cycle);
-  const displayAmount = orderData?.amount || order.total;
-  const displayOrderCode = orderData?.orderCode ? `DEFEND ${orderData.orderCode}` : `DEFEND-${Date.now()}`;
+  const isSamePlan = !!currentPlan && (currentPlan.plan_id === plan.id || currentPlan.plan_name === plan.name);
+
+  // Đơn do backend tạo là giá thật; bảng giá tải trước đó chỉ để hiển thị khi chưa có đơn.
+  const order = getOrderSummary(
+    {
+      ...plan,
+      monthly: orderData?.plan?.monthly ?? plan.monthly,
+      yearly: orderData?.plan?.yearly ?? plan.yearly,
+    },
+    cycle,
+    isSamePlan ? parseApiDate(currentPlan?.expires_at) : undefined
+  );
+  const displayAmount = orderData?.amount ?? order.total;
+  const displayOrderCode = `DEFEND ${orderData?.orderCode ?? ""}`;
   const displayAccountName = orderData?.accountName || "NGUYEN THE BAO";
   const displayAccountNo = orderData?.accountNumber || "040060104";
 
@@ -462,17 +481,21 @@ export default function CheckoutClient() {
                     <h3 className="text-base font-bold text-foreground">
                       Mã QR Thanh Toán VietQR (PayOS)
                     </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Số tiền thanh toán: <strong className="text-primary">{formatVND(displayAmount)}</strong>
-                    </p>
+                    {orderData && (
+                      <p className="text-xs text-muted-foreground">
+                        Số tiền thanh toán: <strong className="text-primary">{formatVND(displayAmount)}</strong>
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 {/* Polling indicator */}
-                <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                  Đang chờ thanh toán...
-                </div>
+                {orderData && (
+                  <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                    Đang chờ thanh toán...
+                  </div>
+                )}
               </div>
 
               {isCreatingOrder ? (
@@ -480,6 +503,11 @@ export default function CheckoutClient() {
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
                   <p className="text-sm">Đang tạo mã thanh toán PayOS...</p>
                 </div>
+              ) : !orderData ? (
+                // Chưa có đơn thì không hiện QR: tiền chuyển vào sẽ không gắn với đơn nào.
+                <Button variant="outline" size="sm" onClick={() => setRetryCount((count) => count + 1)}>
+                  Thử tạo lại mã thanh toán
+                </Button>
               ) : (
                 <div className="flex flex-col sm:flex-row items-center gap-6">
                   {/* QR Image Box */}
@@ -618,7 +646,7 @@ export default function CheckoutClient() {
               {/* Plan badge */}
               <div className="flex items-center gap-3 p-3 rounded-xl bg-primary/10 border border-primary/20 mb-4">
                 <div className="w-9 h-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold">
-                  {plan.id === "vip" ? <Crown className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
+                  {plan.name.toLowerCase().includes("vip") ? <Crown className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-foreground">Gói {plan.name}</h3>
@@ -630,12 +658,14 @@ export default function CheckoutClient() {
 
               <div className="space-y-3 text-sm border-b border-border/50 pb-4 mb-4">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Giá gốc:</span>
+                  <span className="text-muted-foreground">
+                    {cycle === "yearly" ? "Giá gốc (12 tháng):" : "Giá gốc:"}
+                  </span>
                   <span className="font-medium">{formatVND(order.basePrice)}</span>
                 </div>
                 {order.discount > 0 && (
                   <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                    <span>Ưu đãi gói năm (17%):</span>
+                    <span>Ưu đãi gói năm ({order.discountPercent}%):</span>
                     <span>-{formatVND(order.discount)}</span>
                   </div>
                 )}
@@ -666,6 +696,16 @@ export default function CheckoutClient() {
                   <span>Tự động kích hoạt:</span>
                   <strong className="text-emerald-500 font-bold">Có (Tự động 24/7)</strong>
                 </div>
+                {currentPlan && (
+                  <p
+                    data-testid="current-plan-note"
+                    className={`pt-2 border-t border-border/50 ${isSamePlan ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}
+                  >
+                    {isSamePlan
+                      ? "Thời gian còn lại của gói đang dùng được cộng thêm vào hạn sử dụng."
+                      : `Gói ${currentPlan.plan_name} đang dùng sẽ kết thúc ngay khi gói ${plan.name} được kích hoạt, thời gian còn lại không được hoàn.`}
+                  </p>
+                )}
               </div>
 
               <div className="text-[11px] text-muted-foreground text-center">

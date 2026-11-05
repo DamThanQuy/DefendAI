@@ -12,6 +12,7 @@ import React, {
 } from "react";
 import { getMe } from "@/lib/api";
 import { clearSession, handleSessionExpired } from "@/lib/auth";
+import { parseApiDate } from "@/lib/datetime";
 
 export interface AuthUser {
   id?: number | string;
@@ -90,8 +91,9 @@ const getServerSnapshot = (): AuthUser | null => null;
 /** Cờ gói đi theo tài khoản: không có gói active thì phải xoá, nếu không
  *  tài khoản mới trên cùng trình duyệt sẽ thừa hưởng gói của người dùng trước. */
 function syncMembershipFlag(profileData: AuthUser["profile_data"]) {
-  const membership = profileData?.membership as { status?: string; plan?: string } | undefined;
-  if (membership?.status === "active" && membership.plan) {
+  const membership = profileData?.membership as { status?: string; plan?: string; expires_at?: string } | undefined;
+  const expired = !!membership?.expires_at && parseApiDate(membership.expires_at) <= new Date();
+  if (membership?.status === "active" && membership.plan && !expired) {
     localStorage.setItem("membership_plan", membership.plan);
   } else {
     localStorage.removeItem("membership_plan");

@@ -390,9 +390,9 @@ test.describe("Feedback Flow & Mock AI Reward Tests", () => {
     const npsButton = page.locator('button:has-text("Rất sẵn lòng")');
     await npsButton.click();
 
-    // Chọn mức chi trả: Gói Starter (50k - 99k)
+    // Chọn mức chi trả: Gói Premium (50k - 99k)
     const payOption = page.locator(
-      'label:has-text("50.000đ - 99.000đ / tháng (Gói Starter)")'
+      'label:has-text("50.000đ - 99.000đ / tháng (Gói Premium)")'
     );
     await payOption.click();
 

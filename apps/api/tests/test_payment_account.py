@@ -114,8 +114,9 @@ async def test_new_account_has_no_paid_plan(client):
         {"plan": "free", "cycle": "monthly", "status": "active"},
         {"status": "active"},
         {"plan": "vip", "status": "inactive"},
+        {"plan": "vip", "status": "active", "expires_at": "2020-01-01T00:00:00"},
     ],
-    ids=["free-active", "missing-plan", "vip-inactive"],
+    ids=["free-active", "missing-plan", "vip-inactive", "vip-expired"],
 )
 async def test_non_paid_membership_is_not_a_subscription(client, membership):
     """Kịch bản 2: membership không phải gói trả phí đang active → subscription = None."""
@@ -157,5 +158,6 @@ async def test_paid_membership_is_returned(client, plan, plan_name):
         subscription = account.json()["subscription"]
         assert subscription["plan_id"] == plan
         assert subscription["plan_name"] == plan_name
+        assert subscription["cycle"] == "monthly"
     finally:
         _cleanup_user(user_id)

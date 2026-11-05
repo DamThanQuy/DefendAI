@@ -140,6 +140,7 @@ async function setupApiMocks(page: Page, users: Record<number, typeof mockFreeUs
   await page.route("**/api/workspaces**", (route) => route.fulfill(json({ total: 0, items: [] })));
   await page.route("**/api/bookings**", (route) => route.fulfill(json([])));
   await page.route("**/api/mock-qa/**", (route) => route.fulfill(json({ items: [] })));
+  await page.route("**/api/payment/create-order", (route) => route.fulfill(json({ success: true, orderCode: 1, amount: 199000, status: "PENDING" })));
 }
 
 /** Giả lập trình duyệt còn sót dữ liệu của người dùng trước (chỉ gieo một lần mỗi phiên test). */
@@ -234,12 +235,12 @@ async function expectFreeEverywhere(page: Page) {
   await expect(page.getByText("Upload tối đa 3 đồ án / tháng")).toBeVisible();
   await expect(page.getByText("Upload không giới hạn đồ án")).toHaveCount(0);
 
-  // Không có quyền Mock AI: bấm vào phải hiện hộp thoại yêu cầu nâng cấp
+  // Không có quyền Mock AI: thẻ bị khoá, chỉ có nút mua gói dẫn sang bảng giá
   await page.goto("/mock-room");
-  await page.getByRole("heading", { name: "Phòng Mock AI" }).click();
-  await expect(page.getByText("Yêu cầu thành viên VIP")).toBeVisible();
-  await page.getByRole("button", { name: "Nâng cấp gói VIP" }).click();
-  await page.waitForURL((url) => url.pathname.includes("/checkout"), { timeout: 15000 });
+  await expect(page.getByTestId("mock-ai-locked")).toBeVisible();
+  await expect(page.getByTestId("upgrade-link").first()).toHaveText("Mua gói");
+  await page.getByTestId("upgrade-link").first().click();
+  await page.waitForURL((url) => url.pathname === "/pricing", { timeout: 15000 });
 
   expect(await page.evaluate(() => localStorage.getItem("membership_plan"))).toBeNull();
 }

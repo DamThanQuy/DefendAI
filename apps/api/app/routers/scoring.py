@@ -22,6 +22,7 @@ from app.models.defense_score import DefenseScore, DefenseScoreAudit
 from app.models.meeting import Meeting
 from app.models.user import User
 from app.services.meeting_access import can_score_meeting, can_view_meeting
+from app.services.membership import FEATURE_LOCKED_MESSAGES, has_feature
 from app.services.report_builder import group_items, item_labels
 from app.services.rubric_service import get_rubric_by_key
 from app.services.scoring_service import final_score
@@ -171,6 +172,8 @@ async def scoring_summary(
         raise HTTPException(status_code=404, detail="Phòng họp không tồn tại")
     if not await can_view_meeting(db, user, meeting):
         raise HTTPException(status_code=403, detail="Không đủ quyền xem điểm buổi này")
+    if not await has_feature(db, user, "rubric"):
+        raise HTTPException(status_code=403, detail=FEATURE_LOCKED_MESSAGES["rubric"])
     config = await _load_rubric_config(db)
     rows = (
         await db.execute(

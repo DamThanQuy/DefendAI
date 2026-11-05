@@ -19,6 +19,7 @@ const PROTECTED_PATHS = [
   "/mock-room-ai",
   "/profile",
   "/mentor/bookings",
+  "/checkout",
 ];
 
 // Route → role được phép. Thiếu role → redirect "/".
