@@ -62,6 +62,9 @@ export function clearSession() {
   localStorage.removeItem("access_token");
   localStorage.removeItem("refresh_token");
   localStorage.removeItem("user");
+  // Gói + vé Mock AI thuộc về tài khoản, không được để lại cho người đăng nhập sau.
+  localStorage.removeItem("membership_plan");
+  localStorage.removeItem("mock_ai_trial_tickets");
 }
 
 export function handleSessionExpired() {

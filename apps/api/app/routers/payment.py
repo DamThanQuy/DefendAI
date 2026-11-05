@@ -416,8 +416,9 @@ async def get_payment_account(
         }
     elif user.profile_data and isinstance(user.profile_data, dict) and user.profile_data.get("membership"):
         m = user.profile_data.get("membership", {})
-        if m.get("status") == "active":
-            p_key = m.get("plan", "vip")
+        p_key = m.get("plan") or "free"
+        # Gói free không phải subscription trả phí: không suy diễn thành VIP/Premium.
+        if m.get("status") == "active" and p_key != "free":
             sub_data = {
                 "plan_id": p_key,
                 "plan_name": "VIP" if "vip" in p_key.lower() else "Premium",
