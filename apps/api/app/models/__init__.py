@@ -8,6 +8,7 @@ from app.core.database import Base  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.models.role import Role  # noqa: F401
 from app.models.refresh_token import RefreshToken  # noqa: F401
+from app.models.password_reset_otp import PasswordResetOtp  # noqa: F401
 from app.models.association import user_roles  # noqa: F401
 from app.models.document import Document, DocType, DocumentStatus  # noqa: F401
 from app.models.document_chunk import DocumentChunk  # noqa: F401
@@ -65,6 +66,7 @@ __all__ = [
     "User",
     "Role",
     "RefreshToken",
+    "PasswordResetOtp",
     "user_roles",
     "Document",
     "DocType",

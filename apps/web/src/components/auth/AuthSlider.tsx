@@ -22,33 +22,9 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { AuthField, AuthPasswordField } from "@/components/auth/AuthField";
 import { markTourPending } from "@/lib/tour";
+import { detailToMessage, PASSWORD_RULE_HINT, validatePassword } from "@/lib/auth-form";
 
 const googleConfigured = Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
-
-/**
- * Chuẩn hoá `detail` lỗi từ backend (FastAPI) về chuỗi.
- * Với lỗi 422 FastAPI trả detail là MẢNG object [{type, loc, msg, input, ctx}];
- * gắn thẳng object/mảng vào setError sẽ làm React crash khi render
- * ("Objects are not valid as a React child") → trắng cả trang.
- */
-function detailToMessage(detail: unknown, fallback: string): string {
-  if (typeof detail === "string") return detail;
-  if (Array.isArray(detail)) {
-    const msgs = detail
-      .map((d) =>
-        typeof d === "string" ? d : (d as { msg?: unknown } | null)?.msg
-      )
-      .filter((m): m is string => typeof m === "string" && m.length > 0);
-    if (msgs.length > 0) return msgs.join(", ");
-  } else if (
-    detail !== null &&
-    typeof detail === "object" &&
-    typeof (detail as { msg?: unknown }).msg === "string"
-  ) {
-    return (detail as { msg: string }).msg;
-  }
-  return fallback;
-}
 
 /* ---------- Floating illustration for the promo panel ---------- */
 function PromoArt() {
@@ -289,9 +265,7 @@ function RegisterForm(props: {
         <div className="space-y-2">
           <Label htmlFor="password" className="font-semibold text-slate-700">Mật khẩu</Label>
           <AuthPasswordField id="password" icon={Lock} placeholder="Nhập mật khẩu" required value={props.password} onChange={(e) => props.setPassword(e.target.value)} />
-          <p className="text-xs leading-5 text-slate-600">
-            Mật khẩu phải có ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số và ký hiệu đặc biệt.
-          </p>
+          <p className="text-xs leading-5 text-slate-600">{PASSWORD_RULE_HINT}</p>
         </div>
 
         <Button
@@ -354,16 +328,6 @@ export function AuthSlider({
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  function validatePassword(value: string) {
-    const missing: string[] = [];
-    if (value.length < 8) missing.push("ít nhất 8 ký tự");
-    if (!/[A-Z]/.test(value)) missing.push("một chữ hoa");
-    if (!/[a-z]/.test(value)) missing.push("một chữ thường");
-    if (!/[0-9]/.test(value)) missing.push("một chữ số");
-    if (!/[^A-Za-z0-9]/.test(value)) missing.push("một ký hiệu đặc biệt");
-    return missing;
-  }
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();

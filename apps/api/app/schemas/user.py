@@ -1,4 +1,5 @@
 """Pydantic schemas cho Auth / User endpoints."""
+import re
 from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator
@@ -52,6 +53,42 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=255)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return v.strip().lower()
+
+
+class VerifyResetOtpRequest(ForgotPasswordRequest):
+    otp: str = Field(..., max_length=32)
+
+    @field_validator("otp")
+    @classmethod
+    def validate_otp(cls, v: str) -> str:
+        # Mã dán từ email có thể dính dấu cách.
+        v = re.sub(r"\s", "", v)
+        if not re.fullmatch(r"[0-9]{6}", v):
+            raise ValueError("Mã xác nhận phải gồm 6 chữ số.")
+        return v
+
+
+class ResetPasswordRequest(VerifyResetOtpRequest):
+    new_password: str = Field(..., max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        # Cùng quy tắc với form đăng ký ở frontend (apps/web/src/lib/auth-form.ts).
+        if len(v) < 8 or not all(re.search(p, v) for p in (r"[A-Z]", r"[a-z]", r"[0-9]", r"[^A-Za-z0-9]")):
+            raise ValueError(
+                "Mật khẩu phải có ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số và ký hiệu đặc biệt."
+            )
+        return v
 
 
 class GoogleLoginRequest(BaseModel):
