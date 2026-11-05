@@ -29,11 +29,12 @@ export const PLANS: Plan[] = [
       { label: "Upload tối đa 3 đồ án / tháng", included: true },
       { label: "Phân tích tài liệu bằng AI cơ bản", included: true },
       { label: "Tạo 20 câu hỏi phản biện / lượt", included: true },
-      { label: "Mock defense 1 lần / tháng", included: true },
+      { label: "Mock Room với mentor: 1 lần", included: true },
       { label: "Báo cáo PDF cơ bản", included: true },
       { label: "Phân tích code chuyên sâu", included: false },
       { label: "Đánh giá theo rubric chi tiết", included: false },
       { label: "Hỗ trợ mentor 1-1", included: false },
+      { label: "Phòng Mock AI", included: false },
     ],
   },
   {
@@ -50,11 +51,12 @@ export const PLANS: Plan[] = [
       { label: "Upload không giới hạn đồ án", included: true, highlight: true },
       { label: "Phân tích tài liệu AI nâng cao", included: true },
       { label: "Không giới hạn câu hỏi phản biện", included: true },
-      { label: "Mock defense không giới hạn", included: true, highlight: true },
+      { label: "Mock Room với mentor không giới hạn", included: true, highlight: true },
       { label: "Báo cáo PDF chi tiết + biểu đồ", included: true },
       { label: "Phân tích code chuyên sâu", included: true },
       { label: "Đánh giá theo rubric chi tiết", included: true },
       { label: "Hỗ trợ mentor 1-1", included: false },
+      { label: "Phòng Mock AI", included: false },
     ],
   },
   {
@@ -68,9 +70,10 @@ export const PLANS: Plan[] = [
     cta: "Đăng ký VIP",
     features: [
       { label: "Tất cả tính năng Premium", included: true, highlight: true },
+      { label: "Phòng Mock AI không giới hạn", included: true, highlight: true },
       { label: "Phân tích tài liệu AI cao cấp (GPT-4o)", included: true },
       { label: "Câu hỏi phản biện chuyên sâu theo ngành", included: true },
-      { label: "Mock defense ưu tiên + record phiên", included: true },
+      { label: "Mock Room với mentor ưu tiên + record phiên", included: true },
       { label: "Báo cáo PDF chuyên nghiệp cho hội đồng", included: true },
       { label: "Phân tích code + đề xuất cải thiện", included: true },
       { label: "Đánh giá rubric + so sánh top sinh viên", included: true },
@@ -99,6 +102,12 @@ export const FAQS = [
 
 export function formatVND(value: number) {
   return new Intl.NumberFormat("vi-VN").format(value) + "đ";
+}
+
+/** Phần trăm tiết kiệm của gói năm so với trả 12 tháng, tính từ giá thật của gói. */
+export function yearlyDiscountPercent(plan: Pick<Plan, "monthly" | "yearly">) {
+  const fullPrice = plan.monthly * 12;
+  return fullPrice > 0 ? Math.max(0, Math.round((1 - plan.yearly / fullPrice) * 100)) : 0;
 }
 
 export function planIcon(name: Plan["icon"]) {

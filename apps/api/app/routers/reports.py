@@ -26,11 +26,13 @@ from app.models.user import User
 from app.models.workspace import Workspace
 from app.services.meeting_access import can_view_meeting, role_names
 from app.services.meeting_rules import evaluate_meeting_rules
+from app.services.membership import has_feature
 from app.services.mock_report import enqueue_report_generation
 from app.services.report_builder import (
     compute_verdict,
     display_status,
     effective_generation_status,
+    hide_rubric_details,
     review_view,
     round1,
     rubric_view,
@@ -202,6 +204,7 @@ async def get_report_detail(
     scores = summarize_scores(score_rows, rubric_cfg)
     rules = await evaluate_meeting_rules(db, meeting)
     generation_status = effective_generation_status(report)
+    rubric_unlocked = await has_feature(db, user, "rubric")
 
     workspace = await db.get(Workspace, meeting.workspace_id) if meeting.workspace_id else None
     document = await db.get(Document, report.document_id) if report.document_id else None
@@ -233,7 +236,8 @@ async def get_report_detail(
         "document": {"id": document.id, "filename": document.filename} if document else None,
         "rubric": rubric_view(rubric),
         "ai_review": review_view(report, rubric_cfg) if generation_status == "ready" else None,
-        "scores": scores,
+        "scores": scores if rubric_unlocked else hide_rubric_details(scores),
+        "rubric_locked": not rubric_unlocked,
         "rules": rules,
         "verdict": compute_verdict(rules["rules"], scores["official"]),
         "transcript": report.transcript or [],

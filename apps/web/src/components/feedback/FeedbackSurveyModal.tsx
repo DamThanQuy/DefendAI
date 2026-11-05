@@ -166,9 +166,9 @@ const NPS_OPTIONS = [
 const PAY_WILLINGNESS_OPTIONS = [
   { id: "free_only", label: "Chỉ muốn dùng bản Miễn phí (0đ)" },
   { id: "under_50k", label: "Dưới 50.000đ / tháng" },
-  { id: "50k_99k", label: "50.000đ - 99.000đ / tháng (Gói Starter)" },
-  { id: "100k_199k", label: "100.000đ - 199.000đ / tháng (Gói Pro)" },
-  { id: "200k_plus", label: "Từ 200.000đ trở lên / tháng (Gói VIP)" },
+  { id: "50k_99k", label: "50.000đ - 99.000đ / tháng (Gói Premium)" },
+  { id: "100k_199k", label: "100.000đ - 199.000đ / tháng (Gói VIP)" },
+  { id: "200k_plus", label: "Từ 200.000đ trở lên / tháng" },
 ];
 
 export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurveyModalProps) {

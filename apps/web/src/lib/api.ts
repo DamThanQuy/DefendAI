@@ -598,6 +598,8 @@ export interface ReportDetail {
     items: { OGA: ScoreItem[]; TDA: ScoreItem[] };
     reviewer_count: number;
   };
+  /** Gói chưa có "đánh giá theo rubric chi tiết": điểm từng hạng mục đã bị ẩn. */
+  rubric_locked?: boolean;
   rules: {
     workspace_id: number | null;
     total_uc: number | null;

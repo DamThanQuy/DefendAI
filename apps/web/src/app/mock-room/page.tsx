@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { hasVipInProfile, usePlanAccess } from "@/hooks/usePlanAccess";
+import { UpgradeLink, expiredPlanNote } from "@/components/membership/PlanLock";
+import { readTrialTickets } from "@/lib/mock-ai-data";
 import {
   Booking,
   getMyBookings,
@@ -11,7 +14,6 @@ import {
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import {
   Loader2,
   MonitorPlay,
@@ -25,8 +27,8 @@ import {
   Users,
   Bot,
   Crown,
+  Lock,
   Sparkles,
-  Gift,
 } from "lucide-react";
 
 const STATUS_META: Record<
@@ -63,46 +65,19 @@ export default function MockRoomLandingPage() {
   // booking_id -> thông báo lỗi mời
   const [inviteError, setInviteError] = useState<Record<number, string>>({});
   const [hasPastSessions, setHasPastSessions] = useState(false);
-  const [showVipModal, setShowVipModal] = useState(false);
+  const { access } = usePlanAccess();
 
   const isStudent = hasRole("student") || (!hasRole("mentor") && !hasRole("admin"));
 
-  // Kiểm tra quyền VIP để truy cập Phòng Mock AI (từ user profile hoặc localStorage)
-  const isVip = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    const planFromProfile = (user?.profile_data as any)?.membership?.plan;
-    if (planFromProfile === "vip") return true;
-    try {
-      return localStorage.getItem("membership_plan") === "vip";
-    } catch {
-      return false;
-    }
-  }, [user]);
+  // Quyền vào Phòng Mock AI do server tính; gói hết hạn thì không còn là VIP.
+  const isVip = access ? access.features.mock_ai : hasVipInProfile(user?.profile_data);
 
   // Số vé trải nghiệm Mock AI (nhận từ khảo sát Feedback hoặc user profile)
-  const [trialTickets, setTrialTickets] = useState<number>(() => {
-    if (typeof window === "undefined") return 0;
-    const fromProfile = Number((user?.profile_data as any)?.mock_ai_trial_tickets);
-    if (!isNaN(fromProfile) && fromProfile > 0) return fromProfile;
-    try {
-      const fromStorage = Number(localStorage.getItem("mock_ai_trial_tickets"));
-      if (!isNaN(fromStorage) && fromStorage > 0) return fromStorage;
-    } catch {}
-    return 0;
-  });
+  const [trialTickets, setTrialTickets] = useState<number>(() => readTrialTickets(user?.profile_data));
 
   // Đồng bộ vé trải nghiệm tự động từ profile hoặc localStorage
   useEffect(() => {
-    const updateTickets = () => {
-      const fromProfile = Number((user?.profile_data as any)?.mock_ai_trial_tickets);
-      let t = 0;
-      if (!isNaN(fromProfile) && fromProfile > 0) t = fromProfile;
-      try {
-        const fromStorage = Number(localStorage.getItem("mock_ai_trial_tickets"));
-        if (!isNaN(fromStorage) && fromStorage > t) t = fromStorage;
-      } catch {}
-      setTrialTickets(t);
-    };
+    const updateTickets = () => setTrialTickets(readTrialTickets(user?.profile_data));
 
     updateTickets();
     window.addEventListener("storage", updateTickets);
@@ -112,15 +87,10 @@ export default function MockRoomLandingPage() {
     };
   }, [user]);
 
-  const hasMockAIAccess = isVip || trialTickets > 0 || hasPastSessions;
-
-  const handleEnterMockAI = () => {
-    if (!hasMockAIAccess) {
-      setShowVipModal(true);
-      return;
-    }
-    router.push("/mock-room-ai");
-  };
+  const mockAILocked = !isVip && trialTickets <= 0;
+  // Vé khảo sát chỉ tặng một lần cho mỗi tài khoản.
+  const feedbackStatus = (user?.profile_data as any)?.feedback_status;
+  const canEarnTicket = !feedbackStatus?.reward_ticket_granted && !feedbackStatus?.submitted;
 
   async function load() {
     setLoading(true);
@@ -237,49 +207,98 @@ export default function MockRoomLandingPage() {
 
       {/* Phòng Mock AI — dành cho gói VIP */}
       <div className="mb-6">
-        <Card
-          className="border-2 border-dashed border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5 hover:border-primary/40 transition-all cursor-pointer group"
-          onClick={handleEnterMockAI}
-        >
-          <div className="p-6 flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-[0_0_20px_hsl(var(--primary)/0.3)] shrink-0">
-              <Bot className="w-7 h-7 text-white" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-lg font-serif font-bold text-foreground">
-                  Phòng Mock AI
-                </h3>
-                {isVip ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-accent to-orange-500 text-white">
-                    <Crown className="w-3 h-3" /> VIP
-                  </span>
-                ) : trialTickets > 0 ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-sm">
-                    <Sparkles className="w-3 h-3" /> Có {trialTickets} vé trải nghiệm
-                  </span>
-                ) : hasPastSessions ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-muted text-muted-foreground border border-border">
+        {mockAILocked ? (
+          <Card data-testid="mock-ai-locked" className="border-2 border-dashed border-border bg-card/40">
+            <div className="p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex flex-1 items-center gap-4 opacity-50 grayscale select-none">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shrink-0">
+                  <Bot className="w-7 h-7 text-white" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-lg font-serif font-bold text-foreground">Phòng Mock AI</h3>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-muted text-muted-foreground border border-border">
+                      <Lock className="w-3 h-3" /> VIP
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {expiredPlanNote(access)}
+                    Luyện phòng chat với AI mentor, chỉ dành cho gói VIP.
+                  </p>
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-col items-center gap-2">
+                <UpgradeLink access={access} />
+                {canEarnTicket && (
+                  <button
+                    type="button"
+                    data-testid="earn-ticket"
+                    onClick={() => window.dispatchEvent(new CustomEvent("open-feedback-modal"))}
+                    className="text-xs text-teal-400 underline hover:text-teal-300"
+                  >
+                    Góp ý nhận 1 vé dùng thử
+                  </button>
+                )}
+                {hasPastSessions && (
+                  <button
+                    type="button"
+                    onClick={() => router.push("/mock-room-ai")}
+                    className="text-xs text-muted-foreground underline hover:text-foreground"
+                  >
                     Xem lại phiên đã lưu
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-accent to-orange-500 text-white">
-                    <Crown className="w-3 h-3" /> VIP
-                  </span>
+                  </button>
                 )}
               </div>
-              <p className="text-sm text-muted-foreground">
-                {trialTickets > 0 && !isVip
-                  ? `Bạn đang có ${trialTickets} vé trải nghiệm Mock Room AI miễn phí từ khảo sát. Nhấp để tham gia ngay!`
-                  : hasPastSessions && !isVip
-                  ? "Xem lại các phiên chất vấn đã lưu hoặc nâng cấp VIP để tạo phiên mới."
-                  : "Luyện phòng chat với AI mentor — trò chuyện chất vấn tự do, không cần đặt lịch."}
-              </p>
             </div>
-            <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
-          </div>
-        </Card>
+          </Card>
+        ) : (
+          <Card
+            className="border-2 border-dashed border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5 hover:border-primary/40 transition-all cursor-pointer group"
+            onClick={() => router.push("/mock-room-ai")}
+          >
+            <div className="p-6 flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-[0_0_20px_hsl(var(--primary)/0.3)] shrink-0">
+                <Bot className="w-7 h-7 text-white" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-lg font-serif font-bold text-foreground">
+                    Phòng Mock AI
+                  </h3>
+                  {isVip ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-accent to-orange-500 text-white">
+                      <Crown className="w-3 h-3" /> VIP
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-sm">
+                      <Sparkles className="w-3 h-3" /> Có {trialTickets} vé trải nghiệm
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {isVip
+                    ? "Luyện phòng chat với AI mentor — trò chuyện chất vấn tự do, không cần đặt lịch."
+                    : `Bạn đang có ${trialTickets} vé trải nghiệm Mock Room AI miễn phí từ khảo sát. Nhấp để tham gia ngay!`}
+                </p>
+              </div>
+              <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+            </div>
+          </Card>
+        )}
       </div>
+
+      {access && !access.features.mentor_booking && (
+        <div
+          data-testid="mentor-booking-locked"
+          className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-border bg-card/40 p-4"
+        >
+          <p className="text-sm text-muted-foreground">
+            {expiredPlanNote(access)}
+            Bạn đã dùng hết lượt đặt lịch Mock Room với mentor miễn phí. Hãy mua gói để đặt thêm, các lịch đã đặt vẫn giữ nguyên.
+          </p>
+          <UpgradeLink access={access} className="shrink-0" />
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
@@ -434,29 +453,6 @@ export default function MockRoomLandingPage() {
           Ghi chú: Mentor truy cập phòng từ mục &quot;Quản lý lịch&quot; hoặc &quot;Lịch sử Mentor&quot;.
         </p>
       )}
-
-      <ConfirmModal
-        open={showVipModal}
-        tone="warning"
-        title="Yêu cầu thành viên VIP"
-        description={
-          <div className="space-y-2 text-sm text-muted-foreground">
-            <p>
-              Phòng Mock AI phản biện trực tuyến dành riêng cho thành viên <strong>VIP</strong> hoặc người dùng có <strong>vé trải nghiệm</strong>.
-            </p>
-            <p className="text-xs text-amber-500 font-medium">
-              💡 Nâng cấp gói VIP để mở khóa không giới hạn, hoặc tham gia khảo sát góp ý để nhận vé trải nghiệm miễn phí!
-            </p>
-          </div>
-        }
-        confirmLabel="Nâng cấp gói VIP"
-        cancelLabel="Để sau"
-        onConfirm={() => {
-          setShowVipModal(false);
-          router.push("/checkout?plan=vip&cycle=monthly");
-        }}
-        onCancel={() => setShowVipModal(false)}
-      />
     </div>
   );
 }

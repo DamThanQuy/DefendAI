@@ -78,14 +78,14 @@ export default function BillingPage() {
     ? localPlan
     : serverPlan.includes("vip")
     ? "vip"
-    : serverPlan.includes("premium")
+    : subscription // Premium hoặc gói admin tự tạo: đều là gói trả phí.
     ? "premium"
     : "free";
 
   const planInfo = PLAN_INFO[effectivePlan];
   const isVip = effectivePlan === "vip";
   const nextPlan = planInfo.nextPlan;
-  const displayPlanName = isVip ? "VIP" : effectivePlan === "premium" ? "Premium" : (subscription?.plan_name || planInfo.name);
+  const displayPlanName = subscription?.plan_name || planInfo.name;
 
   return (
     <div className="space-y-6">
@@ -166,7 +166,7 @@ export default function BillingPage() {
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
           {(subscription?.features?.filter((feature) => feature.included).map((feature) => feature.label) || (effectivePlan === "free" ? FREE_BENEFITS : [
             "Upload không giới hạn đồ án",
-            "Mock defense không giới hạn",
+            "Mock Room với mentor không giới hạn",
             "Phân tích code chuyên sâu",
             "Đánh giá theo rubric chi tiết",
             "Tạo câu hỏi phản biện không giới hạn",

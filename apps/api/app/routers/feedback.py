@@ -26,6 +26,7 @@ from app.models.workspace import Workspace
 from app.models.workspace_question import WorkspaceQuestion
 from app.models.workspace_chat import WorkspaceChat
 from app.models.message import Message
+from app.services.membership import membership_expired
 from app.schemas.feedback import (
     AdoptionFunnelStats,
     CSATStats,
@@ -67,7 +68,7 @@ async def detect_user_plan(user: User, db: AsyncSession) -> str:
 
     if user.profile_data and isinstance(user.profile_data, dict):
         m = user.profile_data.get("membership", {})
-        if isinstance(m, dict) and m.get("status") == "active":
+        if isinstance(m, dict) and m.get("status") == "active" and not membership_expired(m, now):
             return m.get("plan", "free")
 
     return "free"

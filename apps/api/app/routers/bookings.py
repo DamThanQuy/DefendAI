@@ -24,6 +24,7 @@ from app.models.meeting import Meeting, MeetingStatus
 from app.models.availability import MentorAvailability
 from app.repositories.booking import BookingRepository
 from app.schemas.booking import BookingCreate, BookingConfirm, BookingReschedule, BookingReject, BookingInvite, BookingOut
+from app.services.membership import MENTOR_BOOKING_LOCKED_MESSAGE, can_book_mentor
 
 
 def _naive_utc(dt: datetime) -> datetime:
@@ -121,6 +122,14 @@ async def create_booking(
 
     # Ràng buộc: chỉ được đặt vào khung giờ mentor đã bật rảnh
     await _assert_slot_available(db, payload.mentor_id, proposed)
+
+    # Khoá user: gửi nhiều yêu cầu cùng lúc cũng chỉ dùng được đúng lượt miễn phí.
+    user = await db.get(
+        User, user.id, options=[selectinload(User.roles)], with_for_update=True, populate_existing=True
+    )
+    if not await can_book_mentor(db, user):
+        await db.rollback()
+        raise HTTPException(status_code=403, detail=MENTOR_BOOKING_LOCKED_MESSAGE)
 
     booking = MockBooking(
         student_id=user.id,

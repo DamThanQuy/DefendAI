@@ -31,8 +31,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
+import { hasVipInProfile, usePlanAccess } from "@/hooks/usePlanAccess";
 import { MarkdownMessage } from "@/components/features/workspace/MarkdownMessage";
-import { type MockMessage, extractContextSummary } from "@/lib/mock-ai-data";
+import { type MockMessage, extractContextSummary, readTrialTickets } from "@/lib/mock-ai-data";
 import { toast } from "sonner";
 import { ChunkedUploader } from "@/lib/chunked-upload";
 import { MAX_FILE_SIZE } from "@/lib/constants";
@@ -80,6 +81,7 @@ type MockSessionDetail = {
   messages: { role: string; content: string; time?: string }[];
   created_at: string;
   updated_at: string;
+  can_chat?: boolean;
 };
 
 function getToken(): string | null {
@@ -95,11 +97,11 @@ export default function MockRoomAI() {
   const router = useRouter();
   const { user } = useAuth();
 
-  // Kiểm tra gói VIP / Pro (không giới hạn câu hỏi)
-  const isVip = useMemo(() => {
-    const plan = (user?.profile_data as any)?.membership?.plan || (typeof window !== "undefined" ? localStorage.getItem("membership_plan") : null);
-    return plan === "vip" || plan === "pro";
-  }, [user]);
+  // Quyền dùng Mock AI không giới hạn do server tính; gói hết hạn thì không còn là VIP.
+  const { access, loading: accessLoading } = usePlanAccess();
+  const isVip = access ? access.features.mock_ai : hasVipInProfile(user?.profile_data);
+  // Phiên cũ không còn chat tiếp được (mở khi còn VIP, hoặc đã hết lượt thử): chỉ xem lại và nhận báo cáo.
+  const [sessionReadOnly, setSessionReadOnly] = useState(false);
 
   // Kiểm tra user đã từng nhận vé từ khảo sát chưa
   const hasRewardGranted = useMemo(() => {
@@ -108,28 +110,10 @@ export default function MockRoomAI() {
   }, [user]);
 
   // Số vé trải nghiệm Mock AI
-  const [trialTickets, setTrialTickets] = useState<number>(() => {
-    if (typeof window === "undefined") return 0;
-    const fromProfile = Number((user?.profile_data as any)?.mock_ai_trial_tickets);
-    if (!isNaN(fromProfile) && fromProfile >= 0) return fromProfile;
-    try {
-      const fromStorage = Number(localStorage.getItem("mock_ai_trial_tickets"));
-      if (!isNaN(fromStorage) && fromStorage >= 0) return fromStorage;
-    } catch {}
-    return 0;
-  });
+  const [trialTickets, setTrialTickets] = useState<number>(() => readTrialTickets(user?.profile_data));
 
   useEffect(() => {
-    const updateTickets = () => {
-      const fromProfile = Number((user?.profile_data as any)?.mock_ai_trial_tickets);
-      let t = 0;
-      if (!isNaN(fromProfile) && fromProfile >= 0) t = fromProfile;
-      try {
-        const fromStorage = Number(localStorage.getItem("mock_ai_trial_tickets"));
-        if (!isNaN(fromStorage) && fromStorage >= 0) t = fromStorage;
-      } catch {}
-      setTrialTickets(t);
-    };
+    const updateTickets = () => setTrialTickets(readTrialTickets(user?.profile_data));
 
     updateTickets();
     window.addEventListener("storage", updateTickets);
@@ -176,7 +160,8 @@ export default function MockRoomAI() {
   }, [messages]);
 
   // Giới hạn 5 câu hỏi đối với Free User (dùng vé trải nghiệm)
-  const isLimitReached = !isVip && studentAnswerCount >= FREE_MAX_QUESTIONS;
+  const isReadOnlySession = !isVip && sessionReadOnly && studentAnswerCount < FREE_MAX_QUESTIONS;
+  const isLimitReached = !isVip && (studentAnswerCount >= FREE_MAX_QUESTIONS || sessionReadOnly);
 
   // Voice state
   const [isRecording, setIsRecording] = useState(false);
@@ -268,12 +253,12 @@ export default function MockRoomAI() {
 
   // Chặn người dùng Free không có vé trải nghiệm và không có phiên đã lưu truy cập thẳng /mock-room-ai
   useEffect(() => {
-    if (!hasLoadedSessions || !user) return;
+    if (!hasLoadedSessions || !user || accessLoading) return;
     if (!isVip && trialTickets <= 0 && sessions.length === 0) {
       toast.error("Phòng Mock AI chỉ dành cho thành viên VIP hoặc người dùng có vé trải nghiệm. Hãy nâng cấp hoặc làm khảo sát để nhận vé!");
       router.push("/mock-room");
     }
-  }, [hasLoadedSessions, user, isVip, trialTickets, sessions.length, router]);
+  }, [hasLoadedSessions, user, accessLoading, isVip, trialTickets, sessions.length, router]);
 
   // Refresh danh sách phiên mỗi khi quay về màn hình chọn tài liệu
   useEffect(() => {
@@ -355,6 +340,9 @@ export default function MockRoomAI() {
     },
     [projectContext, selectedDocId],
   );
+  // Ref để askMentor (không đổi giữa các lần render) gọi được bản mới nhất
+  const persistSessionRef = useRef(persistSession);
+  persistSessionRef.current = persistSession;
 
   useEffect(() => {
     if (step !== "room" || messages.length === 0) return;
@@ -377,6 +365,7 @@ export default function MockRoomAI() {
       return;
     }
     setMessages([]);
+    setSessionReadOnly(false);
     setActiveSessionId(null);
     activeSessionRef.current = null;
     stateRef.current = { messages: [], context: "" };
@@ -546,6 +535,7 @@ export default function MockRoomAI() {
         setViewSession(null);
         setStep("room");
         setMessages(restored);
+        setSessionReadOnly(data.can_chat === false);
         setActiveSessionId(data.id);
         activeSessionRef.current = data.id;
         // Đồng bộ stateRef NGAY để askMentor đọc đúng history vừa khôi phục
@@ -606,6 +596,7 @@ export default function MockRoomAI() {
     setProjectContext(context);
 
     // Phiên mới hoàn toàn — autosave sẽ tạo session mới
+    setSessionReadOnly(false);
     setActiveSessionId(null);
     activeSessionRef.current = null;
 
@@ -675,13 +666,15 @@ export default function MockRoomAI() {
         : history;
 
       try {
+        // Lượt dùng thử được đếm theo phiên trên server nên phiên phải có trước khi hỏi.
+        const sessionId = activeSessionRef.current ?? (await persistSessionRef.current(stateRef.current.messages));
         const res = await fetch("/api/mock-qa/chat", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ messages: msgs, context: stateRef.current.context }),
+          body: JSON.stringify({ messages: msgs, context: stateRef.current.context, session_id: sessionId }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -759,7 +752,11 @@ export default function MockRoomAI() {
   // ── Gửi tin nhắn ───────────────────────────────────────
   const sendMessage = useCallback((overrideText?: string) => {
     if (isLimitReached) {
-      alert("Bạn đã hoàn thành 5 câu hỏi trải nghiệm Mock AI. Vui lòng bấm 'Kết thúc & nhận báo cáo' để xem đánh giá hoặc nâng cấp VIP để tiếp tục.");
+      alert(
+        isReadOnlySession
+          ? "Phiên này chỉ còn xem lại được. Vui lòng mua hoặc nâng cấp gói VIP để tiếp tục luyện tập."
+          : "Bạn đã hoàn thành 5 câu hỏi trải nghiệm Mock AI. Vui lòng bấm 'Kết thúc & nhận báo cáo' để xem đánh giá hoặc nâng cấp VIP để tiếp tục."
+      );
       return;
     }
 
@@ -786,7 +783,7 @@ export default function MockRoomAI() {
     setInput("");
     setIsTyping(true);
     void askMentor(trimmed);
-  }, [input, isTyping, isRecording, askMentor, stopSTT, isLimitReached]);
+  }, [input, isTyping, isRecording, askMentor, stopSTT, isLimitReached, isReadOnlySession]);
 
   // ── Quick action ───────────────────────────────────────
   const handleQuickAction = (prompt: string) => {
@@ -1234,7 +1231,11 @@ export default function MockRoomAI() {
                   }`}
                   title={isLimitReached ? "Đã đạt số câu hỏi tối đa của lượt trải nghiệm" : "Số câu hỏi đã trả lời trong lượt trải nghiệm"}
                 >
-                  {isLimitReached ? "Đạt giới hạn: 5/5 câu" : `Lượt thử: ${studentAnswerCount}/${FREE_MAX_QUESTIONS} câu`}
+                  {isReadOnlySession
+                    ? "Chỉ xem lại"
+                    : isLimitReached
+                    ? "Đạt giới hạn: 5/5 câu"
+                    : `Lượt thử: ${studentAnswerCount}/${FREE_MAX_QUESTIONS} câu`}
                 </span>
               )}
             </div>
@@ -1388,9 +1389,15 @@ export default function MockRoomAI() {
                   <div className="mb-3 p-3.5 bg-gradient-to-r from-teal-500/15 via-emerald-500/10 to-teal-500/15 border border-teal-500/30 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-sm animate-in fade-in duration-300">
                     <div className="flex items-center gap-2 text-teal-300">
                       <CheckCircle2 className="w-4 h-4 shrink-0 text-teal-400" />
-                      <span>
-                        Bạn đã hoàn thành <strong>5/5 câu hỏi trải nghiệm</strong>. Hãy kết thúc buổi để nhận phiếu đánh giá chuẩn SEP490 hoặc nâng cấp VIP để luyện tập không giới hạn!
-                      </span>
+                      {isReadOnlySession ? (
+                        <span data-testid="session-read-only">
+                          Phiên này chỉ còn <strong>xem lại</strong> được. Hãy kết thúc buổi để nhận phiếu đánh giá hoặc mua, nâng cấp gói VIP để luyện tập tiếp.
+                        </span>
+                      ) : (
+                        <span>
+                          Bạn đã hoàn thành <strong>5/5 câu hỏi trải nghiệm</strong>. Hãy kết thúc buổi để nhận phiếu đánh giá chuẩn SEP490 hoặc nâng cấp VIP để luyện tập không giới hạn!
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
                       <Button

@@ -27,6 +27,8 @@ import { RubricRadarChart } from "@/components/features/report/RubricRadarChart"
 import { ScoreGroupTable } from "@/components/features/report/ScoreGroupTable";
 import { VerdictBanner } from "@/components/features/report/VerdictBanner";
 import { MarkdownMessage } from "@/components/features/workspace/MarkdownMessage";
+import { PlanLock } from "@/components/membership/PlanLock";
+import { usePlanAccess } from "@/hooks/usePlanAccess";
 import { getReportDetail, regenerateReport, type ReportDetail, type ReportRule } from "@/lib/api";
 import { parseApiDate } from "@/lib/datetime";
 import { cn } from "@/lib/utils";
@@ -70,6 +72,7 @@ function ListCard({ title, icon, items, empty }: { title: string; icon: ReactNod
 export default function ReportDetailPage() {
   const params = useParams();
   const reportId = Number(params.id);
+  const { access } = usePlanAccess();
 
   const [report, setReport] = useState<ReportDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -304,6 +307,12 @@ export default function ReportDetailPage() {
         )}
 
         {rubric && (
+          <PlanLock
+            locked={!!report.rubric_locked}
+            access={access}
+            title="Đánh giá theo rubric chi tiết"
+            description="Điểm từng hạng mục và biểu đồ chỉ dành cho gói Premium trở lên."
+          >
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Điểm theo rubric {rubric.name}</CardTitle>
@@ -356,6 +365,7 @@ export default function ReportDetailPage() {
               </div>
             </CardContent>
           </Card>
+          </PlanLock>
         )}
 
         {review && review.clo_coverage.length > 0 && (

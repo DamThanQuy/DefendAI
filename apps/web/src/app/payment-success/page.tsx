@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -18,12 +18,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { getPlanExpiry } from "@/app/checkout/payment-data";
+import { parseApiDate } from "@/lib/datetime";
 import { setMembershipPlan } from "@/lib/mock-ai-data";
 
-function getPlanInfo(planId: string) {
-  if (planId === "vip") return { name: "VIP", color: "amber", icon: "crown" };
-  if (planId === "premium") return { name: "Premium", color: "primary", icon: "zap" };
-  return { name: "Premium", color: "primary", icon: "zap" };
+function getPlanInfo(planId: string, planName: string | null) {
+  if (planId === "vip") return { name: planName || "VIP", color: "amber", icon: "crown" };
+  return { name: planName || "Premium", color: "primary", icon: "zap" };
 }
 
 export default function PaymentSuccessPage() {
@@ -31,7 +32,21 @@ export default function PaymentSuccessPage() {
   const planId = searchParams.get("plan") || "premium";
   const cycle = searchParams.get("cycle") || "monthly";
   const orderId = searchParams.get("order_id") || `MOCK-${Date.now()}`;
-  const plan = getPlanInfo(planId);
+  const plan = getPlanInfo(planId, searchParams.get("plan_name"));
+  const [paidUntil, setPaidUntil] = useState<string | null>(null);
+
+  // Hạn thật do backend tính: mua tiếp cùng gói thì đã cộng thời gian còn lại của gói cũ.
+  useEffect(() => {
+    const orderCode = searchParams.get("order_id");
+    if (!orderCode) return;
+    fetch(`/api/payment/order-status/${orderCode}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
+      cache: "no-store",
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => setPaidUntil(data?.membership?.expires_at || null))
+      .catch(() => undefined);
+  }, [searchParams]);
 
   // Auto-redirect to dashboard after 10s
   useEffect(() => {
@@ -47,12 +62,7 @@ export default function PaymentSuccessPage() {
     return () => clearTimeout(t);
   }, []);
 
-  const expiresAt = new Date();
-  if (cycle === "monthly") {
-    expiresAt.setMonth(expiresAt.getMonth() + 1);
-  } else {
-    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-  }
+  const expiresAt = paidUntil ? parseApiDate(paidUntil) : getPlanExpiry(cycle);
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 relative overflow-hidden">
@@ -163,7 +173,7 @@ export default function PaymentSuccessPage() {
             <ul className="space-y-2 text-sm">
               {[
                 "Upload không giới hạn đồ án",
-                "Mock defense không giới hạn",
+                "Mock Room với mentor không giới hạn",
                 "Phân tích tài liệu AI nâng cao",
                 "Báo cáo PDF chi tiết + biểu đồ",
                 "Hỗ trợ ưu tiên 24/7",

@@ -31,6 +31,7 @@ from app.schemas.code_scan import (
     CodeScanSubmitResponse,
 )
 from app.services.job_queue import create_job
+from app.services.membership import require_feature
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/code", tags=["Code Review"])
@@ -46,7 +47,11 @@ router = APIRouter(prefix="/api/code", tags=["Code Review"])
         "Dùng GET /api/code/analyses/{analysis_id} để poll kết quả."
     ),
 )
-async def scan_code(req: CodeScanRequest, db: AsyncSession = Depends(get_db)) -> CodeScanSubmitResponse:
+async def scan_code(
+    req: CodeScanRequest,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_feature("code_review")),
+) -> CodeScanSubmitResponse:
     result = await db.execute(select(Document).where(Document.id == req.document_id))
     document = result.scalar_one_or_none()
     if not document:

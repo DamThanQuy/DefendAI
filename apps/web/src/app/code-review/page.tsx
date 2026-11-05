@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo, useRef, useSyncExternalStore } fro
 import Link from "next/link";
 import { parseApiDate } from "@/lib/datetime";
 import { useSearchParams, useRouter } from "next/navigation";
+import { usePlanAccess } from "@/hooks/usePlanAccess";
+import { PlanLock } from "@/components/membership/PlanLock";
 import { CodePreview } from "@/components/features/code-review/CodePreview";
 import { FileTree } from "@/components/features/assessment/FileTree";
 import type { CodeIssue } from "@/types";
@@ -30,6 +32,9 @@ export default function CodeReviewPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { access } = usePlanAccess();
+  // Chỉ khoá việc quét mới; kết quả đã có trong lịch sử vẫn xem được.
+  const scanLocked = !!access && !access.features.code_review;
 
   const [file, setFile] = useState<File | null>(null);
   const [uploadedDocs, setUploadedDocs] = useState<UploadedDoc[]>([]);
@@ -465,7 +470,7 @@ export default function CodeReviewPage() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={status === "uploading" || status === "scanning"}
+              disabled={scanLocked || status === "uploading" || status === "scanning"}
               className="flex items-center gap-2 px-5 py-2.5 bg-card border border-border text-foreground font-semibold text-[14px] rounded-lg hover:bg-muted transition-colors shadow-sm disabled:opacity-50"
             >
               📁 {file ? file.name : "Chọn file ZIP/RAR"}
@@ -473,7 +478,7 @@ export default function CodeReviewPage() {
             {uploadedDocs.length > 0 && (
               <button
                 onClick={() => setShowDocPicker(true)}
-                disabled={status === "uploading" || status === "scanning"}
+                disabled={scanLocked || status === "uploading" || status === "scanning"}
                 className="flex items-center gap-2 px-5 py-2.5 bg-card border border-dashed border-teal-500/40 text-teal-400 font-semibold text-[14px] rounded-lg hover:bg-teal-500/10 transition-colors shadow-sm disabled:opacity-50"
               >
                 🗂️ {selectedDoc ? selectedDoc.filename : "Chọn từ đã upload"}
@@ -487,7 +492,7 @@ export default function CodeReviewPage() {
             </Link>
             <button
               onClick={startScan}
-              disabled={(!file && !selectedDoc) || status === "uploading" || status === "scanning"}
+              disabled={scanLocked || (!file && !selectedDoc) || status === "uploading" || status === "scanning"}
               className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-semibold text-[14px] rounded-lg hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
             >
               {status === "uploading" || status === "scanning" ? (
@@ -546,6 +551,12 @@ export default function CodeReviewPage() {
 
         {/* Idle: hướng dẫn */}
         {status === "idle" && !result && (
+          <PlanLock
+            locked={scanLocked}
+            access={access}
+            title="Phân tích code chuyên sâu"
+            description="Tính năng này dành cho gói Premium trở lên."
+          >
           <div className="bg-card rounded-2xl border-2 border-dashed border-border p-16 text-center">
             <div className="text-5xl mb-4">🔍</div>
             <h2 className="text-xl font-bold text-foreground mb-2">Chọn file ZIP/RAR chứa source code</h2>
@@ -553,6 +564,7 @@ export default function CodeReviewPage() {
               Tải file mới lên hoặc chọn lại một file ZIP/RAR đã tải lên trước đó để phân tích lại.
             </p>
           </div>
+          </PlanLock>
         )}
 
         {/* Rejected: file không phải source code */}

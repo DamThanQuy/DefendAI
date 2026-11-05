@@ -18,6 +18,8 @@ export function getMembershipPlan(): MembershipPlan {
   try {
     const raw = localStorage.getItem("membership_plan");
     if (raw === "vip" || raw === "premium") return raw;
+    // Gói admin tự tạo lưu bằng mã gói: vẫn là gói trả phí.
+    if (raw && raw !== "free") return "premium";
   } catch {}
   return "free";
 }
@@ -28,6 +30,17 @@ export function setMembershipPlan(plan: MembershipPlan) {
   try {
     localStorage.setItem("membership_plan", plan);
   } catch {}
+}
+
+/** Số vé trải nghiệm Mock AI: vé vừa nhận hoặc vừa dùng được ghi vào localStorage trước khi hồ sơ kịp cập nhật. */
+export function readTrialTickets(profileData: unknown): number {
+  if (typeof window === "undefined") return 0;
+  let stored: string | null = null;
+  try {
+    stored = localStorage.getItem("mock_ai_trial_tickets");
+  } catch {}
+  const value = Number(stored ?? (profileData as { mock_ai_trial_tickets?: unknown } | null | undefined)?.mock_ai_trial_tickets);
+  return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
 /** Một lượt hội thoại trong phòng Mock AI. */
