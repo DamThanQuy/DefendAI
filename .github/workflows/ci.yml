@@ -115,30 +115,21 @@ jobs:
         run: npm run build
 
   # ============================================================
-  # JOB 3: Deployment gates (chỉ chạy khi push to main, cần both jobs pass)
+  # JOB 3: Deploy Backend on tkm1 (chạy khi push/merge vào master, sau khi test pass)
   # ============================================================
-  deploy-check:
-    name: "Deploy Gate"
-    runs-on: ubuntu-latest
+  deploy-backend:
+    name: "Deploy Backend (tkm1)"
+    runs-on: [self-hosted, Windows, defendai]
     needs: [backend, frontend]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
-      - name: All checks passed
+      - name: Deploy to tkm1
+        shell: powershell
         run: |
-          echo "=========================================="
-          echo " CI Passed - Safe to deploy"
-          echo "=========================================="
-          echo "Backend:  ${{ needs.backend.result }}"
-          echo "Frontend: ${{ needs.frontend.result }}"
-
-      - name: Auto-deploy to Render
-        run: |
-          echo "Trigger Render deploy via GitHub push..."
-          echo "Render will auto-deploy on push to main if connected."
-          echo "Manual deploy: Render Dashboard → Manual Deploy"
-
-      - name: Auto-deploy to Vercel
-        run: |
-          echo "Vercel auto-deploys on push to main if connected."
-          echo "Manual deploy: Vercel Dashboard → Redeploy"
+          Set-Location F:\DefendAI
+          git fetch origin master
+          git reset --hard origin/master
+          docker compose exec -T api alembic upgrade head
+          docker compose restart api worker worker_multi
+          Write-Host "Deploy completed successfully on tkm1."
