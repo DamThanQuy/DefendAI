@@ -354,9 +354,10 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
           color: "bg-amber-500/15 text-amber-400 border-amber-500/30",
           icon: Crown,
         };
+      case "premium":
       case "pro":
         return {
-          label: "Gói Pro Member",
+          label: plan === "premium" ? "Gói Premium" : "Gói Pro Member",
           color: "bg-purple-500/15 text-purple-400 border-purple-500/30",
           icon: Sparkles,
         };

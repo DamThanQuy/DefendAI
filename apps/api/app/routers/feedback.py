@@ -17,16 +17,16 @@ from app.models.assessment import CodeAnalysis, Evaluation, Report
 from app.models.booking import MockBooking
 from app.models.document import Document
 from app.models.feedback import Feedback
-from app.models.meeting import Meeting, MeetingMember
+from app.models.meeting import Meeting
+from app.models.mock_chat import MockChatSession
 from app.models.payment import Subscription
-from app.models.session import Session
 from app.models.subscription_plan import SubscriptionPlan
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.workspace_question import WorkspaceQuestion
 from app.models.workspace_chat import WorkspaceChat
 from app.models.message import Message
-from app.services.membership import membership_expired
+from app.services.membership import membership_expired, membership_key
 from app.schemas.feedback import (
     AdoptionFunnelStats,
     CSATStats,
@@ -45,29 +45,45 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/feedback", tags=["Feedback"])
 
 
+async def _safe_scalar(db: AsyncSession, stmt: Any, label: str, user_id: int) -> Any:
+    """Chạy 1 câu query trong SAVEPOINT riêng.
+
+    Lỗi (vd. bảng chưa có migration) chỉ rollback về savepoint: transaction
+    ngoài vẫn dùng được và object `user` không bị expire. Trước đây gọi
+    `db.rollback()` làm expire `user`, lần đọc `user.id` kế tiếp ném
+    MissingGreenlet → cả endpoint trả 500 và mọi tính năng hiện "Chưa dùng".
+    """
+    try:
+        async with db.begin_nested():
+            return (await db.execute(stmt)).scalar()
+    except Exception as exc:
+        logger.warning("Feedback scan: lỗi khi đếm %s cho user %s: %s", label, user_id, exc)
+        return None
+
+
 async def detect_user_plan(user: User, db: AsyncSession) -> str:
     """Xác định gói cước hiện tại của user."""
     now = datetime.utcnow()
-    try:
-        sub_stmt = (
-            select(SubscriptionPlan.slug)
-            .join(Subscription, Subscription.plan_id == SubscriptionPlan.id)
-            .where(
-                Subscription.user_id == user.id,
-                Subscription.status == "active",
-                Subscription.expires_at > now,
-            )
-            .order_by(Subscription.expires_at.desc())
+    user_id = user.id
+    profile_data = user.profile_data
+    sub_stmt = (
+        select(SubscriptionPlan)
+        .join(Subscription, Subscription.plan_id == SubscriptionPlan.id)
+        .where(
+            Subscription.user_id == user_id,
+            Subscription.status == "active",
+            Subscription.expires_at > now,
         )
-        slug = (await db.execute(sub_stmt)).scalar_one_or_none()
-        if slug:
-            return slug
-    except Exception as exc:
-        await db.rollback()
-        logger.warning("Error checking active subscription for user %s: %s", user.id, exc)
+        .order_by(Subscription.expires_at.desc())
+        .limit(1)
+    )
+    plan = await _safe_scalar(db, sub_stmt, "subscription", user_id)
+    if plan is not None:
+        # "vip" / "premium" như các chỗ khác, không trả slug số ("100003")
+        return membership_key(plan)
 
-    if user.profile_data and isinstance(user.profile_data, dict):
-        m = user.profile_data.get("membership", {})
+    if profile_data and isinstance(profile_data, dict):
+        m = profile_data.get("membership", {})
         if isinstance(m, dict) and m.get("status") == "active" and not membership_expired(m, now):
             return m.get("plan", "free")
 
@@ -75,125 +91,93 @@ async def detect_user_plan(user: User, db: AsyncSession) -> str:
 
 
 async def scan_user_features(user: User, db: AsyncSession) -> tuple[List[str], Dict[str, int]]:
-    """Quét các bảng (workspaces, analysis, bookings, meetings, reports) của user."""
-    counts: Dict[str, int] = {
-        "workspaces": 0,
-        "analysis": 0,
-        "bookings": 0,
-        "meetings": 0,
-        "reports": 0,
-    }
+    """Quét các bảng (workspaces, analysis, bookings, meetings, reports) của user.
 
-    # 1. workspaces: Yêu cầu đã thực sự tương tác AI (sinh câu hỏi phản biện hoặc chat hỏi đáp đề tài)
-    try:
-        q_cnt = (
-            await db.execute(
+    Mỗi câu đếm chạy độc lập: 1 bảng lỗi chỉ làm câu đó = 0, không kéo theo
+    các tính năng khác.
+    """
+    uid = user.id
+
+    async def count(label: str, stmt: Any) -> int:
+        return int(await _safe_scalar(db, stmt, label, uid) or 0)
+
+    # Meeting của user: Mock AI (student_id) hoặc phòng mock với mentor qua booking
+    user_meeting = or_(
+        Meeting.student_id == uid,
+        MockBooking.student_id == uid,
+        MockBooking.mentor_id == uid,
+    )
+
+    counts: Dict[str, int] = {
+        # 1. workspaces: đã thực sự tương tác AI (sinh câu hỏi phản biện hoặc chat hỏi đáp đề tài)
+        "workspaces": (
+            await count(
+                "workspace_questions",
                 select(func.count(WorkspaceQuestion.id))
                 .join(Workspace, WorkspaceQuestion.workspace_id == Workspace.id)
-                .where(Workspace.user_id == user.id)
+                .where(Workspace.user_id == uid),
             )
-        ).scalar() or 0
-        chat_cnt = (
-            await db.execute(
+            + await count(
+                "workspace_chats",
                 select(func.count(WorkspaceChat.id))
                 .join(Workspace, WorkspaceChat.workspace_id == Workspace.id)
-                .where(Workspace.user_id == user.id)
+                .where(Workspace.user_id == uid),
             )
-        ).scalar() or 0
-        msg_cnt = (
-            await db.execute(
+            + await count(
+                "messages",
                 select(func.count(Message.id))
                 .join(Workspace, Message.workspace_id == Workspace.id)
-                .where(Workspace.user_id == user.id)
+                .where(Workspace.user_id == uid),
             )
-        ).scalar() or 0
-        counts["workspaces"] = q_cnt + chat_cnt + msg_cnt
-    except Exception as exc:
-        await db.rollback()
-        logger.warning("Error scanning workspace active interactions for user %s: %s", user.id, exc)
-
-    # 2. analysis (AnalysisJob + CodeAnalysis)
-    try:
-        job_cnt = (
-            await db.execute(
-                select(func.count(AnalysisJob.id)).where(AnalysisJob.user_id == user.id)
+        ),
+        # 2. analysis (AnalysisJob + CodeAnalysis)
+        "analysis": (
+            await count(
+                "analysis_jobs",
+                select(func.count(AnalysisJob.id)).where(AnalysisJob.user_id == uid),
             )
-        ).scalar() or 0
-        code_cnt = (
-            await db.execute(
+            + await count(
+                "code_analyses",
                 select(func.count(CodeAnalysis.id))
                 .join(Document, CodeAnalysis.document_id == Document.id)
-                .where(Document.uploaded_by == user.id)
+                .where(Document.uploaded_by == uid),
             )
-        ).scalar() or 0
-        counts["analysis"] = job_cnt + code_cnt
-    except Exception as exc:
-        await db.rollback()
-        logger.warning("Error scanning analysis for user %s: %s", user.id, exc)
-
-    # 3. bookings
-    try:
-        booking_cnt = (
-            await db.execute(
-                select(func.count(MockBooking.id)).where(
-                    or_(MockBooking.student_id == user.id, MockBooking.mentor_id == user.id)
-                )
+        ),
+        # 3. bookings
+        "bookings": await count(
+            "mock_bookings",
+            select(func.count(MockBooking.id)).where(
+                or_(MockBooking.student_id == uid, MockBooking.mentor_id == uid)
+            ),
+        ),
+        # 4. meetings: phiên Mock Room AI đã chat + phòng mock (AI hoặc mentor)
+        "meetings": (
+            await count(
+                "mock_chat_sessions",
+                select(func.count(MockChatSession.id)).where(
+                    MockChatSession.user_id == uid,
+                    MockChatSession.message_count > 0,
+                ),
             )
-        ).scalar() or 0
-        counts["bookings"] = booking_cnt
-    except Exception as exc:
-        await db.rollback()
-        logger.warning("Error scanning bookings for user %s: %s", user.id, exc)
-
-    # 4. meetings (mock booking meetings, member entries, sessions)
-    try:
-        meeting_cnt = (
-            await db.execute(
-                select(func.count(MockBooking.id)).where(
-                    or_(MockBooking.student_id == user.id, MockBooking.mentor_id == user.id),
-                    MockBooking.meeting_id.is_not(None),
-                )
+            + await count(
+                "meetings",
+                select(func.count(func.distinct(Meeting.id)))
+                .select_from(Meeting)
+                .outerjoin(MockBooking, MockBooking.meeting_id == Meeting.id)
+                .where(user_meeting),
             )
-        ).scalar() or 0
-
-        session_cnt = (
-            await db.execute(
-                select(func.count(Session.id)).where(Session.created_by == user.id)
-            )
-        ).scalar() or 0
-
-        counts["meetings"] = meeting_cnt + session_cnt
-    except Exception as exc:
-        await db.rollback()
-        logger.warning("Error scanning meetings for user %s: %s", user.id, exc)
-
-    # 5. reports (evaluations with reports linked to user bookings/sessions)
-    try:
-        rep_from_booking = (
-            await db.execute(
-                select(func.count(Report.id))
-                .join(Evaluation, Report.evaluation_id == Evaluation.id)
-                .join(Meeting, Evaluation.meeting_id == Meeting.id)
-                .join(MockBooking, MockBooking.meeting_id == Meeting.id)
-                .where(
-                    or_(MockBooking.student_id == user.id, MockBooking.mentor_id == user.id)
-                )
-            )
-        ).scalar() or 0
-
-        rep_from_session = (
-            await db.execute(
-                select(func.count(Report.id))
-                .join(Evaluation, Report.evaluation_id == Evaluation.id)
-                .join(Session, Evaluation.meeting_id == Session.id)
-                .where(Session.created_by == user.id)
-            )
-        ).scalar() or 0
-
-        counts["reports"] = rep_from_booking + rep_from_session
-    except Exception as exc:
-        await db.rollback()
-        logger.warning("Error scanning reports for user %s: %s", user.id, exc)
+        ),
+        # 5. reports: báo cáo của buổi mock AI hoặc mock mentor của user
+        "reports": await count(
+            "reports",
+            select(func.count(func.distinct(Report.id)))
+            .select_from(Report)
+            .join(Evaluation, Report.evaluation_id == Evaluation.id)
+            .join(Meeting, Evaluation.meeting_id == Meeting.id)
+            .outerjoin(MockBooking, MockBooking.meeting_id == Meeting.id)
+            .where(user_meeting),
+        ),
+    }
 
     detected: List[str] = [k for k, v in counts.items() if v > 0]
     return detected, counts
