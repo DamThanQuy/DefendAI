@@ -1112,10 +1112,6 @@ export default function WorkspaceDetailPage() {
                       doc_type: f.doc_type,
                       status: "completed",
                     }))}
-                    onFocusWeakSpots={(topic) => {
-                      setRightTab("questions");
-                      void askWorkspaceTopic(topic);
-                    }}
                   />
                 </div>
               )}
