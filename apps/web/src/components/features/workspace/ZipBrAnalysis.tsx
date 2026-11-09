@@ -180,7 +180,7 @@ export default function ZipBrAnalysis({
           disabled={disabled || analysisLoading}
           className="px-5 py-2.5 bg-teal-500 text-white rounded-xl text-[14px] font-semibold hover:bg-teal-500/90 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
         >
-          {analysisLoading ? "Đang khởi tạo…" : "🔍 Phân tích BR với Source Code"}
+          {analysisLoading ? "Đang khởi tạo…" : "Phân tích BR với Source Code"}
         </button>
         {disabled && (
           <p className="mt-2 text-[12px] text-zinc-500">
@@ -192,7 +192,7 @@ export default function ZipBrAnalysis({
           <div className="mt-5 border-t border-zinc-800/60 pt-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[12px] font-semibold text-zinc-400">
-                🕘 Các lần phân tích gần đây
+                Các lần phân tích gần đây
               </p>
               <button
                 onClick={refreshHistory}
