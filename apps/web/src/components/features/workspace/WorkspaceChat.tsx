@@ -488,7 +488,7 @@ export default function WorkspaceChat({
     >
       <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-800/40 flex items-center justify-between gap-2 sticky top-0 z-20">
         <span className="text-[13px] font-bold text-zinc-200 flex items-center gap-2">
-          💬 Chat đề tài (toàn workspace)
+          Chat đề tài (toàn workspace)
           {isFullscreen && (
             <span className="text-[11px] font-normal text-zinc-400 bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700/50">
               Toàn màn hình (Esc để thoát)
@@ -554,7 +554,7 @@ export default function WorkspaceChat({
               title="Tạo đoạn chat mới"
               className="px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-md text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors whitespace-nowrap"
             >
-              ➕ Đoạn mới
+              Đoạn mới
             </button>
           </div>
           {/* Danh sách đoạn chat — cuộn độc lập, không làm trôi top bar */}
@@ -567,7 +567,7 @@ export default function WorkspaceChat({
                 onClick={() => switchConversation("")}
                 className={`w-full text-left px-2 py-1.5 rounded-md text-[12px] transition-colors ${activeConvId === "" ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-zinc-400 hover:bg-zinc-800/60"}`}
               >
-                💬 Đoạn mặc định
+                Đoạn mặc định
               </button>
               {conversations.map((c) => (
                 <div key={c.conversation_id} className="group relative flex items-center gap-1">
@@ -634,7 +634,6 @@ export default function WorkspaceChat({
           <p className="text-zinc-500 text-[13px] text-center py-8">Đang tải hội thoại...</p>
         ) : chatItems.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-zinc-500">
-            <span className="text-4xl mb-3">💬</span>
             <p className="text-[13px] text-center max-w-[320px]">Hỏi bất kỳ điều gì về toàn bộ workspace — AI trả lời kèm nguồn file:đoạn, giữ ngữ cảnh 6 lượt trước.</p>
           </div>
         ) : (
