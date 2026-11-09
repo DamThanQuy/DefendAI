@@ -36,13 +36,9 @@ export interface ZipBrDocument {
 export default function ZipBrAnalysis({
   workspaceId,
   documents = [],
-  onFocusWeakSpots,
 }: {
   workspaceId: number;
   documents?: ZipBrDocument[];
-  /** Optional callback invoked khi user bấm "Sinh câu hỏi tập trung điểm yếu".
-   *  Nhận topic string (UC codes + missing evidence) để FE dùng cho `/api/workspaces/{id}/questions`. */
-  onFocusWeakSpots?: (topic: string) => void;
 }) {
   const [analysisView, setAnalysisView] = useState<"running" | "results" | null>(null);
   const [analysisJobId, setAnalysisJobId] = useState<number | null>(null);
@@ -168,32 +164,6 @@ export default function ZipBrAnalysis({
     if (!iso) return "";
     const d = new Date(iso);
     return `${d.toLocaleDateString("vi-VN")} ${d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
-  };
-
-  const weakSpots = analysisMatches?.matches?.filter(
-    (m) => m.status === "partial" || m.status === "not_found",
-  ) ?? [];
-  const weakSpotsCount = weakSpots.length;
-  const buildWeakSpotsTopic = (): string => {
-    if (!weakSpots.length) return "";
-    const lines: string[] = [
-      "Tập trung đối chiếu các yêu cầu BR sau (đang thiếu hoặc chỉ khớp một phần bằng chứng triển khai):",
-    ];
-    for (const m of weakSpots.slice(0, 12)) {
-      const code = m.requirement_code;
-      const title = m.requirement_title ? ` — ${m.requirement_title}` : "";
-      const miss = m.missing_evidence?.length
-        ? ` (thiếu: ${m.missing_evidence.join("; ")})`
-        : "";
-      lines.push(`- ${code}${title}${miss}`);
-    }
-    if (weakSpots.length > 12) {
-      lines.push(`… và ${weakSpots.length - 12} yêu cầu yếu khác.`);
-    }
-    lines.push(
-      "Sinh câu hỏi phản biện mà hội đồng có thể đặt ra cho các điểm yếu này.",
-    );
-    return lines.join("\n");
   };
 
   // --- Picker card (closed state) ---
@@ -337,25 +307,6 @@ export default function ZipBrAnalysis({
             )}
 
           <AnalysisSummary matches={analysisMatches} />
-
-          {onFocusWeakSpots && weakSpotsCount > 0 && (
-            <div className="flex items-center justify-between gap-3 px-4 py-3 bg-zinc-900/60 border border-zinc-800 rounded-xl">
-              <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-zinc-200">
-                  🎯 Có {weakSpotsCount} yêu cầu đang yếu
-                </p>
-                <p className="text-[11px] text-zinc-500 mt-0.5 truncate">
-                  Sinh câu hỏi phản biện tập trung vào các điểm thiếu bằng chứng.
-                </p>
-              </div>
-              <button
-                onClick={() => onFocusWeakSpots(buildWeakSpotsTopic())}
-                className="shrink-0 px-3.5 py-1.5 bg-primary text-primary-foreground rounded-lg text-[12px] font-semibold hover:bg-primary/90"
-              >
-                Sinh câu hỏi từ điểm yếu
-              </button>
-            </div>
-          )}
 
           <MatchList matches={analysisMatches.matches} />
         </div>
