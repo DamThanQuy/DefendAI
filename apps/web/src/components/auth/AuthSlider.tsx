@@ -384,7 +384,9 @@ export function AuthSlider({
       localStorage.setItem("user", JSON.stringify(data.user));
       window.dispatchEvent(new Event("storage"));
       const roles: string[] = data.user?.roles ?? [];
-      if (roles.includes("mentor") || roles.includes("admin")) {
+      if (roles.includes("admin")) {
+        router.push("/admin/overview");
+      } else if (roles.includes("mentor")) {
         router.push("/mentor/dashboard");
       } else {
         router.push("/documents");
@@ -422,7 +424,9 @@ export function AuthSlider({
       window.dispatchEvent(new Event("storage"));
       const roles: string[] = data.user?.roles ?? [];
       console.log("Google login - user roles:", roles);
-      if (roles.includes("mentor") || roles.includes("admin")) {
+      if (roles.includes("admin")) {
+        router.push("/admin/overview");
+      } else if (roles.includes("mentor")) {
         router.push("/mentor/dashboard");
       } else {
         router.push("/documents");
