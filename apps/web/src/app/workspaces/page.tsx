@@ -289,15 +289,6 @@ export default function WorkspacesPage() {
   return (
     <div className="min-h-screen bg-background pb-16">
       <div className="container mx-auto px-4 lg:px-8 pt-6 max-w-[1100px]">
-        {/* Breadcrumb */}
-        <nav className="flex items-center text-[13px] font-medium mb-4">
-          <Link href="/" className="text-muted-foreground hover:text-foreground transition-colors">
-            Trang chủ
-          </Link>
-          <span className="mx-2 text-muted-foreground/50">›</span>
-          <span className="text-primary font-semibold">Workspace</span>
-        </nav>
-
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
@@ -384,13 +375,13 @@ export default function WorkspacesPage() {
                     onClick={() => setRenameWs(ws)}
                     className="px-3 py-1.5 text-[12px] font-semibold text-muted-foreground bg-muted rounded-lg hover:bg-muted/70 transition-colors"
                   >
-                    ✏️ Đổi tên
+                    Đổi tên
                   </button>
                   <button
                     onClick={() => handleDelete(ws)}
                     className="px-3 py-1.5 text-[12px] font-semibold text-destructive bg-destructive/10 rounded-lg hover:bg-destructive/20 transition-colors"
                   >
-                    🗑️ Xoá
+                    Xoá
                   </button>
                   <button
                     onClick={() => openAddModal(ws)}

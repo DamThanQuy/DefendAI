@@ -137,13 +137,6 @@ export default function WqDetailPage() {
     <div className="min-h-screen bg-background pb-16">
       <div className="container mx-auto px-4 lg:px-8 pt-6 max-w-[900px]">
         {/* Breadcrumbs (AppShell đã có Trang chủ › Workspace, chỉ thêm phần detail) */}
-        <div className="flex items-center text-[13px] text-muted-foreground font-medium mb-4 flex-wrap">
-          <Link href={`/workspaces/${wsId}`} className="hover:text-primary transition-colors">Workspace #{wsId}</Link>
-          <span className="mx-2">›</span>
-          <Link href={`/workspaces/${wsId}`} className="hover:text-primary transition-colors">🎓 Luyện phản biện</Link>
-          <span className="mx-2">›</span>
-          <span className="text-primary font-semibold">Phiên #{data.id}</span>
-        </div>
 
         {/* Header */}
         <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-5 mb-5">

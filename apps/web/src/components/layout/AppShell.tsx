@@ -62,7 +62,6 @@ const SIDEBAR_LINKS: SidebarLink[] = [
   { href: "/bookings", label: "Đặt lịch", icon: CalendarClock, roles: ["student", "admin"] },
   { href: "/mock-room", label: "Mock Room", icon: MonitorPlay, roles: ["student", "admin"] },
   { href: "/report", label: "Báo cáo", icon: BarChart3, roles: ["student", "admin"] },
-  { href: "/pricing", label: "Đăng ký Member", icon: Crown, roles: ["student"] },
   // --- Mentor ---
   { href: "/mentor/dashboard", label: "Tổng quan Mentor", icon: LayoutDashboard, roles: ["mentor", "admin"] },
   { href: "/mentor/calendar", label: "Lịch rảnh", icon: CalendarDays, roles: ["mentor", "admin"] },
@@ -193,9 +192,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       }`}
                     />
                     {l.label}
-                    {active && (
-                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)]" />
-                    )}
                   </Link>
                 );
               })}
@@ -245,9 +241,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="hidden lg:flex flex-1 max-w-md mx-auto items-center gap-2 h-10 px-4 rounded-full border border-border bg-card/60 text-sm text-muted-foreground">
             <Search className="w-4 h-4" />
             <span className="text-xs">Tìm tài liệu, workspace...</span>
-            <kbd className="ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-              ⌘K
-            </kbd>
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
