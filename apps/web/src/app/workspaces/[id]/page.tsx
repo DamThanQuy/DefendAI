@@ -686,7 +686,7 @@ export default function WorkspaceDetailPage() {
   return (
     <div className="min-h-screen bg-background pb-16">
       <div className="container mx-auto px-4 lg:px-8 pt-6 max-w-[1400px]">
-        {/* Breadcrumb */}
+        {/* Breadcrumb (bổ sung tên workspace; AppShell đã có Trang chủ › Workspace) */}
         <div className="flex items-center text-[13px] text-zinc-500 font-medium mb-4">
           <Link href="/documents" className="hover:text-primary transition-colors">Trang chủ</Link>
           <span className="mx-2">›</span>

@@ -93,14 +93,6 @@ export default function LandingPage() {
           transition={{ duration: 0.5 }}
           className="container mx-auto text-center max-w-4xl"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-semibold mb-8 backdrop-blur-sm">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-            </span>
-            Nền tảng AI Mock Defense thế hệ mới
-          </div>
-
           <h1 className="text-5xl md:text-7xl font-serif font-black tracking-tight mb-6 leading-[1.05] text-foreground">
             Chủ động đồ án. <br />
             <span className="text-gradient">Làm chủ tương lai.</span>

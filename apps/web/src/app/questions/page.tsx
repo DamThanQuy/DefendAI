@@ -153,13 +153,6 @@ export default function QuestionsPage() {
   return (
     <div className="min-h-screen pb-16">
       <div className="container mx-auto px-4 lg:px-8 pt-6 max-w-[1100px]">
-        {/* Breadcrumb */}
-        <div className="flex items-center text-[13px] text-muted-foreground font-medium mb-4">
-          <Link href="/" className="hover:text-primary transition-colors">Trang chủ</Link>
-          <span className="mx-2">›</span>
-          <span className="text-primary font-semibold">Kết quả phân tích (AI Results)</span>
-        </div>
-
         {/* Header Area */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
           <div className="max-w-2xl">

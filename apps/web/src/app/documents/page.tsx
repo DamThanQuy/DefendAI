@@ -247,33 +247,28 @@ export default function DocumentsPage() {
   return (
     <div className="min-h-screen bg-background pb-16">
       <div className="container mx-auto px-4 lg:px-8 pt-6 max-w-[1100px]">
-        {/* Breadcrumb */}
-        <div className="flex items-center text-[13px] text-zinc-500 font-medium mb-6">
-          <Link href="/documents" className="hover:text-primary transition-colors">Trang chủ</Link>
-          <span className="mx-2">›</span>
-          <span className="text-primary font-semibold">Tài liệu</span>
-        </div>
-
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
             <h1 className="text-[28px] font-bold text-foreground mb-2">Tài liệu của tôi</h1>
             <p className="text-zinc-500 text-[14px]">Quản lý tài liệu đã tải lên cho buổi bảo vệ.</p>
           </div>
-          <button
-            onClick={() => openUploadModal()}
-            data-testid="documents-upload-button"
-            className="px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90 transition-colors shrink-0"
-          >
-            + Tải lên tài liệu mới
-          </button>
-          <Link
-            href="/documents/trash"
-            className="px-4 py-2.5 rounded-lg border border-zinc-700 text-zinc-300 text-[13px] font-medium hover:bg-zinc-800 hover:text-foreground transition-colors shrink-0 inline-flex items-center gap-1.5"
-          >
-            <TrashIcon className="w-4 h-4" />
-            Thùng rác
-          </Link>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/documents/trash"
+              className="px-6 py-2.5 rounded-lg border border-zinc-700 text-zinc-300 text-[14px] font-semibold hover:bg-zinc-800 hover:text-foreground transition-colors inline-flex items-center gap-1.5"
+            >
+              <TrashIcon className="w-4 h-4" />
+              Thùng rác
+            </Link>
+            <button
+              onClick={() => openUploadModal()}
+              data-testid="documents-upload-button"
+              className="px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90 transition-colors"
+            >
+              + Tải lên tài liệu mới
+            </button>
+          </div>
         </div>
 
         {loading && (

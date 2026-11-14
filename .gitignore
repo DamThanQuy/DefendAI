@@ -91,3 +91,8 @@ apps/web/tsconfig.tsbuildinfo
 # Playwright / test artifacts
 playwright-report/
 test-results/
+
+# Local manual verification artifacts (chứa credential, chỉ dùng tại máy)
+apps/api/tests/challenger2_raw_evidence.json
+apps/api/tests/verify_challenger2_protocol.py
+test_sample.zip
