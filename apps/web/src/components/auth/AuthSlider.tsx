@@ -175,13 +175,15 @@ function LoginForm(props: {
         </div>
 
         {props.active && googleConfigured && (
-          <GoogleLogin
-            onSuccess={props.onGoogle}
-            onError={() => props.setError("Đăng nhập Google thất bại")}
-            useOneTap={false}
-            theme="outline"
-            shape="rectangular"
-          />
+          <div className="w-full [&>div]:!w-full [&_iframe]:!w-full [&_iframe]:!h-12">
+            <GoogleLogin
+              onSuccess={props.onGoogle}
+              onError={() => props.setError("Đăng nhập Google thất bại")}
+              useOneTap={false}
+              theme="outline"
+              shape="rectangular"
+            />
+          </div>
         )}
       </form>
 
@@ -287,13 +289,15 @@ function RegisterForm(props: {
         </div>
 
         {props.active && googleConfigured && (
-          <GoogleLogin
-            onSuccess={props.onGoogle}
-            onError={() => props.setError("Đăng nhập Google thất bại")}
-            useOneTap={false}
-            theme="outline"
-            shape="rectangular"
-          />
+          <div className="w-full [&>div]:!w-full [&_iframe]:!w-full [&_iframe]:!h-12">
+            <GoogleLogin
+              onSuccess={props.onGoogle}
+              onError={() => props.setError("Đăng nhập Google thất bại")}
+              useOneTap={false}
+              theme="outline"
+              shape="rectangular"
+            />
+          </div>
         )}
       </form>
 
