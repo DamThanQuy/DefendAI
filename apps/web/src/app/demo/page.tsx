@@ -1,5 +1,5 @@
 import React from "react";
-import { FileText, MonitorPlay, FileSearch, MessageSquare, Mic } from "lucide-react";
+import { FileText, MonitorPlay, MessageSquare, Mic } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /* Mock data — tái hiện giao diện app cho khách xem trước               */
@@ -51,19 +51,6 @@ const mockQuestions = [
     q: "Thiếu null-check tại analyzer.ts:12 có nguy hiểm không?",
     hint: "Phân tích hậu quả khi dữ liệu null xuất hiện và cách phòng ngừa bằng optional chaining.",
   },
-];
-
-const mockFileTree = [
-  { name: "main.py", count: 2 },
-  { name: "utils/db.py", count: 5 },
-  { name: "app/routes.py", count: 0 },
-  { name: "models/user.py", count: 3 },
-];
-
-const mockIssues = [
-  { sev: "critical", type: "NullPointer", line: 12, file: "main.py", desc: "Có thể truy cập thuộc tính trên None" },
-  { sev: "medium", type: "N+1 Query", line: 41, file: "utils/db.py", desc: "Truy vấn lặp trong vòng lặp — chậm khi dữ liệu lớn" },
-  { sev: "low", type: "Magic Number", line: 7, file: "utils/db.py", desc: "Sử dụng hằng số ẩn, nên đặt tên rõ ràng" },
 ];
 
 /** Khung thẻ mockup UI. */
@@ -148,61 +135,8 @@ export default function DemoPage() {
           </WindowFrame>
         </div>
 
-        {/* 2. Code Review + Câu hỏi AI — 2 cột */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-20">
-          {/* Code Review */}
-          <div>
-            <h3 className="text-xl font-bold flex items-center gap-2 mb-6">
-              <FileSearch className="w-5 h-5 text-primary" /> Code Review AI
-            </h3>
-            <WindowFrame>
-              <div className="p-5">
-                {/* Stats */}
-                <div className="grid grid-cols-1 gap-3 mb-5">
-                  <div className="bg-muted/40 rounded-xl p-4 border border-border/60">
-                    <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Lỗi nghiêm trọng</div>
-                    <div className="text-[24px] font-bold text-red-400 mt-1">3</div>
-                  </div>
-                </div>
-
-                {/* File tree */}
-                <div className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Files</div>
-                <div className="mb-5">
-                  {mockFileTree.map((f) => (
-                    <div key={f.name} className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] text-muted-foreground">
-                      <span className="text-[12px]">{f.name.endsWith(".py") ? "🐍" : "📁"}</span>
-                      <span className="truncate flex-1">{f.name}</span>
-                      {f.count > 0 && (
-                        <span className="text-[10px] font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                          {f.count}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Issues */}
-                <div className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Lỗi tìm thấy</div>
-                <div className="space-y-2">
-                  {mockIssues.map((i, idx) => {
-                    const c = i.sev === "critical" ? "bg-red-500/10 text-red-400" : i.sev === "medium" ? "bg-orange-500/10 text-orange-400" : "bg-green-500/10 text-green-400";
-                    const l = i.sev === "critical" ? "CRITICAL" : i.sev === "medium" ? "WARNING" : "OPTIMIZATION";
-                    return (
-                      <div key={idx} className="bg-card/40 rounded-lg px-3 py-2.5 border border-border/60 flex items-start gap-2">
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mt-0.5 shrink-0 ${c}`}>{l}</span>
-                        <div className="min-w-0">
-                          <p className="text-[12px] text-foreground font-medium truncate">{i.type} — {i.file}:{i.line}</p>
-                          <p className="text-[11px] text-muted-foreground truncate">{i.desc}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </WindowFrame>
-          </div>
-
-          {/* Câu hỏi AI */}
+        {/* 2. Câu hỏi phản biện AI */}
+        <div className="max-w-3xl mx-auto mb-20">
           <div>
             <h3 className="text-xl font-bold flex items-center gap-2 mb-6">
               <MessageSquare className="w-5 h-5 text-primary" /> Câu hỏi phản biện AI
