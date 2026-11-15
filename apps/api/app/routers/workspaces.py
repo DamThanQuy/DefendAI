@@ -18,6 +18,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -177,8 +178,20 @@ async def delete_workspace(
 ):
     """Xoá workspace — KHÔNG xoá documents (chỉ xoá liên kết)."""
     workspace = await _get_owned_workspace(workspace_id, user, db)
-    await db.delete(workspace)
-    await db.commit()
+    try:
+        await db.delete(workspace)
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        logger.warning("delete_workspace %s: FK violation (%s)", workspace_id, exc)
+        raise HTTPException(
+            status_code=409,
+            detail="Không thể xoá workspace vì còn dữ liệu liên quan chưa được dọn sạch",
+        )
+    except Exception:
+        await db.rollback()
+        logger.exception("delete_workspace %s: unexpected error", workspace_id)
+        raise HTTPException(status_code=500, detail="Không thể xoá workspace")
 
 
 @router.post("/{workspace_id}/files", response_model=WorkspaceOut, status_code=201)

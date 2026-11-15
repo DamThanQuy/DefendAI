@@ -70,6 +70,9 @@ export default function WorkspacesPage() {
   // Modals
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
+  // Chặn double-submit: modal không tự đóng ngay khi đang gửi, nếu không
+  // bấm/Enter 2 lần sẽ tạo 2 workspace trùng tên (#122).
+  const [creatingWs, setCreatingWs] = useState(false);
   const [renameWs, setRenameWs] = useState<Workspace | null>(null);
   const [renameName, setRenameName] = useState("");
   const [addWs, setAddWs] = useState<Workspace | null>(null);
@@ -124,7 +127,8 @@ export default function WorkspacesPage() {
 
   const handleCreate = async () => {
     const token = getToken();
-    if (!token || !newName.trim()) return;
+    if (!token || !newName.trim() || creatingWs) return;
+    setCreatingWs(true);
     try {
       const r = await fetch("/api/workspaces/", {
         method: "POST",
@@ -137,6 +141,8 @@ export default function WorkspacesPage() {
       await fetchWorkspaces();
     } catch (e: any) {
       setError(e.message);
+    } finally {
+      setCreatingWs(false);
     }
   };
 
@@ -447,17 +453,23 @@ export default function WorkspacesPage() {
             <input
               autoFocus
               value={newName}
+              disabled={creatingWs}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
               placeholder="Tên đề tài (vd: Đồ án quản lý nhà trọ)"
-              className="w-full border border-border rounded-lg px-4 py-2.5 text-[14px] bg-card focus:outline-none focus:ring-2 focus:ring-primary/30 mb-4 text-foreground"
+              className="w-full border border-border rounded-lg px-4 py-2.5 text-[14px] bg-card focus:outline-none focus:ring-2 focus:ring-primary/30 mb-4 text-foreground disabled:opacity-60"
             />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-[13px] font-semibold text-muted-foreground hover:bg-muted rounded-lg">
+              <button onClick={() => setShowCreate(false)} disabled={creatingWs} className="px-4 py-2 text-[13px] font-semibold text-muted-foreground hover:bg-muted rounded-lg disabled:opacity-50">
                 Huỷ
               </button>
-              <button onClick={handleCreate} disabled={!newName.trim()} className="px-4 py-2 text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50">
-                Tạo
+              <button
+                onClick={handleCreate}
+                disabled={!newName.trim() || creatingWs}
+                className="px-4 py-2 text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {creatingWs && <div className="w-3.5 h-3.5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />}
+                {creatingWs ? "Đang tạo..." : "Tạo"}
               </button>
             </div>
           </div>

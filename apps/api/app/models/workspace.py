@@ -60,6 +60,14 @@ class Workspace(Base):
         cascade="all, delete-orphan",
     )
 
+    # Cam kết use-case (BR-B2). Không có cascade thì FK
+    # use_case_commitments_workspace_id_fkey chặn DELETE workspace (#122).
+    use_case_commitments = relationship(
+        "UseCaseCommitment",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+    )
+
 
 class WorkspaceFile(Base):
     __tablename__ = "workspace_files"
