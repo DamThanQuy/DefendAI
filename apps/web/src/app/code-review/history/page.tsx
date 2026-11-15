@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { parseApiDate } from "@/lib/datetime";
+import { useRouter } from "next/navigation";
+import { usePlanAccess } from "@/hooks/usePlanAccess";
 import Link from "next/link";
 
 interface AnalysisItem {
@@ -20,6 +22,17 @@ export default function CodeReviewHistoryPage() {
   const [analyses, setAnalyses] = useState<AnalysisItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const router = useRouter();
+  const { access, loading: accessLoading } = usePlanAccess();
+
+  // Chặn hẳn route theo quyền gói (cùng cơ chế với /code-review).
+  // Chỉ quyết định khi đã load xong (access khác null), tránh nhấp nháy lúc đang tải.
+  useEffect(() => {
+    if (!accessLoading && access && !access.features.code_review) {
+      router.replace("/pricing");
+    }
+  }, [access, accessLoading, router]);
 
   useEffect(() => {
     const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
