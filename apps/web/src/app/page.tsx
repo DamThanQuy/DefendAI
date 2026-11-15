@@ -10,26 +10,14 @@ import {
   Search,
   FileText,
   MonitorPlay,
-  Award,
   Sparkles,
   CheckCircle2,
-  Trophy,
   Smartphone,
-  BookOpen,
   Code2,
   GitBranch,
   Zap,
-  GraduationCap,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
-const STATS = [
-  { value: "8.019+", label: "Câu hỏi phản biện", icon: FileText },
-  { value: "92+", label: "Đồ án đã phân tích", icon: Trophy },
-  { value: "30+", label: "Chuyên ngành", icon: BookOpen },
-  { value: "943+", label: "Sinh viên tin dùng", icon: GraduationCap },
-];
 
 const STEPS = [
   {
@@ -136,31 +124,6 @@ export default function LandingPage() {
             </Link>
           </div>
         </motion.div>
-      </section>
-
-      {/* Stats */}
-      <section className="relative z-10 pb-20">
-        <div className="container mx-auto px-4 max-w-5xl">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {STATS.map((s, idx) => (
-              <motion.div
-                key={s.label}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 + idx * 0.05 }}
-                className="dark-card rounded-2xl p-5 flex flex-col items-start gap-2 hover:border-primary/40"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                    <s.icon className="w-5 h-5" />
-                  </div>
-                  <div className="text-3xl font-black text-gradient">{s.value}</div>
-                </div>
-                <div className="text-sm text-muted-foreground">{s.label}</div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
       </section>
 
       {/* How it works — 3 steps */}

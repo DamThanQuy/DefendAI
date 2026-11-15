@@ -14,9 +14,9 @@ import { FeedbackFloatingButton } from "@/components/feedback/FeedbackFloatingBu
 import { ProductTourGate } from "@/components/tour/ProductTourGate";
 import { Toaster } from "sonner";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
-const garamond = EB_Garamond({ subsets: ["latin"], variable: "--font-serif", weight: ["400", "500", "600", "700", "800"] });
+const inter = Inter({ subsets: ["latin", "vietnamese"], variable: "--font-sans" });
+const jetbrainsMono = JetBrains_Mono({ subsets: ["latin", "vietnamese"], variable: "--font-mono" });
+const garamond = EB_Garamond({ subsets: ["latin", "vietnamese"], variable: "--font-serif", weight: ["400", "500", "600", "700", "800"] });
 
 export const metadata: Metadata = {
   title: "GraduAI - Mock Defense",

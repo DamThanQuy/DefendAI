@@ -168,7 +168,10 @@ export default function ReportPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
+                id="report-search"
+                name="report_search"
                 type="text"
+                aria-label="Tìm báo cáo theo đồ án, tài liệu, nhận xét"
                 placeholder="Tìm theo đồ án, tài liệu, nhận xét..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

@@ -73,7 +73,7 @@ class UseCaseCommitment(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    workspace = relationship("Workspace")
+    workspace = relationship("Workspace", back_populates="use_case_commitments")
     source_document = relationship("Document")
 
 

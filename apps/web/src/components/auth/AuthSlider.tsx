@@ -167,21 +167,23 @@ function LoginForm(props: {
 
         <div className="relative py-2">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-border" />
+            <span className="w-full border-t border-zinc-200" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-3 text-muted-foreground">hoặc tiếp tục với</span>
+            <span className="bg-white px-3 text-zinc-500">hoặc tiếp tục với</span>
           </div>
         </div>
 
         {props.active && googleConfigured && (
-          <GoogleLogin
-            onSuccess={props.onGoogle}
-            onError={() => props.setError("Đăng nhập Google thất bại")}
-            useOneTap={false}
-            theme="outline"
-            shape="rectangular"
-          />
+          <div className="w-full [&>div]:!w-full [&_iframe]:!w-full [&_iframe]:!h-12">
+            <GoogleLogin
+              onSuccess={props.onGoogle}
+              onError={() => props.setError("Đăng nhập Google thất bại")}
+              useOneTap={false}
+              theme="outline"
+              shape="rectangular"
+            />
+          </div>
         )}
       </form>
 
@@ -279,21 +281,23 @@ function RegisterForm(props: {
 
         <div className="relative py-2">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-border" />
+            <span className="w-full border-t border-zinc-200" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-3 text-muted-foreground">hoặc tiếp tục với</span>
+            <span className="bg-white px-3 text-zinc-500">hoặc tiếp tục với</span>
           </div>
         </div>
 
         {props.active && googleConfigured && (
-          <GoogleLogin
-            onSuccess={props.onGoogle}
-            onError={() => props.setError("Đăng nhập Google thất bại")}
-            useOneTap={false}
-            theme="outline"
-            shape="rectangular"
-          />
+          <div className="w-full [&>div]:!w-full [&_iframe]:!w-full [&_iframe]:!h-12">
+            <GoogleLogin
+              onSuccess={props.onGoogle}
+              onError={() => props.setError("Đăng nhập Google thất bại")}
+              useOneTap={false}
+              theme="outline"
+              shape="rectangular"
+            />
+          </div>
         )}
       </form>
 
