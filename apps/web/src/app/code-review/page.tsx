@@ -32,9 +32,17 @@ export default function CodeReviewPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { access } = usePlanAccess();
+  const { access, loading: accessLoading } = usePlanAccess();
   // Chỉ khoá việc quét mới; kết quả đã có trong lịch sử vẫn xem được.
   const scanLocked = !!access && !access.features.code_review;
+
+  // Chặn hẳn route theo quyền gói: chưa có quyền code_review thì chuyển về /pricing.
+  // Chỉ quyết định khi đã load xong (access khác null), tránh nhấp nháy lúc đang tải.
+  useEffect(() => {
+    if (!accessLoading && access && !access.features.code_review) {
+      router.replace("/pricing");
+    }
+  }, [access, accessLoading, router]);
 
   const [file, setFile] = useState<File | null>(null);
   const [uploadedDocs, setUploadedDocs] = useState<UploadedDoc[]>([]);
