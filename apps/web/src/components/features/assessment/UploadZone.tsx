@@ -34,8 +34,8 @@ export function UploadZone({
   onProgress,
   onRegisterAbort,
   title = "Kéo thả hoặc chọn tệp",
-  description = `Hỗ trợ định dạng PDF, DOCX, ZIP, RAR (Tối đa ${MAX_FILE_SIZE / (1024 * 1024 * 1024)}GB)`,
-  accept = ".pdf,.docx,.zip,.rar",
+  description = `Hỗ trợ định dạng PDF, DOCX, PPTX, ZIP, RAR, MD (Tối đa ${MAX_FILE_SIZE / (1024 * 1024 * 1024)}GB)`,
+  accept = ".pdf,.docx,.pptx,.zip,.rar,.md",
   buttonLabel = "Chọn từ máy tính",
 }: Props) {
   const [isDragging, setIsDragging] = useState(false);

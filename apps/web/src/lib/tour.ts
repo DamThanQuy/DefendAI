@@ -103,7 +103,7 @@ export const TOUR_STEPS: TourStep[] = [
     order: 2,
     route: "/documents",
     title: "Tải lên tài liệu của bạn",
-    body: "Bấm nút này để tải đồ án lên (PDF, DOCX, PPTX, ZIP) — GraduAI sẽ đọc và phân tích giúp bạn.",
+    body: "Bấm nút này để tải đồ án lên (PDF, DOCX, PPTX, ZIP, RAR, MD) — GraduAI sẽ đọc và phân tích giúp bạn.",
     target: '[data-testid="documents-upload-button"]',
     placement: "bottom",
   },
