@@ -26,6 +26,8 @@ class DocumentResponse(BaseModel):
     uploaded_by: Optional[int] = None
     size: Optional[int] = Field(None, description="Dung lượng file (bytes), None nếu không xác định được")
     created_at: datetime
+    # Thùng rác hiển thị "NGÀY XOÁ"/"TỰ XOÁ SAU" từ field này (#134).
+    deleted_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

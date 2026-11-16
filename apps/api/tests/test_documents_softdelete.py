@@ -228,6 +228,23 @@ async def test_admin_purge_hard_deletes_document(client):
 
 
 @pytest.mark.asyncio
+async def test_trash_response_includes_deleted_at(client):
+    """#134: trước đây /trash trả về object ORM không có `deleted_at` trong schema
+    nên cột "NGÀY XOÁ"/"TỰ XOÁ SAU" luôn hiện "—"."""
+    student = _create_user_with_role("student")
+    doc = _create_document(student)
+    try:
+        _soft_delete(doc, student)
+        r = await client.get("/api/documents/trash", headers=_auth(student))
+        assert r.status_code == 200
+        item = next(d for d in r.json()["items"] if d["id"] == doc)
+        assert item["deleted_at"] is not None
+    finally:
+        _cleanup_doc(doc)
+        _cleanup_user(student)
+
+
+@pytest.mark.asyncio
 async def test_restore_brings_document_back(client):
     student = _create_user_with_role("student")
     doc = _create_document(student)

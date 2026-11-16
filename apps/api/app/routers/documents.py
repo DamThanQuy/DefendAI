@@ -717,7 +717,20 @@ async def list_trash(
         query = query.where(Document.uploaded_by == user.id)
     result = await db.execute(query)
     docs = list(result.scalars().all())
-    return DocumentListResponse(total=len(docs), items=docs)
+
+    # Bù dung lượng từ MinIO giống các endpoint list: luồng upload thường
+    # không set `size` trên Document (#134).
+    from app.services.storage import get_object_size
+    items: list[DocumentResponse] = []
+    for doc in docs:
+        resp = DocumentResponse.model_validate(doc)
+        try:
+            resp.size = await get_object_size(doc.storage_key)
+        except Exception:
+            resp.size = None
+        items.append(resp)
+
+    return DocumentListResponse(total=len(items), items=items)
 
 
 @router.delete("/{doc_id}", status_code=204)
