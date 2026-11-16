@@ -822,32 +822,46 @@ async def permanent_delete_document(
 
     storage_key = doc.storage_key
 
-    # Best-effort xoá MinIO. Nếu lỗi, log và vẫn tiếp tục xoá DB row.
     try:
-        await delete_doc(storage_key, bucket=settings.minio.bucket)
-    except Exception as exc:
-        logging.getLogger(__name__).warning(
-            "permanent-delete: MinIO delete failed for key=%s err=%s", storage_key, exc
-        )
-
-    try:
-        # Xoá các bản ghi quan hệ có FK trỏ tới document trước khi xoá document
-        from app.models.entities import (
+        # Xoá các bản ghi phụ thuộc TRƯỚC khi xoá document: mọi FK trỏ tới
+        # documents.id đều là NO ACTION, nên phải dọn tay theo đúng thứ tự.
+        from app.models.analysis_job import (
             AnalysisJob,
-            CodeAnalysisIssue,
-            CodeModuleHash,
-            DocumentChunk,
-            UploadSession,
-            UseCaseCommitment,
-            WorkspaceFile,
+            ProjectEvidence,
+            ProjectManifest,
+            RequirementMatch,
         )
+        from app.models.assessment import CodeAnalysisIssue
+        from app.models.code_module_hash import CodeModuleHash
+        from app.models.document_chunk import DocumentChunk
+        from app.models.entities import UploadSession, WorkspaceFile
+        from app.models.use_case_commitment import UseCaseCommitment
 
         await db.execute(sa_delete(WorkspaceFile).where(WorkspaceFile.document_id == doc_id))
-        await db.execute(sa_delete(UseCaseCommitment).where(UseCaseCommitment.document_id == doc_id))
+        # UseCaseCommitment trỏ tới document qua source_document_id (không phải document_id)
+        await db.execute(
+            sa_delete(UseCaseCommitment).where(UseCaseCommitment.source_document_id == doc_id)
+        )
         await db.execute(sa_delete(UploadSession).where(UploadSession.document_id == doc_id))
         await db.execute(sa_delete(DocumentChunk).where(DocumentChunk.document_id == doc_id))
         await db.execute(sa_delete(CodeModuleHash).where(CodeModuleHash.document_id == doc_id))
-        await db.execute(sa_delete(AnalysisJob).where(AnalysisJob.document_id == doc_id))
+
+        # AnalysisJob trỏ tới document bằng zip_document_id; evidence/manifest/match
+        # phải dọn trước AnalysisJob vì chúng FK tới analysis_jobs.id.
+        job_ids = (
+            await db.execute(select(AnalysisJob.id).where(AnalysisJob.zip_document_id == doc_id))
+        ).scalars().all()
+        if job_ids:
+            await db.execute(
+                sa_delete(ProjectEvidence).where(ProjectEvidence.analysis_job_id.in_(job_ids))
+            )
+            await db.execute(
+                sa_delete(RequirementMatch).where(RequirementMatch.analysis_job_id.in_(job_ids))
+            )
+            await db.execute(
+                sa_delete(ProjectManifest).where(ProjectManifest.analysis_job_id.in_(job_ids))
+            )
+            await db.execute(sa_delete(AnalysisJob).where(AnalysisJob.id.in_(job_ids)))
 
         # Xoá code_analysis_issues trước (FK từ issues → code_analyses)
         if doc.code_analyses:
@@ -857,11 +871,21 @@ async def permanent_delete_document(
                     CodeAnalysisIssue.analysis_id.in_(analysis_ids)
                 )
             )
+        # assessments/code_analyses/chunks/... được xoá theo cascade của relationship
         await db.delete(doc)
         await db.commit()
     except Exception as exc:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Không thể xoá vĩnh viễn: {exc}")
+
+    # Xoá file khỏi MinIO SAU khi DB đã commit: nếu xoá trước mà DB lỗi thì
+    # file đã mất nhưng row vẫn còn. Lỗi MinIO chỉ log (best-effort).
+    try:
+        await delete_doc(storage_key, bucket=settings.minio.bucket)
+    except Exception as exc:
+        logger.warning(
+            "permanent-delete: MinIO delete failed for key=%s err=%s", storage_key, exc
+        )
 
     logging.getLogger(__name__).info(
         "permanent-delete document id=%s by user=%s", doc_id, user.id
