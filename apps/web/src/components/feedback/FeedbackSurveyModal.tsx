@@ -22,7 +22,6 @@ import {
   TrendingUp,
   AlertCircle,
   FolderKanban,
-  FileSearch,
   CalendarClock,
   MonitorPlay,
   FileBarChart,
@@ -91,13 +90,6 @@ const SYSTEM_FEATURES: {
     route: "/workspaces",
     icon: FolderKanban,
     description: "Tải tài liệu, quản lý đề tài và mục tiêu đồ án",
-  },
-  {
-    key: "analysis",
-    name: "Phân tích đồ án & Quét mã nguồn",
-    route: "/code-review",
-    icon: FileSearch,
-    description: "Code Review và đánh giá tự động cấu trúc đồ án",
   },
   {
     key: "bookings",
