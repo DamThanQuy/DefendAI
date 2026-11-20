@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 
 type UploadStatus = "uploading" | "success" | "error";
 
@@ -100,12 +101,24 @@ export function ActiveUploadCard({ uploads, onDismiss, onCancel, onRetry }: Prop
               </button>
             )}
             {u.status === "error" && (
-              <button
-                onClick={() => onRetry(u.id)}
-                className="px-3 py-1.5 text-[12px] font-semibold text-primary-foreground bg-primary rounded-full hover:bg-primary/90 transition-colors"
-              >
-                Thử lại
-              </button>
+              <>
+                {(u.error?.includes("giới hạn") ||
+                  u.error?.includes("nâng cấp") ||
+                  u.error?.includes("403")) && (
+                  <Link
+                    href="/pricing"
+                    className="px-3 py-1.5 text-[12px] font-semibold text-primary-foreground bg-primary rounded-full hover:bg-primary/90 transition-colors"
+                  >
+                    Nâng cấp Premium
+                  </Link>
+                )}
+                <button
+                  onClick={() => onRetry(u.id)}
+                  className="px-3 py-1.5 text-[12px] font-semibold text-zinc-300 hover:text-foreground transition-colors"
+                >
+                  Thử lại
+                </button>
+              </>
             )}
             {u.status === "success" && (
               <button

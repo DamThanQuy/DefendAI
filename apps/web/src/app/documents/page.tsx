@@ -7,6 +7,7 @@ import { useUpload } from "@/contexts/UploadContext";
 import { TrashIcon } from "@/components/icons/TrashIcon";
 import { PlusIcon } from "@/components/icons/PlusIcon";
 import { useAuth } from "@/hooks/useAuth";
+import { usePlanAccess } from "@/hooks/usePlanAccess";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { DocumentDetailSidebar } from "@/components/features/assessment/DocumentDetailSidebar";
 
@@ -59,6 +60,8 @@ export default function DocumentsPage() {
   const [error, setError] = useState("");
   const [browseDoc, setBrowseDoc] = useState<DocumentItem | null>(null);
   const { openUploadModal, subscribeUploadSuccess } = useUpload();
+  const { access, refresh: refreshPlanAccess } = usePlanAccess();
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
 
   // Thêm vào workspace
   const [wsTargetDoc, setWsTargetDoc] = useState<DocumentItem | null>(null);
@@ -72,14 +75,30 @@ export default function DocumentsPage() {
   const currentUserId = user?.id != null ? Number(user.id) : null;
   const isAdminOrMentor = (user?.roles ?? []).some((r) => r === "admin" || r === "mentor");
 
+  const docQuota = access?.document_quota;
+  const isFreePlanWithLimit = docQuota != null && docQuota.limit !== null && docQuota.limit !== undefined;
+  const isQuotaExhausted =
+    isFreePlanWithLimit &&
+    ((docQuota.remaining !== null && docQuota.remaining !== undefined && docQuota.remaining <= 0) ||
+      (docQuota.used ?? 0) >= (docQuota.limit ?? 3));
+
+  const handleOpenUpload = () => {
+    if (isQuotaExhausted) {
+      setShowQuotaModal(true);
+      return;
+    }
+    openUploadModal();
+  };
+
   useEffect(() => {
     fetchDocs();
     const unsubscribe = subscribeUploadSuccess(() => {
       fetchDocs();
+      void refreshPlanAccess();
     });
     return unsubscribe;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subscribeUploadSuccess]);
+  }, [subscribeUploadSuccess, refreshPlanAccess]);
 
   // Tách fetch thành hàm để có thể gọi lại khi đóng modal upload (cập nhật list tài liệu mới)
   const fetchDocs = async () => {
@@ -253,7 +272,34 @@ export default function DocumentsPage() {
             <h1 className="text-[28px] font-bold text-foreground mb-2">Tài liệu của tôi</h1>
             <p className="text-zinc-500 text-[14px]">Quản lý tài liệu đã tải lên cho buổi bảo vệ.</p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            {isFreePlanWithLimit && (
+              <div
+                data-testid="document-quota-badge"
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
+                  isQuotaExhausted
+                    ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                    : "bg-zinc-800/80 text-zinc-300 border-zinc-700/60"
+                }`}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isQuotaExhausted ? "bg-amber-400 animate-pulse" : "bg-emerald-400"
+                  }`}
+                />
+                <span>
+                  Đã dùng <strong className="font-semibold text-foreground">{docQuota.used}/{docQuota.limit}</strong> đồ án tháng này
+                </span>
+                {isQuotaExhausted && (
+                  <Link
+                    href="/pricing"
+                    className="ml-1 text-primary hover:underline font-semibold"
+                  >
+                    Nâng cấp
+                  </Link>
+                )}
+              </div>
+            )}
             <Link
               href="/documents/trash"
               className="px-6 py-2.5 rounded-lg border border-zinc-700 text-zinc-300 text-[14px] font-semibold hover:bg-zinc-800 hover:text-foreground transition-colors inline-flex items-center gap-1.5"
@@ -262,7 +308,7 @@ export default function DocumentsPage() {
               Thùng rác
             </Link>
             <button
-              onClick={() => openUploadModal()}
+              onClick={handleOpenUpload}
               data-testid="documents-upload-button"
               className="px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90 transition-colors"
             >
@@ -299,7 +345,7 @@ export default function DocumentsPage() {
             </div>
             <h2 className="text-lg font-bold text-foreground mb-2">Chưa có tài liệu nào</h2>
             <p className="text-zinc-500 text-[14px] mb-6">Tải lên tài liệu đầu tiên để bắt đầu.</p>
-            <button onClick={() => openUploadModal()} className="inline-block px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90">
+            <button onClick={handleOpenUpload} className="inline-block px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90">
               Tải lên ngay
             </button>
           </div>
@@ -469,6 +515,51 @@ export default function DocumentsPage() {
         onCancel={() => !deletingId && setDeleteTarget(null)}
         onConfirm={confirmDelete}
       />
+
+      {/* Modal thông báo đạt giới hạn upload của gói Free */}
+      {showQuotaModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setShowQuotaModal(false)}
+          data-testid="quota-exhausted-modal"
+        >
+          <div
+            className="bg-card rounded-2xl shadow-2xl w-full max-w-md p-6 border border-zinc-800/80"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-4 text-amber-400">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              </svg>
+            </div>
+            <h3 className="text-[18px] font-bold text-foreground text-center mb-2">Đã đạt giới hạn tải lên</h3>
+            <p className="text-zinc-400 text-[14px] text-center mb-6 leading-relaxed">
+              Tài khoản miễn phí được tải lên tối đa{" "}
+              <span className="font-semibold text-foreground">
+                {docQuota?.limit ?? 3} đồ án/tháng
+              </span>
+              . Bạn đã sử dụng hết hạn mức trong tháng này. Nâng cấp lên gói{" "}
+              <span className="font-semibold text-primary">Premium</span> để tiếp tục tải lên không giới hạn và mở khóa đầy đủ tính năng.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowQuotaModal(false)}
+                className="px-4 py-2.5 text-[13px] font-semibold text-zinc-400 hover:text-foreground hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                Để sau
+              </button>
+              <Link
+                href="/pricing"
+                data-testid="upgrade-premium-btn"
+                className="px-5 py-2.5 text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors shadow-md inline-flex items-center gap-1.5"
+              >
+                Nâng cấp Premium
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

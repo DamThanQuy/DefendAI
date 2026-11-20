@@ -77,9 +77,12 @@ async function callInit(
     const errBody = await res.json().catch(() => ({}));
     const msg =
       errBody?.detail?.[0]?.msg ??
+      (typeof errBody?.detail === "string" ? errBody?.detail : errBody?.detail?.detail) ??
       errBody?.detail ??
       errBody?.error ??
-      `Init failed (${res.status})`;
+      (res.status === 403
+        ? "Bạn đã đạt giới hạn 3 đồ án trong tháng này của gói Miễn phí. Hãy nâng cấp lên gói Premium để upload không giới hạn."
+        : `Init failed (${res.status})`);
     throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
   }
   return res.json();
