@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Sparkles,
   Loader2,
   Lock,
   Mail,
@@ -91,7 +90,7 @@ function LoginForm(props: {
       </div>
 
       <div className="mb-4 sm:mb-5">
-        <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">
+        <p className="text-xs sm:text-sm font-semibold tracking-wide text-teal-700">
           Đăng nhập
         </p>
         <h1 className="mt-1 sm:mt-1.5 text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
@@ -222,7 +221,7 @@ function RegisterForm(props: {
       </div>
 
       <div className="mb-4 sm:mb-5">
-        <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+        <p className="text-xs sm:text-sm font-semibold tracking-wide text-primary">
           Bắt đầu ngay
         </p>
         <h1 className="mt-1 sm:mt-1.5 text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
@@ -496,7 +495,7 @@ export function AuthSlider({
 
             {isRegister ? (
               <>
-                <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
+                <p className="text-xs sm:text-sm font-semibold tracking-wide text-white/80">
                   Đã có tài khoản
                 </p>
                 <h2 className="mt-1.5 sm:mt-2 text-2xl sm:text-3xl font-extrabold leading-tight">
@@ -515,7 +514,7 @@ export function AuthSlider({
               </>
             ) : (
               <>
-                <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
+                <p className="text-xs sm:text-sm font-semibold tracking-wide text-white/80">
                   Bạn mới?
                 </p>
                 <h2 className="mt-1.5 sm:mt-2 text-2xl sm:text-3xl font-extrabold leading-tight">
@@ -533,11 +532,6 @@ export function AuthSlider({
                 </button>
               </>
             )}
-
-            <p className="mt-2.5 sm:mt-3 flex items-center gap-1.5 text-xs sm:text-sm text-white/70">
-              <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              Miễn phí để bắt đầu
-            </p>
           </motion.div>
         </AnimatePresence>
       </motion.div>
