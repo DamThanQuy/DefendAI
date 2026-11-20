@@ -36,7 +36,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { isPublicPath } from "@/lib/shell";
 import { UserMenu } from "./UserMenu";
-import { HeaderUploadIndicator } from "./HeaderUploadIndicator";
+import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
@@ -244,7 +244,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
-            <HeaderUploadIndicator />
             <ThemeToggle />
             <Button
               variant="ghost"
@@ -261,15 +260,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <HelpCircle className="w-5 h-5 text-muted-foreground" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-full hover:bg-muted relative"
-              aria-label="Thông báo"
-            >
-              <Bell className="w-5 h-5 text-muted-foreground" />
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent shadow-[0_0_6px_hsl(var(--accent)/0.8)]" />
-            </Button>
+            <NotificationBell />
             <UserMenu />
           </div>
         </header>
