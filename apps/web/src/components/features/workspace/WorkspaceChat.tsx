@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { PERSONAS } from "@/lib/constants";
 import { MarkdownMessage } from "./MarkdownMessage";
+import { MessageContentScroll } from "@/components/features/mock-room/MessageContentScroll";
 
 export interface WorkspaceChatItem {
   id: number;
@@ -619,16 +620,26 @@ export default function WorkspaceChat({
                 {turn.question}
               </div>
               {turn.status === "completed" && turn.answer ? (
-                <div className="self-start max-w-[85%] bg-zinc-800/70 border border-zinc-700/50 rounded-2xl rounded-bl-md px-4 py-2.5">
-                  {/* Markdown render (ChatGPT-style): heading, bold, list, bảng... */}
-                  <MarkdownMessage content={turn.answer} />
-                  {turn.citations && turn.citations.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {turn.citations.map((c, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-primary/10 text-primary text-[11px] font-semibold rounded-md">📎 {c}</span>
-                      ))}
-                    </div>
-                  )}
+                <div className="self-start max-w-[90%] flex items-start gap-2.5 w-full">
+                  <div className="sticky top-4 shrink-0 z-10 flex flex-col items-center">
+                    <MessageContentScroll
+                      content={turn.answer}
+                      messageId={turn.id}
+                      scrollContainerRef={chatScrollRef}
+                      turnPrompt={turn.question}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0 bg-zinc-800/70 border border-zinc-700/50 rounded-2xl rounded-bl-md px-4 py-2.5">
+                    {/* Markdown render (ChatGPT-style): heading, bold, list, bảng... */}
+                    <MarkdownMessage content={turn.answer} messageId={turn.id} />
+                    {turn.citations && turn.citations.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {turn.citations.map((c, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-primary/10 text-primary text-[11px] font-semibold rounded-md">📎 {c}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : turn.status === "failed" ? (
                 <div className="self-start max-w-[85%] bg-red-500/10 border border-red-500/20 rounded-2xl rounded-bl-md px-4 py-2.5 text-red-400 text-[12px]">
