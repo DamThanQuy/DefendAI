@@ -11,7 +11,7 @@
 | 03 | Code Review | [03-code-review.md](./03-code-review.md) | 2 | TBD |
 | 04 | Meeting | [04-meeting.md](./04-meeting.md) | 3 | TBD |
 | 05 | Evaluation | [05-evaluation.md](./05-evaluation.md) | 2 | TBD |
-| 06 | Report | [06-report.md](./06-report.md) | 2 | TBD |
+| 06 | Report | [06-report.md](./06-report.md) | 4 | 13 |
 
 ## Conventions
 

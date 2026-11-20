@@ -162,6 +162,18 @@ class PayOSConfig(BaseSettings):
 
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore", env_prefix="PAYOS_", env_file=ENV_FILE, env_file_encoding="utf-8")
 
+class SMTPConfig(BaseSettings):
+    """Config gửi email qua SMTP. Để trống host = tắt gửi email."""
+    host: str = ""
+    port: int = 587
+    username: str = ""
+    password: str = ""
+    from_address: str = ""  # Vd: GraduAI <noreply@example.com>. Trống thì dùng username
+    security: str = "starttls"  # starttls | ssl | none
+
+    # env_ignore_empty: dòng "SMTP_PORT=" để trống không được làm sập API lúc khởi động.
+    model_config = SettingsConfigDict(case_sensitive=False, extra="ignore", env_prefix="SMTP_", env_file=ENV_FILE, env_file_encoding="utf-8", env_ignore_empty=True)
+
 class Settings(BaseSettings):
     """Cấu hình chính của ứng dụng."""
     app_name: str = "AI Project Defense System API"
@@ -170,6 +182,10 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/defense_db"
+    db_pool_size: int = 20
+    db_max_overflow: int = 10
+    db_pool_timeout: float = 30.0
+    db_pool_recycle: int = 1800
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
@@ -199,6 +215,7 @@ class Settings(BaseSettings):
     archive_analysis: Optional[ArchiveAnalysisConfig] = None
     analysis_storage: Optional[AnalysisStorageConfig] = None
     payos: Optional[PayOSConfig] = None
+    smtp: Optional[SMTPConfig] = None
 
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore", env_file=ENV_FILE, env_file_encoding="utf-8")
 
@@ -214,6 +231,7 @@ class Settings(BaseSettings):
         self.archive_analysis = ArchiveAnalysisConfig()
         self.analysis_storage = AnalysisStorageConfig()
         self.payos = PayOSConfig()
+        self.smtp = SMTPConfig()
 
 # Singleton instance
 settings = Settings()

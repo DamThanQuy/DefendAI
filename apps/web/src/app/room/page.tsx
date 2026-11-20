@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { parseApiDate } from "@/lib/datetime";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { API_BASE_URL } from "@/lib/constants";
@@ -1469,7 +1470,7 @@ function MockRoomPageContent() {
                         <span className="text-sm font-semibold text-gray-200">{msg.sender_name}</span>
                         {msg.created_at && (
                           <span className="text-xs text-gray-500">
-                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {parseApiDate(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         )}
                       </div>
@@ -1557,7 +1558,7 @@ function MockRoomPageContent() {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-bold text-purple-400">❓ {q.asked_by}</span>
                       <span className="text-xs text-gray-500">
-                        {new Date(q.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {parseApiDate(q.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
                     <p className="text-sm text-gray-200 leading-relaxed">{q.question}</p>

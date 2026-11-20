@@ -19,6 +19,7 @@ const MAX_BACKOFF_MS = 30_000;
 export interface ChunkedUploadOptions {
   chunkSize?: number;
   concurrency?: number;
+  delayBetweenChunksMs?: number;
   signal?: AbortSignal;
   onProgress?: (uploaded: number, total: number) => void;
   onPartUploaded?: (partNumber: number, totalParts: number) => void;
@@ -76,9 +77,12 @@ async function callInit(
     const errBody = await res.json().catch(() => ({}));
     const msg =
       errBody?.detail?.[0]?.msg ??
+      (typeof errBody?.detail === "string" ? errBody?.detail : errBody?.detail?.detail) ??
       errBody?.detail ??
       errBody?.error ??
-      `Init failed (${res.status})`;
+      (res.status === 403
+        ? "Bạn đã đạt giới hạn 3 đồ án trong tháng này của gói Miễn phí. Hãy nâng cấp lên gói Premium để upload không giới hạn."
+        : `Init failed (${res.status})`);
     throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
   }
   return res.json();
@@ -599,6 +603,7 @@ export class ChunkedUploader {
     this.options = {
       chunkSize: options.chunkSize ?? DEFAULT_CHUNK_SIZE,
       concurrency: options.concurrency ?? DEFAULT_CONCURRENCY,
+      delayBetweenChunksMs: options.delayBetweenChunksMs ?? 0,
       signal: options.signal,
       onProgress: options.onProgress ?? (() => {}),
       onPartUploaded: options.onPartUploaded ?? (() => {}),
@@ -787,6 +792,11 @@ export class ChunkedUploader {
         this.bytesUploaded += end - start;
         emitProgress();
         this.options.onPartUploaded(part.part_number, total);
+
+        // Giãn cách nghỉ giữa các chunk (nếu bật chế độ tiết kiệm băng thông)
+        if (this.options.delayBetweenChunksMs > 0 && partIndex < total) {
+          await sleep(this.options.delayBetweenChunksMs, signal);
+        }
       }
     };
 

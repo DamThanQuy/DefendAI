@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { parseApiDate } from "@/lib/datetime";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Booking,
@@ -301,7 +302,7 @@ export default function MentorBookingsPage() {
                     onClick={() => {
                       setConfirmId(b.id);
                       // Mặc định chốt = thời gian đề xuất của SV
-                      const d = new Date(b.proposed_time);
+                      const d = parseApiDate(b.proposed_time);
                       d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
                       setConfirmTime(d.toISOString().slice(0, 16));
                     }}

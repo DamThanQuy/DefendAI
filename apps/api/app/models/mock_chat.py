@@ -33,6 +33,8 @@ class MockChatSession(Base):
     title = Column(String(200), nullable=False, default="Phiên chất vấn")
     # Số tin nhắn hiện tại (giữ đồng bộ để list không cần đếm)
     message_count = Column(Integer, nullable=False, default=0)
+    # Số lượt đã chat khi phiên được mở bằng vé trải nghiệm. NULL = phiên không mở bằng vé.
+    trial_turns_used = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False

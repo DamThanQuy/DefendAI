@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { hasVipInProfile, usePlanAccess } from "@/hooks/usePlanAccess";
+import { UpgradeLink, expiredPlanNote } from "@/components/membership/PlanLock";
+import { readTrialTickets } from "@/lib/mock-ai-data";
 import {
   Booking,
   getMyBookings,
@@ -24,6 +27,8 @@ import {
   Users,
   Bot,
   Crown,
+  Lock,
+  Sparkles,
 } from "lucide-react";
 
 const STATUS_META: Record<
@@ -59,33 +64,45 @@ export default function MockRoomLandingPage() {
   const [inviting, setInviting] = useState<Record<number, boolean>>({});
   // booking_id -> thông báo lỗi mời
   const [inviteError, setInviteError] = useState<Record<number, string>>({});
+  const [hasPastSessions, setHasPastSessions] = useState(false);
+  const { access } = usePlanAccess();
 
   const isStudent = hasRole("student") || (!hasRole("mentor") && !hasRole("admin"));
 
-  // Kiểm tra quyền VIP để truy cập Phòng Mock AI (từ user profile hoặc localStorage)
-  const isVip = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    const planFromProfile = (user?.profile_data as any)?.membership?.plan;
-    if (planFromProfile === "vip") return true;
-    try {
-      return localStorage.getItem("membership_plan") === "vip";
-    } catch {
-      return false;
-    }
+  // Quyền vào Phòng Mock AI do server tính; gói hết hạn thì không còn là VIP.
+  const isVip = access ? access.features.mock_ai : hasVipInProfile(user?.profile_data);
+
+  // Số vé trải nghiệm Mock AI (nhận từ khảo sát Feedback hoặc user profile)
+  const [trialTickets, setTrialTickets] = useState<number>(() => readTrialTickets(user?.profile_data));
+
+  // Đồng bộ vé trải nghiệm tự động từ profile hoặc localStorage
+  useEffect(() => {
+    const updateTickets = () => setTrialTickets(readTrialTickets(user?.profile_data));
+
+    updateTickets();
+    window.addEventListener("storage", updateTickets);
+
+    return () => {
+      window.removeEventListener("storage", updateTickets);
+    };
   }, [user]);
 
-  const handleEnterMockAI = () => {
-    if (!isVip) {
-      alert("Phòng Mock AI chỉ dành cho thành viên VIP. Hãy nâng cấp để sử dụng!");
-      router.push("/checkout?plan=vip&cycle=monthly");
-      return;
-    }
-    router.push("/mock-room-ai");
-  };
+  const mockAILocked = !isVip && trialTickets <= 0;
+  // Vé khảo sát chỉ tặng một lần cho mỗi tài khoản.
+  const feedbackStatus = (user?.profile_data as any)?.feedback_status;
+  const canEarnTicket = !feedbackStatus?.reward_ticket_granted && !feedbackStatus?.submitted;
 
   async function load() {
     setLoading(true);
     try {
+      import("@/lib/api").then(({ api }) => {
+        api.get("/api/mock-qa/sessions").then((r) => {
+          if (Array.isArray(r.data?.items) && r.data.items.length > 0) {
+            setHasPastSessions(true);
+          }
+        }).catch(() => {});
+      });
+
       const res = await getMyBookings();
       const list = res.data;
       setBookings(list);
@@ -190,31 +207,98 @@ export default function MockRoomLandingPage() {
 
       {/* Phòng Mock AI — dành cho gói VIP */}
       <div className="mb-6">
-        <Card
-          className="border-2 border-dashed border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5 hover:border-primary/40 transition-all cursor-pointer group"
-          onClick={handleEnterMockAI}
-        >
-          <div className="p-6 flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-[0_0_20px_hsl(var(--primary)/0.3)] shrink-0">
-              <Bot className="w-7 h-7 text-white" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-lg font-serif font-bold text-foreground">
-                  Phòng Mock AI
-                </h3>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-accent to-orange-500 text-white">
-                  <Crown className="w-3 h-3" /> VIP
-                </span>
+        {mockAILocked ? (
+          <Card data-testid="mock-ai-locked" className="border-2 border-dashed border-border bg-card/40">
+            <div className="p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex flex-1 items-center gap-4 opacity-50 grayscale select-none">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shrink-0">
+                  <Bot className="w-7 h-7 text-white" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-lg font-serif font-bold text-foreground">Phòng Mock AI</h3>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-muted text-muted-foreground border border-border">
+                      <Lock className="w-3 h-3" /> VIP
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {expiredPlanNote(access)}
+                    Luyện phòng chat với AI mentor, chỉ dành cho gói VIP.
+                  </p>
+                </div>
               </div>
-              <p className="text-sm text-muted-foreground">
-                Luyện phòng chat với AI mentor — trò chuyện chất vấn tự do, không cần đặt lịch.
-              </p>
+              <div className="flex shrink-0 flex-col items-center gap-2">
+                <UpgradeLink access={access} />
+                {canEarnTicket && (
+                  <button
+                    type="button"
+                    data-testid="earn-ticket"
+                    onClick={() => window.dispatchEvent(new CustomEvent("open-feedback-modal"))}
+                    className="text-xs text-teal-400 underline hover:text-teal-300"
+                  >
+                    Góp ý nhận 1 vé dùng thử
+                  </button>
+                )}
+                {hasPastSessions && (
+                  <button
+                    type="button"
+                    onClick={() => router.push("/mock-room-ai")}
+                    className="text-xs text-muted-foreground underline hover:text-foreground"
+                  >
+                    Xem lại phiên đã lưu
+                  </button>
+                )}
+              </div>
             </div>
-            <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
-          </div>
-        </Card>
+          </Card>
+        ) : (
+          <Card
+            className="border-2 border-dashed border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5 hover:border-primary/40 transition-all cursor-pointer group"
+            onClick={() => router.push("/mock-room-ai")}
+          >
+            <div className="p-6 flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-[0_0_20px_hsl(var(--primary)/0.3)] shrink-0">
+                <Bot className="w-7 h-7 text-white" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-lg font-serif font-bold text-foreground">
+                    Phòng Mock AI
+                  </h3>
+                  {isVip ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-accent to-orange-500 text-white">
+                      <Crown className="w-3 h-3" /> VIP
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-sm">
+                      <Sparkles className="w-3 h-3" /> Có {trialTickets} vé trải nghiệm
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {isVip
+                    ? "Luyện phòng chat với AI mentor — trò chuyện chất vấn tự do, không cần đặt lịch."
+                    : `Bạn đang có ${trialTickets} vé trải nghiệm Mock Room AI miễn phí từ khảo sát. Nhấp để tham gia ngay!`}
+                </p>
+              </div>
+              <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+            </div>
+          </Card>
+        )}
       </div>
+
+      {access && !access.features.mentor_booking && (
+        <div
+          data-testid="mentor-booking-locked"
+          className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-border bg-card/40 p-4"
+        >
+          <p className="text-sm text-muted-foreground">
+            {expiredPlanNote(access)}
+            Bạn đã dùng hết lượt đặt lịch Mock Room với mentor miễn phí. Hãy mua gói để đặt thêm, các lịch đã đặt vẫn giữ nguyên.
+          </p>
+          <UpgradeLink access={access} className="shrink-0" />
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">

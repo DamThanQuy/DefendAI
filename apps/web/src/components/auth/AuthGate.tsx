@@ -7,6 +7,7 @@ import { refreshAccessToken, clearSession, getTokenExpiry } from "@/lib/auth";
 
 // Trang cần đăng nhập mới truy cập được.
 const PROTECTED_PATHS = [
+  "/workspaces",
   "/questions",
   "/code-review",
   "/room",
@@ -15,8 +16,14 @@ const PROTECTED_PATHS = [
   "/documents",
   "/bookings",
   "/mock-room",
+  "/mock-room-ai",
+  "/profile",
   "/mentor/bookings",
+  "/checkout",
 ];
+
+// Trang chỉ dành cho khách (chưa đăng nhập). Đã đăng nhập sẽ điều hướng về dashboard.
+const GUEST_ONLY_PATHS = ["/login", "/register", "/forgot-password"];
 
 // Route → role được phép. Thiếu role → redirect "/".
 // ponytail: client guard chỉ là UX; BE (deps.require_roles) mới là bảo mật thực sự.
@@ -26,10 +33,14 @@ const ROLE_ROUTES: Record<string, string[]> = {
   "/admin/mentor-verification": ["admin"],
   "/admin/dispute": ["admin"],
   "/admin/payout": ["admin"],
+  "/admin/financial-reports": ["admin"],
+  "/admin/subscriptions": ["admin"],
+  "/admin/payments": ["admin"],
   "/admin/users": ["admin"],
   "/admin/settings": ["admin"],
   "/admin/moderation": ["admin"],
   "/admin/ai-monitor": ["admin"],
+  "/admin/feedbacks": ["admin"],
 };
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
@@ -37,6 +48,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const isProtected = PROTECTED_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+  const isGuestOnly = GUEST_ONLY_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
 
@@ -55,8 +69,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       if (exp === null) return;
       const now = Date.now();
       if (now >= exp - 5 * 60 * 1000) {
-        const ok = await refreshAccessToken();
-        if (!ok) {
+        const r = await refreshAccessToken();
+        // Chỉ đăng xuất khi hết phiên THẬT (401/422 từ backend). Lỗi tạm thời
+        // (backend unreachable, 5xx tunnel) → bỏ qua, chu kỳ 60s sau sẽ retry.
+        if (!r.token && !r.transient) {
           clearSession();
           router.replace("/login");
         }
@@ -72,7 +88,27 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }, [isProtected, router]);
 
   useEffect(() => {
+    // Guest-only guard: đã đăng nhập thì điều hướng về dashboard, giữ ready=false để không flash form
+    if (isGuestOnly && localStorage.getItem("access_token")) {
+      setReady(false);
+      try {
+        const stored = JSON.parse(localStorage.getItem("user") || "{}");
+        const roles: string[] = stored.roles ?? [];
+        if (roles.includes("admin")) {
+          router.replace("/admin/overview");
+        } else if (roles.includes("mentor")) {
+          router.replace("/mentor/dashboard");
+        } else {
+          router.replace("/documents");
+        }
+      } catch {
+        router.replace("/documents");
+      }
+      return;
+    }
+
     if (isProtected && !localStorage.getItem("access_token")) {
+      setReady(false);
       router.replace("/login");
       return;
     }
@@ -83,6 +119,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         const stored = JSON.parse(localStorage.getItem("user") || "{}");
         const roles: string[] = stored.roles ?? [];
         if (!roles.some((r) => allowed.includes(r))) {
+          setReady(false);
           router.replace("/");
           return;
         }
@@ -90,7 +127,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     setReady(true);
-  }, [pathname, router]);
+  }, [pathname, router, isGuestOnly, isProtected]);
 
   if (!ready) {
     return (

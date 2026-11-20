@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { clearSession } from "@/lib/auth";
 import { isPublicPath } from "@/lib/shell";
 import { GraduationCap, Bell, Settings } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const navLinks: { href: string; label: string; roles?: string[]; public?: boolean }[] = [
   { href: "/", label: "Trang chủ", public: true },
@@ -85,6 +86,7 @@ export function Navbar() {
 
         {/* Right CTAs */}
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           {user ? (
             <>
               <Link href="/documents">

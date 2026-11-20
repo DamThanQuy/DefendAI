@@ -93,7 +93,7 @@ export function MatchList({ matches }: MatchListProps) {
                 {/* Code + title */}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-foreground truncate">
-                    {match.requirement_code} · {match.requirement_title}
+                    {match.requirement_code} · {match.requirement_title.replace(/^[\p{Extended_Pictographic}\s]+/u, "")}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
                     {/* Confidence */}
@@ -103,12 +103,12 @@ export function MatchList({ matches }: MatchListProps) {
                     {/* AI badge */}
                     {isAiReviewed ? (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/30">
-                        🤖 AI đã đánh giá
+                        AI đã đánh giá
                         {isFallback ? " (dự phòng)" : ""}
                       </span>
                     ) : (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-muted/50 text-muted-foreground border border-border">
-                        ⚙️ Chỉ heuristic
+                        Chỉ heuristic
                       </span>
                     )}
                     {/* Model tooltip on hover */}
@@ -169,7 +169,7 @@ export function MatchList({ matches }: MatchListProps) {
                             className="text-xs text-muted-foreground hover:text-teal-400 shrink-0 mt-0.5"
                             title="Copy path"
                           >
-                            📋
+                            Copy
                           </button>
                         </div>
                       ))}

@@ -4,7 +4,7 @@ import * as React from "react";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 
-export function ThemeToggle() {
+export function ThemeToggle({ className = "" }: { className?: string }) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
@@ -12,31 +12,43 @@ export function ThemeToggle() {
     setMounted(true);
   }, []);
 
+  const isDark =
+    theme === "dark" ||
+    (theme === "system" &&
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
+
   if (!mounted) {
     return (
-      <div className="w-14 h-7 rounded-full bg-muted border border-border opacity-50 cursor-default"></div>
+      <div
+        className={`h-9 w-16 shrink-0 rounded-full border border-border bg-muted/60 ${className}`}
+        aria-hidden="true"
+      />
     );
   }
-
-  const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
 
   return (
     <button
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="relative flex items-center w-14 h-7 rounded-full bg-muted border border-border transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer overflow-hidden shadow-inner"
-      aria-label="Toggle theme"
+      className={`relative flex h-9 w-16 shrink-0 items-center rounded-full border border-border bg-muted shadow-sm transition-colors hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/50 overflow-hidden ${className}`}
+      aria-label="Toggle light / dark mode"
+      title={isDark ? "Chuyển sang Light mode" : "Chuyển sang Dark mode"}
     >
-      <div 
-        className={`absolute left-1 flex items-center justify-center w-5 h-5 rounded-full bg-background shadow-sm transition-transform duration-300 ease-in-out ${
-          isDark ? "translate-x-7" : "translate-x-0"
+      {/* track icons */}
+      <Sun className="absolute left-2 h-4 w-4 text-amber-500" />
+      <Moon className="absolute right-2 h-4 w-4 text-primary" />
+      {/* sliding knob */}
+      <span
+        className={`absolute top-1 flex h-7 w-7 items-center justify-center rounded-full bg-background shadow-md transition-transform duration-300 ease-in-out ${
+          isDark ? "translate-x-8" : "translate-x-1"
         }`}
       >
         {isDark ? (
-          <Moon className="w-3 h-3 text-primary" />
+          <Moon className="h-3.5 w-3.5 text-primary" />
         ) : (
-          <Sun className="w-3 h-3 text-amber-500" />
+          <Sun className="h-3.5 w-3.5 text-amber-500" />
         )}
-      </div>
+      </span>
     </button>
   );
 }

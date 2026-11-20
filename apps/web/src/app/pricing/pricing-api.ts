@@ -11,7 +11,7 @@ export async function fetchPlans(): Promise<Plan[]> {
     tagline: string;
     icon: Plan["icon"];
     price: number;
-    yearly?: number;
+    yearly: number;
     featured?: boolean;
     special?: boolean;
     features?: Plan["features"];
@@ -21,7 +21,7 @@ export async function fetchPlans(): Promise<Plan[]> {
     tagline: plan.tagline,
     icon: plan.icon,
     monthly: plan.price,
-    yearly: plan.yearly ?? plan.price,
+    yearly: plan.yearly,
     featured: plan.featured,
     special: plan.special,
     features: plan.features || [],

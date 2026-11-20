@@ -28,6 +28,10 @@ class Meeting(Base):
     status = Column(SQLEnum(MeetingStatus), default=MeetingStatus.scheduled, nullable=False)
     phase = Column(String(50), nullable=False, server_default="presentation")
     timer_seconds = Column(Integer, nullable=False, server_default="900")
+    # Sinh viên chủ buổi: người làm Mock AI, hoặc student của booking mock mentor.
+    student_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    # Đồ án được bảo vệ — NULL nếu chưa xác định (xem services/meeting_workspace.py).
+    workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     members = relationship("MeetingMember", back_populates="meeting", cascade="all, delete-orphan")

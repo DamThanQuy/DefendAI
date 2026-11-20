@@ -1,3 +1,5 @@
+import { yearlyDiscountPercent } from "@/app/pricing/pricing-data";
+
 export type PaymentMethodId =
   | "payos"
   | "momo"
@@ -75,6 +77,7 @@ export interface OrderSummary {
   cycle: "monthly" | "yearly";
   basePrice: number;
   discount: number;
+  discountPercent: number;
   vat: number;
   total: number;
   startsAt: string;
@@ -85,29 +88,33 @@ export function formatVND(value: number) {
   return new Intl.NumberFormat("vi-VN").format(Math.round(value)) + "đ";
 }
 
+/** Cùng cách tính với backend: 30 hoặc 365 ngày, cộng tiếp từ hạn của gói đang dùng nếu mua cùng gói. */
+export function getPlanExpiry(cycle: string, paidUntil?: Date): Date {
+  const now = new Date();
+  const from = paidUntil && paidUntil > now ? paidUntil : now;
+  return new Date(from.getTime() + (cycle === "monthly" ? 30 : 365) * 24 * 60 * 60 * 1000);
+}
+
 export function getOrderSummary(
   plan: { id: string; name: string; monthly: number; yearly: number },
-  cycle: "monthly" | "yearly"
+  cycle: "monthly" | "yearly",
+  paidUntil?: Date
 ): OrderSummary {
-  const basePrice = cycle === "monthly" ? plan.monthly : plan.yearly;
-  // 17% discount for yearly
-  const discount = cycle === "yearly" ? Math.round(basePrice * 0.17) : 0;
-  const subtotal = basePrice - discount;
+  // Giá năm đã là giá sau ưu đãi: giá gốc là 12 tháng, ưu đãi là phần chênh lệch so với giá năm.
+  const price = cycle === "monthly" ? plan.monthly : plan.yearly;
+  const basePrice = cycle === "monthly" ? plan.monthly : plan.monthly * 12;
+  const discount = Math.max(0, basePrice - price);
   const vat = 0;
-  const total = subtotal + vat;
+  const total = price + vat;
   const startsAt = new Date();
-  const expiresAt = new Date(startsAt);
-  if (cycle === "monthly") {
-    expiresAt.setMonth(expiresAt.getMonth() + 1);
-  } else {
-    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-  }
+  const expiresAt = getPlanExpiry(cycle, paidUntil);
   return {
     planId: plan.id,
     planName: plan.name,
     cycle,
     basePrice,
     discount,
+    discountPercent: cycle === "yearly" ? yearlyDiscountPercent(plan) : 0,
     vat,
     total,
     startsAt: startsAt.toLocaleDateString("vi-VN"),

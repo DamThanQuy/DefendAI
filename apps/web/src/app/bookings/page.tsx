@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { usePlanAccess } from "@/hooks/usePlanAccess";
+import { PlanLock, UpgradeLink } from "@/components/membership/PlanLock";
 import {
   Booking,
   createBooking,
@@ -40,6 +42,7 @@ function fmt(dt: string | null) {
 export default function BookingsPage() {
   const { user, hasRole } = useAuth();
   const router = useRouter();
+  const { access, refresh: refreshAccess } = usePlanAccess();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [mentors, setMentors] = useState<{ id: number; full_name: string | null; email: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -199,6 +202,7 @@ export default function BookingsPage() {
       setProposedTime("");
       setMentorId("");
       await load();
+      await refreshAccess();
     } catch (e: any) {
       setError(e?.response?.data?.detail || "Đặt lịch thất bại");
     } finally {
@@ -211,6 +215,7 @@ export default function BookingsPage() {
     try {
       await cancelBooking(id);
       await load();
+      await refreshAccess();
     } catch (e: any) {
       setError(e?.response?.data?.detail || "Huỷ thất bại");
     }
@@ -258,7 +263,24 @@ export default function BookingsPage() {
       )}
 
       {/* Form đặt lịch (chỉ student) */}
+      {isStudent && access?.plan === "free" && access.features.mentor_booking && (
+        <div
+          data-testid="free-booking-note"
+          className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-border bg-card/40 p-4"
+        >
+          <p className="text-sm text-muted-foreground">
+            Tài khoản chưa có gói được đặt <strong className="text-foreground">{access.free_mentor_bookings_left} lịch</strong> với mentor. Lịch bị từ chối hoặc đã huỷ không tính. Mua gói để đặt không giới hạn.
+          </p>
+          <UpgradeLink access={access} className="shrink-0" />
+        </div>
+      )}
       {isStudent && (
+        <PlanLock
+          locked={!!access && !access.features.mentor_booking}
+          access={access}
+          title="Đã hết lượt đặt lịch miễn phí"
+          description="Tài khoản chưa có gói chỉ được đặt 1 lịch Mock Room với mentor. Hãy mua gói để đặt thêm, các lịch đã đặt vẫn giữ nguyên."
+        >
         <form
           onSubmit={handleSubmit}
           className="rounded-xl border border-border bg-card/40 p-5 mb-8 space-y-4"
@@ -380,6 +402,7 @@ export default function BookingsPage() {
             Gửi yêu cầu
           </Button>
         </form>
+        </PlanLock>
       )}
 
       {/* Danh sách booking */}

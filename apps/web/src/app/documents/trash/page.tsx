@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { parseApiDate } from "@/lib/datetime";
 import Link from "next/link";
 import { TrashIcon } from "@/components/icons/TrashIcon";
 import { RestoreIcon } from "@/components/icons/RestoreIcon";
@@ -41,7 +42,7 @@ const RETENTION_DAYS = 30;
 
 function daysUntilPurge(deletedAt: string | null): number | null {
   if (!deletedAt) return null;
-  const deleted = new Date(deletedAt).getTime();
+  const deleted = parseApiDate(deletedAt).getTime();
   const purge = deleted + RETENTION_DAYS * 24 * 60 * 60 * 1000;
   const now = Date.now();
   return Math.max(0, Math.ceil((purge - now) / (24 * 60 * 60 * 1000)));
@@ -49,7 +50,7 @@ function daysUntilPurge(deletedAt: string | null): number | null {
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
-  const d = new Date(iso);
+  const d = parseApiDate(iso);
   return d.toLocaleString("vi-VN", {
     hour: "2-digit",
     minute: "2-digit",

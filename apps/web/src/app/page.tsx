@@ -10,26 +10,14 @@ import {
   Search,
   FileText,
   MonitorPlay,
-  Award,
   Sparkles,
   CheckCircle2,
-  Trophy,
   Smartphone,
-  BookOpen,
   Code2,
   GitBranch,
   Zap,
-  GraduationCap,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
-const STATS = [
-  { value: "8.019+", label: "Câu hỏi phản biện", icon: FileText },
-  { value: "92+", label: "Đồ án đã phân tích", icon: Trophy },
-  { value: "30+", label: "Chuyên ngành", icon: BookOpen },
-  { value: "943+", label: "Sinh viên tin dùng", icon: GraduationCap },
-];
 
 const STEPS = [
   {
@@ -93,14 +81,6 @@ export default function LandingPage() {
           transition={{ duration: 0.5 }}
           className="container mx-auto text-center max-w-4xl"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-semibold mb-8 backdrop-blur-sm">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-            </span>
-            Nền tảng AI Mock Defense thế hệ mới
-          </div>
-
           <h1 className="text-5xl md:text-7xl font-serif font-black tracking-tight mb-6 leading-[1.05] text-foreground">
             Chủ động đồ án. <br />
             <span className="text-gradient">Làm chủ tương lai.</span>
@@ -144,31 +124,6 @@ export default function LandingPage() {
             </Link>
           </div>
         </motion.div>
-      </section>
-
-      {/* Stats */}
-      <section className="relative z-10 pb-20">
-        <div className="container mx-auto px-4 max-w-5xl">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {STATS.map((s, idx) => (
-              <motion.div
-                key={s.label}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 + idx * 0.05 }}
-                className="dark-card rounded-2xl p-5 flex flex-col items-start gap-2 hover:border-primary/40"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                    <s.icon className="w-5 h-5" />
-                  </div>
-                  <div className="text-3xl font-black text-gradient">{s.value}</div>
-                </div>
-                <div className="text-sm text-muted-foreground">{s.label}</div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
       </section>
 
       {/* How it works — 3 steps */}

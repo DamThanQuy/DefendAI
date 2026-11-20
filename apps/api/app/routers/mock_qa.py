@@ -29,7 +29,8 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select, delete as sa_delete
+from sqlalchemy import select, update, delete as sa_delete
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -41,12 +42,16 @@ from app.services.mock_qa_engine import MockQAEngine
 from app.services.mock_qa_state import MockQASessionManager, SessionState
 from app.services.mock_qa_rag import MockQARAGService
 from app.services.rag_service import RAGService
+from app.services.membership import FEATURE_LOCKED_MESSAGES, has_feature
 from app.models.booking import MockBooking, BookingStatus
 from app.models.meeting import Meeting
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/mock-qa", tags=["Mock Q&A"])
+
+# Phiên mở bằng vé: 5 câu trả lời của sinh viên + 1 lượt giám khảo mở đầu khi có tài liệu.
+TRIAL_MAX_CHAT_TURNS = 6
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -60,6 +65,7 @@ class ChatMessageItem(BaseModel):
 
 class MockChatRequest(BaseModel):
     messages: List[ChatMessageItem] = Field(..., description="Lịch sử hội thoại giữa sinh viên và Giám khảo AI")
+    session_id: Optional[int] = Field(None, description="Phiên đang chat, bắt buộc với người dùng vé trải nghiệm")
     context: Optional[str] = Field(None, description="Nội dung trích xuất từ tài liệu đồ án của sinh viên")
 
 
@@ -93,6 +99,7 @@ class SessionSummary(BaseModel):
     preview: str = ""
     created_at: datetime
     updated_at: datetime
+    remaining_tickets: Optional[int] = None
 
 
 class SessionListResponse(BaseModel):
@@ -106,6 +113,7 @@ class SessionDetailResponse(BaseModel):
     messages: List[MockHistoryMessage]
     created_at: datetime
     updated_at: datetime
+    can_chat: bool = True
 
 
 class CreateSessionRequest(BaseModel):
@@ -123,6 +131,48 @@ class SaveSessionRequest(BaseModel):
 # REST Endpoints for Mock Room AI
 # ─────────────────────────────────────────────────────────────────────────────
 
+async def use_trial_turn(db: AsyncSession, user: User, session_id: Optional[int]) -> None:
+    """Chưa có gói VIP: chỉ chat được trong phiên mở bằng vé, số lượt đếm trên server."""
+    if session_id is not None:
+        result = await db.execute(
+            update(MockChatSession)
+            .where(
+                MockChatSession.id == session_id,
+                MockChatSession.user_id == user.id,
+                MockChatSession.trial_turns_used < TRIAL_MAX_CHAT_TURNS,
+            )
+            .values(trial_turns_used=MockChatSession.trial_turns_used + 1)
+        )
+        await db.commit()
+        if result.rowcount:
+            return
+
+        used = (
+            await db.execute(
+                select(MockChatSession.trial_turns_used).where(
+                    MockChatSession.id == session_id,
+                    MockChatSession.user_id == user.id,
+                )
+            )
+        ).scalar_one_or_none()
+        if used is not None:
+            raise HTTPException(
+                status_code=403,
+                detail="Tài khoản dùng thử đã đạt giới hạn 5 câu hỏi trong phiên Mock AI. Vui lòng bấm 'Kết thúc & nhận báo cáo' để nhận đánh giá hoặc nâng cấp VIP để tiếp tục.",
+            )
+
+    raise HTTPException(status_code=403, detail=FEATURE_LOCKED_MESSAGES["mock_ai"])
+
+
+async def refund_trial_turn(db: AsyncSession, session_id: int) -> None:
+    await db.execute(
+        update(MockChatSession)
+        .where(MockChatSession.id == session_id)
+        .values(trial_turns_used=MockChatSession.trial_turns_used - 1)
+    )
+    await db.commit()
+
+
 @router.post("/chat", response_model=MockChatResponse)
 async def mock_ai_chat(
     req: MockChatRequest,
@@ -135,6 +185,12 @@ async def mock_ai_chat(
     """
     if not req.messages:
         raise HTTPException(status_code=400, detail="Danh sách tin nhắn không được để trống")
+
+    # VIP chat tự do; còn lại phải trong phiên mở bằng vé trải nghiệm và còn lượt.
+    trial_session_id = None
+    if not await has_feature(db, user, "mock_ai"):
+        await use_trial_turn(db, user, req.session_id)
+        trial_session_id = req.session_id
 
     system_prompt = (
         "BẠN LÀ: Giám khảo AI — Thành viên Hội đồng chấm và phản biện bảo vệ đồ án tốt nghiệp Đại học ngành CNTT / Phần mềm.\n"
@@ -202,6 +258,8 @@ async def mock_ai_chat(
         return MockChatResponse(reply=reply)
     except Exception as e:
         logger.exception("Mock AI chat failed")
+        if trial_session_id is not None:
+            await refund_trial_turn(db, trial_session_id)
         raise HTTPException(
             status_code=500,
             detail=f"Lỗi khi kết nối Giám khảo AI: {str(e)}"
@@ -340,11 +398,38 @@ async def create_mock_session(
     db: AsyncSession = Depends(get_db),
 ):
     """Tạo phiên chat mới (thay vì ghi đè toàn cục như PUT /history cũ)."""
+    remaining_tickets: Optional[int] = None
+    trial_turns_used: Optional[int] = None
+    if not await has_feature(db, user, "mock_ai"):
+        # Khoá user: nhiều request cùng lúc không được dùng chung 1 vé.
+        user = await db.get(User, user.id, with_for_update=True, populate_existing=True)
+        profile = dict(user.profile_data or {})
+        raw_tickets = profile.get("mock_ai_trial_tickets", 0)
+        try:
+            tickets = int(raw_tickets)
+        except (ValueError, TypeError):
+            tickets = 0
+
+        if tickets <= 0:
+            await db.rollback()
+            raise HTTPException(
+                status_code=403,
+                detail="Bạn đã sử dụng hết vé trải nghiệm Mock Room AI. Vui lòng nâng cấp VIP để tiếp tục luyện tập.",
+            )
+
+        tickets -= 1
+        remaining_tickets = tickets
+        trial_turns_used = 0
+        profile["mock_ai_trial_tickets"] = tickets
+        user.profile_data = profile
+        flag_modified(user, "profile_data")
+
     session = MockChatSession(
         user_id=user.id,
         document_id=body.document_id,
         title=body.title.strip()[:200] or "Phiên chất vấn",
         message_count=0,
+        trial_turns_used=trial_turns_used,
     )
     db.add(session)
     await db.commit()
@@ -357,6 +442,7 @@ async def create_mock_session(
         preview="",
         created_at=session.created_at,
         updated_at=session.updated_at,
+        remaining_tickets=remaining_tickets,
     )
 
 
@@ -396,6 +482,8 @@ async def get_mock_session(
         messages=msgs,
         created_at=session.created_at,
         updated_at=session.updated_at,
+        can_chat=await has_feature(db, user, "mock_ai")
+        or (session.trial_turns_used is not None and session.trial_turns_used < TRIAL_MAX_CHAT_TURNS),
     )
 
 

@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { clearSession } from "@/lib/auth";
+import { TOUR_REPLAY_EVENT, TOUR_START_ROUTE } from "@/lib/tour";
 import {
   FileText,
   FolderKanban,
@@ -29,10 +31,13 @@ import {
   Bell,
   Search,
   CreditCard,
+  MessageSquareHeart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isPublicPath } from "@/lib/shell";
 import { UserMenu } from "./UserMenu";
+import { NotificationBell } from "./NotificationBell";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
  * Shell cho các trang "app" (sau khi đăng nhập): sidebar trái + top bar.
@@ -57,7 +62,6 @@ const SIDEBAR_LINKS: SidebarLink[] = [
   { href: "/bookings", label: "Đặt lịch", icon: CalendarClock, roles: ["student", "admin"] },
   { href: "/mock-room", label: "Mock Room", icon: MonitorPlay, roles: ["student", "admin"] },
   { href: "/report", label: "Báo cáo", icon: BarChart3, roles: ["student", "admin"] },
-  { href: "/pricing", label: "Đăng ký Member", icon: Crown, roles: ["student"] },
   // --- Mentor ---
   { href: "/mentor/dashboard", label: "Tổng quan Mentor", icon: LayoutDashboard, roles: ["mentor", "admin"] },
   { href: "/mentor/calendar", label: "Lịch rảnh", icon: CalendarDays, roles: ["mentor", "admin"] },
@@ -69,20 +73,35 @@ const SIDEBAR_LINKS: SidebarLink[] = [
   { href: "/mentor/wallet", label: "Ví & Thu nhập", icon: Wallet, roles: ["mentor", "admin"] },
   // --- Admin ---
   { href: "/admin/overview", label: "Tổng quan", icon: LayoutDashboard, roles: ["admin"], section: "Quản trị" },
+  { href: "/admin/majors", label: "Thống kê ngành", icon: BarChart3, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/mentor-verification", label: "Duyệt Mentor", icon: Star, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/dispute", label: "Dispute Center", icon: Scale, roles: ["admin"], section: "Quản trị" },
-  { href: "/admin/payout", label: "Tài chính & Rút tiền", icon: Wallet, roles: ["admin"], section: "Quản trị" },
+  { href: "/admin/payout", label: "Báo cáo tài chính", icon: Wallet, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/users", label: "Quản lý người dùng", icon: Users, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/settings", label: "Cấu hình hệ thống", icon: Settings, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/moderation", label: "Kiểm duyệt nội dung", icon: ShieldCheck, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/ai-monitor", label: "Giám sát AI", icon: Bot, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/subscriptions", label: "Quản lý gói", icon: Crown, roles: ["admin"], section: "Quản trị" },
   { href: "/admin/payments", label: "Duyệt thanh toán", icon: CreditCard, roles: ["admin"], section: "Quản trị" },
+  { href: "/admin/feedbacks", label: "Phản hồi người dùng", icon: MessageSquareHeart, roles: ["admin"], section: "Quản trị" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, hasRole } = useAuth();
+
+  // Onboarding ngành học: student chưa chọn major bị đưa về /onboarding TRƯỚC
+  // khi vào màn hình chính (chặn cả F5 / gõ URL trực tiếp). Admin/mentor bỏ qua;
+  // user đã có major đi qua bình thường. Hook phải đứng trước early-return
+  // isPublicPath để không vi phạm rules of hooks.
+  useEffect(() => {
+    if (!user || isPublicPath(pathname)) return;
+    const roles = user.roles ?? [];
+    const studentOnly =
+      roles.includes("student") && !roles.includes("admin") && !roles.includes("mentor");
+    if (studentOnly && !user.major) router.replace("/onboarding");
+  }, [user, pathname, router]);
 
   if (isPublicPath(pathname)) {
     return <>{children}</>;
@@ -160,6 +179,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Link
                     key={l.href}
                     href={l.href}
+                    data-testid={`sidebar-link-${l.href}`}
                     className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                       active
                         ? "bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.3)]"
@@ -172,9 +192,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       }`}
                     />
                     {l.label}
-                    {active && (
-                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)]" />
-                    )}
                   </Link>
                 );
               })}
@@ -207,7 +224,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }`}
       >
         {/* Top bar */}
-        <header className="shrink-0 z-30 h-16 border-b border-border bg-background/80 backdrop-blur-md flex items-center px-6 gap-4">
+        <header className="shrink-0 z-20 h-16 border-b border-border bg-background/80 backdrop-blur-md flex items-center px-6 gap-4">
           {/* Breadcrumb */}
           <nav className="flex items-center text-[13px] font-medium gap-1.5 min-w-0">
             <Link
@@ -224,29 +241,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="hidden lg:flex flex-1 max-w-md mx-auto items-center gap-2 h-10 px-4 rounded-full border border-border bg-card/60 text-sm text-muted-foreground">
             <Search className="w-4 h-4" />
             <span className="text-xs">Tìm tài liệu, workspace...</span>
-            <kbd className="ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-              ⌘K
-            </kbd>
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            <ThemeToggle />
             <Button
               variant="ghost"
               size="icon"
               className="rounded-full hover:bg-muted"
               aria-label="Trợ giúp"
+              data-testid="topbar-help"
+              onClick={() => {
+                // Mở lại hướng dẫn sử dụng (Product Tour) từ bước 1: về route
+                // bắt đầu nếu đang ở trang khác rồi phát sự kiện cho Gate.
+                if (pathname !== TOUR_START_ROUTE) router.push(TOUR_START_ROUTE);
+                window.dispatchEvent(new Event(TOUR_REPLAY_EVENT));
+              }}
             >
               <HelpCircle className="w-5 h-5 text-muted-foreground" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-full hover:bg-muted relative"
-              aria-label="Thông báo"
-            >
-              <Bell className="w-5 h-5 text-muted-foreground" />
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent shadow-[0_0_6px_hsl(var(--accent)/0.8)]" />
-            </Button>
+            <NotificationBell />
             <UserMenu />
           </div>
         </header>

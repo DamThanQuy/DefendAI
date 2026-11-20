@@ -9,13 +9,14 @@ const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 async function scanDocument(documentId: number, authHeader: string) {
   const scanRes = await fetch(`${backendUrl}/api/code/scan`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...ngrokHeaders() },
+    headers: { 'Content-Type': 'application/json', ...ngrokHeaders(), ...(authHeader ? { Authorization: authHeader } : {}) },
     body: JSON.stringify({ document_id: documentId }),
   });
 
   if (!scanRes.ok) {
     const err = await scanRes.json();
-    return NextResponse.json({ error: 'Code scan failed', details: err }, { status: scanRes.status });
+    const message = typeof err?.detail === 'string' ? err.detail : 'Code scan failed';
+    return NextResponse.json({ error: message, details: err }, { status: scanRes.status });
   }
 
   const scanData = await scanRes.json();

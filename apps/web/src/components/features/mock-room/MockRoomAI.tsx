@@ -15,40 +15,43 @@ import {
   Mic,
   MicOff,
   Volume2,
-  VolumeX,
+  Download,
+  Maximize2,
+  Minimize2,
   ArrowRight,
+  Hand,
+  MoreHorizontal,
+  Settings,
+  ScreenShare,
+  ScreenShareOff,
   PhoneOff,
   X,
   Bot,
-  Plus,
-  Search,
-  MessageSquare,
-  PanelLeftClose,
-  PanelLeft,
-  Trash2,
-  Edit2,
-  Sparkles,
-  Paperclip,
-  RotateCcw,
-  BookOpen,
-  Award,
-  ChevronDown,
-  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useAuth } from "@/hooks/useAuth";
+import { hasVipInProfile, usePlanAccess } from "@/hooks/usePlanAccess";
 import { MarkdownMessage } from "@/components/features/workspace/MarkdownMessage";
-import {
-  MessageContentScroll,
-  extractMessageSections,
-} from "@/components/features/mock-room/MessageContentScroll";
-import { type MockMessage, extractContextSummary } from "@/lib/mock-ai-data";
+import { type MockMessage, extractContextSummary, readTrialTickets } from "@/lib/mock-ai-data";
+import { toast } from "sonner";
 import { ChunkedUploader } from "@/lib/chunked-upload";
 import { MAX_FILE_SIZE } from "@/lib/constants";
 
-// File >= 4MB sẽ chuyển sang S3 multipart chunked upload trực tiếp lên MinIO để tránh giới hạn Vercel
+// File >= 4MB sẽ chuyển sang S3 multipart chunked upload trực tiếp lên MinIO để tránh giới hạn 4.5MB của Vercel
 const CHUNKED_THRESHOLD = 4 * 1024 * 1024;
 
+/**
+ * ─────────────────────────────────────────────────────────────
+ *  MockRoomAI — Phòng chat với AI (Giám khảo AI)
+ *
+ *  AI vào vai Giám khảo AI: chủ động đặt câu hỏi, truy vấn và phản biện
+ *  về đồ án của sinh viên (bám vào tài liệu được chọn làm ngữ cảnh).
+ *  Hình thức trả lời là chat tự do (markdown, như ChatGPT / Gemini).
+ * ─────────────────────────────────────────────────────────────
+ */
+
+// Tài liệu đã upload của student (từ /api/documents/)
 type StudentDoc = {
   id: number;
   filename: string;
@@ -59,6 +62,7 @@ type StudentDoc = {
   created_at: string;
 };
 
+// Phiên chat đã lưu (GET /api/mock-qa/sessions)
 type MockSession = {
   id: number;
   document_id: number | null;
@@ -69,6 +73,7 @@ type MockSession = {
   updated_at: string;
 };
 
+// Chi tiết 1 phiên khi xem lại (GET /api/mock-qa/sessions/{id})
 type MockSessionDetail = {
   id: number;
   document_id: number | null;
@@ -76,6 +81,7 @@ type MockSessionDetail = {
   messages: { role: string; content: string; time?: string }[];
   created_at: string;
   updated_at: string;
+  can_chat?: boolean;
 };
 
 function getToken(): string | null {
@@ -87,120 +93,109 @@ function getToken(): string | null {
   }
 }
 
-// 4 gợi ý câu hỏi chất vấn mẫu giống ChatGPT
-const STARTER_PROMPTS = [
-  {
-    icon: "🎯",
-    title: "Chất vấn kiến trúc hệ thống",
-    desc: "Đánh giá sự hợp lý của kiến trúc phần mềm, cơ sở dữ liệu và công nghệ lựa chọn.",
-    prompt:
-      "Thưa thầy/cô, xin mời hội đồng đặt câu hỏi chất vấn xoáy sâu vào kiến trúc hệ thống và lý do em lựa chọn công nghệ cho đồ án này.",
-  },
-  {
-    icon: "❓",
-    title: "5 câu hỏi hóc búa nhất",
-    desc: "Giả lập các câu hỏi phản biện khó mà hội đồng thường dùng để thử thách sinh viên.",
-    prompt:
-      "Giả sử thầy/cô là giám khảo khó tính nhất trong hội đồng, hãy đặt ra 5 câu hỏi phản biện hóc búa nhất về tính khả thi và lỗ hổng của đồ án.",
-  },
-  {
-    icon: "🔍",
-    title: "Rà soát lỗ hổng bảo mật & hiệu năng",
-    desc: "Phản biện khả năng chịu tải, bảo mật dữ liệu và phương án xử lý sự cố.",
-    prompt:
-      "Hãy chất vấn em về vấn đề bảo mật (Authentication, SQL Injection, Data Privacy) và bài toán chịu tải cao (Scalability, Caching) của hệ thống.",
-  },
-  {
-    icon: "💡",
-    title: "Hướng dẫn bảo vệ tự tin",
-    desc: "Gợi ý mẹo trình bày slide, cách phản hồi khi chưa nắm chắc câu trả lời.",
-    prompt:
-      "Xin giám khảo cho em lời khuyên: Khi hội đồng hỏi vào phần em chưa kịp triển khai hoặc chưa nắm rõ, em nên trả lời như thế nào để ghi điểm tác phong?",
-  },
-];
-
 export default function MockRoomAI() {
   const router = useRouter();
+  const { user } = useAuth();
 
-  // ── Document & Context State ──────────────────────────────
+  // Quyền dùng Mock AI không giới hạn do server tính; gói hết hạn thì không còn là VIP.
+  const { access, loading: accessLoading } = usePlanAccess();
+  const isVip = access ? access.features.mock_ai : hasVipInProfile(user?.profile_data);
+  // Phiên cũ không còn chat tiếp được (mở khi còn VIP, hoặc đã hết lượt thử): chỉ xem lại và nhận báo cáo.
+  const [sessionReadOnly, setSessionReadOnly] = useState(false);
+
+  // Kiểm tra user đã từng nhận vé từ khảo sát chưa
+  const hasRewardGranted = useMemo(() => {
+    const profile = (user?.profile_data as any) || {};
+    return Boolean(profile.feedback_status?.reward_ticket_granted || profile.feedback_status?.submitted);
+  }, [user]);
+
+  // Số vé trải nghiệm Mock AI
+  const [trialTickets, setTrialTickets] = useState<number>(() => readTrialTickets(user?.profile_data));
+
+  useEffect(() => {
+    const updateTickets = () => setTrialTickets(readTrialTickets(user?.profile_data));
+
+    updateTickets();
+    window.addEventListener("storage", updateTickets);
+    return () => window.removeEventListener("storage", updateTickets);
+  }, [user]);
+
+  const FREE_MAX_QUESTIONS = 5;
+  // ── State ──────────────────────────────────────────────
+  // Workflow steps — "upload" (tuỳ chọn) → "room" (chất vấn với Giám khảo AI)
+  const [step, setStep] = useState<"upload" | "room">("upload");
+  const [projectContext, setProjectContext] = useState("");
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+
+  // Tài liệu đã upload của student (từ server) — ngữ cảnh TUỲ CHỌN cho AI
   const [studentDocs, setStudentDocs] = useState<StudentDoc[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [docsError, setDocsError] = useState("");
   const [selectedDocId, setSelectedDocId] = useState<number | null>(null);
-  const [projectContext, setProjectContext] = useState("");
   const [contextLoading, setContextLoading] = useState(false);
   const [contextError, setContextError] = useState("");
-  const [showDocModal, setShowDocModal] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatusText, setUploadStatusText] = useState("");
 
-  // ── Session & Sidebar State ──────────────────────────────
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Danh sách phiên chat đã lưu — xem lại / tiếp tục theo từng tài liệu
   const [sessions, setSessions] = useState<MockSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [hasLoadedSessions, setHasLoadedSessions] = useState(false);
+  // Phiên đang active trong phòng (null = chưa có, sẽ tạo khi autosave)
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
-  const [searchSessionQuery, setSearchSessionQuery] = useState("");
-  const [renamingSessionId, setRenamingSessionId] = useState<number | null>(null);
-  const [renameTitleInput, setRenameTitleInput] = useState("");
+  // Modal xem lại 1 phiên cũ (chỉ đọc)
+  const [viewSession, setViewSession] = useState<MockSessionDetail | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [searchQ, setSearchQ] = useState("");
 
-  // ── Chat & Interaction State ─────────────────────────────
+  // Chat state
   const [messages, setMessages] = useState<MockMessage[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
-  const [speakingMsgId, setSpeakingMsgId] = useState<number | null>(null);
 
-  // ── Voice State ──────────────────────────────────────────
+  // Đếm số câu trả lời của sinh viên trong phiên hiện tại
+  const studentAnswerCount = useMemo(() => {
+    return messages.filter((m) => m.role === "user" && m.content.trim()).length;
+  }, [messages]);
+
+  // Giới hạn 5 câu hỏi đối với Free User (dùng vé trải nghiệm)
+  const isReadOnlySession = !isVip && sessionReadOnly && studentAnswerCount < FREE_MAX_QUESTIONS;
+  const isLimitReached = !isVip && (studentAnswerCount >= FREE_MAX_QUESTIONS || sessionReadOnly);
+
+  // Voice state
   const [isRecording, setIsRecording] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
-  // ── Modal State ──────────────────────────────────────────
+  // Room controls
+  const [showSettings, setShowSettings] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
-  const [showEndSessionConfirm, setShowEndSessionConfirm] = useState(false);
-  const [endingSession, setEndingSession] = useState(false);
 
-  // ── Refs ─────────────────────────────────────────────────
-  const chatScrollRef = useRef<HTMLDivElement>(null);
+  // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const isIntentionalStopRef = useRef(false);
+  // Timer debounce lưu lịch sử chat lên server
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  // Context mới nhất cho callback STT — tránh closure cũ
   const stateRef = useRef<{ messages: MockMessage[]; context: string }>({
     messages: [],
     context: "",
   });
   stateRef.current = { messages, context: projectContext };
 
-  const activeSessionRef = useRef<number | null>(null);
-  activeSessionRef.current = activeSessionId;
-
-  // ── Auto-scroll to bottom ────────────────────────────────
-  const scrollToBottom = useCallback((smooth = true) => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: smooth ? "smooth" : "auto",
-    });
+  // ── Auto-scroll ────────────────────────────────────────
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
   useEffect(() => {
-    if (messages.length > 0) {
-      scrollToBottom();
-    }
+    scrollToBottom();
   }, [messages, isTyping, scrollToBottom]);
 
-  // ── Auto-resize input textarea ───────────────────────────
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${Math.min(
-        textareaRef.current.scrollHeight,
-        180
-      )}px`;
-    }
-  }, [input]);
-
-  // ── Load student documents ───────────────────────────────
+  // ── Load danh sách tài liệu student đã upload ─────────
   const fetchStudentDocs = useCallback(async () => {
     const token = getToken();
     if (!token) return;
@@ -216,6 +211,7 @@ export default function MockRoomAI() {
         (d: StudentDoc) => d.purpose !== "staff_reference"
       );
       setStudentDocs(items);
+      // Auto chọn tài liệu mới nhất nếu chưa chọn
       if (items.length > 0 && selectedDocId === null) {
         setSelectedDocId(items[0].id);
       }
@@ -231,7 +227,7 @@ export default function MockRoomAI() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Load session list ────────────────────────────────────
+  // ── Tải danh sách phiên chat đã lưu (khi mở trang) ──────
   const fetchSessions = useCallback(async () => {
     const token = getToken();
     if (!token) return;
@@ -244,9 +240,10 @@ export default function MockRoomAI() {
       const data = await r.json();
       setSessions(data.items ?? []);
     } catch {
-      // ignore
+      // tải thất bại không chặn UI
     } finally {
       setSessionsLoading(false);
+      setHasLoadedSessions(true);
     }
   }, []);
 
@@ -254,10 +251,129 @@ export default function MockRoomAI() {
     fetchSessions();
   }, [fetchSessions]);
 
+  // Chặn người dùng Free không có vé trải nghiệm và không có phiên đã lưu truy cập thẳng /mock-room-ai
+  useEffect(() => {
+    if (!hasLoadedSessions || !user || accessLoading) return;
+    if (!isVip && trialTickets <= 0 && sessions.length === 0) {
+      toast.error("Phòng Mock AI chỉ dành cho thành viên VIP hoặc người dùng có vé trải nghiệm. Hãy nâng cấp hoặc làm khảo sát để nhận vé!");
+      router.push("/mock-room");
+    }
+  }, [hasLoadedSessions, user, accessLoading, isVip, trialTickets, sessions.length, router]);
+
+  // Refresh danh sách phiên mỗi khi quay về màn hình chọn tài liệu
+  useEffect(() => {
+    if (step === "upload") void fetchSessions();
+  }, [step, fetchSessions]);
+
+  // ── Tự lưu phiên chat lên server (debounce 800ms sau mỗi tin) ──
+  // Nếu chưa có phiên active → tạo mới (POST) rồi lưu vào phiên đó (PUT),
+  // KHÔNG còn ghi đè toàn cục như cơ chế /history cũ.
+  const activeSessionRef = useRef<number | null>(null);
+  activeSessionRef.current = activeSessionId;
+  // Ref để callback trong timeout gọi được fetchSessions mới nhất
   const fetchSessionsRef = useRef<typeof fetchSessions | null>(null);
   fetchSessionsRef.current = fetchSessions;
+  // Lần lưu đang chạy — các lần lưu xếp hàng nối tiếp để không tạo 2 phiên trùng
+  const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
 
-  // ── Read document context text ───────────────────────────
+  // Lưu toàn bộ tin nhắn vào phiên active; trả về id phiên. Lỗi → throw.
+  const persistSession = useCallback(
+    (msgs: MockMessage[]): Promise<number | null> => {
+      const run = saveChainRef.current.catch(() => undefined).then(async () => {
+        const token = getToken();
+        if (!token || msgs.length === 0) return activeSessionRef.current;
+        const headers = {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        };
+        const payload = {
+          messages: msgs.map((m) => ({
+            role: m.role,
+            content: m.content,
+            time: m.time,
+          })),
+          document_id: projectContext ? selectedDocId : null,
+        };
+
+        let sid = activeSessionRef.current;
+        if (sid == null) {
+          // Tạo phiên mới — tiêu đề lấy từ tin nhắn user đầu tiên
+          const firstUser = msgs.find((m) => m.role === "user");
+          const r = await fetch("/api/mock-qa/sessions", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              document_id: payload.document_id,
+              title: (firstUser?.content || "Phiên chất vấn").slice(0, 100),
+            }),
+          });
+          if (!r.ok) {
+            const err = await r.json().catch(() => ({}));
+            throw new Error(err.detail || "Không tạo được phiên chat");
+          }
+          const created = await r.json();
+          sid = created.id as number;
+          setActiveSessionId(sid);
+          activeSessionRef.current = sid;
+
+          if (created.remaining_tickets !== undefined && created.remaining_tickets !== null) {
+            setTrialTickets(created.remaining_tickets);
+            try {
+              localStorage.setItem("mock_ai_trial_tickets", String(created.remaining_tickets));
+              window.dispatchEvent(new Event("storage"));
+            } catch {}
+          }
+        }
+
+        const r = await fetch(`/api/mock-qa/sessions/${sid}`, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify(payload),
+        });
+        if (!r.ok) throw new Error("Không lưu được phiên chat");
+        // Refresh danh sách ở màn hình chọn file (fetchSessions khi quay lại)
+        void fetchSessionsRef.current?.();
+        return sid;
+      });
+      saveChainRef.current = run;
+      return run;
+    },
+    [projectContext, selectedDocId],
+  );
+  // Ref để askMentor (không đổi giữa các lần render) gọi được bản mới nhất
+  const persistSessionRef = useRef(persistSession);
+  persistSessionRef.current = persistSession;
+
+  useEffect(() => {
+    if (step !== "room" || messages.length === 0) return;
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      // lưu thất bại không chặn chat — thử lại ở lần tin sau
+      persistSession(messages).catch(() => undefined);
+    }, 800);
+
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [messages, step, persistSession]);
+
+  // ── Bắt đầu phiên mới — không xoá dữ liệu cũ, chỉ reset phiên active ──
+  const clearHistory = useCallback(async () => {
+    if (!isVip && trialTickets <= 0) {
+      alert("Bạn đã sử dụng hết vé trải nghiệm Mock AI. Không thể tạo thêm phiên mới. Vui lòng chọn phiên đã lưu hoặc nâng cấp VIP.");
+      return;
+    }
+    setMessages([]);
+    setSessionReadOnly(false);
+    setActiveSessionId(null);
+    activeSessionRef.current = null;
+    stateRef.current = { messages: [], context: "" };
+    // Danh sách các phiên cũ vẫn giữ nguyên để xem lại sau
+    void fetchSessions();
+  }, [fetchSessions, isVip, trialTickets]);
+
+  // ── Lấy nội dung text đã trích xuất của tài liệu được chọn ──
   const loadDocContext = useCallback(async (docId: number): Promise<string> => {
     const token = getToken();
     if (!token) return "";
@@ -271,23 +387,7 @@ export default function MockRoomAI() {
     return (raw.text ?? "").trim();
   }, []);
 
-  // ── Khi chọn tài liệu mới ────────────────────────────────
-  const handleSelectDoc = async (docId: number) => {
-    setSelectedDocId(docId);
-    setContextLoading(true);
-    setContextError("");
-    try {
-      const text = await loadDocContext(docId);
-      setProjectContext(text);
-      setShowDocModal(false);
-    } catch (e: any) {
-      setContextError(e.message || "Lỗi đọc ngữ cảnh tài liệu");
-    } finally {
-      setContextLoading(false);
-    }
-  };
-
-  // ── File upload handler ──────────────────────────────────
+  // ── File upload handler (hỗ trợ cả chunked upload cho file lớn > 4MB) ────
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -298,22 +398,22 @@ export default function MockRoomAI() {
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      setDocsError(
-        `Tệp vượt quá ${MAX_FILE_SIZE / (1024 * 1024 * 1024)}GB. Vui lòng chọn tệp nhỏ hơn.`
-      );
+      setDocsError(`Tệp vượt quá ${MAX_FILE_SIZE / (1024 * 1024 * 1024)}GB. Vui lòng chọn tệp nhỏ hơn.`);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
+    setUploadedFile(file);
     setDocsError("");
     setContextLoading(true);
     setUploadProgress(0);
-    setUploadStatusText("Đang tải lên...");
+    setUploadStatusText("Đang chuẩn bị tải lên...");
 
     try {
       let docId: number;
 
       if (file.size >= CHUNKED_THRESHOLD) {
+        // File lớn (>= 4MB, kể cả ZIP vài GB): dùng S3 multipart chunked upload trực tiếp MinIO
         setUploadStatusText("Đang tải lên qua S3 Multipart...");
         const uploader = new ChunkedUploader(file, {
           concurrency: 3,
@@ -321,9 +421,7 @@ export default function MockRoomAI() {
             const pct = Math.round((uploaded / total) * 100);
             setUploadProgress(pct);
             setUploadStatusText(
-              `Đang tải lên... ${(uploaded / 1024 / 1024).toFixed(1)}/${(
-                total / 1024 / 1024
-              ).toFixed(1)} MB (${pct}%)`
+              `Đang tải lên... ${(uploaded / 1024 / 1024).toFixed(1)}/${(total / 1024 / 1024).toFixed(1)} MB (${pct}%)`
             );
           },
         });
@@ -333,6 +431,8 @@ export default function MockRoomAI() {
         }
         docId = result.document_id;
       } else {
+        // File nhỏ (< 4MB): upload trực tiếp qua BFF
+        setUploadStatusText("Đang tải lên...");
         const formData = new FormData();
         formData.append("file", file);
         formData.append("purpose", "student_project");
@@ -348,20 +448,31 @@ export default function MockRoomAI() {
         try {
           data = JSON.parse(text);
         } catch {
+          if (res.status === 413) {
+            throw new Error("Tệp vượt quá giới hạn tải trực tiếp của máy chủ (4MB). Vui lòng thử lại.");
+          }
           throw new Error(`Lỗi máy chủ (${res.status}): ${text.slice(0, 100)}`);
         }
 
         if (!res.ok) {
-          throw new Error(data.detail || data.error || "Tải lên thất bại");
+          throw new Error(data.detail || data.error || data.message || `Tải lên thất bại (HTTP ${res.status})`);
         }
+
         docId = data.documentId ?? data.id;
+        if (!docId) {
+          throw new Error("Không nhận được mã tài liệu từ máy chủ");
+        }
       }
 
+      // Upload xong → refresh danh sách + chọn tài liệu mới
       setUploadProgress(100);
+      setUploadStatusText("Tải lên thành công!");
       await fetchStudentDocs();
-      await handleSelectDoc(docId);
+      setSelectedDocId(docId);
+      setProjectContext("");
     } catch (err: any) {
       setDocsError(err.message || "Tải lên thất bại");
+      setUploadedFile(null);
     } finally {
       setContextLoading(false);
       setUploadProgress(0);
@@ -370,69 +481,32 @@ export default function MockRoomAI() {
     }
   };
 
-  // ── Tự động lưu phiên (Debounce 800ms) ───────────────────
-  useEffect(() => {
-    if (messages.length === 0) return;
+  // ── Xem lại 1 phiên cũ (chỉ đọc, không tiếp tục chat) ──
+  const openSessionView = useCallback(async (sessionId: number) => {
     const token = getToken();
     if (!token) return;
+    setViewLoading(true);
+    try {
+      const r = await fetch(`/api/mock-qa/sessions/${sessionId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error("Không tải được phiên chat");
+      const data: MockSessionDetail = await r.json();
+      setViewSession(data);
+    } catch (e: any) {
+      alert(e.message || "Lỗi khi mở phiên chat");
+    } finally {
+      setViewLoading(false);
+    }
+  }, []);
 
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
-      try {
-        const headers = {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        };
-        const payload = {
-          messages: messages.map((m) => ({
-            role: m.role,
-            content: m.content,
-            time: m.time,
-          })),
-          document_id: projectContext ? selectedDocId : null,
-        };
-
-        let sid = activeSessionRef.current;
-        if (sid == null) {
-          const firstUser = messages.find((m) => m.role === "user");
-          const r = await fetch("/api/mock-qa/sessions", {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              document_id: payload.document_id,
-              title: (firstUser?.content || "Phiên chất vấn").slice(0, 80),
-            }),
-          });
-          if (!r.ok) return;
-          const created = await r.json();
-          sid = created.id;
-          setActiveSessionId(sid);
-          activeSessionRef.current = sid;
-        }
-
-        await fetch(`/api/mock-qa/sessions/${sid}`, {
-          method: "PUT",
-          headers,
-          body: JSON.stringify(payload),
-        });
-
-        void fetchSessionsRef.current?.();
-      } catch {
-        // ignore
-      }
-    }, 800);
-
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-  }, [messages, projectContext, selectedDocId]);
-
-  // ── Mở / Tiếp tục phiên chat cũ ──────────────────────────
+  // ── Tiếp tục 1 phiên cũ — nạp messages + document_id vào phòng ──
   const resumeSession = useCallback(
     async (sessionId: number) => {
       const token = getToken();
       if (!token) return;
       setContextLoading(true);
+      setContextError("");
       try {
         const r = await fetch(`/api/mock-qa/sessions/${sessionId}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -446,7 +520,7 @@ export default function MockRoomAI() {
             context = await loadDocContext(data.document_id);
             setSelectedDocId(data.document_id);
           } catch {
-            context = "";
+            context = ""; // tài liệu cũ có thể đã bị xoá — vẫn khôi phục chat
           }
         }
         setProjectContext(context);
@@ -458,12 +532,16 @@ export default function MockRoomAI() {
           time: m.time || "",
         }));
 
+        setViewSession(null);
+        setStep("room");
         setMessages(restored);
+        setSessionReadOnly(data.can_chat === false);
         setActiveSessionId(data.id);
         activeSessionRef.current = data.id;
+        // Đồng bộ stateRef NGAY để askMentor đọc đúng history vừa khôi phục
         stateRef.current = { messages: restored, context };
       } catch (e: any) {
-        alert(e.message || "Không thể tiếp tục phiên chat");
+        setContextError(e.message || "Không thể tiếp tục phiên chat");
       } finally {
         setContextLoading(false);
       }
@@ -471,10 +549,9 @@ export default function MockRoomAI() {
     [loadDocContext]
   );
 
-  // ── Xoá phiên chat ───────────────────────────────────────
+  // ── Xoá 1 phiên khỏi danh sách ─────────────────────────
   const deleteSession = useCallback(
-    async (sessionId: number, e?: React.MouseEvent) => {
-      e?.stopPropagation();
+    async (sessionId: number) => {
       if (!confirm("Xoá phiên chat này? Hành động không thể hoàn tác.")) return;
       const token = getToken();
       if (!token) return;
@@ -486,30 +563,78 @@ export default function MockRoomAI() {
         if (!r.ok) throw new Error("Xoá phiên thất bại");
         setSessions((prev) => prev.filter((s) => s.id !== sessionId));
         if (activeSessionId === sessionId) {
-          startNewSession();
+          setActiveSessionId(null);
+          activeSessionRef.current = null;
         }
       } catch (e: any) {
         alert(e.message || "Lỗi khi xoá phiên");
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [activeSessionId]
   );
 
-  // ── Bắt đầu phiên mới (New chat) ─────────────────────────
-  const startNewSession = useCallback(() => {
-    setMessages([]);
+  // ── Vào phòng chat MỚI (tài liệu là TUỲ CHỌN, không bắt buộc) ──
+  const enterRoom = useCallback(async (useDoc: boolean) => {
+    if (!isVip && trialTickets <= 0) {
+      alert("Bạn đã sử dụng hết vé trải nghiệm Mock Room AI. Vui lòng chọn phiên đã lưu bên dưới để tiếp tục hoặc nâng cấp VIP.");
+      return;
+    }
+
+    let context = "";
+    if (useDoc && selectedDocId) {
+      setContextLoading(true);
+      setContextError("");
+      try {
+        context = await loadDocContext(selectedDocId);
+      } catch (e: any) {
+        setContextError(e.message || "Không thể đọc nội dung tài liệu");
+        context = "";
+      } finally {
+        setContextLoading(false);
+      }
+    }
+    setProjectContext(context);
+
+    // Phiên mới hoàn toàn — autosave sẽ tạo session mới
+    setSessionReadOnly(false);
     setActiveSessionId(null);
     activeSessionRef.current = null;
-    setInput("");
-    stateRef.current = { messages: [], context: projectContext };
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      setSpeakingMsgId(null);
-    }
-  }, [projectContext]);
 
-  // ── Gửi câu hỏi tới Mentor AI ─────────────────────────────
+    const docName = context
+      ? studentDocs.find((d) => d.id === selectedDocId)?.filename ||
+        uploadedFile?.name ||
+        "đồ án"
+      : null;
+
+    setStep("room");
+
+    const intro = context
+      ? `Chào em. Tôi là **giám khảo** phụ trách buổi bảo vệ hôm nay. Tôi đã xem tài liệu "${docName}" của em:\n\n> ${extractContextSummary(context)}\n\nBuổi chất vấn bắt đầu ngay — em hãy sẵn sàng trả lời câu hỏi đầu tiên.`
+      : `Chào em. Tôi là **giám khảo** phụ trách buổi bảo vệ hôm nay.\n\nEm hãy bắt đầu bằng việc **giới thiệu tổng quan về đồ án** của mình (Tên đề tài, vấn đề cần giải quyết, kiến trúc hệ thống và công nghệ sử dụng). Sau đó, tôi sẽ đặt câu hỏi phản biện trực tiếp. Em có thể bắt đầu.`;
+
+    const introMsg: MockMessage = {
+      id: Date.now(),
+      role: "mentor",
+      content: intro,
+      time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+    };
+    setMessages([introMsg]);
+    stateRef.current = { messages: [introMsg], context };
+
+    // Nếu CÓ TÀI LIỆU: Giám khảo AI chủ động đọc tài liệu và đặt câu hỏi mở đầu cụ thể về tài liệu đó
+    // Nếu KHÔNG CÓ TÀI LIỆU: Lời chào introMsg ở trên đã nêu rõ yêu cầu sinh viên giới thiệu đề tài,
+    // không gọi thêm lượt mồi ẩn để tránh sinh 2 câu chào trùng lặp liên tiếp.
+    if (context) {
+      void askMentorRef.current(
+        "(Buổi bảo vệ bắt đầu. Em vừa ngồi xuống và sẵn sàng. Hãy mở đầu với đúng vai giám khảo: chào ngắn, vào thẳng vấn đề và đặt CÂU HỎI CHẤT VẤN ĐẦU TIÊN về đồ án trong tài liệu — cụ thể, không chung chung, kết thúc bằng câu hỏi.)",
+        { hidden: true }
+      );
+    }
+  }, [selectedDocId, studentDocs, uploadedFile, loadDocContext, isVip, trialTickets]);
+
+  // ── Gọi Mentor AI (backend /api/mock-qa/chat) ──────────
+  // Nhận thêm một lượt của sinh viên → gửi toàn bộ history + context tài liệu
+  // lên backend → nhận câu trả lời tự do (markdown).
   const askMentor = useCallback(
     async (extraTurn?: string, opts?: { hidden?: boolean }) => {
       setIsTyping(true);
@@ -519,12 +644,8 @@ export default function MockRoomAI() {
         const errMsg: MockMessage = {
           id: Date.now(),
           role: "mentor",
-          content:
-            "⚠️ Bạn chưa đăng nhập nên Giám khảo AI không thể phản hồi. Vui lòng đăng nhập lại.",
-          time: new Date().toLocaleTimeString("vi-VN", {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
+          content: "⚠️ Bạn chưa đăng nhập nên Giám khảo AI không thể trả lời. Vui lòng đăng nhập lại.",
+          time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
         };
         const next = [...stateRef.current.messages, errMsg];
         stateRef.current = { ...stateRef.current, messages: next };
@@ -538,29 +659,26 @@ export default function MockRoomAI() {
         content: m.content,
       }));
 
+      // Đảm bảo tin nhắn mới nhất của sinh viên luôn có trong payload gửi cho AI
       const lastHistory = history[history.length - 1];
-      const msgs =
-        extraTurn && lastHistory?.content !== extraTurn
-          ? [...history, { role: "user" as const, content: extraTurn }]
-          : history;
+      const msgs = (extraTurn && lastHistory?.content !== extraTurn)
+        ? [...history, { role: "user" as const, content: extraTurn }]
+        : history;
 
       try {
+        // Lượt dùng thử được đếm theo phiên trên server nên phiên phải có trước khi hỏi.
+        const sessionId = activeSessionRef.current ?? (await persistSessionRef.current(stateRef.current.messages));
         const res = await fetch("/api/mock-qa/chat", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            messages: msgs,
-            context: stateRef.current.context,
-          }),
+          body: JSON.stringify({ messages: msgs, context: stateRef.current.context, session_id: sessionId }),
         });
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(
-            data.detail || data.message || data.error || "AI không phản hồi"
-          );
+          throw new Error(data.detail || data.message || data.error || "AI không phản hồi");
         }
 
         const next = [...stateRef.current.messages];
@@ -569,20 +687,14 @@ export default function MockRoomAI() {
             id: Date.now(),
             role: "user",
             content: extraTurn!,
-            time: new Date().toLocaleTimeString("vi-VN", {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
+            time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
           });
         }
         next.push({
           id: Date.now() + 1,
           role: "mentor",
-          content: data.reply || "(Giám khảo AI không đưa ra phản hồi)",
-          time: new Date().toLocaleTimeString("vi-VN", {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
+          content: data.reply || "(AI trả lời rỗng)",
+          time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
         });
 
         stateRef.current = { ...stateRef.current, messages: next };
@@ -594,22 +706,14 @@ export default function MockRoomAI() {
             id: Date.now(),
             role: "user",
             content: extraTurn!,
-            time: new Date().toLocaleTimeString("vi-VN", {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
+            time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
           });
         }
         next.push({
           id: Date.now() + 1,
           role: "mentor",
-          content: `⚠️ **Không thể kết nối Giám khảo AI**\n\n${
-            err?.message || "Lỗi không xác định"
-          }. Vui lòng thử lại.`,
-          time: new Date().toLocaleTimeString("vi-VN", {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
+          content: `⚠️ **Không thể kết nối Giám khảo AI**\n\n${err?.message || "Lỗi không xác định"}. Vui lòng thử lại.`,
+          time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
         });
         stateRef.current = { ...stateRef.current, messages: next };
         setMessages(next);
@@ -619,51 +723,131 @@ export default function MockRoomAI() {
     },
     []
   );
+  // Ref để timer/STT callback luôn gọi được bản mới nhất
+  const askMentorRef = useRef(askMentor);
+  askMentorRef.current = askMentor;
 
-  const sendMessage = useCallback(
-    (overrideText?: string) => {
-      const trimmed = (overrideText ?? input).trim();
-      if (!trimmed || isTyping) return;
-
-      if (isRecording && recognitionRef.current) {
-        recognitionRef.current.stop();
-        setIsRecording(false);
-      }
-
-      const userMsg: MockMessage = {
-        id: Date.now(),
-        role: "user",
-        content: trimmed,
-        time: new Date().toLocaleTimeString("vi-VN", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      };
-
-      const next = [...stateRef.current.messages, userMsg];
-      stateRef.current = {
-        ...stateRef.current,
-        messages: next,
-      };
-      setMessages(next);
-      setInput("");
-      setIsTyping(true);
-      void askMentor(trimmed);
-    },
-    [input, isTyping, isRecording, askMentor]
-  );
-
-  // ── Speech-to-Text (STT) ─────────────────────────────────
+  // ── STT Controls ───────────────────────────────────────
   const startSTT = useCallback(() => {
-    if (typeof window === "undefined") return;
-    const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Trình duyệt không hỗ trợ nhận diện giọng nói (SpeechRecognition).");
+    if (!recognitionRef.current) return;
+    isIntentionalStopRef.current = false;
+    try {
+      recognitionRef.current.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Failed to start STT", err);
+    }
+  }, []);
+
+  const stopSTT = useCallback(() => {
+    if (recognitionRef.current) {
+      isIntentionalStopRef.current = true;
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+    }
+    setIsRecording(false);
+  }, []);
+
+  // ── Gửi tin nhắn ───────────────────────────────────────
+  const sendMessage = useCallback((overrideText?: string) => {
+    if (isLimitReached) {
+      alert(
+        isReadOnlySession
+          ? "Phiên này chỉ còn xem lại được. Vui lòng mua hoặc nâng cấp gói VIP để tiếp tục luyện tập."
+          : "Bạn đã hoàn thành 5 câu hỏi trải nghiệm Mock AI. Vui lòng bấm 'Kết thúc & nhận báo cáo' để xem đánh giá hoặc nâng cấp VIP để tiếp tục."
+      );
       return;
     }
+
+    const trimmed = (overrideText ?? input).trim();
+    if (!trimmed || isTyping) return;
+
+    if (isRecording) {
+      stopSTT();
+    }
+
+    const userMsg: MockMessage = {
+      id: Date.now(),
+      role: "user",
+      content: trimmed,
+      time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+    };
+    // Cập nhật stateRef NGAY (đồng bộ) trước khi gọi askMentor
+    const next = [...stateRef.current.messages, userMsg];
+    stateRef.current = {
+      ...stateRef.current,
+      messages: next,
+    };
+    setMessages(next);
+    setInput("");
+    setIsTyping(true);
+    void askMentor(trimmed);
+  }, [input, isTyping, isRecording, askMentor, stopSTT, isLimitReached, isReadOnlySession]);
+
+  // ── Quick action ───────────────────────────────────────
+  const handleQuickAction = (prompt: string) => {
+    setInput(prompt);
+    inputRef.current?.focus();
+  };
+
+  // ── Copy message ───────────────────────────────────────
+  const copyToClipboard = (content: string, id: number) => {
+    navigator.clipboard.writeText(content);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  // ── Kết thúc buổi Mock AI → tạo báo cáo cho phiên hiện tại ──────
+  const [isEnding, setIsEnding] = useState(false);
+  const hasStudentAnswer = messages.some((m) => m.role === "user" && m.content.trim());
+
+  const handleEndSession = async () => {
+    if (isEnding) return;
+    if (!hasStudentAnswer) {
+      alert("Bạn chưa trả lời câu hỏi nào nên chưa có gì để đánh giá.");
+      return;
+    }
+    if (!confirm("Kết thúc buổi Mock AI? Giám khảo AI sẽ tổng hợp nhận xét theo tiêu chí chấm thành báo cáo.")) {
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      alert("Vui lòng đăng nhập để kết thúc buổi.");
+      return;
+    }
+
+    setIsEnding(true);
     try {
+      // Lưu nốt các tin chưa kịp autosave để báo cáo có đủ hội thoại
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      const sessionId = await persistSession(stateRef.current.messages);
+      if (sessionId == null) throw new Error("Chưa lưu được phiên chat");
+
+      const res = await fetch("/api/mock-ai/end-session", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || data.error || "Kết thúc buổi thất bại");
+      }
+      router.push(`/report/${data.report_id}`);
+    } catch (err: any) {
+      alert(`Lỗi: ${err.message || "Không thể kết thúc buổi"}`);
+      setIsEnding(false);
+    }
+  };
+
+  // Speech recognition setup — nhận diện giọng nói và điền trực tiếp vào ô nhập liệu
+  useEffect(() => {
+    if (typeof window !== "undefined" && ("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
@@ -680,816 +864,826 @@ export default function MockRoomAI() {
         }
       };
 
-      recognition.onerror = () => {
-        setIsRecording(false);
-      };
-
       recognition.onend = () => {
         if (!isIntentionalStopRef.current) {
+          try { recognition.start(); } catch (e) {}
+        } else {
+          setIsRecording(false);
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+          isIntentionalStopRef.current = true;
           setIsRecording(false);
         }
       };
 
       recognitionRef.current = recognition;
-      isIntentionalStopRef.current = false;
-      recognition.start();
-      setIsRecording(true);
-    } catch {
-      setIsRecording(false);
     }
-  }, []);
-
-  const stopSTT = useCallback(() => {
-    isIntentionalStopRef.current = true;
-    if (recognitionRef.current) {
-      try {
+    return () => {
+      if (recognitionRef.current) {
+        isIntentionalStopRef.current = true;
         recognitionRef.current.stop();
-      } catch {}
-    }
-    setIsRecording(false);
+      }
+    };
   }, []);
 
-  // ── Text-to-Speech (Đọc to bằng giọng nói) ────────────────
-  const toggleSpeak = (content: string, msgId: number) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      alert("Trình duyệt không hỗ trợ phát âm (SpeechSynthesis).");
-      return;
-    }
-
-    if (speakingMsgId === msgId) {
-      window.speechSynthesis.cancel();
-      setSpeakingMsgId(null);
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-    const cleanText = content
-      .replace(/[*_~`#]/g, "")
-      .replace(/^[-•*]\s+/gm, "")
-      .slice(0, 1500);
-
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = "vi-VN";
-    utterance.rate = 1.0;
-    utterance.onend = () => setSpeakingMsgId(null);
-    utterance.onerror = () => setSpeakingMsgId(null);
-
-    setSpeakingMsgId(msgId);
-    window.speechSynthesis.speak(utterance);
-  };
-
-  // ── Copy Message ─────────────────────────────────────────
-  const copyToClipboard = (content: string, id: number) => {
-    navigator.clipboard.writeText(content);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  // ── Kết thúc phiên Mock AI & Chuyển sang Báo cáo ─────────
-  const handleEndSession = async () => {
-    const token = getToken();
-    if (!token) return;
-    setEndingSession(true);
-    try {
-      const res = await fetch("/api/mock-ai/end-session", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || data.error || "Kết thúc buổi thất bại");
-      }
-      setShowEndSessionConfirm(false);
-      router.push("/report");
-    } catch (err: any) {
-      alert(`Lỗi: ${err.message || "Không thể kết thúc buổi"}`);
-    } finally {
-      setEndingSession(false);
-    }
-  };
-
-  // Lọc danh sách phiên theo ô tìm kiếm
-  const filteredSessions = useMemo(() => {
-    if (!searchSessionQuery.trim()) return sessions;
-    const q = searchSessionQuery.toLowerCase();
-    return sessions.filter((s) => s.title.toLowerCase().includes(q));
-  }, [sessions, searchSessionQuery]);
-
-  const activeDocName = useMemo(() => {
-    if (!selectedDocId) return null;
-    return studentDocs.find((d) => d.id === selectedDocId)?.filename || `Tài liệu #${selectedDocId}`;
-  }, [selectedDocId, studentDocs]);
-
+  // ── Render ─────────────────────────────────────────────
   return (
-    <div className="flex h-full w-full bg-background text-foreground overflow-hidden relative">
-      {/* ── Left Sidebar (ChatGPT Style Session History) ── */}
-      <aside
-        className={`h-full border-r border-border bg-card/60 backdrop-blur-md flex flex-col shrink-0 transition-all duration-300 z-30 ${
-          sidebarOpen ? "w-72" : "w-0 -translate-x-full overflow-hidden border-r-0"
-        }`}
-      >
-        <div className="p-3 border-b border-border/80 flex items-center justify-between gap-2">
-          {/* Nút Tạo cuộc trò chuyện mới (+ New Chat) */}
-          <button
-            onClick={startNewSession}
-            className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-background hover:bg-muted/80 text-xs font-semibold text-foreground shadow-sm transition-all hover:border-primary/50"
-            title="Bắt đầu cuộc trò chuyện mới"
-          >
-            <Plus className="w-4 h-4 text-primary" />
-            <span>Cuộc trò chuyện mới</span>
-          </button>
-
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-            title="Đóng thanh bên"
-          >
-            <PanelLeftClose className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Ô tìm kiếm phiên */}
-        <div className="px-3 pt-3 pb-2">
-          <div className="relative flex items-center">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 text-muted-foreground pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Tìm lịch sử đoạn chat..."
-              value={searchSessionQuery}
-              onChange={(e) => setSearchSessionQuery(e.target.value)}
-              className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-muted/40 border border-border/70 rounded-lg text-foreground focus:outline-none focus:border-primary placeholder:text-muted-foreground/70"
-            />
-          </div>
-        </div>
-
-        {/* Danh sách các phiên hội thoại */}
-        <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1 custom-scrollbar">
-          {sessionsLoading ? (
-            <div className="flex items-center justify-center py-8 text-xs text-muted-foreground gap-2">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-              <span>Đang tải lịch sử...</span>
-            </div>
-          ) : filteredSessions.length === 0 ? (
-            <div className="text-center py-8 px-4 text-xs text-muted-foreground">
-              {searchSessionQuery ? "Không tìm thấy phiên phù hợp." : "Chưa có cuộc trò chuyện nào."}
-            </div>
-          ) : (
-            filteredSessions.map((s) => {
-              const isActive = activeSessionId === s.id;
-              return (
-                <div
-                  key={s.id}
-                  onClick={() => resumeSession(s.id)}
-                  className={`group relative flex items-center justify-between px-2.5 py-2 rounded-xl text-xs cursor-pointer transition-all ${
-                    isActive
-                      ? "bg-primary/10 text-primary font-medium border border-primary/20 shadow-sm"
-                      : "text-foreground/80 hover:bg-muted/60 hover:text-foreground"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <MessageSquare
-                      className={`w-3.5 h-3.5 shrink-0 ${
-                        isActive ? "text-primary" : "text-muted-foreground"
-                      }`}
-                    />
-                    <span className="truncate">{s.title || "Phiên phản biện"}</span>
-                  </div>
-
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-1">
-                    <button
-                      onClick={(e) => deleteSession(s.id, e)}
-                      className="p-1 rounded hover:bg-destructive/15 text-muted-foreground hover:text-destructive transition-colors"
-                      title="Xoá phiên"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* Thông tin tài liệu đang nạp ở đáy sidebar */}
-        <div className="p-3 border-t border-border/80 bg-muted/20">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Tài liệu phản biện
-            </span>
-            <button
-              onClick={() => setShowDocModal(true)}
-              className="text-[11px] font-semibold text-primary hover:underline"
-            >
-              {activeDocName ? "Đổi tài liệu" : "Chọn tài liệu"}
-            </button>
-          </div>
-
-          <div
-            onClick={() => setShowDocModal(true)}
-            className="flex items-center gap-2 p-2 rounded-xl bg-card border border-border/60 hover:border-primary/40 cursor-pointer transition-all shadow-sm group"
-          >
-            <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <FileText className="w-3.5 h-3.5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-foreground truncate">
-                {activeDocName || "Chưa gắn tài liệu đồ án"}
-              </p>
-              <p className="text-[10px] text-muted-foreground truncate">
-                {projectContext ? "Đã nạp nội dung (AI chất vấn sâu)" : "Bấm để nạp đồ án"}
-              </p>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* ── Main Chat Screen (ChatGPT Layout) ── */}
-      <div className="flex-1 flex flex-col h-full min-w-0 relative">
-        {/* Top Navigation Bar */}
-        <header className="h-14 border-b border-border bg-card/70 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 shrink-0 z-20">
-          <div className="flex items-center gap-3 min-w-0">
-            {!sidebarOpen && (
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-                title="Mở thanh bên lịch sử"
-              >
-                <PanelLeft className="w-4 h-4" />
-              </button>
-            )}
-
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-teal-500 to-indigo-600 flex items-center justify-center text-white shadow-sm shrink-0">
-                <Bot className="w-4 h-4" />
-              </div>
-              <div className="flex flex-col leading-none min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <h1 className="text-sm font-bold text-foreground truncate">Mentor AI</h1>
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_6px_rgba(16,185,129,0.7)]" />
-                </div>
-                <span className="text-[10px] font-medium text-muted-foreground truncate">
-                  Giám khảo phản biện đồ án
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Chip hiển thị tài liệu đã nạp */}
-            {activeDocName && (
-              <button
-                onClick={() => setShowDocModal(true)}
-                className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[11px] font-medium hover:bg-primary/15 transition-colors max-w-[200px] truncate"
-                title="Bấm để xem hoặc đổi tài liệu"
-              >
-                <FileText className="w-3 h-3 shrink-0" />
-                <span className="truncate">{activeDocName}</span>
-              </button>
-            )}
-
-            <button
-              onClick={startNewSession}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground transition-colors shadow-sm"
-            >
-              <Plus className="w-3.5 h-3.5 text-primary" />
-              <span>Phiên mới</span>
-            </button>
-
-            <button
-              onClick={() => setShowEndSessionConfirm(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 text-teal-400 text-xs font-bold transition-colors"
-              title="Kết thúc và xem báo cáo đánh giá"
-            >
-              <Award className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Hoàn thành & Báo cáo</span>
-            </button>
-
-            <button
-              onClick={() => setShowLeaveConfirm(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-destructive/10 hover:bg-destructive/20 border border-destructive/20 text-destructive text-xs font-semibold transition-colors"
-              title="Rời phòng"
-            >
-              <PhoneOff className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </header>
-
-        {/* ── Chat Messages Scroll Area ── */}
-        <div
-          ref={chatScrollRef}
-          className="flex-1 overflow-y-auto px-4 py-6 custom-scrollbar relative flex flex-col"
+    <div className="flex flex-col h-full bg-background text-foreground font-sans overflow-hidden">
+      {/* ── Step 1: Upload ── */}
+      {step === "upload" && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex-1 flex items-center justify-center p-8 overflow-y-auto"
         >
-          <div className="max-w-4xl mx-auto w-full flex-1 flex flex-col space-y-6 pb-28">
-            {/* Empty State / Welcome Screen giống ChatGPT */}
-            {messages.length === 0 && (
-              <div className="my-auto py-8 flex flex-col items-center justify-center text-center animate-in fade-in duration-300">
-                <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-teal-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-teal-500/20 mb-4">
-                  <Bot className="w-8 h-8" />
-                </div>
-                <h2 className="text-2xl font-bold text-foreground mb-2">
-                  Chào bạn! Tôi là Mentor AI & Giám khảo phản biện đồ án.
-                </h2>
-                <p className="text-sm text-muted-foreground max-w-lg mb-8 leading-relaxed">
-                  Tôi có thể rà soát lỗ hổng kiến trúc, chất vấn giải thuật, đặt câu hỏi hội đồng
-                  và chỉ ra các mục bạn cần lưu ý để bảo vệ đồ án tự tin nhất.
-                </p>
+          <Card className="max-w-2xl w-full p-8 text-center">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_hsl(var(--primary)/0.2)]">
+              <Bot className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-2xl font-serif font-black mb-3">
+              Vào phòng chat với Giám khảo AI
+            </h2>
+            <p className="text-muted-foreground mb-6">
+              AI vào vai Giám khảo, truy vấn và phản biện về đồ án của bạn như một buổi bảo vệ thật — không chấm điểm, không form cố định.
+              Bạn có thể chọn tài liệu đồ án để AI bám sát nội dung (khuyên dùng), hoặc vào phòng chat ngay.
+            </p>
 
-                {/* Grid 4 gợi ý câu hỏi chất vấn mẫu giống ChatGPT */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl text-left">
-                  {STARTER_PROMPTS.map((item, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => sendMessage(item.prompt)}
-                      className="p-4 rounded-2xl border border-border/80 bg-card/60 hover:bg-card hover:border-primary/50 text-foreground transition-all flex flex-col gap-1.5 shadow-sm group hover:shadow-md"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">{item.icon}</span>
-                        <span className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
-                          {item.title}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-                        {item.desc}
-                      </p>
-                    </button>
-                  ))}
-                </div>
+            {/* Danh sách tài liệu student đã upload */}
+            <div className="mb-6 text-left">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-foreground">Tài liệu đã tải lên</span>
+                <button
+                  onClick={fetchStudentDocs}
+                  className="text-xs text-primary hover:underline font-medium"
+                >
+                  ↻ Làm mới
+                </button>
+              </div>
 
-                {!selectedDocId && (
-                  <div className="mt-8">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowDocModal(true)}
-                      className="rounded-xl border-dashed border-primary/50 text-xs font-semibold text-primary hover:bg-primary/5"
-                    >
-                      <Paperclip className="w-3.5 h-3.5 mr-1.5" />
-                      Gắn tài liệu đồ án để Giám khảo AI chất vấn sát thực tế
-                    </Button>
-                  </div>
-                )}
+              {docsLoading && (
+                <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Đang tải danh sách tài liệu...
+                </div>
+              )}
+
+              {!docsLoading && docsError && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{docsError}</span>
+                </div>
+              )}
+
+              {!docsLoading && !docsError && studentDocs.length === 0 && (
+                <div className="text-sm text-muted-foreground py-6 text-center border border-dashed border-border rounded-xl">
+                  Bạn chưa có tài liệu nào trong hệ thống. Vui lòng vào mục{" "}
+                  <a href="/documents" className="text-primary underline hover:text-primary/80">
+                    Tài liệu
+                  </a>{" "}
+                  để tải lên trước khi vào phòng, hoặc chọn vào phòng hỏi tự do bên dưới.
+                </div>
+              )}
+
+              {!docsLoading && studentDocs.length > 0 && (
+                <div className="max-h-64 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                  {studentDocs.map((doc) => {
+                    const isSelected = selectedDocId === doc.id;
+                    return (
+                      <button
+                        key={doc.id}
+                        onClick={() => setSelectedDocId(doc.id)}
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${
+                          isSelected
+                            ? "border-primary bg-primary/10"
+                            : "border-border hover:border-primary/30 bg-muted/10"
+                        }`}
+                      >
+                        <FileText className={`w-5 h-5 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{doc.filename}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {doc.doc_type.toUpperCase()} · {new Date(doc.created_at).toLocaleString("vi-VN")}
+                          </p>
+                        </div>
+                        {isSelected && <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {contextError && (
+              <div className="mb-4 flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-left">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{contextError}</span>
               </div>
             )}
 
-            {/* Danh sách các lượt chat (Turns) */}
-            {messages.map((msg, index) => {
-              const isMine = msg.role === "user";
-              // Lấy câu hỏi user tương ứng cho lượt trả lời của AI
-              const prevUserMsg = !isMine && index > 0 && messages[index - 1]?.role === "user"
-                ? messages[index - 1]
-                : undefined;
+            {/* Lịch sử phiên chat — xem lại / tiếp tục / xoá theo từng tài liệu */}
+            <div className="mb-6 text-left">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-foreground">
+                  Lịch sử phiên chất vấn
+                  {sessions.length > 0 && (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      ({sessions.length} phiên)
+                    </span>
+                  )}
+                </span>
+                <div className="flex items-center gap-3">
+                  <input
+                    value={searchQ}
+                    onChange={(e) => setSearchQ(e.target.value)}
+                    placeholder="Tìm phiên..."
+                    className="w-36 sm:w-44 bg-muted/40 border border-border rounded-lg px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary placeholder:text-muted-foreground"
+                  />
+                  <button
+                    onClick={fetchSessions}
+                    className="text-xs text-primary hover:underline font-medium"
+                  >
+                    ↻ Làm mới
+                  </button>
+                </div>
+              </div>
 
-              return (
-                <div
-                  key={msg.id || index}
-                  id={`turn-${msg.id || index}`}
-                  className={`w-full flex ${isMine ? "justify-end" : "justify-start"} animate-in fade-in duration-200`}
-                >
-                  {/* Tin nhắn của USER (Sinh viên) — Đặt bên phải, bo tròn thanh thoát */}
-                  {isMine ? (
-                    <div className="flex flex-col items-end max-w-[85%] sm:max-w-[75%]">
-                      <div className="px-4 py-3 rounded-2xl rounded-tr-sm bg-muted/80 text-foreground border border-border/60 text-sm leading-relaxed whitespace-pre-wrap shadow-sm">
-                        {msg.content}
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-1 text-[10px] text-muted-foreground px-1">
-                        <span>Bạn</span>
-                        {msg.time && <span>· {msg.time}</span>}
-                      </div>
+              {sessionsLoading && sessions.length === 0 && (
+                <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Đang tải lịch sử...
+                </div>
+              )}
+
+              {!sessionsLoading && sessions.length === 0 && (
+                <div className="text-sm text-muted-foreground py-4 text-center border border-dashed border-border rounded-xl">
+                  Chưa có phiên chat nào. Vào phòng để bắt đầu — các phiên sẽ tự lưu tại đây.
+                </div>
+              )}
+
+              {sessions.length > 0 && (() => {
+                // Gom phiên theo từng tài liệu
+                const q = searchQ.trim().toLowerCase();
+                const filtered = q
+                  ? sessions.filter(
+                      (s) =>
+                        s.title.toLowerCase().includes(q) ||
+                        s.preview.toLowerCase().includes(q)
+                    )
+                  : sessions;
+                const grouped = new Map<number | null, MockSession[]>();
+                for (const s of filtered) {
+                  const key = s.document_id ?? null;
+                  if (!grouped.has(key)) grouped.set(key, []);
+                  grouped.get(key)!.push(s);
+                }
+                if (filtered.length === 0) {
+                  return (
+                    <div className="text-sm text-muted-foreground py-4 text-center border border-dashed border-border rounded-xl">
+                      Không tìm thấy phiên chat nào khớp.
                     </div>
-                  ) : (
-                    /* Tin nhắn của AI MENTOR — Căn lề trái, KÈM THANH CONTENT SCROLL BÊN CẠNH */
-                    <div className="relative group/turn flex items-start gap-3 sm:gap-4 w-full">
-                      {/* ── THANH CONTENT SCROLL BÊN CẠNH (Sticky bên cạnh nội dung cho mỗi câu hỏi) ── */}
-                      <div className="sticky top-6 shrink-0 z-10 flex flex-col items-center">
-                        <MessageContentScroll
-                          content={msg.content}
-                          messageId={msg.id}
-                          scrollContainerRef={chatScrollRef}
-                          turnPrompt={prevUserMsg?.content}
-                          onScrollToPrompt={() => {
-                            if (prevUserMsg) {
-                              const el = document.getElementById(`turn-${prevUserMsg.id}`);
-                              el?.scrollIntoView({ behavior: "smooth", block: "center" });
-                            }
-                          }}
-                        />
-                      </div>
+                  );
+                }
 
-                      {/* Khung nội dung câu trả lời của AI */}
-                      <div className="flex-1 min-w-0 bg-card/60 hover:bg-card/85 border border-border/70 rounded-2xl p-5 sm:p-6 shadow-sm transition-colors">
-                        {/* Header của phản hồi AI */}
-                        <div className="flex items-center justify-between pb-3 mb-3 border-b border-border/50">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-teal-500 to-indigo-600 flex items-center justify-center text-white text-[11px] font-bold shadow-sm">
-                              AI
-                            </div>
-                            <span className="text-xs font-bold text-foreground">Giám khảo AI</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium hidden sm:inline">
-                              Hội đồng phản biện
+                return (
+                  <div className="max-h-72 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
+                    {Array.from(grouped.entries()).map(([docId, list]) => {
+                      const docName =
+                        docId != null
+                          ? studentDocs.find((d) => d.id === docId)?.filename ||
+                            `Tài liệu #${docId}`
+                          : "Chat tự do (không tài liệu)";
+                      return (
+                        <div
+                          key={docId ?? "free"}
+                          className="border border-border rounded-xl overflow-hidden"
+                        >
+                          <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b border-border">
+                            <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <span className="text-xs font-semibold text-foreground truncate">
+                              {docName}
+                            </span>
+                            <span className="ml-auto text-[11px] text-muted-foreground shrink-0">
+                              {list.length} phiên
                             </span>
                           </div>
-
-                          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                            {msg.time && <span className="mr-1">{msg.time}</span>}
+                          <div className="divide-y divide-border/60">
+                            {list.map((s) => (
+                              <div
+                                key={s.id}
+                                className="flex items-start gap-3 px-3 py-2.5 hover:bg-muted/20 transition-colors group"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-medium text-foreground truncate">
+                                      {s.title}
+                                    </p>
+                                    {activeSessionId === s.id && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary text-primary-foreground font-bold shrink-0">
+                                        Đang hoạt động
+                                      </span>
+                                    )}
+                                  </div>
+                                  {s.preview && (
+                                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                                      {s.preview}
+                                    </p>
+                                  )}
+                                  <p className="text-[11px] text-muted-foreground/70 mt-1">
+                                    {s.message_count} tin ·{" "}
+                                    {new Date(s.updated_at).toLocaleString("vi-VN")}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => openSessionView(s.id)}
+                                    disabled={viewLoading}
+                                    className="px-2 py-1 rounded-md border border-border bg-muted/40 hover:border-primary hover:text-primary text-[11px] font-semibold text-muted-foreground transition-colors"
+                                    title="Xem lại phiên (chỉ đọc)"
+                                  >
+                                    Xem lại
+                                  </button>
+                                  <button
+                                    onClick={() => resumeSession(s.id)}
+                                    disabled={contextLoading}
+                                    className="px-2 py-1 rounded-md border border-primary/40 bg-primary/10 hover:bg-primary/20 text-[11px] font-semibold text-primary transition-colors"
+                                    title="Tiếp tục phiên này trong phòng chat"
+                                  >
+                                    Tiếp tục
+                                  </button>
+                                  <button
+                                    onClick={() => deleteSession(s.id)}
+                                    className="px-2 py-1 rounded-md border border-border bg-muted/40 hover:border-red-500/50 hover:text-red-400 text-[11px] font-semibold text-muted-foreground transition-colors"
+                                    title="Xoá phiên"
+                                  >
+                                    Xoá
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-
-                        {/* Nội dung Markdown chính của câu trả lời */}
-                        <div className="text-sm leading-relaxed text-foreground">
-                          <MarkdownMessage content={msg.content} messageId={msg.id} />
-                        </div>
-
-                        {/* Footer công cụ tương tác: Copy, Đọc to, Thử lại */}
-                        <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => copyToClipboard(msg.content, msg.id)}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                              title="Sao chép toàn bộ câu trả lời"
-                            >
-                              {copiedId === msg.id ? (
-                                <>
-                                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                  <span className="text-emerald-500 font-medium">Đã sao chép</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3.5 h-3.5" />
-                                  <span>Sao chép</span>
-                                </>
-                              )}
-                            </button>
-
-                            <button
-                              onClick={() => toggleSpeak(msg.content, msg.id)}
-                              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors ${
-                                speakingMsgId === msg.id
-                                  ? "bg-primary/20 text-primary font-semibold"
-                                  : "hover:bg-muted text-muted-foreground hover:text-foreground"
-                              }`}
-                              title={speakingMsgId === msg.id ? "Dừng đọc" : "Đọc to câu trả lời"}
-                            >
-                              {speakingMsgId === msg.id ? (
-                                <>
-                                  <VolumeX className="w-3.5 h-3.5 text-primary animate-pulse" />
-                                  <span>Dừng đọc</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Volume2 className="w-3.5 h-3.5" />
-                                  <span>Đọc to</span>
-                                </>
-                              )}
-                            </button>
-                          </div>
-
-                          {prevUserMsg && (
-                            <button
-                              onClick={() => {
-                                const userText = prevUserMsg.content;
-                                sendMessage(userText);
-                              }}
-                              disabled={isTyping}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-                              title="Yêu cầu AI phản biện lại câu hỏi này"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Phản biện lại</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Typing Indicator khi AI đang phản hồi */}
-            {isTyping && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-start gap-3 w-full"
-              >
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-teal-500 to-indigo-600 flex items-center justify-center text-white shadow-sm shrink-0">
-                  <Bot className="w-4 h-4" />
-                </div>
-                <div className="bg-card/80 border border-border p-4 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
-                    <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
-                    <span className="w-2 h-2 bg-primary rounded-full animate-bounce" />
+                      );
+                    })}
                   </div>
-                  <span className="text-xs text-muted-foreground font-medium">
-                    Giám khảo AI đang phân tích và chuẩn bị câu hỏi...
-                  </span>
-                </div>
-              </motion.div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-        </div>
-
-        {/* ── Bottom Floating Input Bar (ChatGPT Prompt Capsule) ── */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent pointer-events-none z-20">
-          <div className="max-w-4xl mx-auto w-full pointer-events-auto">
-            {isRecording && (
-              <div className="flex items-center gap-2 mb-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-xs text-rose-400 font-medium animate-pulse w-fit">
-                <span className="w-2 h-2 rounded-full bg-rose-500" />
-                Đang nghe giọng nói của bạn... Hãy nói trực tiếp câu trả lời vào micro.
-              </div>
-            )}
-
-            {/* Hộp nhập liệu Capsule giống ChatGPT */}
-            <div className="relative flex items-end gap-2 bg-card/90 border border-border/80 rounded-[26px] p-2 sm:p-2.5 shadow-xl backdrop-blur-md focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
-              {/* Nút gắn tài liệu */}
-              <button
-                type="button"
-                onClick={() => setShowDocModal(true)}
-                className={`p-2 rounded-full transition-colors shrink-0 ${
-                  selectedDocId
-                    ? "text-primary hover:bg-primary/10"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
-                title={activeDocName ? `Tài liệu: ${activeDocName}` : "Gắn tài liệu đồ án"}
-              >
-                <Paperclip className="w-5 h-5" />
-              </button>
-
-              {/* Nút Micro STT */}
-              <button
-                type="button"
-                onClick={isRecording ? stopSTT : startSTT}
-                className={`p-2 rounded-full transition-all shrink-0 ${
-                  isRecording
-                    ? "bg-rose-500/20 text-rose-400 animate-pulse border border-rose-500/50"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
-                title={isRecording ? "Dừng ghi âm" : "Nói câu trả lời bằng giọng nói"}
-              >
-                {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-              </button>
-
-              {/* Ô textarea tự dãn dòng */}
-              <textarea
-                ref={textareaRef}
-                rows={1}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                placeholder="Nhập câu trả lời hoặc câu hỏi bảo vệ đồ án... (Shift + Enter để xuống dòng)"
-                className="flex-1 bg-transparent border-0 focus:outline-none focus:ring-0 text-sm text-foreground placeholder:text-muted-foreground resize-none py-2 px-1 max-h-[180px] custom-scrollbar"
-              />
-
-              {/* Nút Gửi (Send Button) */}
-              <button
-                type="button"
-                onClick={() => sendMessage()}
-                disabled={!input.trim() || isTyping}
-                className="w-9 h-9 rounded-full bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:hover:bg-primary text-primary-foreground flex items-center justify-center transition-all shadow-sm shrink-0"
-                title="Gửi câu hỏi (Enter)"
-              >
-                {isTyping ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4 ml-0.5" />
-                )}
-              </button>
+                );
+              })()}
             </div>
 
-            {/* Dòng Disclaimer ở đáy giống ChatGPT */}
-            <p className="text-[11px] text-muted-foreground text-center mt-2">
-              Mentor AI có thể đưa ra câu trả lời chưa hoàn hảo. Hãy luôn đối chiếu với tài liệu đồ án chính thức của bạn.
-            </p>
-          </div>
-        </div>
-      </div>
+            {/* Banner vé trải nghiệm Mock AI */}
+            {!isVip && trialTickets <= 0 && (
+              hasRewardGranted ? (
+                <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base shrink-0">⚠️</span>
+                    <span>Bạn đã sử dụng hết vé trải nghiệm Mock AI. Hãy chọn phiên đã lưu bên dưới để xem lại hoặc nâng cấp VIP để tạo phiên mới.</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => router.push("/pricing")}
+                    className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10 text-xs h-8 px-3 shrink-0"
+                  >
+                    Nâng cấp VIP
+                  </Button>
+                </div>
+              ) : (
+                <div className="mb-4 p-3.5 bg-teal-500/10 border border-teal-500/30 rounded-xl text-teal-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base shrink-0">🎁</span>
+                    <span>
+                      Bạn chưa có vé trải nghiệm Mock AI. Hãy góp ý nhanh để nhận <strong>1 vé trải nghiệm miễn phí</strong>, hoặc nâng cấp VIP để phản biện không giới hạn!
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => window.dispatchEvent(new CustomEvent("open-feedback-modal"))}
+                      className="border-teal-500/40 text-teal-300 hover:bg-teal-500/10 text-xs h-8 px-3"
+                    >
+                      Góp ý nhận vé
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.push("/pricing")}
+                      className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10 text-xs h-8 px-3"
+                    >
+                      Nâng cấp VIP
+                    </Button>
+                  </div>
+                </div>
+              )
+            )}
 
-      {/* ── Modal Quản lý / Chọn Tài liệu đồ án ── */}
+            <div className="flex flex-col gap-3">
+              <Button
+                onClick={() => enterRoom(true)}
+                disabled={!selectedDocId || contextLoading || (!isVip && trialTickets <= 0)}
+                className="w-full h-12 text-lg font-bold rounded-xl"
+              >
+                {contextLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Đang đọc tài liệu...
+                  </>
+                ) : (
+                  <>
+                    Dùng tài liệu đã chọn & vào phòng
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => enterRoom(false)}
+                disabled={contextLoading || (!isVip && trialTickets <= 0)}
+                className="w-full h-11 rounded-xl"
+              >
+                Vào phòng hỏi tự do (không cần tài liệu)
+              </Button>
+            </div>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* ── Step 2: Phòng chat với Mentor AI ── */}
+      {step === "room" && (
+        <>
+          {/* Header phòng chat + nút Thoát */}
+          <div className="flex items-center justify-between px-6 py-3.5 border-b border-border bg-card/80 backdrop-blur-md shrink-0">
+            <div className="flex items-center gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.7)]" />
+              <h2 className="text-sm font-semibold text-foreground">Phòng chat với Giám khảo AI</h2>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium hidden sm:inline-block">
+                Hội đồng phản biện trực tuyến
+              </span>
+              {!isVip && (
+                <span
+                  className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold border transition-colors hidden md:inline-block ${
+                    isLimitReached
+                      ? "bg-amber-500/15 text-amber-400 border-amber-500/30 animate-pulse"
+                      : "bg-teal-500/10 text-teal-400 border-teal-500/20"
+                  }`}
+                  title={isLimitReached ? "Đã đạt số câu hỏi tối đa của lượt trải nghiệm" : "Số câu hỏi đã trả lời trong lượt trải nghiệm"}
+                >
+                  {isReadOnlySession
+                    ? "Chỉ xem lại"
+                    : isLimitReached
+                    ? "Đạt giới hạn: 5/5 câu"
+                    : `Lượt thử: ${studentAnswerCount}/${FREE_MAX_QUESTIONS} câu`}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={clearHistory}
+                className="px-3 py-1.5 rounded-lg border border-border bg-muted/40 hover:bg-muted text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                title="Bắt đầu phiên thi mới"
+              >
+                Phiên mới
+              </button>
+              <button
+                onClick={handleEndSession}
+                disabled={isEnding || isTyping || !hasStudentAnswer}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isLimitReached
+                    ? "bg-teal-500 hover:bg-teal-400 text-white shadow-md shadow-teal-500/20 animate-pulse"
+                    : "bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary"
+                }`}
+                title={hasStudentAnswer ? "Kết thúc buổi và nhận báo cáo nhận xét" : "Trả lời ít nhất 1 câu để nhận báo cáo"}
+              >
+                {isEnding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                {isEnding ? "Đang tạo báo cáo…" : "Kết thúc & nhận báo cáo"}
+              </button>
+              <button
+                onClick={() => setShowLeaveConfirm(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/10 hover:bg-destructive/20 border border-destructive/30 text-destructive text-xs font-bold transition-colors"
+                title="Thoát khỏi phòng chat"
+              >
+                <PhoneOff className="w-3.5 h-3.5" />
+                Thoát
+              </button>
+            </div>
+          </div>
+
+          {/* Main Workspace — chat thuần, căn giữa cân đối */}
+          <div className="flex-1 overflow-hidden relative flex flex-col bg-background/50 w-full">
+            <div className="flex-1 overflow-y-auto px-4 py-6 custom-scrollbar">
+              <div className="max-w-4xl mx-auto space-y-6">
+                <div className="flex items-center gap-4">
+                  <div className="h-px bg-border flex-1" />
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                    Phiên chất vấn — Giám khảo AI
+                  </span>
+                  <div className="h-px bg-border flex-1" />
+                </div>
+
+                {/* Uploaded Document Summary (mentor AI đã đọc) */}
+                {selectedDocId && projectContext && (
+                  <div className="bg-card/70 border border-border rounded-2xl p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <FileText className="w-4 h-4 text-primary" />
+                      <span className="text-xs font-bold text-primary tracking-wide uppercase">
+                        Tài liệu phản biện
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-foreground mb-1">
+                      {studentDocs.find((d) => d.id === selectedDocId)?.filename || uploadedFile?.name || "Tài liệu đồ án"}
+                    </p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">
+                      {extractContextSummary(projectContext)}
+                    </p>
+                    <div className="mt-2 text-[11px] text-muted-foreground/80 flex items-center gap-1.5">
+                      <span>💡</span> Giám khảo AI đã nạp tài liệu và sẽ xoáy sâu vào nội dung đồ án khi chất vấn.
+                    </div>
+                  </div>
+                )}
+
+                {/* Messages list */}
+                <div className="space-y-5">
+                  {messages.map((msg, index) => {
+                    const isMine = msg.role === "user";
+
+                    return (
+                      <div
+                        key={msg.id || index}
+                        className={`flex gap-3.5 items-start ${isMine ? "justify-end" : "justify-start"}`}
+                      >
+                        {!isMine && (
+                          <div className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs font-bold bg-gradient-to-br from-indigo-500 to-primary text-white border border-primary/30 mt-0.5 shadow-sm">
+                            AI
+                          </div>
+                        )}
+
+                        <div className={`flex flex-col ${isMine ? "items-end max-w-[80%]" : "items-start max-w-[88%] w-full"}`}>
+                          <div className={`flex items-baseline gap-2 mb-1.5 ${isMine ? "flex-row-reverse" : ""}`}>
+                            <span className="text-xs font-semibold text-foreground">
+                              {isMine ? "Bạn (Sinh viên)" : "Giám khảo AI"}
+                            </span>
+                            {msg.time && (
+                              <span className="text-[11px] text-muted-foreground">
+                                {msg.time}
+                              </span>
+                            )}
+                          </div>
+
+                          <div
+                            className={`rounded-2xl text-sm leading-relaxed shadow-sm w-full ${
+                              isMine
+                                ? "rounded-tr-sm px-4 py-3 bg-primary text-primary-foreground"
+                                : "rounded-tl-sm p-5 bg-card/90 border border-border text-foreground"
+                            }`}
+                          >
+                            {msg.role === "mentor" ? (
+                              <MarkdownMessage content={msg.content} />
+                            ) : (
+                              <p className="whitespace-pre-wrap">{msg.content}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {isMine && (
+                          <div className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs font-bold bg-primary/20 text-primary border border-primary/40 mt-0.5 shadow-sm">
+                            Bạn
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Typing indicator */}
+                  {isTyping && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex gap-3.5 items-start"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-primary flex items-center justify-center text-xs font-bold text-white shadow-sm">
+                        AI
+                      </div>
+                      <div className="bg-card border border-border p-4 rounded-2xl rounded-tl-sm shadow-sm">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                          <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                          <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" />
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+
+                <div ref={messagesEndRef} />
+              </div>
+            </div>
+
+            {/* Chat Input Bar */}
+            <div className="p-4 border-t border-border bg-card/70 backdrop-blur-md shrink-0">
+              <div className="max-w-4xl mx-auto w-full">
+                {/* Banner cảnh báo khi Free user đạt giới hạn 5 câu */}
+                {isLimitReached && (
+                  <div className="mb-3 p-3.5 bg-gradient-to-r from-teal-500/15 via-emerald-500/10 to-teal-500/15 border border-teal-500/30 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-sm animate-in fade-in duration-300">
+                    <div className="flex items-center gap-2 text-teal-300">
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-teal-400" />
+                      {isReadOnlySession ? (
+                        <span data-testid="session-read-only">
+                          Phiên này chỉ còn <strong>xem lại</strong> được. Hãy kết thúc buổi để nhận phiếu đánh giá hoặc mua, nâng cấp gói VIP để luyện tập tiếp.
+                        </span>
+                      ) : (
+                        <span>
+                          Bạn đã hoàn thành <strong>5/5 câu hỏi trải nghiệm</strong>. Hãy kết thúc buổi để nhận phiếu đánh giá chuẩn SEP490 hoặc nâng cấp VIP để luyện tập không giới hạn!
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+                      <Button
+                        size="sm"
+                        onClick={handleEndSession}
+                        className="bg-teal-500 hover:bg-teal-400 text-white font-semibold text-xs h-8 px-3 gap-1.5 shadow-sm"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Nhận báo cáo ngay
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => router.push("/pricing")}
+                        className="text-xs h-8 px-3 border-amber-500/30 text-amber-300 hover:bg-amber-500/10"
+                      >
+                        Nâng cấp VIP
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {isRecording && (
+                  <div className="flex items-center gap-2 mb-2 text-xs text-rose-400 font-medium animate-pulse">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    Đang nghe... hãy nói câu trả lời của bạn trực tiếp vào micro
+                  </div>
+                )}
+                <div className="relative flex items-center gap-2">
+                  <button
+                    onClick={isRecording ? stopSTT : startSTT}
+                    type="button"
+                    disabled={isLimitReached}
+                    title={isLimitReached ? "Đã đạt giới hạn câu hỏi" : isRecording ? "Dừng ghi âm" : "Nói câu trả lời bằng Micro"}
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border transition-all ${
+                      isRecording
+                        ? "bg-rose-500/20 border-rose-500/50 text-rose-400 animate-pulse"
+                        : "bg-muted/40 border-border hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                    }`}
+                  >
+                    {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                  </button>
+
+                  <div className="relative flex-1">
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      disabled={isLimitReached}
+                      placeholder={
+                        isLimitReached
+                          ? "Đã hoàn thành 5/5 câu hỏi trải nghiệm. Bấm 'Nhận báo cáo ngay' để xem kết quả..."
+                          : "Gửi câu trả lời hoặc tin nhắn bảo vệ đồ án..."
+                      }
+                      className="w-full bg-muted/40 border border-border rounded-xl py-3 pl-4 pr-12 text-sm text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          sendMessage();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => sendMessage()}
+                      disabled={!input.trim() || isTyping || isLimitReached}
+                      title={isLimitReached ? "Đã đạt giới hạn 5 câu hỏi trải nghiệm" : "Gửi câu trả lời"}
+                      className="absolute right-1.5 top-1.5 w-8 h-8 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:hover:bg-primary flex items-center justify-center text-primary-foreground transition-colors disabled:cursor-not-allowed"
+                    >
+                      {isTyping ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4 ml-0.5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Modal xem lại phiên cũ (chỉ đọc) ── */}
       <AnimatePresence>
-        {showDocModal && (
+        {viewSession && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-center justify-center p-4"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-lg bg-card border border-border rounded-2xl shadow-2xl p-6"
+              className="w-full max-w-2xl max-h-[85vh] flex flex-col"
             >
-              <div className="flex items-center justify-between pb-3 mb-4 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-primary" />
-                  <h3 className="text-base font-bold text-foreground">
-                    Tài liệu phản biện đồ án
-                  </h3>
+              <Card className="p-0 overflow-hidden flex flex-col max-h-[85vh]">
+                <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border bg-primary/5 shrink-0">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-bold text-foreground truncate">
+                      {viewSession.title}
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {new Date(viewSession.created_at).toLocaleString("vi-VN")} ·{" "}
+                      {viewSession.messages.length} tin ·{" "}
+                      {viewSession.document_id
+                        ? studentDocs.find((d) => d.id === viewSession.document_id)
+                            ?.filename || `Tài liệu #${viewSession.document_id}`
+                        : "Chat tự do"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs"
+                      onClick={() => {
+                        const sid = viewSession.id;
+                        setViewSession(null);
+                        void resumeSession(sid);
+                      }}
+                      disabled={contextLoading}
+                    >
+                      Tiếp tục phiên này
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setViewSession(null)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-                <button
-                  onClick={() => setShowDocModal(false)}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <p className="text-xs text-muted-foreground mb-4">
-                Chọn tài liệu báo cáo để Giám khảo AI đọc toàn văn và đặt các câu hỏi xoáy sâu vào
-                đồ án của bạn.
-              </p>
-
-              {/* Tải lên tài liệu mới */}
-              <div className="mb-4">
-                <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-border hover:border-primary/50 rounded-xl cursor-pointer bg-muted/20 hover:bg-muted/40 transition-all">
-                  <Upload className="w-6 h-6 text-primary mb-1.5" />
-                  <span className="text-xs font-semibold text-foreground">
-                    Tải lên tài liệu mới (PDF, DOCX, ZIP)
-                  </span>
-                  <span className="text-[10px] text-muted-foreground mt-0.5">
-                    Hỗ trợ file lớn qua S3 Multipart
-                  </span>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pdf,.docx,.doc,.txt,.zip"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                </label>
-
-                {uploadStatusText && (
-                  <div className="mt-2 text-xs text-primary flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>{uploadStatusText}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Danh sách tài liệu đã có */}
-              <div className="space-y-1.5 max-h-56 overflow-y-auto custom-scrollbar mb-4">
-                {docsLoading ? (
-                  <div className="py-4 text-center text-xs text-muted-foreground">
-                    Đang tải danh sách tài liệu...
-                  </div>
-                ) : studentDocs.length === 0 ? (
-                  <div className="py-4 text-center text-xs text-muted-foreground">
-                    Chưa có tài liệu nào được tải lên.
-                  </div>
-                ) : (
-                  studentDocs.map((doc) => {
-                    const isSelected = selectedDocId === doc.id;
+                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 custom-scrollbar">
+                  {viewSession.messages.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      Phiên này chưa có tin nhắn.
+                    </p>
+                  )}
+                  {viewSession.messages.map((m, i) => {
+                    const isMine = m.role === "user";
                     return (
                       <div
-                        key={doc.id}
-                        onClick={() => handleSelectDoc(doc.id)}
-                        className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                          isSelected
-                            ? "bg-primary/10 border-primary text-primary font-semibold"
-                            : "bg-muted/30 border-border hover:bg-muted/60 text-foreground"
+                        key={i}
+                        className={`flex gap-3 items-start ${
+                          isMine ? "justify-end" : "justify-start"
                         }`}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <FileText className="w-4 h-4 shrink-0" />
-                          <span className="text-xs truncate">{doc.filename}</span>
+                        <div
+                          className={`flex flex-col ${
+                            isMine ? "items-end max-w-[85%]" : "items-start max-w-[90%]"
+                          }`}
+                        >
+                          <div
+                            className={`flex items-baseline gap-2 mb-1 ${
+                              isMine ? "flex-row-reverse" : ""
+                            }`}
+                          >
+                            <span className="text-[11px] font-semibold text-foreground">
+                              {isMine ? "Bạn" : "Giám khảo AI"}
+                            </span>
+                            {m.time && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {m.time}
+                              </span>
+                            )}
+                          </div>
+                          <div
+                            className={`rounded-2xl text-sm leading-relaxed ${
+                              isMine
+                                ? "rounded-tr-sm px-3.5 py-2.5 bg-primary text-primary-foreground"
+                                : "rounded-tl-sm p-4 bg-muted/60 border border-border text-foreground"
+                            }`}
+                          >
+                            {m.role === "user" ? (
+                              <p className="whitespace-pre-wrap">{m.content}</p>
+                            ) : (
+                              <MarkdownMessage content={m.content} />
+                            )}
+                          </div>
                         </div>
-                        {isSelected && <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />}
                       </div>
                     );
-                  })
-                )}
-              </div>
-
-              <div className="flex justify-between items-center pt-3 border-t border-border">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedDocId(null);
-                    setProjectContext("");
-                    setShowDocModal(false);
-                  }}
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Không dùng tài liệu (Hỏi tự do)
-                </Button>
-
-                <Button
-                  size="sm"
-                  onClick={() => setShowDocModal(false)}
-                  className="text-xs rounded-xl"
-                >
-                  Đóng
-                </Button>
-              </div>
+                  })}
+                  <p className="text-[11px] text-muted-foreground text-center pt-2">
+                    — hết phiên (chế độ chỉ đọc) —
+                  </p>
+                </div>
+              </Card>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Modal Xác nhận Thoát ── */}
+      {/* ── Settings Modal ── */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-md"
+            >
+              <Card className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-serif font-bold">Cài đặt phòng</h3>
+                  <Button variant="ghost" size="sm" onClick={() => setShowSettings(false)} className="h-8 w-8 p-0">
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Bật STT</span>
+                    <button
+                      onClick={() => {
+                        if (isRecording) stopSTT();
+                        else startSTT();
+                      }}
+                      className="w-11 h-6 rounded-full bg-primary/30 relative transition-colors"
+                    >
+                      <span className="absolute inset-0 flex items-center justify-center text-xs">
+                        {isRecording ? "BẬT" : "TẮT"}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-6 flex justify-end">
+                  <Button onClick={() => setShowSettings(false)}>
+                    Đóng
+                  </Button>
+                </div>
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Leave Confirm Modal ── */}
       <AnimatePresence>
         {showLeaveConfirm && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-card border border-border rounded-2xl p-6 w-[420px] max-w-[95vw] shadow-2xl"
+              className="bg-[#1A1A1A] border border-gray-700/60 rounded-2xl p-6 w-[400px] max-w-[90vw] shadow-2xl"
             >
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center">
-                  <PhoneOff className="w-5 h-5 text-destructive" />
+                <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <PhoneOff className="w-5 h-5 text-red-400" />
                 </div>
-                <h3 className="text-base font-bold text-foreground">Rời khỏi phòng Mock AI?</h3>
+                <h3 className="text-lg font-bold text-gray-100">Rời phòng Mock Room AI?</h3>
               </div>
-              <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
-                Phiên chat hiện tại đã được tự động lưu. Bạn có thể mở lại bất kỳ lúc nào từ thanh bên lịch sử.
+              <p className="text-sm text-gray-400 mb-6">
+                Bạn có chắc chắn muốn rời khỏi phòng? Mọi tiến trình sẽ bị dừng lại.
               </p>
               <div className="flex gap-3">
                 <Button
-                  variant="outline"
                   onClick={() => setShowLeaveConfirm(false)}
-                  className="flex-1 rounded-xl text-xs h-10 font-semibold"
+                  className="flex-1 bg-[#202020] hover:bg-[#2A2A2A] text-gray-300 rounded-xl h-11 font-semibold transition-colors"
                 >
-                  Ở lại phòng
+                  Ở lại
                 </Button>
                 <Button
                   onClick={() => {
                     setShowLeaveConfirm(false);
                     router.push("/mock-room");
                   }}
-                  className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-xl text-xs h-10 font-semibold shadow-md"
+                  className="flex-1 bg-[#EF4444] hover:bg-[#DC2626] text-white rounded-xl h-11 font-semibold shadow-lg shadow-red-900/20 transition-colors"
                 >
-                  Rời phòng
-                </Button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Modal Hoàn thành & Tạo Báo cáo ── */}
-      <AnimatePresence>
-        {showEndSessionConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-card border border-border rounded-2xl p-6 w-[440px] max-w-[95vw] shadow-2xl"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-teal-500/15 flex items-center justify-center">
-                  <Award className="w-5 h-5 text-teal-400" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-foreground">Kết thúc buổi phản biện?</h3>
-                  <p className="text-xs text-muted-foreground">Tạo báo cáo đánh giá năng lực</p>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
-                Hệ thống sẽ tổng hợp toàn bộ các câu trả lời của bạn, chấm điểm phản biện và tạo
-                báo cáo chi tiết các điểm mạnh, điểm yếu để bạn hoàn thiện trước hội đồng chính thức.
-              </p>
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowEndSessionConfirm(false)}
-                  className="flex-1 rounded-xl text-xs h-10 font-semibold"
-                >
-                  Tiếp tục hỏi đáp
-                </Button>
-                <Button
-                  onClick={handleEndSession}
-                  disabled={endingSession}
-                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs h-10 font-semibold shadow-md"
-                >
-                  {endingSession ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                      Đang tạo báo cáo...
-                    </>
-                  ) : (
-                    "Tạo báo cáo ngay"
-                  )}
+                  Xác nhận rời
                 </Button>
               </div>
             </motion.div>

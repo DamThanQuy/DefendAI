@@ -5,15 +5,18 @@ import "./globals.css";
 import { Navbar } from "@/components/layout/NavbarNew";
 import { Footer } from "@/components/layout/Footer";
 import { AppShell } from "@/components/layout/AppShell";
+import { UploadProvider } from "@/contexts/UploadContext";
 import { AuthGate } from "@/components/auth/AuthGate";
+import { AuthProvider } from "@/providers/AuthProvider";
 import { TopProgress } from "@/components/common/TopProgress";
 import { ThemeProvider } from "@/components/theme-provider";
-import { FloatingThemeToggle } from "@/components/theme-toggle-floating";
+import { FeedbackFloatingButton } from "@/components/feedback/FeedbackFloatingButton";
+import { ProductTourGate } from "@/components/tour/ProductTourGate";
 import { Toaster } from "sonner";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
-const garamond = EB_Garamond({ subsets: ["latin"], variable: "--font-serif", weight: ["400", "500", "600", "700", "800"] });
+const inter = Inter({ subsets: ["latin", "vietnamese"], variable: "--font-sans" });
+const jetbrainsMono = JetBrains_Mono({ subsets: ["latin", "vietnamese"], variable: "--font-mono" });
+const garamond = EB_Garamond({ subsets: ["latin", "vietnamese"], variable: "--font-serif", weight: ["400", "500", "600", "700", "800"] });
 
 export const metadata: Metadata = {
   title: "GraduAI - Mock Defense",
@@ -36,16 +39,21 @@ export default function RootLayout({
       <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}>
         <body className="font-sans min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           <ThemeProvider defaultTheme="dark" storageKey="defendai-theme">
-            <TopProgress />
-            <Navbar />
-            <main className="flex-1">
-              <AuthGate>
-                <AppShell>{children}</AppShell>
-              </AuthGate>
-            </main>
-            <Footer />
-            <FloatingThemeToggle />
-            <Toaster position="top-right" richColors />
+            <AuthProvider>
+              <TopProgress />
+              <Navbar />
+              <main className="flex-1">
+                <AuthGate>
+                  <UploadProvider>
+                    <AppShell>{children}</AppShell>
+                  </UploadProvider>
+                </AuthGate>
+              </main>
+              <Footer />
+              <FeedbackFloatingButton />
+              <ProductTourGate />
+              <Toaster position="top-right" richColors />
+            </AuthProvider>
           </ThemeProvider>
         </body>
       </GoogleOAuthProvider>

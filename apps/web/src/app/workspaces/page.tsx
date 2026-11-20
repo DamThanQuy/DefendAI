@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { parseApiDate } from "@/lib/datetime";
 import Link from "next/link";
 
 interface WorkspaceFile {
@@ -69,6 +70,9 @@ export default function WorkspacesPage() {
   // Modals
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
+  // Chặn double-submit: modal không tự đóng ngay khi đang gửi, nếu không
+  // bấm/Enter 2 lần sẽ tạo 2 workspace trùng tên (#122).
+  const [creatingWs, setCreatingWs] = useState(false);
   const [renameWs, setRenameWs] = useState<Workspace | null>(null);
   const [renameName, setRenameName] = useState("");
   const [addWs, setAddWs] = useState<Workspace | null>(null);
@@ -111,7 +115,7 @@ export default function WorkspacesPage() {
   }, []);
 
   const formatDate = (iso: string) => {
-    const d = new Date(iso);
+    const d = parseApiDate(iso);
     return d.toLocaleDateString("vi-VN", {
       day: "2-digit",
       month: "2-digit",
@@ -123,7 +127,8 @@ export default function WorkspacesPage() {
 
   const handleCreate = async () => {
     const token = getToken();
-    if (!token || !newName.trim()) return;
+    if (!token || !newName.trim() || creatingWs) return;
+    setCreatingWs(true);
     try {
       const r = await fetch("/api/workspaces/", {
         method: "POST",
@@ -136,6 +141,8 @@ export default function WorkspacesPage() {
       await fetchWorkspaces();
     } catch (e: any) {
       setError(e.message);
+    } finally {
+      setCreatingWs(false);
     }
   };
 
@@ -288,15 +295,6 @@ export default function WorkspacesPage() {
   return (
     <div className="min-h-screen bg-background pb-16">
       <div className="container mx-auto px-4 lg:px-8 pt-6 max-w-[1100px]">
-        {/* Breadcrumb */}
-        <nav className="flex items-center text-[13px] font-medium mb-4">
-          <Link href="/" className="text-muted-foreground hover:text-foreground transition-colors">
-            Trang chủ
-          </Link>
-          <span className="mx-2 text-muted-foreground/50">›</span>
-          <span className="text-primary font-semibold">Workspace</span>
-        </nav>
-
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
@@ -309,6 +307,7 @@ export default function WorkspacesPage() {
           </div>
           <button
             onClick={() => setShowCreate(true)}
+            data-testid="workspaces-create-button"
             className="px-6 py-2.5 bg-primary text-primary-foreground rounded-full text-[14px] font-semibold shadow-[0_0_18px_hsl(var(--primary)/0.4)] hover:brightness-110 transition-all shrink-0"
           >
             + Tạo workspace
@@ -382,13 +381,13 @@ export default function WorkspacesPage() {
                     onClick={() => setRenameWs(ws)}
                     className="px-3 py-1.5 text-[12px] font-semibold text-muted-foreground bg-muted rounded-lg hover:bg-muted/70 transition-colors"
                   >
-                    ✏️ Đổi tên
+                    Đổi tên
                   </button>
                   <button
                     onClick={() => handleDelete(ws)}
                     className="px-3 py-1.5 text-[12px] font-semibold text-destructive bg-destructive/10 rounded-lg hover:bg-destructive/20 transition-colors"
                   >
-                    🗑️ Xoá
+                    Xoá
                   </button>
                   <button
                     onClick={() => openAddModal(ws)}
@@ -454,17 +453,23 @@ export default function WorkspacesPage() {
             <input
               autoFocus
               value={newName}
+              disabled={creatingWs}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
               placeholder="Tên đề tài (vd: Đồ án quản lý nhà trọ)"
-              className="w-full border border-border rounded-lg px-4 py-2.5 text-[14px] bg-card focus:outline-none focus:ring-2 focus:ring-primary/30 mb-4 text-foreground"
+              className="w-full border border-border rounded-lg px-4 py-2.5 text-[14px] bg-card focus:outline-none focus:ring-2 focus:ring-primary/30 mb-4 text-foreground disabled:opacity-60"
             />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-[13px] font-semibold text-muted-foreground hover:bg-muted rounded-lg">
+              <button onClick={() => setShowCreate(false)} disabled={creatingWs} className="px-4 py-2 text-[13px] font-semibold text-muted-foreground hover:bg-muted rounded-lg disabled:opacity-50">
                 Huỷ
               </button>
-              <button onClick={handleCreate} disabled={!newName.trim()} className="px-4 py-2 text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50">
-                Tạo
+              <button
+                onClick={handleCreate}
+                disabled={!newName.trim() || creatingWs}
+                className="px-4 py-2 text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {creatingWs && <div className="w-3.5 h-3.5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />}
+                {creatingWs ? "Đang tạo..." : "Tạo"}
               </button>
             </div>
           </div>

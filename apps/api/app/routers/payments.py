@@ -19,6 +19,7 @@ from app.core.deps import get_current_user, require_role
 from app.models.payment import PaymentOrder, Subscription, Wallet, WalletTransaction
 from app.models.subscription_plan import SubscriptionPlan
 from app.models.user import User
+from app.services.membership import get_plan_access
 
 router = APIRouter(prefix="/api/payment", tags=["Payments"])
 admin_router = APIRouter(prefix="/api/admin/payments", tags=["Admin payments"])
@@ -398,6 +399,7 @@ async def get_payment_account(db: AsyncSession = Depends(get_db), user: User = D
     return {
         "wallet": {"balance": wallet.balance, "currency": wallet.currency},
         "subscription": sub_data,
+        "access": await get_plan_access(db, user),
     }
 
 

@@ -2,10 +2,11 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { parseApiDate } from "@/lib/datetime";
 import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { FileTree } from "@/components/features/assessment/FileTree";
 import { FilePreview } from "@/components/features/assessment/FilePreview";
 import WorkspaceChat from "@/components/features/workspace/WorkspaceChat";
@@ -346,7 +347,10 @@ export default function WorkspaceDetailPage() {
   useEffect(() => {
     if (!wsId) return;
     const token = getToken();
-    if (!token) return;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     fetch(`/api/workspaces/${wsId}`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -381,6 +385,17 @@ export default function WorkspaceDetailPage() {
     loadDeliverableCheck();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wsId, ws?.document_count]);
+
+  // Tự động poll danh sách câu hỏi nếu có phiên đang ở trạng thái processing/pending
+  useEffect(() => {
+    const hasProcessing = wqAll.some((q) => q.status === "processing" || q.status === "pending");
+    if (!hasProcessing) return;
+    const interval = setInterval(() => {
+      loadWorkspaceQuestions();
+    }, 4000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wqAll]);
 
   const openZip = async (docId: number) => {
     const token = getToken();
@@ -529,9 +544,9 @@ export default function WorkspaceDetailPage() {
       if (!r.ok) throw new Error("Không tạo được yêu cầu sinh câu hỏi");
       const created = await r.json();
       wsJobId.current = created.job_id;
-      // Poll job (pattern giống các luồng async khác: 1.5s × tối đa 60 lần)
-      for (let attempt = 0; attempt < 60; attempt++) {
-        await new Promise((res) => setTimeout(res, 1500));
+      // Poll job với timeout dài hơn (2s × 180 lần = 360s ~ 6 phút cho các file lớn nhiều GB)
+      for (let attempt = 0; attempt < 180; attempt++) {
+        await new Promise((res) => setTimeout(res, 2000));
         const jr = await fetch(`/api/jobs/${created.job_id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -548,6 +563,9 @@ export default function WorkspaceDetailPage() {
         if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") break;
       }
       await loadWorkspaceQuestions();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("feedback-refresh"));
+      }
     } catch (e: any) {
       setWsQError(e.message);
     } finally {
@@ -580,7 +598,7 @@ export default function WorkspaceDetailPage() {
     return wqAll.filter((q) => {
       if (wqFStatus !== "all" && q.status !== wqFStatus) return false;
       if (wqFDate !== "all") {
-        const age = now - new Date(q.created_at).getTime();
+        const age = now - parseApiDate(q.created_at).getTime();
         if (wqFDate === "today" && age > day) return false;
         if (wqFDate === "7d" && age > 7 * day) return false;
         if (wqFDate === "30d" && age > 30 * day) return false;
@@ -622,7 +640,7 @@ export default function WorkspaceDetailPage() {
         detail: s.status,
         question_count: s.question_count,
       })),
-    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    ].sort((a, b) => parseApiDate(b.created_at).getTime() - parseApiDate(a.created_at).getTime());
   }, [sessions]);
 
   const formatDate = (iso: string) =>
@@ -630,6 +648,20 @@ export default function WorkspaceDetailPage() {
     new Date(iso + "Z").toLocaleString("vi-VN", {
       day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
     });
+
+  const token = typeof window !== "undefined" ? getToken() : null;
+
+  if (!token) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-foreground mb-2">Vui lòng đăng nhập</h2>
+          <p className="text-zinc-500 mb-4">Bạn cần đăng nhập để truy cập workspace này.</p>
+          <Link href="/login" className="text-primary font-semibold hover:underline">Đăng nhập ngay</Link>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -654,7 +686,7 @@ export default function WorkspaceDetailPage() {
   return (
     <div className="min-h-screen bg-background pb-16">
       <div className="container mx-auto px-4 lg:px-8 pt-6 max-w-[1400px]">
-        {/* Breadcrumb */}
+        {/* Breadcrumb (bổ sung tên workspace; AppShell đã có Trang chủ › Workspace) */}
         <div className="flex items-center text-[13px] text-zinc-500 font-medium mb-4">
           <Link href="/documents" className="hover:text-primary transition-colors">Trang chủ</Link>
           <span className="mx-2">›</span>
@@ -991,13 +1023,14 @@ export default function WorkspaceDetailPage() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {wqPageItems.map((q) => {
                               const failed = q.status === "failed";
+                              const processing = q.status === "processing" || q.status === "pending";
                               const qCount = q.questions?.length ?? 0;
                               return (
                                 <div
                                   key={q.id}
                                   onClick={() => { if (!failed) window.location.href = `/workspaces/${wsId}/questions/${q.id}`; }}
                                   className={`relative bg-zinc-900/60 border rounded-xl p-3.5 cursor-pointer transition-colors hover:border-primary/50 ${
-                                    failed ? "border-red-500/30" : "border-zinc-800"
+                                    failed ? "border-red-500/30" : processing ? "border-amber-500/40 bg-amber-500/[0.03]" : "border-zinc-800"
                                   }`}
                                 >
                                   <button
@@ -1009,14 +1042,27 @@ export default function WorkspaceDetailPage() {
                                   </button>
                                   <div className="flex items-center gap-2 mb-2 pr-8">
                                     <span className="px-2 py-0.5 text-[11px] font-mono font-bold rounded-full bg-zinc-800 text-zinc-400 shrink-0">#{q.id}</span>
-                                    <span className={`w-2 h-2 rounded-full ${failed ? "bg-red-400" : "bg-green-400"}`} />
+                                    {processing ? (
+                                      <span className="flex items-center gap-1.5 text-[11px] font-medium text-amber-400">
+                                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                                        Đang tạo...
+                                      </span>
+                                    ) : (
+                                      <span className={`w-2 h-2 rounded-full ${failed ? "bg-red-400" : "bg-green-400"}`} />
+                                    )}
                                   </div>
-                                  <p className={`text-[13px] font-semibold leading-snug line-clamp-2 mb-3 ${failed ? "text-red-400 italic" : "text-zinc-200"}`}>
+                                  <p className={`text-[13px] font-semibold leading-snug line-clamp-2 mb-3 ${failed ? "text-red-400 italic" : processing ? "text-amber-200/90" : "text-zinc-200"}`}>
                                     {wqTitle(q)}
                                   </p>
                                   <div className="flex items-center justify-between">
                                     <span className="text-[11px] text-zinc-500">{formatDate(q.created_at)}</span>
-                                    <span className="text-[11px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full">{qCount} câu</span>
+                                    {processing ? (
+                                      <span className="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                        <Loader2 className="w-3 h-3 animate-spin" /> Đang soạn câu hỏi...
+                                      </span>
+                                    ) : (
+                                      <span className="text-[11px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full">{qCount} câu</span>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -1066,10 +1112,6 @@ export default function WorkspaceDetailPage() {
                       doc_type: f.doc_type,
                       status: "completed",
                     }))}
-                    onFocusWeakSpots={(topic) => {
-                      setRightTab("questions");
-                      void askWorkspaceTopic(topic);
-                    }}
                   />
                 </div>
               )}

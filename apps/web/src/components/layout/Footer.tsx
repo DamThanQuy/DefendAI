@@ -18,7 +18,6 @@ export function Footer() {
   const resources = [
     { href: "/documents", label: "Tài liệu" },
     { href: "/workspaces", label: "Workspace" },
-    { href: "/code-review", label: "Code Review" },
     { href: "/mock-room", label: "Mock Room" },
   ];
   const company = [
@@ -118,10 +117,7 @@ export function Footer() {
         </div>
 
         {/* Bottom row */}
-        <div className="mt-12 pt-6 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} GraduAI. Được tạo với ❤️ bởi đội ngũ sinh viên Việt Nam.
-          </div>
+        <div className="mt-12 pt-6 border-t border-border flex flex-col md:flex-row items-center justify-end gap-4">
           <div className="flex items-center gap-5 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />

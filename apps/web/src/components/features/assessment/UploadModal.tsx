@@ -19,9 +19,10 @@ type Props = {
     status: "idle" | "uploading" | "success" | "error";
     error?: string;
   }) => void;
+  onRegisterAbort?: (id: string, abortFn: () => Promise<void> | void) => void;
 };
 
-export function UploadModal({ open, onClose, onMinimize, onProgress }: Props) {
+export function UploadModal({ open, onClose, onMinimize, onProgress, onRegisterAbort }: Props) {
   return (
     <AnimatePresence>
       {open && (
@@ -49,7 +50,7 @@ export function UploadModal({ open, onClose, onMinimize, onProgress }: Props) {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <UploadZone onDone={onClose} onProgress={onProgress} />
+            <UploadZone onDone={onClose} onProgress={onProgress} onRegisterAbort={onRegisterAbort} />
           </motion.div>
         </motion.div>
       )}

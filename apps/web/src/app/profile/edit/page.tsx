@@ -14,33 +14,42 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { updateMe } from "@/lib/api";
+import { MAJORS } from "@/constants/majors";
 
 export default function EditProfilePage() {
   const { user } = useAuth();
+  const isStudent = user?.roles?.includes("student") ?? false;
   const [fullName, setFullName] = useState("");
   const [school, setSchool] = useState("");
   const [about, setAbout] = useState("");
+  const [major, setMajor] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   // Điền form từ user (cache → rồi /me cập nhật). Chỉ ghi đè những field
   // mà người dùng CHƯA tự sửa, để không mất nội dung đang gõ dở.
-  const touched = React.useRef({ full_name: false, school: false, about: false });
+  const touched = React.useRef({ full_name: false, school: false, about: false, major: false });
   useEffect(() => {
     if (!user) return;
     setFullName((v) => (touched.current.full_name ? v : user.full_name ?? ""));
     setSchool((v) => (touched.current.school ? v : user.school ?? ""));
     setAbout((v) => (touched.current.about ? v : user.about ?? ""));
+    setMajor((v) => (touched.current.major ? v : user.major ?? ""));
   }, [user]);
 
   const dirty =
     fullName !== (user?.full_name ?? "") ||
     school !== (user?.school ?? "") ||
-    about !== (user?.about ?? "");
+    about !== (user?.about ?? "") ||
+    major !== (user?.major ?? "");
 
   async function handleSave() {
     if (!fullName.trim()) {
       setMsg({ type: "err", text: "Họ và tên không được để trống." });
+      return;
+    }
+    if (isStudent && !major) {
+      setMsg({ type: "err", text: "Vui lòng chọn ngành học." });
       return;
     }
     setSaving(true);
@@ -50,8 +59,11 @@ export default function EditProfilePage() {
         full_name: fullName.trim(),
         school: school.trim(),
         about: about.trim(),
+        ...(isStudent ? { major } : {}),
       });
-      // Cập nhật cache localStorage để useAuth / sidebar hiển thị ngay
+      // Cập nhật cache localStorage để useAuth / sidebar hiển thị ngay.
+      // PHẢI giữ major + profile_data: AppShell guard dựa vào major trong cache,
+      // thiếu là bị đá nhầm về /onboarding.
       const cached = {
         id: res.data.id,
         email: res.data.email,
@@ -60,6 +72,8 @@ export default function EditProfilePage() {
         about: res.data.about,
         created_at: res.data.created_at,
         roles: res.data.roles,
+        profile_data: res.data.profile_data ?? {},
+        major: res.data.major ?? (isStudent ? major : null),
       };
       localStorage.setItem("user", JSON.stringify(cached));
       // Báo các tab/component khác (useSyncExternalStore) đọc lại cache
@@ -176,6 +190,36 @@ export default function EditProfilePage() {
             className="w-full px-3 py-2.5 bg-muted/30 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
           />
         </div>
+        {isStudent && (
+          <div>
+            <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+              <GraduationCap className="w-3.5 h-3.5" />
+              Ngành học
+            </label>
+            <select
+              value={major}
+              onChange={(e) => {
+                touched.current.major = true;
+                setMajor(e.target.value);
+              }}
+              className={`w-full px-3 py-2.5 bg-muted/30 border border-border rounded-lg text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors ${
+                major ? "text-foreground" : "text-muted-foreground"
+              }`}
+            >
+              <option value="" disabled>
+                — Chọn ngành học —
+              </option>
+              {MAJORS.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-muted-foreground/70 mt-1">
+              Đổi ngành bất cứ lúc nào — dùng để cá nhân hoá nội dung và thống kê.
+            </p>
+          </div>
+        )}
         <div>
           <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
             <Text className="w-3.5 h-3.5" />

@@ -1,6 +1,8 @@
 """Security utilities: password hashing (bcrypt) + JWT (python-jose) + refresh tokens."""
 from datetime import datetime, timedelta, timezone
-from secrets import token_urlsafe
+from hashlib import sha256
+import hmac
+from secrets import randbelow, token_urlsafe
 
 from fastapi import HTTPException
 from jose import JWTError, jwt
@@ -12,6 +14,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 REFRESH_TOKEN_EXPIRE_DAYS = settings.refresh_token_expire_days
+PASSWORD_RESET_OTP_EXPIRE_MINUTES = 10
+PASSWORD_RESET_OTP_MAX_ATTEMPTS = 5
 
 
 def hash_password(password: str) -> str:
@@ -35,6 +39,25 @@ def create_refresh_token(user_id: int) -> str:
 
 def refresh_token_expires_at() -> datetime:
     return datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+
+
+def hash_password_reset_otp(user_id: int, otp: str) -> str:
+    """HMAC với SECRET_KEY: chỉ có 1 triệu mã nên SHA-256 thuần dò ngược được ngay từ DB hoặc log SQL."""
+    return hmac.new(settings.secret_key.encode(), f"{user_id}:{otp}".encode(), sha256).hexdigest()
+
+
+def create_password_reset_otp(user_id: int) -> tuple[str, str]:
+    """Tạo (mã 6 số gửi qua email, hash lưu DB)."""
+    otp = f"{randbelow(1_000_000):06d}"
+    return otp, hash_password_reset_otp(user_id, otp)
+
+
+def password_reset_otp_matches(user_id: int, otp: str, code_hash: str) -> bool:
+    return hmac.compare_digest(hash_password_reset_otp(user_id, otp), code_hash)
+
+
+def password_reset_otp_expires_at() -> datetime:
+    return datetime.utcnow() + timedelta(minutes=PASSWORD_RESET_OTP_EXPIRE_MINUTES)
 
 
 def decode_access_token(token: str) -> dict:

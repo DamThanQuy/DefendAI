@@ -5,20 +5,31 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { authHeaders } from "@/hooks/useAdminData";
+import { yearlyDiscountPercent } from "@/app/pricing/pricing-data";
 
 interface Feature { label: string; included: boolean; highlight?: boolean }
 interface Plan {
   id: number; slug: string; name: string; tagline: string; icon: string;
-  price: number; featured: boolean; special: boolean; features: Feature[]; active: boolean; sort_order: number;
+  price: number; yearly: number; featured: boolean; special: boolean; features: Feature[]; active: boolean; sort_order: number;
 }
-type Form = Omit<Plan, "id" | "features" | "slug" | "price" | "sort_order"> & { slug: string; price: string; features: string };
+type Form = Omit<Plan, "id" | "features" | "slug" | "price" | "yearly" | "sort_order"> & { slug: string; price: string; yearly: string; features: string };
 
-const emptyForm: Form = { slug: "", name: "", tagline: "", icon: "sparkles", price: "0", featured: false, special: false, features: "", active: true };
+const emptyForm: Form = { slug: "", name: "", tagline: "", icon: "sparkles", price: "0", yearly: "0", featured: false, special: false, features: "", active: true };
+
+// Gợi ý giá năm khi chưa nhập: trả 10 tháng, được dùng 12 tháng.
+const SUGGESTED_YEARLY_MONTHS = 10;
+
+/** Cùng quy tắc với validate_prices ở backend (apps/api/app/routers/subscriptions.py). */
+function priceError(monthly: number, yearly: number): string | null {
+  if (monthly === 0) return yearly === 0 ? null : "Gói miễn phí phải có giá năm bằng 0.";
+  return monthly < yearly && yearly <= monthly * 12 ? null : "Giá năm phải lớn hơn giá tháng và không vượt quá giá 12 tháng.";
+}
 
 export default function AdminSubscriptionsPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [form, setForm] = useState<Form>(emptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [yearlyTouched, setYearlyTouched] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
@@ -38,14 +49,25 @@ export default function AdminSubscriptionsPage() {
 
   function edit(plan: Plan) {
     setEditingId(plan.id);
-    setForm({ ...plan, price: String(plan.price), features: plan.features.map((feature) => `${feature.included ? "" : "!"}${feature.label}`).join("\n") });
+    setYearlyTouched(true);
+    setForm({ ...plan, price: String(plan.price), yearly: String(plan.yearly), features: plan.features.map((feature) => `${feature.included ? "" : "!"}${feature.label}`).join("\n") });
     setMessage(null);
   }
 
-  function reset() { setEditingId(null); setForm(emptyForm); }
+  function reset() { setEditingId(null); setYearlyTouched(false); setForm(emptyForm); }
 
   function randomCode() {
     update("slug", String(Math.floor(Math.random() * 1_000_000)).padStart(6, "0"));
+  }
+
+  function updateMonthly(value: string) {
+    update("price", value);
+    if (!yearlyTouched) update("yearly", String(Number(value) * SUGGESTED_YEARLY_MONTHS));
+  }
+
+  function updateYearly(value: string) {
+    setYearlyTouched(true);
+    update("yearly", value);
   }
 
   async function save(event: React.FormEvent) {
@@ -62,11 +84,17 @@ export default function AdminSubscriptionsPage() {
       return;
     }
     if (!/^\d{1,7}$/.test(form.price)) {
-      setMessage({ type: "err", text: "Giá phải là số nguyên từ 0 đến 9,999,999 VND, không nhập chữ hoặc ký tự khác." });
+      setMessage({ type: "err", text: "Giá tháng phải là số nguyên từ 0 đến 9,999,999 VND, không nhập chữ hoặc ký tự khác." });
       setSaving(false);
       return;
     }
-    const payload = { slug: form.slug, name: form.name, tagline: form.tagline, price: Number(form.price), featured: form.featured, special: form.special, active: form.active, features: form.features.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => ({ label: line.replace(/^!/, ""), included: !line.startsWith("!") })) };
+    const invalidPrice = /^\d+$/.test(form.yearly) ? priceError(Number(form.price), Number(form.yearly)) : "Giá năm phải là số nguyên, không nhập chữ hoặc ký tự khác.";
+    if (invalidPrice) {
+      setMessage({ type: "err", text: invalidPrice });
+      setSaving(false);
+      return;
+    }
+    const payload = { slug: form.slug, name: form.name, tagline: form.tagline, price: Number(form.price), yearly: Number(form.yearly), featured: form.featured, special: form.special, active: form.active, features: form.features.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => ({ label: line.replace(/^!/, ""), included: !line.startsWith("!") })) };
     try {
       const res = await fetch(editingId ? `/api/admin/subscriptions/${editingId}` : "/api/admin/subscriptions", { method: editingId ? "PUT" : "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(payload) });
       const data = await res.json();
@@ -86,6 +114,7 @@ export default function AdminSubscriptionsPage() {
   }
 
   const update = (key: keyof Form, value: string | number | boolean) => setForm((current) => ({ ...current, [key]: value }));
+  const formSaving = yearlyDiscountPercent({ monthly: Number(form.price), yearly: Number(form.yearly) });
 
   return <div className="max-w-6xl mx-auto space-y-6">
     <div><h1 className="text-2xl font-serif font-bold">Quản lý gói subscription</h1><p className="text-sm text-muted-foreground mt-1">Thêm, sửa, xóa và bật/tắt các gói hiển thị cho sinh viên.</p></div>
@@ -94,13 +123,14 @@ export default function AdminSubscriptionsPage() {
       <div className="flex gap-2"><Input readOnly required placeholder="Mã gói 6 chữ số" value={form.slug} /><Button type="button" variant="outline" onClick={randomCode}>Random mã</Button></div>
       <Input required placeholder="Tên gói" value={form.name} onChange={(e) => update("name", e.target.value)} />
       <Input placeholder="Mô tả ngắn" value={form.tagline} onChange={(e) => update("tagline", e.target.value)} />
-      <div className="relative"><Input required inputMode="numeric" maxLength={9} placeholder="Giá" value={form.price ? Number(form.price).toLocaleString("en-US") : ""} onChange={(e) => update("price", e.target.value.replace(/[^0-9]/g, "").slice(0, 7))} /><span className="absolute right-3 top-2.5 text-sm text-muted-foreground">VND</span></div>
+      <div className="relative"><Input required aria-label="Giá tháng" inputMode="numeric" maxLength={9} placeholder="Giá tháng" value={form.price ? Number(form.price).toLocaleString("en-US") : ""} onChange={(e) => updateMonthly(e.target.value.replace(/[^0-9]/g, "").slice(0, 7))} /><span className="absolute right-3 top-2.5 text-sm text-muted-foreground">VND / tháng</span></div>
+      <div><div className="relative"><Input required aria-label="Giá năm" inputMode="numeric" maxLength={11} placeholder="Giá năm" value={form.yearly ? Number(form.yearly).toLocaleString("en-US") : ""} onChange={(e) => updateYearly(e.target.value.replace(/[^0-9]/g, "").slice(0, 9))} /><span className="absolute right-3 top-2.5 text-sm text-muted-foreground">VND / năm</span></div>{formSaving > 0 && <p className="mt-1 text-xs text-muted-foreground">Giảm {formSaving}% so với trả 12 tháng ({(Number(form.price) * 12).toLocaleString("vi-VN")} VND).</p>}</div>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.featured} onChange={(e) => update("featured", e.target.checked)} /> Gói nổi bật</label>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.special} onChange={(e) => update("special", e.target.checked)} /> Gói đặc biệt</label>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.active} onChange={(e) => update("active", e.target.checked)} /> Đang hiển thị</label>
       <textarea className="min-h-32 rounded-md border border-input bg-background p-3 text-sm md:col-span-2" placeholder="Danh sách tính năng, mỗi dòng một tính năng" value={form.features} onChange={(e) => update("features", e.target.value)} />
       <div className="flex gap-2 md:col-span-2"><Button type="submit" disabled={saving}>{saving ? "Đang lưu..." : editingId ? "Cập nhật gói" : "Thêm gói"}</Button>{editingId && <Button type="button" variant="outline" onClick={reset}>Hủy sửa</Button>}</div>
     </form></CardContent></Card>
-    <Card><CardHeader><CardTitle>Danh sách gói</CardTitle></CardHeader><CardContent>{loading ? <p className="text-sm text-muted-foreground">Đang tải...</p> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-border text-left text-muted-foreground"><th className="py-2">Tên</th><th className="py-2">Mã</th><th className="py-2">Giá</th><th className="py-2">Trạng thái</th><th className="py-2 text-right">Thao tác</th></tr></thead><tbody className="divide-y divide-border/60">{plans.map((plan) => <tr key={plan.id}><td className="py-3 font-medium">{plan.name}</td><td className="py-3 text-muted-foreground">{plan.slug}</td><td className="py-3">{plan.price.toLocaleString("vi-VN")} VND</td><td className="py-3">{plan.active ? <span className="text-teal-400">Active</span> : <span className="text-muted-foreground">Unactive</span>}</td><td className="py-3 text-right whitespace-nowrap"><button className="text-teal-400 hover:underline" onClick={() => edit(plan)}>Sửa</button><button className="ml-4 text-red-400 hover:underline" onClick={() => remove(plan)}>Xóa</button></td></tr>)}</tbody></table></div>}</CardContent></Card>
+    <Card><CardHeader><CardTitle>Danh sách gói</CardTitle></CardHeader><CardContent>{loading ? <p className="text-sm text-muted-foreground">Đang tải...</p> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-border text-left text-muted-foreground"><th className="py-2">Tên</th><th className="py-2">Mã</th><th className="py-2">Giá tháng</th><th className="py-2">Giá năm</th><th className="py-2">Trạng thái</th><th className="py-2 text-right">Thao tác</th></tr></thead><tbody className="divide-y divide-border/60">{plans.map((plan) => <tr key={plan.id}><td className="py-3 font-medium">{plan.name}</td><td className="py-3 text-muted-foreground">{plan.slug}</td><td className="py-3">{plan.price.toLocaleString("vi-VN")} VND</td><td className="py-3">{plan.yearly.toLocaleString("vi-VN")} VND{plan.price > 0 && <span className="ml-1 text-xs text-muted-foreground">(-{yearlyDiscountPercent({ monthly: plan.price, yearly: plan.yearly })}%)</span>}</td><td className="py-3">{plan.active ? <span className="text-teal-400">Active</span> : <span className="text-muted-foreground">Unactive</span>}</td><td className="py-3 text-right whitespace-nowrap"><button className="text-teal-400 hover:underline" onClick={() => edit(plan)}>Sửa</button><button className="ml-4 text-red-400 hover:underline" onClick={() => remove(plan)}>Xóa</button></td></tr>)}</tbody></table></div>}</CardContent></Card>
   </div>;
 }

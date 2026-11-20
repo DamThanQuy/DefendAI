@@ -2,11 +2,12 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { UploadModal } from "@/components/features/assessment/UploadModal";
-import { ActiveUploadCard } from "@/components/features/assessment/ActiveUploadCard";
+import { parseApiDate } from "@/lib/datetime";
+import { useUpload } from "@/contexts/UploadContext";
 import { TrashIcon } from "@/components/icons/TrashIcon";
 import { PlusIcon } from "@/components/icons/PlusIcon";
 import { useAuth } from "@/hooks/useAuth";
+import { usePlanAccess } from "@/hooks/usePlanAccess";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { DocumentDetailSidebar } from "@/components/features/assessment/DocumentDetailSidebar";
 
@@ -33,20 +34,6 @@ interface WorkspaceItem {
   document_count: number;
 }
 
-type ActiveUploadStatus = "uploading" | "success" | "error";
-
-interface ActiveUpload {
-  id: string;
-  filename: string;
-  progress: number;
-  loaded: number;
-  total: number;
-  speed: number;
-  eta: number | null;
-  status: ActiveUploadStatus;
-  error?: string;
-}
-
 const docTypeLabel: Record<string, string> = {
   pdf: "PDF",
   docx: "DOCX",
@@ -71,9 +58,10 @@ export default function DocumentsPage() {
   const [docs, setDocs] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [showUpload, setShowUpload] = useState(false);
   const [browseDoc, setBrowseDoc] = useState<DocumentItem | null>(null);
-  const [activeUploads, setActiveUploads] = useState<ActiveUpload[]>([]);
+  const { openUploadModal, subscribeUploadSuccess } = useUpload();
+  const { access, refresh: refreshPlanAccess } = usePlanAccess();
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
 
   // Thêm vào workspace
   const [wsTargetDoc, setWsTargetDoc] = useState<DocumentItem | null>(null);
@@ -87,10 +75,30 @@ export default function DocumentsPage() {
   const currentUserId = user?.id != null ? Number(user.id) : null;
   const isAdminOrMentor = (user?.roles ?? []).some((r) => r === "admin" || r === "mentor");
 
+  const docQuota = access?.document_quota;
+  const isFreePlanWithLimit = docQuota != null && docQuota.limit !== null && docQuota.limit !== undefined;
+  const isQuotaExhausted =
+    isFreePlanWithLimit &&
+    ((docQuota.remaining !== null && docQuota.remaining !== undefined && docQuota.remaining <= 0) ||
+      (docQuota.used ?? 0) >= (docQuota.limit ?? 3));
+
+  const handleOpenUpload = () => {
+    if (isQuotaExhausted) {
+      setShowQuotaModal(true);
+      return;
+    }
+    openUploadModal();
+  };
+
   useEffect(() => {
     fetchDocs();
+    const unsubscribe = subscribeUploadSuccess(() => {
+      fetchDocs();
+      void refreshPlanAccess();
+    });
+    return unsubscribe;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [subscribeUploadSuccess, refreshPlanAccess]);
 
   // Tách fetch thành hàm để có thể gọi lại khi đóng modal upload (cập nhật list tài liệu mới)
   const fetchDocs = async () => {
@@ -120,7 +128,7 @@ export default function DocumentsPage() {
   };
 
   const formatDate = (iso: string) => {
-    const d = new Date(iso);
+    const d = parseApiDate(iso);
     return d.toLocaleDateString("vi-VN", {
       day: "2-digit",
       month: "2-digit",
@@ -244,47 +252,6 @@ export default function DocumentsPage() {
 
   const token = typeof window !== "undefined" ? getToken() : null;
 
-  const upsertActiveUpload = (next: ActiveUpload) =>
-    setActiveUploads((prev) => {
-      const exists = prev.find((u) => u.id === next.id);
-      const nextList = exists ? prev.map((u) => (u.id === next.id ? next : u)) : [...prev, next];
-      return nextList.filter((u) => u.status !== "success" || Date.now() - 0 < 1000);
-    });
-
-  const handleUploadProgress = (state: {
-    file: File | null;
-    progress: number;
-    loaded: number;
-    total: number;
-    speed: number;
-    eta: number | null;
-    status: "idle" | "uploading" | "success" | "error";
-    error?: string;
-  }) => {
-    const id = state.file ? `${state.file.name}:${state.file.size}:${state.file.lastModified}` : `upload-${Date.now()}`;
-    const filename = state.file?.name ?? "Đang tải lên";
-    upsertActiveUpload({
-      id,
-      filename,
-      progress: state.progress,
-      loaded: state.loaded,
-      total: state.total,
-      speed: state.speed,
-      eta: state.eta,
-      status: state.status === "idle" ? "uploading" : state.status,
-      error: state.error,
-    });
-  };
-
-  const dismissUpload = (id: string) => setActiveUploads((prev) => prev.filter((u) => u.id !== id));
-  const cancelUpload = (id: string) => {
-    setActiveUploads((prev) => prev.filter((u) => u.id !== id));
-  };
-  const retryUpload = (id: string) => {
-    setActiveUploads((prev) => prev.filter((u) => u.id !== id));
-    setShowUpload(true);
-  };
-
   if (!token) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -299,32 +266,55 @@ export default function DocumentsPage() {
   return (
     <div className="min-h-screen bg-background pb-16">
       <div className="container mx-auto px-4 lg:px-8 pt-6 max-w-[1100px]">
-        {/* Breadcrumb */}
-        <div className="flex items-center text-[13px] text-zinc-500 font-medium mb-6">
-          <Link href="/documents" className="hover:text-primary transition-colors">Trang chủ</Link>
-          <span className="mx-2">›</span>
-          <span className="text-primary font-semibold">Tài liệu</span>
-        </div>
-
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
             <h1 className="text-[28px] font-bold text-foreground mb-2">Tài liệu của tôi</h1>
             <p className="text-zinc-500 text-[14px]">Quản lý tài liệu đã tải lên cho buổi bảo vệ.</p>
           </div>
-          <button
-            onClick={() => setShowUpload(true)}
-            className="px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90 transition-colors shrink-0"
-          >
-            + Tải lên tài liệu mới
-          </button>
-          <Link
-            href="/documents/trash"
-            className="px-4 py-2.5 rounded-lg border border-zinc-700 text-zinc-300 text-[13px] font-medium hover:bg-zinc-800 hover:text-foreground transition-colors shrink-0 inline-flex items-center gap-1.5"
-          >
-            <TrashIcon className="w-4 h-4" />
-            Thùng rác
-          </Link>
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            {isFreePlanWithLimit && (
+              <div
+                data-testid="document-quota-badge"
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
+                  isQuotaExhausted
+                    ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                    : "bg-zinc-800/80 text-zinc-300 border-zinc-700/60"
+                }`}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isQuotaExhausted ? "bg-amber-400 animate-pulse" : "bg-emerald-400"
+                  }`}
+                />
+                <span>
+                  Đã dùng <strong className="font-semibold text-foreground">{docQuota.used}/{docQuota.limit}</strong> đồ án tháng này
+                </span>
+                {isQuotaExhausted && (
+                  <Link
+                    href="/pricing"
+                    className="ml-1 text-primary hover:underline font-semibold"
+                  >
+                    Nâng cấp
+                  </Link>
+                )}
+              </div>
+            )}
+            <Link
+              href="/documents/trash"
+              className="px-6 py-2.5 rounded-lg border border-zinc-700 text-zinc-300 text-[14px] font-semibold hover:bg-zinc-800 hover:text-foreground transition-colors inline-flex items-center gap-1.5"
+            >
+              <TrashIcon className="w-4 h-4" />
+              Thùng rác
+            </Link>
+            <button
+              onClick={handleOpenUpload}
+              data-testid="documents-upload-button"
+              className="px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90 transition-colors"
+            >
+              + Tải lên tài liệu mới
+            </button>
+          </div>
         </div>
 
         {loading && (
@@ -355,7 +345,7 @@ export default function DocumentsPage() {
             </div>
             <h2 className="text-lg font-bold text-foreground mb-2">Chưa có tài liệu nào</h2>
             <p className="text-zinc-500 text-[14px] mb-6">Tải lên tài liệu đầu tiên để bắt đầu.</p>
-            <button onClick={() => setShowUpload(true)} className="inline-block px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90">
+            <button onClick={handleOpenUpload} className="inline-block px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-[14px] font-semibold hover:bg-primary/90">
               Tải lên ngay
             </button>
           </div>
@@ -452,20 +442,6 @@ export default function DocumentsPage() {
         )}
       </div>
 
-      <ActiveUploadCard
-        uploads={activeUploads}
-        onDismiss={dismissUpload}
-        onCancel={cancelUpload}
-        onRetry={retryUpload}
-      />
-
-      <UploadModal
-        open={showUpload}
-        onClose={() => { setShowUpload(false); fetchDocs(); }}
-        onMinimize={() => setShowUpload(false)}
-        onProgress={handleUploadProgress}
-      />
-
       {/* Document detail sidebar */}
       <DocumentDetailSidebar
         doc={browseDoc}
@@ -539,6 +515,51 @@ export default function DocumentsPage() {
         onCancel={() => !deletingId && setDeleteTarget(null)}
         onConfirm={confirmDelete}
       />
+
+      {/* Modal thông báo đạt giới hạn upload của gói Free */}
+      {showQuotaModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setShowQuotaModal(false)}
+          data-testid="quota-exhausted-modal"
+        >
+          <div
+            className="bg-card rounded-2xl shadow-2xl w-full max-w-md p-6 border border-zinc-800/80"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-4 text-amber-400">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              </svg>
+            </div>
+            <h3 className="text-[18px] font-bold text-foreground text-center mb-2">Đã đạt giới hạn tải lên</h3>
+            <p className="text-zinc-400 text-[14px] text-center mb-6 leading-relaxed">
+              Tài khoản miễn phí được tải lên tối đa{" "}
+              <span className="font-semibold text-foreground">
+                {docQuota?.limit ?? 3} đồ án/tháng
+              </span>
+              . Bạn đã sử dụng hết hạn mức trong tháng này. Nâng cấp lên gói{" "}
+              <span className="font-semibold text-primary">Premium</span> để tiếp tục tải lên không giới hạn và mở khóa đầy đủ tính năng.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowQuotaModal(false)}
+                className="px-4 py-2.5 text-[13px] font-semibold text-zinc-400 hover:text-foreground hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                Để sau
+              </button>
+              <Link
+                href="/pricing"
+                data-testid="upgrade-premium-btn"
+                className="px-5 py-2.5 text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors shadow-md inline-flex items-center gap-1.5"
+              >
+                Nâng cấp Premium
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
