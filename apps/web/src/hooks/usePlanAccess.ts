@@ -10,6 +10,7 @@ export type PlanAccess = {
   expired_plan: string | null;
   features: { mock_ai: boolean; code_review: boolean; rubric: boolean; mentor_booking: boolean };
   free_mentor_bookings_left: number;
+  document_quota?: { used: number; limit: number | null; remaining: number | null } | null;
 };
 
 /** Quyền theo gói do server tính. Chưa có kết quả thì `access` là null: không khoá giao diện, API vẫn chặn. */

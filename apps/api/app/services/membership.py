@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.booking import BookingStatus, MockBooking
+from app.models.document import Document, DocumentPurpose
 from app.models.payment import Subscription
 from app.models.subscription_plan import SubscriptionPlan
 from app.models.user import User
@@ -70,7 +71,10 @@ def _profile_membership(user: User) -> Dict[str, Any]:
 
 
 def is_staff(user: User) -> bool:
-    return any(role.name in ("admin", "mentor") for role in user.roles)
+    try:
+        return any(role.name in ("admin", "mentor") for role in user.roles)
+    except Exception:
+        return False
 
 
 async def get_user_plan(db: AsyncSession, user: User) -> str:
@@ -153,6 +157,66 @@ async def can_book_mentor(db: AsyncSession, user: User) -> bool:
     return await free_mentor_bookings_left(db, user) > 0
 
 
+async def get_document_quota(db: AsyncSession, user: User) -> Dict[str, Any]:
+    """Lấy quota upload tài liệu của user trong tháng hiện tại."""
+    plan_name = await get_user_plan(db, user)
+    if is_staff(user) or plan_name in ("premium", "vip"):
+        limit = None
+    else:
+        now = datetime.utcnow()
+        stmt = (
+            select(SubscriptionPlan)
+            .join(Subscription, Subscription.plan_id == SubscriptionPlan.id)
+            .where(
+                Subscription.user_id == user.id,
+                Subscription.status == "active",
+                Subscription.expires_at > now,
+            )
+            .order_by(Subscription.expires_at.desc())
+            .limit(1)
+        )
+        plan_row = (await db.execute(stmt)).scalars().first()
+        if not plan_row:
+            plan_row = await db.get(SubscriptionPlan, 1)
+        if not plan_row:
+            plan_row = (await db.execute(select(SubscriptionPlan).where(SubscriptionPlan.slug == PLAN_ALIASES["free"]))).scalars().first()
+
+        limit = getattr(plan_row, "max_documents_per_month", None) if plan_row else None
+        if limit is None:
+            limit = 3
+
+    now = datetime.utcnow()
+    start_of_month = datetime(now.year, now.month, 1)
+    count_stmt = (
+        select(func.count(Document.id))
+        .where(
+            Document.uploaded_by == user.id,
+            Document.created_at >= start_of_month,
+            Document.deleted_at.is_(None),
+            Document.purpose == DocumentPurpose.student_project,
+        )
+    )
+    count = (await db.execute(count_stmt)).scalar_one()
+
+    return {
+        "used": count,
+        "limit": limit,
+        "remaining": max(0, limit - count) if limit is not None else None,
+    }
+
+
+async def check_document_upload_quota(db: AsyncSession, user: User) -> None:
+    """Kiểm tra giới hạn upload tài liệu đồ án của user trong tháng."""
+    quota = await get_document_quota(db, user)
+    limit = quota.get("limit")
+    used = quota.get("used", 0)
+    if limit is not None and used >= limit:
+        raise HTTPException(
+            status_code=403,
+            detail="Bạn đã đạt giới hạn 3 đồ án trong tháng này của gói Miễn phí. Hãy nâng cấp lên gói Premium để upload không giới hạn.",
+        )
+
+
 async def get_plan_access(db: AsyncSession, user: User) -> Dict[str, Any]:
     plan = await get_user_plan(db, user)
     staff = is_staff(user)
@@ -168,4 +232,5 @@ async def get_plan_access(db: AsyncSession, user: User) -> Dict[str, Any]:
         "expired_plan": await _last_paid_plan_name(db, user) if plan == "free" else None,
         "features": features,
         "free_mentor_bookings_left": bookings_left,
+        "document_quota": await get_document_quota(db, user),
     }

@@ -17,9 +17,9 @@ router = APIRouter(prefix="/api/subscriptions", tags=["Subscriptions"])
 admin_router = APIRouter(prefix="/api/admin/subscriptions", tags=["Admin subscriptions"])
 
 DEFAULT_PLANS = [
-    {"slug": "100001", "name": "Free", "tagline": "Khởi đầu miễn phí", "icon": "sparkles", "monthly": 0, "yearly": 0, "featured": False, "badge": None, "cta": "", "features": [{"label": "Upload tối đa 3 đồ án / tháng", "included": True}, {"label": "Phân tích tài liệu bằng AI cơ bản", "included": True}, {"label": "Tạo 20 câu hỏi phản biện / lượt", "included": True}, {"label": "Mock Room với mentor: 1 lần", "included": True}, {"label": "Báo cáo PDF cơ bản", "included": True}, {"label": "Phân tích code chuyên sâu", "included": False}, {"label": "Đánh giá theo rubric chi tiết", "included": False}, {"label": "Hỗ trợ mentor 1-1", "included": False}, {"label": "Phòng Mock AI", "included": False}], "sort_order": 0},
-    {"slug": "100002", "name": "Premium", "tagline": "Cho sinh viên nghiêm túc", "icon": "zap", "monthly": 99000, "yearly": 990000, "featured": True, "badge": None, "cta": "", "features": [{"label": "Upload không giới hạn đồ án", "included": True, "highlight": True}, {"label": "Phân tích tài liệu AI nâng cao", "included": True}, {"label": "Không giới hạn câu hỏi phản biện", "included": True}, {"label": "Mock Room với mentor không giới hạn", "included": True, "highlight": True}, {"label": "Báo cáo PDF chi tiết + biểu đồ", "included": True}, {"label": "Phân tích code chuyên sâu", "included": True}, {"label": "Đánh giá theo rubric chi tiết", "included": True}, {"label": "Hỗ trợ mentor 1-1", "included": False}, {"label": "Phòng Mock AI", "included": False}], "sort_order": 1},
-    {"slug": "100003", "name": "VIP", "tagline": "Trải nghiệm đầy đủ nhất", "icon": "crown", "monthly": 199000, "yearly": 1990000, "featured": False, "badge": None, "cta": "", "features": [{"label": "Tất cả tính năng Premium", "included": True, "highlight": True}, {"label": "Phòng Mock AI không giới hạn", "included": True, "highlight": True}, {"label": "Phân tích tài liệu AI cao cấp (GPT-4o)", "included": True}, {"label": "Câu hỏi phản biện chuyên sâu theo ngành", "included": True}, {"label": "Mock Room với mentor ưu tiên + record phiên", "included": True}, {"label": "Báo cáo PDF chuyên nghiệp cho hội đồng", "included": True}, {"label": "Phân tích code + đề xuất cải thiện", "included": True}, {"label": "Đánh giá rubric + so sánh top sinh viên", "included": True}], "sort_order": 2},
+    {"slug": "100001", "name": "Free", "tagline": "Khởi đầu miễn phí", "icon": "sparkles", "monthly": 0, "yearly": 0, "featured": False, "badge": None, "cta": "", "max_documents_per_month": 3, "features": [{"label": "Upload tối đa 3 đồ án / tháng", "included": True}, {"label": "Phân tích tài liệu bằng AI cơ bản", "included": True}, {"label": "Tạo 20 câu hỏi phản biện / lượt", "included": True}, {"label": "Mock Room với mentor: 1 lần", "included": True}, {"label": "Báo cáo PDF cơ bản", "included": True}, {"label": "Phân tích code chuyên sâu", "included": False}, {"label": "Đánh giá theo rubric chi tiết", "included": False}, {"label": "Hỗ trợ mentor 1-1", "included": False}, {"label": "Phòng Mock AI", "included": False}], "sort_order": 0},
+    {"slug": "100002", "name": "Premium", "tagline": "Cho sinh viên nghiêm túc", "icon": "zap", "monthly": 99000, "yearly": 990000, "featured": True, "badge": None, "cta": "", "max_documents_per_month": None, "features": [{"label": "Upload không giới hạn đồ án", "included": True, "highlight": True}, {"label": "Phân tích tài liệu AI nâng cao", "included": True}, {"label": "Không giới hạn câu hỏi phản biện", "included": True}, {"label": "Mock Room với mentor không giới hạn", "included": True, "highlight": True}, {"label": "Báo cáo PDF chi tiết + biểu đồ", "included": True}, {"label": "Phân tích code chuyên sâu", "included": True}, {"label": "Đánh giá theo rubric chi tiết", "included": True}, {"label": "Hỗ trợ mentor 1-1", "included": False}, {"label": "Phòng Mock AI", "included": False}], "sort_order": 1},
+    {"slug": "100003", "name": "VIP", "tagline": "Trải nghiệm đầy đủ nhất", "icon": "crown", "monthly": 199000, "yearly": 1990000, "featured": False, "badge": None, "cta": "", "max_documents_per_month": None, "features": [{"label": "Tất cả tính năng Premium", "included": True, "highlight": True}, {"label": "Phòng Mock AI không giới hạn", "included": True, "highlight": True}, {"label": "Phân tích tài liệu AI cao cấp (GPT-4o)", "included": True}, {"label": "Câu hỏi phản biện chuyên sâu theo ngành", "included": True}, {"label": "Mock Room với mentor ưu tiên + record phiên", "included": True}, {"label": "Báo cáo PDF chuyên nghiệp cho hội đồng", "included": True}, {"label": "Phân tích code + đề xuất cải thiện", "included": True}, {"label": "Đánh giá rubric + so sánh top sinh viên", "included": True}], "sort_order": 2},
 ]
 
 
@@ -40,10 +40,26 @@ class PlanPayload(BaseModel):
     features: list[PlanFeature] = []
     active: bool = True
     sort_order: int = 0
+    max_documents_per_month: int | None = None
 
 
 def serialize(row: SubscriptionPlan) -> dict:
-    return {"id": row.id, "slug": row.slug, "name": row.name, "tagline": row.tagline, "icon": row.icon, "price": row.monthly, "monthly": row.monthly, "yearly": row.yearly, "featured": row.featured, "special": row.special, "features": row.features or [], "active": row.active, "sort_order": row.sort_order}
+    return {
+        "id": row.id,
+        "slug": row.slug,
+        "name": row.name,
+        "tagline": row.tagline,
+        "icon": row.icon,
+        "price": row.monthly,
+        "monthly": row.monthly,
+        "yearly": row.yearly,
+        "featured": row.featured,
+        "special": row.special,
+        "features": row.features or [],
+        "active": row.active,
+        "sort_order": row.sort_order,
+        "max_documents_per_month": getattr(row, "max_documents_per_month", None),
+    }
 
 
 def validate_prices(monthly: int, yearly: int) -> None:

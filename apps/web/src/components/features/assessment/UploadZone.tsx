@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from "react";
+import Link from "next/link";
 import { MAX_FILE_SIZE } from "@/lib/constants";
 import { ChunkedUploader } from "@/lib/chunked-upload";
 
@@ -45,6 +46,7 @@ export function UploadZone({
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [error, setError] = useState("");
+  const [isQuotaError, setIsQuotaError] = useState(false);
   const [progress, setProgress] = useState(0);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [speed, setSpeed] = useState(0);
@@ -147,6 +149,7 @@ export function UploadZone({
   // Kiểm tra kích thước trước khi nhận file (khớp MAX_FILE_SIZE backend, 10GB)
   const selectFile = (f: File): boolean => {
     setError("");
+    setIsQuotaError(false);
     if (f.size > MAX_FILE_SIZE) {
       setError(`Tệp vượt quá ${MAX_FILE_SIZE / (1024 * 1024 * 1024)}GB. Vui lòng chọn tệp nhỏ hơn.`);
       return false;
@@ -237,9 +240,26 @@ export function UploadZone({
                 emitProgress({ progress: 100, loaded: file.size, total: file.size, speed: 0, eta: 0, status: "success" });
                 resolve();
               } else {
+                const rawDetail = data.detail;
+                const detailText =
+                  typeof rawDetail === "string"
+                    ? rawDetail
+                    : rawDetail?.detail || (Array.isArray(rawDetail) ? rawDetail[0]?.msg : null);
                 const msg =
-                  data.error || data.detail?.detail || data.message || `HTTP ${xhr.status}`;
+                  data.error ||
+                  detailText ||
+                  data.message ||
+                  (xhr.status === 403
+                    ? "Bạn đã đạt giới hạn 3 đồ án trong tháng này của gói Miễn phí. Hãy nâng cấp lên gói Premium để upload không giới hạn."
+                    : `HTTP ${xhr.status}`);
                 setError(msg);
+                if (
+                  xhr.status === 403 ||
+                  (typeof msg === "string" &&
+                    (msg.includes("giới hạn") || msg.includes("nâng cấp") || msg.toLowerCase().includes("quota")))
+                ) {
+                  setIsQuotaError(true);
+                }
                 emitProgress({ progress, loaded: 0, total: file.size, speed: 0, eta: null, status: "error", error: msg });
                 reject(new Error(msg));
               }
@@ -268,6 +288,15 @@ export function UploadZone({
       console.error(error);
       const msg = error?.message ?? "Không thể kết nối đến máy chủ phân tích";
       setError(msg);
+      if (
+        typeof msg === "string" &&
+        (msg.includes("giới hạn") ||
+          msg.includes("nâng cấp") ||
+          msg.includes("403") ||
+          msg.toLowerCase().includes("quota"))
+      ) {
+        setIsQuotaError(true);
+      }
       emitProgress({ progress, loaded: 0, total: file?.size ?? 0, speed: 0, eta: null, status: "error", error: msg });
     } finally {
       setIsProcessing(false);
@@ -286,6 +315,7 @@ export function UploadZone({
     setProgress(0);
     setStatusText("");
     setError("");
+    setIsQuotaError(false);
     setSpeed(0);
     setEta(null);
     startTimeRef.current = 0;
@@ -424,13 +454,29 @@ export function UploadZone({
 
       {/* Error Banner — hiển thị bền sau khi xử lý kết thúc */}
       {error && (
-        <div className="mt-4 flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+        <div
+          data-testid="upload-error-banner"
+          className="mt-4 flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl"
+        >
           <svg className="w-5 h-5 text-red-400 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
           </svg>
-          <div>
-            <p className="text-[14px] font-semibold text-red-400 mb-1">Không thể tải tài liệu này</p>
+          <div className="flex-1">
+            <p className="text-[14px] font-semibold text-red-400 mb-1">
+              {isQuotaError ? "Giới hạn gói tải lên" : "Không thể tải tài liệu này"}
+            </p>
             <p className="text-[13px] text-red-400 leading-relaxed">{error}</p>
+            {isQuotaError && (
+              <div className="mt-3">
+                <Link
+                  href="/pricing"
+                  data-testid="upload-error-upgrade-btn"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:bg-primary/90 transition-colors shadow-sm"
+                >
+                  Nâng cấp Premium ngay →
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}

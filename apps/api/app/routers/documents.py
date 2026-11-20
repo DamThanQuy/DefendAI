@@ -68,6 +68,7 @@ from app.services.storage import (
     get_object_size,
 )
 from app.services.archive_service import list_archive_members, read_archive_member, ArchiveError
+from app.services.membership import check_document_upload_quota
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
@@ -284,6 +285,7 @@ async def upload_document(
     db: AsyncSession = Depends(get_db),
 ):
     """Upload 1 file lên hệ thống."""
+    await check_document_upload_quota(db, user)
     doc_type = _get_doc_type(file.filename or "unknown")
 
     content = await file.read()
@@ -371,6 +373,7 @@ async def multipart_init(
     db: AsyncSession = Depends(get_db),
 ):
     """Initialize multipart upload session."""
+    await check_document_upload_quota(db, user)
     doc_type = _get_doc_type(payload.filename)
     safe_filename = _sanitize_filename(payload.filename)
 
