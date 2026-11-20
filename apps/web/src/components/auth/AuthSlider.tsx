@@ -66,8 +66,6 @@ function LoginForm(props: {
   setEmail: (v: string) => void;
   password: string;
   setPassword: (v: string) => void;
-  remember: boolean;
-  setRemember: (v: boolean) => void;
   error: string;
   loading: boolean;
   onSwitch: () => void;
@@ -142,18 +140,6 @@ function LoginForm(props: {
             value={props.password}
             onChange={(e) => props.setPassword(e.target.value)}
           />
-        </div>
-
-        <div className="flex items-center justify-between">
-          <label className="flex cursor-pointer items-center gap-2 text-xs sm:text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={props.remember}
-              onChange={(e) => props.setRemember(e.target.checked)}
-              className="h-3.5 w-3.5 sm:h-4 sm:w-4 rounded border-border text-primary focus:ring-primary"
-            />
-            Ghi nhớ đăng nhập
-          </label>
         </div>
 
         <Button
@@ -329,7 +315,6 @@ export function AuthSlider({
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -456,8 +441,6 @@ export function AuthSlider({
           setEmail={setEmail}
           password={password}
           setPassword={setPassword}
-          remember={remember}
-          setRemember={setRemember}
           error={error}
           loading={loading}
           onSwitch={() => setMode("register")}
