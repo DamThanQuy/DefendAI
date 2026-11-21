@@ -26,7 +26,7 @@ export const PLANS: Plan[] = [
     yearly: 0,
     cta: "Bắt đầu miễn phí",
     features: [
-      { label: "Upload tối đa 3 đồ án / tháng", included: true },
+      { label: "Upload tối đa 3 tài liệu / tháng", included: true },
       { label: "Phân tích tài liệu bằng AI cơ bản", included: true },
       { label: "Tạo 20 câu hỏi phản biện / lượt", included: true },
       { label: "Mock Room với mentor: 1 lần", included: true },

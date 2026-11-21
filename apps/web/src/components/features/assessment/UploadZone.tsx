@@ -250,7 +250,7 @@ export function UploadZone({
                   detailText ||
                   data.message ||
                   (xhr.status === 403
-                    ? "Bạn đã đạt giới hạn 3 đồ án trong tháng này của gói Miễn phí. Hãy nâng cấp lên gói Premium để upload không giới hạn."
+                    ? "Bạn đã đạt giới hạn 3 tài liệu trong tháng này của gói Miễn phí. Hãy nâng cấp lên gói Premium để upload không giới hạn."
                     : `HTTP ${xhr.status}`);
                 setError(msg);
                 if (

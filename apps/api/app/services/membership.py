@@ -213,7 +213,7 @@ async def check_document_upload_quota(db: AsyncSession, user: User) -> None:
     if limit is not None and used >= limit:
         raise HTTPException(
             status_code=403,
-            detail="Bạn đã đạt giới hạn 3 đồ án trong tháng này của gói Miễn phí. Hãy nâng cấp lên gói Premium để upload không giới hạn.",
+            detail="Bạn đã đạt giới hạn 3 tài liệu trong tháng này của gói Miễn phí. Hãy nâng cấp lên gói Premium để upload không giới hạn.",
         )
 
 
