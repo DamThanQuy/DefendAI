@@ -40,19 +40,19 @@ export default function RootLayout({
         <body className="font-sans min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           <ThemeProvider defaultTheme="dark" storageKey="defendai-theme">
             <AuthProvider>
-              <TopProgress />
-              <Navbar />
-              <main className="flex-1">
-                <AuthGate>
-                  <UploadProvider>
+              <UploadProvider>
+                <TopProgress />
+                <Navbar />
+                <main className="flex-1">
+                  <AuthGate>
                     <AppShell>{children}</AppShell>
-                  </UploadProvider>
-                </AuthGate>
-              </main>
-              <Footer />
-              <FeedbackFloatingButton />
-              <ProductTourGate />
-              <Toaster position="top-right" richColors />
+                  </AuthGate>
+                </main>
+                <Footer />
+                <FeedbackFloatingButton />
+                <ProductTourGate />
+                <Toaster position="top-right" richColors />
+              </UploadProvider>
             </AuthProvider>
           </ThemeProvider>
         </body>

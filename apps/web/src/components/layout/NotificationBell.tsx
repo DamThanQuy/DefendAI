@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Bell,
   UploadCloud,
@@ -58,6 +61,7 @@ function formatTimeAgo(timestamp: number): string {
 }
 
 export function NotificationBell() {
+  const { user } = useAuth();
   const { uploads, cancelUpload, retryUpload, dismissUpload } = useUpload();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -299,7 +303,24 @@ export function NotificationBell() {
               </button>
             </div>
 
-            <div className="overflow-y-auto space-y-4 pr-0.5 flex-1 custom-scrollbar">
+            {!user ? (
+              <div className="py-6 px-4 text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
+                  <Bell className="w-6 h-6" />
+                </div>
+                <h4 className="text-sm font-bold text-foreground">Bạn chưa đăng nhập</h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Vui lòng đăng nhập để xem thông báo tiến trình đồ án, mock defense và nhận xét của AI.
+                </p>
+                <Link href="/login" onClick={() => setIsOpen(false)} className="block pt-2">
+                  <Button size="sm" className="w-full rounded-full">
+                    Đăng nhập ngay
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-y-auto space-y-4 pr-0.5 flex-1 custom-scrollbar">
               {/* Section 1: Active Uploads (nếu có tác vụ tải lên) */}
               {uploads.length > 0 && (
                 <div className="space-y-2">
@@ -488,6 +509,8 @@ export function NotificationBell() {
                 <span>Xóa lịch sử</span>
               </button>
             </div>
+            </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

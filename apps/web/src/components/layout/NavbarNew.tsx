@@ -1,14 +1,15 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { clearSession } from "@/lib/auth";
 import { isPublicPath } from "@/lib/shell";
-import { GraduationCap, Bell, Settings } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/layout/NotificationBell";
+import { UserMenuDropdown } from "@/components/layout/UserMenuDropdown";
 
 const navLinks: { href: string; label: string; roles?: string[]; public?: boolean }[] = [
   { href: "/", label: "Trang chủ", public: true },
@@ -23,14 +24,7 @@ const navLinks: { href: string; label: string; roles?: string[]; public?: boolea
 
 export function Navbar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { user } = useAuth();
-
-  function handleLogout() {
-    clearSession();
-    window.dispatchEvent(new Event("storage"));
-    router.push("/login");
-  }
 
   if (!isPublicPath(pathname)) return null;
 
@@ -94,32 +88,8 @@ export function Navbar() {
                   Dashboard
                 </Button>
               </Link>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <Bell className="w-5 h-5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <Settings className="w-5 h-5" />
-              </Button>
-              <div className="w-px h-6 bg-border mx-1" />
-              <Link href="/profile/avatar">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center cursor-pointer overflow-hidden">
-                  <Image
-                    src={user.avatar || "/avatar.jpg"}
-                    alt="Avatar"
-                    width={36}
-                    height={36}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              </Link>
-              <Button
-                variant="ghost"
-                onClick={handleLogout}
-                className="rounded-full"
-              >
-                <GraduationCap className="w-4 h-4 mr-2" />
-                Đăng xuất
-              </Button>
+              <NotificationBell />
+              <UserMenuDropdown />
             </>
           ) : (
             <>
