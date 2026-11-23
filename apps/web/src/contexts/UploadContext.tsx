@@ -199,10 +199,20 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+const FALLBACK_UPLOAD_CONTEXT: UploadContextType = {
+  uploads: [],
+  showUploadModal: false,
+  openUploadModal: () => {},
+  closeUploadModal: () => {},
+  minimizeUploadModal: () => {},
+  handleUploadProgress: () => {},
+  dismissUpload: () => {},
+  cancelUpload: () => {},
+  retryUpload: () => {},
+  subscribeUploadSuccess: () => () => {},
+};
+
 export function useUpload(): UploadContextType {
   const ctx = useContext(UploadContext);
-  if (!ctx) {
-    throw new Error("useUpload must be used within an UploadProvider");
-  }
-  return ctx;
+  return ctx || FALLBACK_UPLOAD_CONTEXT;
 }

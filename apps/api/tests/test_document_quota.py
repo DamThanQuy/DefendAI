@@ -238,7 +238,7 @@ async def test_check_document_upload_quota_enforcement(client):
             with pytest.raises(HTTPException) as exc_info:
                 await check_document_upload_quota(db, user)
             assert exc_info.value.status_code == 403
-            assert "Bạn đã đạt giới hạn 3 đồ án trong tháng này của gói Miễn phí" in exc_info.value.detail
+            assert "Bạn đã đạt giới hạn 3 tài liệu trong tháng này của gói Miễn phí" in exc_info.value.detail
     finally:
         _cleanup_user(user_id)
 
@@ -273,7 +273,7 @@ async def test_upload_endpoints_block_when_quota_exhausted(client):
         files = {"file": ("test.pdf", b"%PDF-1.4 mock content", "application/pdf")}
         resp = await client.post("/api/documents/upload", files=files, headers=_auth(user_id))
         assert resp.status_code == 403
-        assert "Bạn đã đạt giới hạn 3 đồ án trong tháng này của gói Miễn phí" in resp.json()["detail"]
+        assert "Bạn đã đạt giới hạn 3 tài liệu trong tháng này của gói Miễn phí" in resp.json()["detail"]
 
         # 2. Multipart init
         resp_init = await client.post(
@@ -282,6 +282,6 @@ async def test_upload_endpoints_block_when_quota_exhausted(client):
             headers=_auth(user_id),
         )
         assert resp_init.status_code == 403
-        assert "Bạn đã đạt giới hạn 3 đồ án trong tháng này của gói Miễn phí" in resp_init.json()["detail"]
+        assert "Bạn đã đạt giới hạn 3 tài liệu trong tháng này của gói Miễn phí" in resp_init.json()["detail"]
     finally:
         _cleanup_user(user_id)

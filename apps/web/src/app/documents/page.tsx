@@ -288,7 +288,15 @@ export default function DocumentsPage() {
                   }`}
                 />
                 <span>
-                  Đã dùng <strong className="font-semibold text-foreground">{docQuota.used}/{docQuota.limit}</strong> đồ án tháng này
+                  {isQuotaExhausted ? (
+                    <>
+                      Đã hết <strong className="font-semibold text-foreground">{docQuota.limit}</strong> lượt tải tài liệu tháng này
+                    </>
+                  ) : (
+                    <>
+                      Còn <strong className="font-semibold text-foreground">{docQuota.remaining ?? Math.max(0, (docQuota.limit ?? 3) - (docQuota.used ?? 0))}</strong> lượt tải tài liệu tháng này
+                    </>
+                  )}
                 </span>
                 {isQuotaExhausted && (
                   <Link
@@ -536,7 +544,7 @@ export default function DocumentsPage() {
             <p className="text-zinc-400 text-[14px] text-center mb-6 leading-relaxed">
               Tài khoản miễn phí được tải lên tối đa{" "}
               <span className="font-semibold text-foreground">
-                {docQuota?.limit ?? 3} đồ án/tháng
+                {docQuota?.limit ?? 3} tài liệu/tháng
               </span>
               . Bạn đã sử dụng hết hạn mức trong tháng này. Nâng cấp lên gói{" "}
               <span className="font-semibold text-primary">Premium</span> để tiếp tục tải lên không giới hạn và mở khóa đầy đủ tính năng.

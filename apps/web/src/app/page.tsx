@@ -7,15 +7,14 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
-  Search,
   FileText,
   MonitorPlay,
   Sparkles,
-  CheckCircle2,
   Smartphone,
   Code2,
   GitBranch,
   Zap,
+  CheckCircle2,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -81,7 +80,7 @@ export default function LandingPage() {
           transition={{ duration: 0.5 }}
           className="container mx-auto text-center max-w-4xl"
         >
-          <h1 className="text-5xl md:text-7xl font-serif font-black tracking-tight mb-6 leading-[1.05] text-foreground">
+          <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-6 leading-[1.05] text-foreground">
             Chủ động đồ án. <br />
             <span className="text-gradient">Làm chủ tương lai.</span>
           </h1>
@@ -91,37 +90,29 @@ export default function LandingPage() {
             luyện tập phản biện, nhận diện lỗ hổng và tự tin trước hội đồng.
           </p>
 
-          {/* Search-like CTA — Qiz HUB style */}
-          <div className="max-w-2xl mx-auto mb-8">
-            <Link href={startHref}>
-              <div className="group relative flex items-center gap-3 p-2 rounded-full border border-border bg-card/80 backdrop-blur-sm shadow-lg shadow-primary/5 hover:border-primary/40 transition-all cursor-pointer">
-                <div className="flex items-center gap-2 pl-5 flex-1 text-muted-foreground">
-                  <Search className="w-5 h-5" />
-                  <span className="text-sm md:text-base">
-                    Upload đồ án đầu tiên của bạn — AI sẽ phân tích miễn phí...
-                  </span>
-                </div>
-                <Button className="rounded-full px-6 h-12 group-hover:scale-[1.02] transition-transform">
-                  Bắt đầu
-                  <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+          {/* CTA Buttons — Modern SaaS Style */}
+          <div className="max-w-2xl mx-auto mb-10">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
+              <Link href={startHref} className="w-full sm:w-auto">
+                <Button size="lg" className="w-full sm:w-auto rounded-full h-14 px-8 text-base font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] transition-all">
+                  <Sparkles className="w-5 h-5 mr-2" />
+                  Bắt đầu phân tích miễn phí
+                  <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Button>
-              </div>
-            </Link>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/demo">
-              <Button variant="outline" className="rounded-full h-12 px-6">
-                <Sparkles className="w-4 h-4 mr-2" />
-                Xem demo không cần đăng ký
-              </Button>
-            </Link>
-            <Link href="#how">
-              <Button variant="ghost" className="rounded-full h-12 px-6">
-                Cách hoạt động
-                <ArrowRight className="w-4 h-4 ml-1" />
-              </Button>
-            </Link>
+              </Link>
+              <Link href="/demo" className="w-full sm:w-auto">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto rounded-full h-14 px-7 text-base font-medium hover:bg-card/80 transition-all">
+                  <MonitorPlay className="w-5 h-5 mr-2 text-primary" />
+                  Xem demo không cần đăng ký
+                </Button>
+              </Link>
+            </div>
+            <div className="flex items-center justify-center text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                100% miễn phí đồ án đầu tiên
+              </span>
+            </div>
           </div>
         </motion.div>
       </section>
@@ -133,7 +124,7 @@ export default function LandingPage() {
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-bold uppercase tracking-wider mb-4">
               Cách hoạt động
             </div>
-            <h2 className="text-3xl md:text-5xl font-serif font-bold mb-4">
+            <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-4">
               Luyện bảo vệ thông minh, <br className="hidden md:block" />
               3 bước đơn giản
             </h2>
@@ -163,7 +154,7 @@ export default function LandingPage() {
                   <div className="text-xs font-bold text-primary mb-2 tracking-wider">
                     BƯỚC {step.num}
                   </div>
-                  <h3 className="text-xl font-bold mb-2 font-serif">{step.title}</h3>
+                  <h3 className="text-xl font-bold mb-2">{step.title}</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {step.desc}
                   </p>
@@ -181,7 +172,7 @@ export default function LandingPage() {
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold uppercase tracking-wider mb-4">
               Tại sao chọn GraduAI
             </div>
-            <h2 className="text-3xl md:text-5xl font-serif font-bold mb-4">
+            <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-4">
               Thiết kế cho buổi bảo vệ <br className="hidden md:block" />
               thực sự thành công
             </h2>
@@ -225,7 +216,7 @@ export default function LandingPage() {
                   <Sparkles className="w-3.5 h-3.5" />
                   Demo không cần đăng ký
                 </div>
-                <h3 className="text-3xl md:text-4xl font-serif font-bold mb-3">
+                <h3 className="text-3xl md:text-4xl font-bold tracking-tight mb-3">
                   AI hỏi như hội đồng thật
                 </h3>
                 <p className="text-muted-foreground mb-6 leading-relaxed">
@@ -273,39 +264,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-20 relative z-10">
-        <div className="container mx-auto px-4 max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="dark-card rounded-3xl p-12 md:p-20 text-center relative overflow-hidden border-primary/30 shadow-[0_0_50px_hsl(var(--primary)/0.15)]"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-secondary/10 pointer-events-none" />
-            <div className="relative">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-bold uppercase tracking-wider mb-6">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Miễn phí cho sinh viên
-              </div>
-              <h2 className="text-3xl md:text-5xl font-serif font-black mb-5">
-                Sẵn sàng toả sáng trước hội đồng?
-              </h2>
-              <p className="text-muted-foreground text-lg mb-10 max-w-2xl mx-auto">
-                Hơn 943+ sinh viên đã chuẩn bị hoàn hảo với GraduAI.
-                Đừng để những thiếu sót nhỏ làm hỏng kết quả bảo vệ của bạn.
-              </p>
-              <Link href={startHref}>
-                <Button className="rounded-full h-14 px-10 text-lg shadow-[0_0_25px_hsl(var(--primary)/0.5)] hover:brightness-110 group">
-                  Bắt đầu hoàn toàn miễn phí
-                  <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
-            </div>
-          </motion.div>
-        </div>
-      </section>
     </div>
   );
 }
