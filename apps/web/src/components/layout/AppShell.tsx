@@ -224,7 +224,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }`}
       >
         {/* Top bar */}
-        <header className="shrink-0 z-20 h-16 border-b border-border bg-background/80 backdrop-blur-md flex items-center px-6 gap-4">
+        <header className="relative z-50 shrink-0 h-16 border-b border-border bg-background/80 backdrop-blur-md flex items-center px-6 gap-4">
           {/* Breadcrumb */}
           <nav className="flex items-center text-[13px] font-medium gap-1.5 min-w-0">
             <Link
