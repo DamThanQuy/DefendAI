@@ -32,14 +32,11 @@ export function setMembershipPlan(plan: MembershipPlan) {
   } catch {}
 }
 
-/** Số vé trải nghiệm Mock AI: vé vừa nhận hoặc vừa dùng được ghi vào localStorage trước khi hồ sơ kịp cập nhật. */
+/** Số vé trải nghiệm Mock AI đọc trực tiếp từ profile_data (Single Source of Truth). */
 export function readTrialTickets(profileData: unknown): number {
-  if (typeof window === "undefined") return 0;
-  let stored: string | null = null;
-  try {
-    stored = localStorage.getItem("mock_ai_trial_tickets");
-  } catch {}
-  const value = Number(stored ?? (profileData as { mock_ai_trial_tickets?: unknown } | null | undefined)?.mock_ai_trial_tickets);
+  const value = Number(
+    (profileData as { mock_ai_trial_tickets?: unknown } | null | undefined)?.mock_ai_trial_tickets,
+  );
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 

@@ -37,6 +37,7 @@ export interface AuthContextType {
   loading: boolean;
   logout: () => void;
   refreshUser: () => Promise<void>;
+  patchProfileData: (partial: Record<string, unknown>) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -189,7 +190,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (fresh.id !== flagsOwnerId.current) {
             flagsOwnerId.current = fresh.id;
             syncMembershipFlag(fresh.profile_data);
-            localStorage.removeItem("mock_ai_trial_tickets");
           }
           setUser(fresh);
         }
@@ -209,6 +209,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [roles]
   );
 
+  const patchProfileData = useCallback(
+    (partial: Record<string, unknown>) => {
+      const base = user ?? readCachedUser();
+      if (!base) return;
+      const nextUser: AuthUser = {
+        ...base,
+        profile_data: { ...(base.profile_data ?? {}), ...partial },
+      };
+      setUser(nextUser);
+      try {
+        localStorage.setItem("user", JSON.stringify(nextUser));
+      } catch {}
+      invalidateCache();
+      window.dispatchEvent(new Event("storage"));
+    },
+    [user],
+  );
+
   const value = useMemo<AuthContextType>(
     () => ({
       user: currentUser,
@@ -218,8 +236,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       logout,
       refreshUser: fetchUser,
+      patchProfileData,
     }),
-    [currentUser, roles, hasRole, loading, logout, fetchUser]
+    [currentUser, roles, hasRole, loading, logout, fetchUser, patchProfileData]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

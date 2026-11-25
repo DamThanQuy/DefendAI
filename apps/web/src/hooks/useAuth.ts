@@ -17,6 +17,7 @@ const fallbackContext: AuthContextType = {
   loading: true,
   logout: () => {},
   refreshUser: async () => {},
+  patchProfileData: () => {},
 };
 
 export function useAuth(): AuthContextType {

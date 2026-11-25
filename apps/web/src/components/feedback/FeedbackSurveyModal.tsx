@@ -167,6 +167,7 @@ const PAY_WILLINGNESS_OPTIONS = [
 export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurveyModalProps) {
   const { refreshUser } = useAuth();
   const router = useRouter();
+  const { patchProfileData } = useAuth();
 
   // Trạng thái tải ngữ cảnh người dùng
   const [context, setContext] = useState<FeedbackUserContext | null>(null);
@@ -317,11 +318,14 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
       const isReward = !context?.has_submitted;
       setRewardGranted(isReward);
 
-      // Cập nhật localStorage để các trang khác (mock-room) nhận ngay lập tức
-      try {
-        localStorage.setItem("mock_ai_trial_tickets", String(tickets));
-        window.dispatchEvent(new Event("storage"));
-      } catch {}
+      // Đồng bộ trực tiếp vào AuthProvider.user.profile_data (0 request thừa)
+      patchProfileData({
+        mock_ai_trial_tickets: tickets,
+        feedback_status: {
+          submitted: true,
+          reward_ticket_granted: true,
+        },
+      });
 
       toast.success("Gửi phản hồi thành công!", {
         description: isReward
