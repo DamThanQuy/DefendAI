@@ -17,7 +17,7 @@ export default function MentorDashboard() {
     <div className="max-w-6xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-serif font-bold text-foreground mb-2">Tổng quan</h1>
+        <h1 className="text-2xl font-bold text-foreground mb-2">Tổng quan</h1>
         <p className="text-[14px] text-muted-foreground">
           Chào mừng trở lại! Dưới đây là các chỉ số và lịch trình hôm nay của bạn.
         </p>

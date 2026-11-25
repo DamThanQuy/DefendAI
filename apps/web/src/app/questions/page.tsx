@@ -156,7 +156,7 @@ export default function QuestionsPage() {
         {/* Header Area */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
           <div className="max-w-2xl">
-            <h1 className="text-[28px] font-serif font-bold text-primary mb-3">Kết quả phân tích (AI Results)</h1>
+            <h1 className="text-[28px] font-bold text-primary mb-3">Kết quả phân tích (AI Results)</h1>
             <p className="text-muted-foreground text-[14px] leading-relaxed">
               Dựa trên nội dung đồ án của bạn, AI đã phân tích và dự đoán danh sách các câu hỏi mà hội đồng phản biện có khả năng cao sẽ đặt ra. Hãy chuẩn bị kỹ lưỡng để đạt kết quả tốt nhất.
             </p>
@@ -301,7 +301,7 @@ export default function QuestionsPage() {
                         {difficultyLabel}
                       </span>
                     </div>
-                    <h3 className="text-[18px] font-serif font-bold text-primary mb-3 leading-snug">
+                    <h3 className="text-[18px] font-bold text-primary mb-3 leading-snug">
                       {q.question}
                     </h3>
 
@@ -352,7 +352,7 @@ export default function QuestionsPage() {
             <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-[0.03] rounded-full -mr-10 -mt-10 pointer-events-none"></div>
             <div className="absolute bottom-0 right-40 w-40 h-40 bg-white opacity-[0.03] rounded-full -mb-10 pointer-events-none"></div>
 
-            <h2 className="text-[26px] font-serif font-bold text-white mb-3 relative z-10">Bạn muốn thử luyện tập trực tiếp?</h2>
+            <h2 className="text-[26px] font-bold text-white mb-3 relative z-10">Bạn muốn thử luyện tập trực tiếp?</h2>
             <p className="text-blue-100/90 text-[15px] max-w-xl mb-8 relative z-10 leading-relaxed font-medium">
               Vào Mock Room để thực hành trả lời các câu hỏi này với hội đồng AI ảo. Hệ thống sẽ nhận xét, đưa ra lời khuyên và chỉnh sửa giọng điệu, phong thái của bạn.
             </p>

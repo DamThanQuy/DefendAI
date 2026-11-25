@@ -43,7 +43,7 @@ export default function AdminMajorStatsPage() {
       </div>
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl md:text-4xl font-serif font-black text-foreground mb-1">
+          <h1 className="text-3xl md:text-4xl font-black text-foreground mb-1">
             Thống kê ngành học
           </h1>
           <p className="text-muted-foreground text-sm">
@@ -75,7 +75,7 @@ export default function AdminMajorStatsPage() {
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-2xl font-black font-serif text-foreground">{stats.total_students}</p>
+              <p className="text-2xl font-black text-foreground">{stats.total_students}</p>
               <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
                 Tổng sinh viên
               </p>
@@ -86,7 +86,7 @@ export default function AdminMajorStatsPage() {
               <GraduationCap className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-2xl font-black font-serif text-foreground">{stats.with_major}</p>
+              <p className="text-2xl font-black text-foreground">{stats.with_major}</p>
               <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
                 Đã chọn ngành
               </p>
@@ -97,7 +97,7 @@ export default function AdminMajorStatsPage() {
               <GraduationCap className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-2xl font-black font-serif text-foreground">{stats.without_major}</p>
+              <p className="text-2xl font-black text-foreground">{stats.without_major}</p>
               <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
                 Chưa chọn ngành
               </p>
@@ -109,7 +109,7 @@ export default function AdminMajorStatsPage() {
       {/* Bar list theo ngành */}
       {stats && (
         <div className="dark-card rounded-2xl p-6">
-          <h2 className="text-lg font-serif font-bold text-foreground mb-5">Chi tiết theo ngành</h2>
+          <h2 className="text-lg font-bold text-foreground mb-5">Chi tiết theo ngành</h2>
           {stats.rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">Chưa có sinh viên nào.</p>
           ) : (

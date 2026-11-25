@@ -18,7 +18,7 @@ export default function AdminOverviewPage() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-serif font-bold text-foreground mb-2">Tổng quan hệ thống</h1>
+        <h1 className="text-2xl font-bold text-foreground mb-2">Tổng quan hệ thống</h1>
         <p className="text-[14px] text-muted-foreground">Các chỉ số tổng quan của nền tảng.</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

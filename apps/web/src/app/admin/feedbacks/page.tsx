@@ -245,7 +245,7 @@ export default function AdminFeedbacksPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-serif font-bold text-foreground">
+          <h1 className="text-2xl font-bold text-foreground">
             Phản hồi & Khảo sát Người dùng
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -797,7 +797,7 @@ export default function AdminFeedbacksPage() {
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/40">
               <div>
-                <h3 className="text-base font-serif font-bold text-foreground">
+                <h3 className="text-base font-bold text-foreground">
                   Chi tiết Phản hồi #{selectedFeedback.id}
                 </h3>
                 <p className="text-xs text-muted-foreground">

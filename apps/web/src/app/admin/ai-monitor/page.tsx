@@ -9,7 +9,7 @@ export default function AdminAiMonitorPage() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-serif font-bold text-foreground mb-2">🤖 Giám sát AI — Code Review</h1>
+        <h1 className="text-2xl font-bold text-foreground mb-2">🤖 Giám sát AI — Code Review</h1>
         <p className="text-[14px] text-muted-foreground">Xem mọi lượt quét của mọi user (giám sát hệ thống).</p>
       </div>
       <Card>

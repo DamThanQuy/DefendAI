@@ -1088,7 +1088,7 @@ function MockRoomPageContent() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] bg-[#0A0A0A] text-white font-sans overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-64px)] bg-[#0A0A0A] text-white overflow-hidden">
       {/* Hidden audio element for WebRTC remote playback */}
       <audio ref={remoteAudioRef} autoPlay playsInline />
 

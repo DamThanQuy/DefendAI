@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, EB_Garamond } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import "./globals.css";
 import { Navbar } from "@/components/layout/NavbarNew";
@@ -16,7 +16,6 @@ import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin", "vietnamese"], variable: "--font-sans" });
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin", "vietnamese"], variable: "--font-mono" });
-const garamond = EB_Garamond({ subsets: ["latin", "vietnamese"], variable: "--font-serif", weight: ["400", "500", "600", "700", "800"] });
 
 export const metadata: Metadata = {
   title: "GraduAI - Mock Defense",
@@ -29,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi" className={`${inter.variable} ${jetbrainsMono.variable} ${garamond.variable}`} suppressHydrationWarning>
+    <html lang="vi" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <head>
         {/* Expose backend URL for direct chunk upload (bypass BFF proxy) */}
         {process.env.NEXT_PUBLIC_BACKEND_URL && (

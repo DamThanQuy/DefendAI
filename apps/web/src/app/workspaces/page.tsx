@@ -298,7 +298,7 @@ export default function WorkspacesPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-serif font-black text-foreground mb-2">
+            <h1 className="text-3xl font-black text-foreground mb-2">
               Workspace của tôi
             </h1>
             <p className="text-muted-foreground text-[14px]">
@@ -340,7 +340,7 @@ export default function WorkspacesPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
               </svg>
             </div>
-            <h2 className="text-lg font-serif font-bold text-foreground mb-2">
+            <h2 className="text-lg font-bold text-foreground mb-2">
               Chưa có workspace nào
             </h2>
             <p className="text-muted-foreground text-[14px] mb-6">

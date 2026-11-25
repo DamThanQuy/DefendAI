@@ -406,7 +406,7 @@ export default function CheckoutClient() {
             <Sparkles className="w-4 h-4" />
             Cổng thanh toán sinh viên
           </div>
-          <h1 className="text-3xl md:text-4xl font-serif font-black mb-2">
+          <h1 className="text-3xl md:text-4xl font-black mb-2">
             Thanh toán đăng ký gói {plan.name}
           </h1>
           <p className="text-muted-foreground text-sm md:text-base">
@@ -424,7 +424,7 @@ export default function CheckoutClient() {
           >
             {/* Payment methods selection */}
             <Card className="p-6">
-              <h2 className="text-base font-serif font-bold mb-4 flex items-center gap-2">
+              <h2 className="text-base font-bold mb-4 flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-primary" />
                 Phương thức thanh toán
               </h2>
@@ -641,7 +641,7 @@ export default function CheckoutClient() {
             className="lg:col-span-2 space-y-6"
           >
             <Card className="p-6">
-              <h2 className="text-lg font-serif font-bold mb-4">Thông tin đơn hàng</h2>
+              <h2 className="text-lg font-bold mb-4">Thông tin đơn hàng</h2>
 
               {/* Plan badge */}
               <div className="flex items-center gap-3 p-3 rounded-xl bg-primary/10 border border-primary/20 mb-4">
@@ -677,7 +677,7 @@ export default function CheckoutClient() {
 
               <div className="flex justify-between items-baseline mb-6">
                 <span className="font-bold text-base">Tổng thanh toán:</span>
-                <span className="text-2xl font-serif font-black text-primary">
+                <span className="text-2xl font-black text-primary">
                   {formatVND(displayAmount)}
                 </span>
               </div>

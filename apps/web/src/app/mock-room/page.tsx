@@ -207,7 +207,7 @@ export default function MockRoomLandingPage() {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-lg font-serif font-bold text-foreground">Phòng Mock AI</h3>
+                    <h3 className="text-lg font-bold text-foreground">Phòng Mock AI</h3>
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-muted text-muted-foreground border border-border">
                       <Lock className="w-3 h-3" /> VIP
                     </span>
@@ -258,7 +258,7 @@ export default function MockRoomLandingPage() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-lg font-serif font-bold text-foreground">
+                  <h3 className="text-lg font-bold text-foreground">
                     Phòng Mock AI
                   </h3>
                   {isVip ? (

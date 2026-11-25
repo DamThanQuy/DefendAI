@@ -398,7 +398,7 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-serif font-bold text-foreground">
+                <h2 className="text-lg font-bold text-foreground">
                   {context?.has_submitted ? "Góp ý & Đánh giá" : "Khảo sát Trải nghiệm & Nhận Quà"}
                 </h2>
                 {/* Badge gói tài khoản tự động */}
@@ -822,7 +822,7 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   {rewardGranted ? "Hoàn thành khảo sát" : "Gửi góp ý thành công"}
                 </div>
-                <h3 className="text-xl font-serif font-bold text-foreground">
+                <h3 className="text-xl font-bold text-foreground">
                   Cảm ơn bạn đã đóng góp ý kiến!
                 </h3>
                 <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
