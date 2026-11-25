@@ -65,6 +65,7 @@ export default function MockRoomLandingPage() {
   // booking_id -> thông báo lỗi mời
   const [inviteError, setInviteError] = useState<Record<number, string>>({});
   const [hasPastSessions, setHasPastSessions] = useState(false);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
   const { access } = usePlanAccess();
 
   const isStudent = hasRole("student") || (!hasRole("mentor") && !hasRole("admin"));
@@ -95,13 +96,12 @@ export default function MockRoomLandingPage() {
   async function load() {
     setLoading(true);
     try {
-      import("@/lib/api").then(({ api }) => {
+      setSessionsLoading(true);
+      void import("@/lib/api").then(({ api }) =>
         api.get("/api/mock-qa/sessions").then((r) => {
-          if (Array.isArray(r.data?.items) && r.data.items.length > 0) {
-            setHasPastSessions(true);
-          }
-        }).catch(() => {});
-      });
+          setHasPastSessions(Array.isArray(r.data?.items) && r.data.items.length > 0);
+        }),
+      ).catch(() => {}).finally(() => setSessionsLoading(false));
 
       const res = await getMyBookings();
       const list = res.data;
@@ -239,13 +239,18 @@ export default function MockRoomLandingPage() {
                     Góp ý nhận 1 vé dùng thử
                   </button>
                 )}
+                {sessionsLoading && (
+                  <span className="flex items-center gap-2 text-xs text-muted-foreground" role="status">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Đang tải lịch sử phiên...
+                  </span>
+                )}
                 {hasPastSessions && (
                   <button
                     type="button"
                     onClick={() => router.push("/mock-room-ai")}
                     className="text-xs text-muted-foreground underline hover:text-foreground"
                   >
-                    Xem lại phiên đã lưu
+                    Tiếp tục phiên đã lưu
                   </button>
                 )}
               </div>

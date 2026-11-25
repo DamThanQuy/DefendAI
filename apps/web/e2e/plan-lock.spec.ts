@@ -82,7 +82,7 @@ test.describe("Phòng Mock AI", () => {
     const card = page.getByTestId("mock-ai-locked");
     await expect(card).toContainText("chỉ dành cho gói VIP");
     await expect(page.getByTestId("upgrade-link").first()).toHaveText("Mua gói");
-    await expect(card.getByText("Xem lại phiên đã lưu")).toHaveCount(0);
+    await expect(card.getByText("Tiếp tục phiên đã lưu")).toHaveCount(0);
 
     // Bấm vào thẻ không vào được phòng.
     await card.getByRole("heading", { name: "Phòng Mock AI" }).click({ force: true });
@@ -146,7 +146,7 @@ test.describe("Phòng Mock AI", () => {
     });
     await page.goto("/mock-room");
 
-    await page.getByTestId("mock-ai-locked").getByText("Xem lại phiên đã lưu").click();
+    await page.getByTestId("mock-ai-locked").getByText("Tiếp tục phiên đã lưu").click();
     await page.waitForURL((url) => url.pathname === "/mock-room-ai", { timeout: 15000 });
     await page.getByTitle(/Tiếp tục/).first().click();
 
@@ -155,17 +155,50 @@ test.describe("Phòng Mock AI", () => {
     expect(chats).toBe(0);
   });
 
+  test("Phiên đã lưu vẫn tiếp tục chat khi hết vé, nhưng không mở được phiên mới", async ({ page }) => {
+    const session = { id: 9, document_id: null, title: "Phiên đang tiếp tục", message_count: 2, preview: "Em xin trình bày", created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00" };
+    await setup(page, { profile: { mock_ai_trial_tickets: 0 }, sessions: [session] });
+    await page.route("**/api/mock-qa/sessions/9", (route) =>
+      route.fulfill(json({ ...session, messages: [{ role: "user", content: "Em xin trình bày", time: "" }, { role: "assistant", content: "Câu hỏi cũ", time: "" }], can_chat: true }))
+    );
+    let chatSessionId: number | undefined;
+    await page.route("**/api/mock-qa/chat", (route) => {
+      chatSessionId = route.request().postDataJSON().session_id;
+      return route.fulfill(json({ reply: "Câu hỏi tiếp theo" }));
+    });
+    await page.goto("/mock-room-ai");
+
+    await page.getByTitle("Tiếp tục phiên này trong phòng chat").click();
+    await expect(page.getByRole("textbox")).toBeEnabled();
+    await page.getByRole("textbox").fill("Câu trả lời tiếp tục");
+    await page.getByTitle("Gửi câu trả lời").click();
+    await expect(page.getByText("Câu hỏi tiếp theo")).toBeVisible();
+    expect(chatSessionId).toBe(9);
+
+    await page.getByTitle("Thoát khỏi phòng chat").click();
+    await page.getByRole("button", { name: "Xác nhận rời" }).click();
+    await page.waitForURL((url) => url.pathname === "/mock-room", { timeout: 15000 });
+    await expect(page.getByTestId("mock-ai-locked")).toBeVisible();
+    await page.getByTestId("mock-ai-locked").getByRole("heading", { name: "Phòng Mock AI" }).click({ force: true });
+    await expect(page).toHaveURL(/\/mock-room$/);
+  });
+
   test("Kịch bản 7: Phiên mở bằng vé: tin nhắn gửi kèm mã phiên", async ({ page }) => {
     await setup(page, { profile: { mock_ai_trial_tickets: 1 } });
+    let getCount = 0;
+    let postCount = 0;
     await page.route("**/api/mock-qa/sessions", (route) =>
       route.request().method() === "POST"
-        ? route.fulfill(json({ id: 55, document_id: null, title: "Phiên", message_count: 0, preview: "", created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00", remaining_tickets: 0 }))
-        : route.fulfill(json({ items: [] }))
+        ? (postCount += 1, route.fulfill(json({ id: 55, document_id: null, title: "Phiên", message_count: 0, preview: "", created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00", remaining_tickets: 0 })))
+        : (++getCount === 1
+          ? route.fulfill(json({ items: [] }))
+          : (async () => {
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+              await route.fulfill(json({ items: [{ id: 55, document_id: null, title: "Phiên", message_count: 2, preview: "Em xin trình bày đề tài", created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00" }] }));
+            })())
     );
-    await page.route("**/api/mock-qa/sessions/55", (route) => route.fulfill(json({ success: true })));
-    const bodies: { session_id?: number }[] = [];
+    await page.route("**/api/mock-qa/sessions/55", (route) => route.fulfill(json({ id: 55, document_id: null, title: "Phiên", messages: [{ role: "assistant", content: "Chào em", time: "" }], can_chat: true })));
     await page.route("**/api/mock-qa/chat", (route) => {
-      bodies.push(route.request().postDataJSON());
       return route.fulfill(json({ reply: "Câu hỏi phản biện" }));
     });
     await page.goto("/mock-room-ai");
@@ -175,7 +208,30 @@ test.describe("Phòng Mock AI", () => {
     await page.getByTitle("Gửi câu trả lời").click();
 
     await expect(page.getByText("Câu hỏi phản biện")).toBeVisible();
-    expect(bodies[0].session_id).toBe(55);
+    await expect(page).toHaveURL(/\/mock-room-ai$/);
+    await expect(page.getByRole("textbox")).toBeVisible();
+    expect(postCount).toBe(1);
+
+    await page.getByTitle("Thoát khỏi phòng chat").click();
+    await page.getByRole("button", { name: "Xác nhận rời" }).click();
+    await page.waitForURL((url) => url.pathname === "/mock-room", { timeout: 15000 });
+    await page.getByTestId("mock-ai-locked").getByText("Tiếp tục phiên đã lưu").click();
+    await page.waitForURL((url) => url.pathname === "/mock-room-ai", { timeout: 15000 });
+    await page.getByTitle("Tiếp tục phiên này trong phòng chat").click();
+    await expect(page.getByRole("textbox")).toBeEnabled();
+  });
+
+  test("Trang Mock Room báo đang tải lịch sử rồi cho tiếp tục phiên đã lưu", async ({ page }) => {
+    await setup(page, { sessions: [] });
+    await page.unroute("**/api/mock-qa/sessions");
+    await page.route("**/api/mock-qa/sessions", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      await route.fulfill(json({ items: [{ id: 8, title: "Phiên đã lưu" }] }));
+    });
+    await page.goto("/mock-room");
+
+    await expect(page.getByRole("status").getByText("Đang tải lịch sử phiên...")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Tiếp tục phiên đã lưu" })).toBeVisible();
   });
 
   test("Kịch bản 13: Server không trả quyền: không khoá nhầm người đang là VIP", async ({ page }) => {
