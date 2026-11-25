@@ -281,7 +281,7 @@ export function NotificationBell() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.96 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute right-0 top-11 z-50 w-84 sm:w-96 rounded-2xl border border-border/80 bg-card/95 backdrop-blur-xl shadow-2xl p-4 space-y-4 max-h-[85vh] flex flex-col"
+            className="absolute right-0 top-11 z-50 w-84 sm:w-96 rounded-2xl border border-border/80 bg-card shadow-2xl p-4 space-y-4 max-h-[85vh] flex flex-col"
           >
             {/* Header Dropdown */}
             <div className="flex items-center justify-between pb-3 border-b border-border/60 shrink-0">
