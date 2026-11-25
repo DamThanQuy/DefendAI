@@ -26,7 +26,7 @@ export default function AchievementsPage() {
         </span>
       </div>
       <div>
-        <h1 className="text-3xl md:text-4xl font-serif font-black text-foreground mb-1">
+        <h1 className="text-3xl md:text-4xl font-black text-foreground mb-1">
           Thành tích của bạn
         </h1>
         <p className="text-muted-foreground">
@@ -40,7 +40,7 @@ export default function AchievementsPage() {
         <div className="relative flex items-center justify-between mb-3">
           <div>
             <p className="text-xs text-muted-foreground mb-1">Cấp độ hiện tại</p>
-            <p className="text-2xl font-serif font-black text-gradient">
+            <p className="text-2xl font-black text-gradient">
               Cấp 5 — Luyện tập
             </p>
           </div>
@@ -63,7 +63,7 @@ export default function AchievementsPage() {
       {/* Badges grid */}
       <div className="dark-card rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-serif font-bold flex items-center gap-2">
+          <h3 className="text-lg font-bold flex items-center gap-2">
             <Award className="w-5 h-5 text-accent" />
             Huy hiệu
           </h3>

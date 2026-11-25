@@ -23,7 +23,7 @@ export default function WalletPage() {
     <div className="max-w-5xl mx-auto pb-12">
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-serif font-bold text-foreground mb-2">Ví & Quản lý thu nhập</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-2">Ví & Quản lý thu nhập</h1>
           <p className="text-[14px] text-muted-foreground">
             Theo dõi tổng thu nhập, lịch sử giao dịch và gửi yêu cầu rút tiền.
           </p>

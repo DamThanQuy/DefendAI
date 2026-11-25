@@ -37,7 +37,7 @@ export default function HistoryPage() {
         </span>
       </div>
       <div>
-        <h1 className="text-3xl md:text-4xl font-serif font-black text-foreground mb-1">
+        <h1 className="text-3xl md:text-4xl font-black text-foreground mb-1">
           Lịch sử & Hiệu suất
         </h1>
         <p className="text-muted-foreground">
@@ -55,7 +55,7 @@ export default function HistoryPage() {
 
       {/* Danh sách đồ án */}
       <div className="dark-card rounded-2xl p-6">
-        <h3 className="text-lg font-serif font-bold mb-4 flex items-center gap-2">
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
           <History className="w-5 h-5 text-primary" />
           Lịch sử upload đồ án
         </h3>

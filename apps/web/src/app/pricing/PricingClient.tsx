@@ -80,7 +80,7 @@ export default function PricingClient() {
             <BadgeCheck className="w-4 h-4" />
             Bảng giá cho sinh viên
           </div>
-          <h1 className="text-4xl md:text-6xl font-serif font-black tracking-tight mb-6 leading-tight">
+          <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-6 leading-tight">
             Chọn gói phù hợp với <br />
             <span className="text-gradient">hành trình bảo vệ đồ án</span>
           </h1>
@@ -169,7 +169,7 @@ export default function PricingClient() {
           transition={{ duration: 0.5 }}
           className="text-center mb-12"
         >
-          <h2 className="text-3xl md:text-4xl font-serif font-bold mb-3">
+          <h2 className="text-3xl md:text-4xl font-bold mb-3">
             Câu hỏi thường gặp
           </h2>
           <p className="text-muted-foreground">
@@ -233,7 +233,7 @@ export default function PricingClient() {
         >
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.2),transparent_60%)]" />
           <div className="relative">
-            <h2 className="text-3xl md:text-5xl font-serif font-black mb-4">
+            <h2 className="text-3xl md:text-5xl font-black mb-4">
               Sẵn sàng bảo vệ đồ án <br /> với sự tự tin tuyệt đối?
             </h2>
             <p className="text-muted-foreground text-lg mb-8 max-w-xl mx-auto">
@@ -313,7 +313,7 @@ function PlanCard({
             {planIcon(plan.icon)}
           </div>
           <div>
-            <h3 className="text-2xl font-bold font-serif">{plan.name}</h3>
+            <h3 className="text-2xl font-bold">{plan.name}</h3>
             <p className="text-xs text-muted-foreground">{plan.tagline}</p>
           </div>
         </div>
@@ -322,7 +322,7 @@ function PlanCard({
         <div className="mt-6 mb-8">
           {price === 0 ? (
             <div>
-              <div className="text-5xl font-black font-serif">Miễn phí</div>
+              <div className="text-5xl font-black">Miễn phí</div>
               <div className="text-sm text-muted-foreground mt-2">
                 Sử dụng ngay, không cần thẻ
               </div>
@@ -330,7 +330,7 @@ function PlanCard({
           ) : (
             <div>
               <div className="flex flex-wrap items-baseline gap-x-1">
-                <span data-testid="plan-price" className="text-4xl md:text-2xl lg:text-4xl xl:text-5xl font-black font-serif">
+                <span data-testid="plan-price" className="text-4xl md:text-2xl lg:text-4xl xl:text-5xl font-black">
                   {formatVND(price)}
                 </span>
                 <span className="text-muted-foreground text-sm">

@@ -191,7 +191,7 @@ export default function ProfileOverviewPage() {
         </span>
       </div>
       <div>
-        <h1 className="text-3xl md:text-4xl font-serif font-black text-foreground mb-1">
+        <h1 className="text-3xl md:text-4xl font-black text-foreground mb-1">
           Chào, {firstName} 👋
         </h1>
         <p className="text-muted-foreground">
@@ -209,7 +209,7 @@ export default function ProfileOverviewPage() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h2 className="text-2xl font-serif font-black text-foreground">
+              <h2 className="text-2xl font-black text-foreground">
                 {fullName}
               </h2>
               {(() => {
@@ -356,7 +356,7 @@ export default function ProfileOverviewPage() {
 
       {/* Quick links — Qiz HUB style */}
       <div>
-        <h3 className="text-lg font-serif font-bold mb-4">Khám phá thêm</h3>
+        <h3 className="text-lg font-bold mb-4">Khám phá thêm</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <QuickLink
             href="/profile/history"
@@ -397,7 +397,7 @@ export default function ProfileOverviewPage() {
                   Mục tiêu học kỳ
                 </span>
               </div>
-              <h3 className="text-lg font-serif font-bold">
+              <h3 className="text-lg font-bold">
                 Hoàn thành 5 mock defense trong tháng này
               </h3>
             </div>

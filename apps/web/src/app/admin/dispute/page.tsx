@@ -12,7 +12,7 @@ export default function AdminDisputePage() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-serif font-bold text-foreground mb-2">⚖️ Dispute Center</h1>
+        <h1 className="text-2xl font-bold text-foreground mb-2">⚖️ Dispute Center</h1>
         <p className="text-[14px] text-muted-foreground">
           Xem lịch sử lịch hẹn để phân xử tranh chấp. Module hoàn tiền / giải ngân đang được bổ sung.
         </p>

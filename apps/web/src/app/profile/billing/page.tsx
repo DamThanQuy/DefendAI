@@ -97,7 +97,7 @@ export default function BillingPage() {
         </span>
       </div>
       <div>
-        <h1 className="text-3xl md:text-4xl font-serif font-black text-foreground mb-1">
+        <h1 className="text-3xl md:text-4xl font-black text-foreground mb-1">
           Gói thành viên
         </h1>
         <p className="text-muted-foreground">
@@ -116,7 +116,7 @@ export default function BillingPage() {
                 Gói hiện tại
               </span>
             </div>
-            <h2 className={`text-4xl font-serif font-black mb-2 ${planInfo.color}`}>
+            <h2 className={`text-4xl font-black mb-2 ${planInfo.color}`}>
               {displayPlanName}
             </h2>
             <p className="text-muted-foreground text-sm max-w-md">
@@ -147,7 +147,7 @@ export default function BillingPage() {
       </div>
 
       <div className="dark-card rounded-2xl p-6">
-        <h3 className="text-lg font-serif font-bold">Nạp tiền vào ví</h3>
+        <h3 className="text-lg font-bold">Nạp tiền vào ví</h3>
         <p className="text-sm text-muted-foreground mt-1">Thanh toán qua PayOS, tiền sẽ tự động được cộng vào ví sau khi giao dịch thành công.</p>
         <div className="mt-4 flex flex-col sm:flex-row gap-3">
           <input className="rounded-md border border-border bg-background px-3 py-2" inputMode="numeric" value={depositAmount} onChange={(event) => setDepositAmount(event.target.value.replace(/[^0-9]/g, ""))} aria-label="Số tiền nạp" />
@@ -159,7 +159,7 @@ export default function BillingPage() {
 
       {/* Benefits */}
       <div className="dark-card rounded-2xl p-6">
-        <h3 className="text-lg font-serif font-bold mb-4 flex items-center gap-2">
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
           <Check className="w-5 h-5 text-emerald-500" />
           Quyền lợi của gói {displayPlanName}
         </h3>

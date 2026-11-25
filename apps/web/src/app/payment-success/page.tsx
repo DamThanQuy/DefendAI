@@ -86,7 +86,7 @@ export default function PaymentSuccessPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="text-4xl md:text-5xl font-serif font-black mb-3"
+            className="text-4xl md:text-5xl font-black mb-3"
           >
             Thanh toán thành công! 🎉
           </motion.h1>
@@ -123,7 +123,7 @@ export default function PaymentSuccessPage() {
                 <div className="text-xs font-bold uppercase tracking-wider text-emerald-500 mb-1">
                   Đã kích hoạt
                 </div>
-                <h2 className="text-2xl font-serif font-black">
+                <h2 className="text-2xl font-black">
                   Gói {plan.name}
                 </h2>
               </div>
@@ -166,7 +166,7 @@ export default function PaymentSuccessPage() {
           transition={{ delay: 0.6 }}
         >
           <Card className="p-6 md:p-8 mb-6 bg-gradient-to-br from-primary/5 to-accent/5 border-primary/30">
-            <h3 className="text-lg font-serif font-bold mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-primary" />
               Quyền lợi của bạn đã được mở khóa
             </h3>

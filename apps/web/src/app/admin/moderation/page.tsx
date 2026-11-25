@@ -6,7 +6,7 @@ export default function AdminModerationPage() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-serif font-bold text-foreground mb-2">🛡️ Kiểm duyệt nội dung & An ninh</h1>
+        <h1 className="text-2xl font-bold text-foreground mb-2">🛡️ Kiểm duyệt nội dung & An ninh</h1>
         <p className="text-[14px] text-muted-foreground">
           Danh sách nội dung bị báo cáo (Flagged Content). Thực thi chế tài cảnh báo / khoá / ban.
         </p>

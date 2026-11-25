@@ -10,7 +10,7 @@ export default function AdminMentorVerificationPage() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-serif font-bold text-foreground mb-2">🎓 Duyệt & Xác minh hồ sơ Mentor</h1>
+        <h1 className="text-2xl font-bold text-foreground mb-2">🎓 Duyệt & Xác minh hồ sơ Mentor</h1>
         <p className="text-[14px] text-muted-foreground">
           Danh sách Mentor. Duyệt (kích hoạt) / Từ chối (khoá). Module xác minh hồ sơ chi tiết (bằng cấp, LinkedIn) đang được bổ sung.
         </p>

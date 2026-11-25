@@ -35,7 +35,7 @@ export default function PaymentCancelPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="text-4xl md:text-5xl font-serif font-black mb-3"
+            className="text-4xl md:text-5xl font-black mb-3"
           >
             Thanh toán đã bị hủy
           </motion.h1>
@@ -56,7 +56,7 @@ export default function PaymentCancelPage() {
           transition={{ delay: 0.4 }}
         >
           <Card className="p-6 md:p-8 mb-6 text-left">
-            <h3 className="text-lg font-serif font-bold mb-4">
+            <h3 className="text-lg font-bold mb-4">
               Bạn có thể thử lại bằng cách:
             </h3>
             <ul className="space-y-3 text-sm">

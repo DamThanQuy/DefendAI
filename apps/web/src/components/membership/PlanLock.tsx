@@ -50,7 +50,7 @@ export function PlanLock({
           <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-primary/10">
             <Lock className="h-5 w-5 text-primary" />
           </div>
-          <h3 className="font-serif text-lg font-bold text-foreground">{title}</h3>
+          <h3 className="text-lg font-bold text-foreground">{title}</h3>
           <p className="mb-4 mt-1 text-sm text-muted-foreground">
             {expiredPlanNote(access)}
             {description}

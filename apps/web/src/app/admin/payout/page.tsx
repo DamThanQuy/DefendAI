@@ -162,7 +162,7 @@ export default function AdminPayoutPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-800/60 pb-6">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <h1 className="text-2xl font-serif font-bold text-foreground tracking-tight">
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">
               Báo cáo Tài chính & Đối soát
             </h1>
             <span className="px-2 py-0.5 text-[11px] font-mono font-medium rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20">

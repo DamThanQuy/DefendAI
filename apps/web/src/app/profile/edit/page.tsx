@@ -102,7 +102,7 @@ export default function EditProfilePage() {
       </div>
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl md:text-4xl font-serif font-black text-foreground mb-1">
+          <h1 className="text-3xl md:text-4xl font-black text-foreground mb-1">
             Hồ sơ cá nhân
           </h1>
           <p className="text-muted-foreground">

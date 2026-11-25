@@ -49,7 +49,7 @@ export default function MentorProfilePage() {
   return (
     <div className="max-w-4xl mx-auto pb-12">
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div><h1 className="text-2xl font-serif font-bold text-foreground mb-2">Hồ sơ cá nhân</h1><p className="text-[14px] text-muted-foreground">Quản lý thông tin hiển thị công khai với học viên.</p></div>
+        <div><h1 className="text-2xl font-bold text-foreground mb-2">Hồ sơ cá nhân</h1><p className="text-[14px] text-muted-foreground">Quản lý thông tin hiển thị công khai với học viên.</p></div>
         <button onClick={save} disabled={saving} className="flex items-center gap-2 px-6 py-2.5 bg-primary hover:brightness-110 text-primary-foreground rounded-lg text-[14px] font-bold transition-all shadow-sm disabled:opacity-50"><Save className="w-4 h-4" /> {saving ? "Đang lưu..." : "Lưu thay đổi"}</button>
       </div>
       {status && <p className={`mb-5 text-sm ${status.type === "ok" ? "text-teal-400" : "text-red-400"}`}>{status.text}</p>}

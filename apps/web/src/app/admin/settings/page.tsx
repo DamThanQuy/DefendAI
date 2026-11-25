@@ -175,7 +175,7 @@ export default function AdminSettingsPage() {
             >
               <Sliders className="w-6 h-6 text-teal-400" />
             </motion.div>
-            <h1 className="text-2xl font-serif font-bold text-foreground">
+            <h1 className="text-2xl font-bold text-foreground">
               Cấu hình hệ thống & AI Gateway
             </h1>
           </div>

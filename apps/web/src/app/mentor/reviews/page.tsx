@@ -31,7 +31,7 @@ export default function ReviewsPage() {
   return (
     <div className="max-w-4xl mx-auto pb-12">
       <div className="mb-8">
-        <h1 className="text-2xl font-serif font-bold text-foreground mb-2">Đánh giá & Phản hồi</h1>
+        <h1 className="text-2xl font-bold text-foreground mb-2">Đánh giá & Phản hồi</h1>
         <p className="text-[14px] text-muted-foreground">
           Đọc nhận xét từ sinh viên để hiểu mức độ hài lòng và liên tục cải thiện chất lượng dịch vụ của bạn.
         </p>

@@ -152,7 +152,7 @@ export default function SessionsPage() {
       {/* Header */}
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-serif font-bold text-foreground mb-2">Lịch sử buổi Mentor</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-2">Lịch sử buổi Mentor</h1>
           <p className="text-[14px] text-muted-foreground">
             Các buổi họp đã được xác nhận từ <b>Quản lý lịch</b> sẽ xuất hiện ở đây, giúp bạn
             theo dõi buổi nào sắp tới, đã hoàn thành hoặc đã hủy.

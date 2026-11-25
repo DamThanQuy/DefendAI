@@ -117,7 +117,7 @@ export default function AdminSubscriptionsPage() {
   const formSaving = yearlyDiscountPercent({ monthly: Number(form.price), yearly: Number(form.yearly) });
 
   return <div className="max-w-6xl mx-auto space-y-6">
-    <div><h1 className="text-2xl font-serif font-bold">Quản lý gói subscription</h1><p className="text-sm text-muted-foreground mt-1">Thêm, sửa, xóa và bật/tắt các gói hiển thị cho sinh viên.</p></div>
+    <div><h1 className="text-2xl font-bold">Quản lý gói subscription</h1><p className="text-sm text-muted-foreground mt-1">Thêm, sửa, xóa và bật/tắt các gói hiển thị cho sinh viên.</p></div>
     {message && <p className={message.type === "ok" ? "text-sm text-teal-400" : "text-sm text-red-400"}>{message.text}</p>}
     <Card><CardHeader><CardTitle>{editingId ? "Chỉnh sửa gói" : "Thêm gói mới"}</CardTitle></CardHeader><CardContent><form noValidate onSubmit={save} className="grid gap-4 md:grid-cols-2">
       <div className="flex gap-2"><Input readOnly required placeholder="Mã gói 6 chữ số" value={form.slug} /><Button type="button" variant="outline" onClick={randomCode}>Random mã</Button></div>

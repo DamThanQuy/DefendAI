@@ -938,7 +938,7 @@ export default function MockRoomAI() {
 
   // ── Render ─────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full bg-background text-foreground font-sans overflow-hidden">
+    <div className="flex flex-col h-full bg-background text-foreground overflow-hidden">
       {/* ── Step 1: Upload ── */}
       {step === "upload" && (
         <motion.div
@@ -950,7 +950,7 @@ export default function MockRoomAI() {
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_hsl(var(--primary)/0.2)]">
               <Bot className="w-10 h-10 text-white" />
             </div>
-            <h2 className="text-2xl font-serif font-black mb-3">
+            <h2 className="text-2xl font-black mb-3">
               Vào phòng chat với Giám khảo AI
             </h2>
             <p className="text-muted-foreground mb-6">
@@ -1659,7 +1659,7 @@ export default function MockRoomAI() {
             >
               <Card className="p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-serif font-bold">Cài đặt phòng</h3>
+                  <h3 className="text-lg font-bold">Cài đặt phòng</h3>
                   <Button variant="ghost" size="sm" onClick={() => setShowSettings(false)} className="h-8 w-8 p-0">
                     <X className="w-4 h-4" />
                   </Button>

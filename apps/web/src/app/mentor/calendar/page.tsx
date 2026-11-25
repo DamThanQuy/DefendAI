@@ -91,7 +91,7 @@ export default function CalendarPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-serif font-bold text-foreground mb-2">Quản lý lịch rảnh</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-2">Quản lý lịch rảnh</h1>
           <p className="text-[14px] text-muted-foreground max-w-2xl">
             Chọn các khung giờ bạn có thể nhận lịch hẹn. Sinh viên sẽ chỉ nhìn thấy và đặt được vào những khung giờ bạn đánh dấu màu xanh.
           </p>
