@@ -253,12 +253,14 @@ export default function MockRoomAI() {
 
   // Chặn người dùng Free không có vé trải nghiệm và không có phiên đã lưu truy cập thẳng /mock-room-ai
   useEffect(() => {
-    if (!hasLoadedSessions || !user || accessLoading) return;
+    // Vé được trừ khi tạo phiên. Không khóa/điều hướng người dùng đang ở trong phòng,
+    // kể cả khi danh sách phiên chưa kịp tải lại sau lần POST đầu tiên.
+    if (step !== "upload" || activeSessionId != null || !hasLoadedSessions || !user || accessLoading) return;
     if (!isVip && trialTickets <= 0 && sessions.length === 0) {
       toast.error("Phòng Mock AI chỉ dành cho thành viên VIP hoặc người dùng có vé trải nghiệm. Hãy nâng cấp hoặc làm khảo sát để nhận vé!");
       router.push("/mock-room");
     }
-  }, [hasLoadedSessions, user, accessLoading, isVip, trialTickets, sessions.length, router]);
+  }, [step, activeSessionId, hasLoadedSessions, user, accessLoading, isVip, trialTickets, sessions.length, router]);
 
   // Refresh danh sách phiên mỗi khi quay về màn hình chọn tài liệu
   useEffect(() => {
@@ -315,6 +317,18 @@ export default function MockRoomAI() {
           sid = created.id as number;
           setActiveSessionId(sid);
           activeSessionRef.current = sid;
+          setSessions((prev) => [
+            {
+              id: sid!,
+              document_id: payload.document_id,
+              title: created.title || (firstUser?.content || "Phiên chất vấn").slice(0, 100),
+              message_count: created.message_count ?? msgs.length,
+              preview: created.preview || firstUser?.content || "",
+              created_at: created.created_at || new Date().toISOString(),
+              updated_at: created.updated_at || new Date().toISOString(),
+            },
+            ...prev.filter((session) => session.id !== sid),
+          ]);
 
           if (created.remaining_tickets !== undefined && created.remaining_tickets !== null) {
             setTrialTickets(created.remaining_tickets);

@@ -17,6 +17,7 @@ const mockStudentUser = {
   full_name: "Student DefendAI",
   is_active: true,
   roles: ["student"],
+  major: "Khác",
   profile_data: {
     mock_ai_trial_tickets: 0,
     feedback_status: { submitted: false },
@@ -313,10 +314,16 @@ test.describe("Feedback Flow & Mock AI Reward Tests", () => {
     // 1. Đăng nhập tài khoản student@defendai.dev / DefendAI@123
     await loginUser(page, "student@defendai.dev", "DefendAI@123");
 
-    // 2. Click Floating Button góc trái dưới màn hình
-    const floatingButton = page.locator('button[aria-label="Khảo sát ý kiến người dùng"]');
-    await expect(floatingButton).toBeVisible();
-    await floatingButton.click();
+    // Tài khoản test có thể đang ở bước onboarding ngành học.
+    const majorSelect = page.getByRole("combobox", { name: "Ngành học của bạn" });
+    if (await majorSelect.count()) {
+      await majorSelect.selectOption({ label: "Khác" });
+      await page.getByRole("button", { name: "Bắt đầu ngay" }).click();
+    }
+
+    // Mở khảo sát từ lời mời nhận vé trên trang Mock Room.
+    await page.goto("/mock-room");
+    await page.getByTestId("earn-ticket").click();
 
     // 3. Mở modal khảo sát
     const modalTitle = page.locator('h2:has-text("Khảo sát Trải nghiệm & Nhận Quà")');
@@ -420,6 +427,7 @@ test.describe("Feedback Flow & Mock AI Reward Tests", () => {
     // Chờ điều hướng đến /mock-room
     await page.waitForURL("**/mock-room", { timeout: 10000 });
     await expect(page).toHaveURL(/.*\/mock-room/);
+    await expect(page.getByTestId("earn-ticket")).toHaveCount(0);
 
     // Kiểm tra card Mock AI hiển thị thông tin mở khóa bằng vé trải nghiệm
     await expect(page.getByText("Có 1 vé trải nghiệm", { exact: true })).toBeVisible();
@@ -435,6 +443,12 @@ test.describe("Feedback Flow & Mock AI Reward Tests", () => {
     // Mở khóa thành công và chuyển thẳng vào /mock-room-ai (không bị alert hay chặn bởi VIP checkout)
     await page.waitForURL("**/mock-room-ai", { timeout: 10000 });
     await expect(page).toHaveURL(/.*\/mock-room-ai/);
+    await expect(page.getByRole("button", { name: "Góp ý nhận vé" })).toHaveCount(0);
+    await expect(page.getByText(/góp ý nhanh để nhận/)).toHaveCount(0);
+
+    // Khảo sát vẫn mở được theo ý muốn, nhưng lần sau ở chế độ góp ý/đánh giá.
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent("open-feedback-modal")));
+    await expect(page.locator('h2:has-text("Góp ý & Đánh giá")')).toBeVisible();
   });
 
   test("Kịch bản 2: Kiểm tra chính sách Once-Only tại trang /report (không tự động bung popup)", async ({
@@ -464,7 +478,7 @@ test.describe("Feedback Flow & Mock AI Reward Tests", () => {
     await expect(surveyModalHeader).not.toBeVisible();
 
     // Floating Button vẫn hiện ở góc một cách tinh tế để sinh viên có thể chủ động bấm nếu muốn
-    const floatingButton = page.locator('button[aria-label="Khảo sát ý kiến người dùng"]');
+    const floatingButton = page.locator('button[aria-label="Đóng góp ý kiến"]');
     await expect(floatingButton).toBeVisible();
   });
 

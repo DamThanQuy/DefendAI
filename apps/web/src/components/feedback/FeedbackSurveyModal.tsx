@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
@@ -164,6 +165,7 @@ const PAY_WILLINGNESS_OPTIONS = [
 ];
 
 export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurveyModalProps) {
+  const { refreshUser } = useAuth();
   const router = useRouter();
 
   // Trạng thái tải ngữ cảnh người dùng
@@ -303,6 +305,13 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
       };
 
       const res = await api.post("/api/feedback", payload);
+      // Backend đã nhận feedback; làm mới hồ sơ để các trang đọc feedback_status mới.
+      // Lỗi refresh không được biến một lần gửi feedback thành trạng thái thất bại.
+      try {
+        await refreshUser();
+      } catch {
+        // AuthProvider thường tự xử lý lỗi mạng; giữ nguyên thành công từ POST feedback.
+      }
       const tickets = res.data?.mock_ai_trial_tickets ?? 1;
       setNewTicketsCount(tickets);
       const isReward = !context?.has_submitted;
