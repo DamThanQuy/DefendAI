@@ -73,20 +73,11 @@ export default function MockRoomLandingPage() {
   // Quyền vào Phòng Mock AI do server tính; gói hết hạn thì không còn là VIP.
   const isVip = access ? access.features.mock_ai : hasVipInProfile(user?.profile_data);
 
-  // Số vé trải nghiệm Mock AI (nhận từ khảo sát Feedback hoặc user profile)
-  const [trialTickets, setTrialTickets] = useState<number>(() => readTrialTickets(user?.profile_data));
-
-  // Đồng bộ vé trải nghiệm tự động từ profile hoặc localStorage
-  useEffect(() => {
-    const updateTickets = () => setTrialTickets(readTrialTickets(user?.profile_data));
-
-    updateTickets();
-    window.addEventListener("storage", updateTickets);
-
-    return () => {
-      window.removeEventListener("storage", updateTickets);
-    };
-  }, [user]);
+  // Số vé trải nghiệm Mock AI (đồng bộ trực tiếp từ user.profile_data)
+  const trialTickets = useMemo(
+    () => readTrialTickets(user?.profile_data),
+    [user?.profile_data],
+  );
 
   const mockAILocked = !isVip && trialTickets <= 0;
   // Vé khảo sát chỉ tặng một lần cho mỗi tài khoản.

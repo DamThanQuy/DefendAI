@@ -27,6 +27,8 @@ import {
   PhoneOff,
   X,
   Bot,
+  Crown,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -95,7 +97,7 @@ function getToken(): string | null {
 
 export default function MockRoomAI() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, patchProfileData } = useAuth();
 
   // Quyền dùng Mock AI không giới hạn do server tính; gói hết hạn thì không còn là VIP.
   const { access, loading: accessLoading } = usePlanAccess();
@@ -109,16 +111,11 @@ export default function MockRoomAI() {
     return Boolean(profile.feedback_status?.reward_ticket_granted || profile.feedback_status?.submitted);
   }, [user]);
 
-  // Số vé trải nghiệm Mock AI
-  const [trialTickets, setTrialTickets] = useState<number>(() => readTrialTickets(user?.profile_data));
-
-  useEffect(() => {
-    const updateTickets = () => setTrialTickets(readTrialTickets(user?.profile_data));
-
-    updateTickets();
-    window.addEventListener("storage", updateTickets);
-    return () => window.removeEventListener("storage", updateTickets);
-  }, [user]);
+  // Số vé trải nghiệm Mock AI (đọc trực tiếp từ user.profile_data)
+  const trialTickets = useMemo(
+    () => readTrialTickets(user?.profile_data),
+    [user?.profile_data],
+  );
 
   const FREE_MAX_QUESTIONS = 5;
   // ── State ──────────────────────────────────────────────
@@ -170,6 +167,13 @@ export default function MockRoomAI() {
   // Room controls
   const [showSettings, setShowSettings] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [ticketLimitModal, setTicketLimitModal] = useState<{
+    title: string;
+    message: string;
+    showSavedAction?: boolean;
+  } | null>(null);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -331,11 +335,7 @@ export default function MockRoomAI() {
           ]);
 
           if (created.remaining_tickets !== undefined && created.remaining_tickets !== null) {
-            setTrialTickets(created.remaining_tickets);
-            try {
-              localStorage.setItem("mock_ai_trial_tickets", String(created.remaining_tickets));
-              window.dispatchEvent(new Event("storage"));
-            } catch {}
+            patchProfileData({ mock_ai_trial_tickets: created.remaining_tickets });
           }
         }
 
@@ -352,7 +352,7 @@ export default function MockRoomAI() {
       saveChainRef.current = run;
       return run;
     },
-    [projectContext, selectedDocId],
+    [projectContext, selectedDocId, patchProfileData],
   );
   // Ref để askMentor (không đổi giữa các lần render) gọi được bản mới nhất
   const persistSessionRef = useRef(persistSession);
@@ -360,6 +360,10 @@ export default function MockRoomAI() {
 
   useEffect(() => {
     if (step !== "room" || messages.length === 0) return;
+    // Chỉ tạo phiên mới (trừ vé) khi sinh viên đã thực sự gửi ít nhất 1 tin nhắn,
+    // tránh vừa bước vào phòng rồi thoát ra đã mất vé.
+    const hasUserTurn = messages.some((m) => m.role === "user" && m.content.trim());
+    if (activeSessionId == null && !hasUserTurn) return;
 
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
@@ -370,12 +374,17 @@ export default function MockRoomAI() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [messages, step, persistSession]);
+  }, [messages, step, activeSessionId, persistSession]);
 
   // ── Bắt đầu phiên mới — không xoá dữ liệu cũ, chỉ reset phiên active ──
   const clearHistory = useCallback(async () => {
     if (!isVip && trialTickets <= 0) {
-      alert("Bạn đã sử dụng hết vé trải nghiệm Mock AI. Không thể tạo thêm phiên mới. Vui lòng chọn phiên đã lưu hoặc nâng cấp VIP.");
+      setTicketLimitModal({
+        title: "Đã hết vé trải nghiệm Mock AI",
+        message:
+          "Bạn đã sử dụng hết vé trải nghiệm Mock AI nên chưa thể tạo phiên mới. Bạn có thể xem lại phiên đã lưu hoặc nâng cấp VIP để mở không giới hạn.",
+        showSavedAction: true,
+      });
       return;
     }
     setMessages([]);
@@ -407,7 +416,7 @@ export default function MockRoomAI() {
     if (!file) return;
     const token = getToken();
     if (!token) {
-      alert("Vui lòng đăng nhập để tải lên tài liệu.");
+      toast.error("Vui lòng đăng nhập để tải lên tài liệu.");
       return;
     }
 
@@ -508,7 +517,7 @@ export default function MockRoomAI() {
       const data: MockSessionDetail = await r.json();
       setViewSession(data);
     } catch (e: any) {
-      alert(e.message || "Lỗi khi mở phiên chat");
+      toast.error(e.message || "Lỗi khi mở phiên chat");
     } finally {
       setViewLoading(false);
     }
@@ -564,9 +573,8 @@ export default function MockRoomAI() {
   );
 
   // ── Xoá 1 phiên khỏi danh sách ─────────────────────────
-  const deleteSession = useCallback(
+  const confirmDeleteSession = useCallback(
     async (sessionId: number) => {
-      if (!confirm("Xoá phiên chat này? Hành động không thể hoàn tác.")) return;
       const token = getToken();
       if (!token) return;
       try {
@@ -580,17 +588,38 @@ export default function MockRoomAI() {
           setActiveSessionId(null);
           activeSessionRef.current = null;
         }
+        toast.success("Đã xoá phiên chat");
       } catch (e: any) {
-        alert(e.message || "Lỗi khi xoá phiên");
+        toast.error(e.message || "Lỗi khi xoá phiên");
+      } finally {
+        setDeleteTargetId(null);
       }
     },
     [activeSessionId]
   );
 
+  const deleteSession = useCallback((sessionId: number) => {
+    setDeleteTargetId(sessionId);
+  }, []);
+
+  // Phiên trống (chưa có tin nhắn nào được lưu) có thể tiếp tục lại mà không tốn vé mới
+  const resumableEmptySession = useMemo(
+    () => sessions.find((s) => s.message_count === 0) ?? null,
+    [sessions],
+  );
+
   // ── Vào phòng chat MỚI (tài liệu là TUỲ CHỌN, không bắt buộc) ──
   const enterRoom = useCallback(async (useDoc: boolean) => {
     if (!isVip && trialTickets <= 0) {
-      alert("Bạn đã sử dụng hết vé trải nghiệm Mock Room AI. Vui lòng chọn phiên đã lưu bên dưới để tiếp tục hoặc nâng cấp VIP.");
+      if (resumableEmptySession) {
+        await resumeSession(resumableEmptySession.id);
+        return;
+      }
+      setTicketLimitModal({
+        title: "Đã hết vé trải nghiệm Mock AI",
+        message:
+          "Bạn đã sử dụng hết vé trải nghiệm Mock Room AI. Vui lòng chọn phiên đã lưu bên dưới để xem lại hoặc nâng cấp VIP.",
+      });
       return;
     }
 
@@ -644,7 +673,7 @@ export default function MockRoomAI() {
         { hidden: true }
       );
     }
-  }, [selectedDocId, studentDocs, uploadedFile, loadDocContext, isVip, trialTickets]);
+  }, [selectedDocId, studentDocs, uploadedFile, loadDocContext, isVip, trialTickets, resumableEmptySession, resumeSession]);
 
   // ── Gọi Mentor AI (backend /api/mock-qa/chat) ──────────
   // Nhận thêm một lượt của sinh viên → gửi toàn bộ history + context tài liệu
@@ -766,11 +795,12 @@ export default function MockRoomAI() {
   // ── Gửi tin nhắn ───────────────────────────────────────
   const sendMessage = useCallback((overrideText?: string) => {
     if (isLimitReached) {
-      alert(
-        isReadOnlySession
-          ? "Phiên này chỉ còn xem lại được. Vui lòng mua hoặc nâng cấp gói VIP để tiếp tục luyện tập."
-          : "Bạn đã hoàn thành 5 câu hỏi trải nghiệm Mock AI. Vui lòng bấm 'Kết thúc & nhận báo cáo' để xem đánh giá hoặc nâng cấp VIP để tiếp tục."
-      );
+      setTicketLimitModal({
+        title: isReadOnlySession ? "Phiên chỉ xem lại" : "Đã hoàn thành 5 câu hỏi trải nghiệm",
+        message: isReadOnlySession
+          ? "Phiên này chỉ còn xem lại được. Vui lòng nâng cấp gói VIP để tiếp tục luyện tập."
+          : "Bạn đã hoàn thành 5 câu hỏi trải nghiệm Mock AI. Vui lòng bấm 'Kết thúc & nhận báo cáo' để xem đánh giá hoặc nâng cấp VIP để tiếp tục.",
+      });
       return;
     }
 
@@ -816,22 +846,15 @@ export default function MockRoomAI() {
   const [isEnding, setIsEnding] = useState(false);
   const hasStudentAnswer = messages.some((m) => m.role === "user" && m.content.trim());
 
-  const handleEndSession = async () => {
+  const executeEndSession = async () => {
     if (isEnding) return;
-    if (!hasStudentAnswer) {
-      alert("Bạn chưa trả lời câu hỏi nào nên chưa có gì để đánh giá.");
-      return;
-    }
-    if (!confirm("Kết thúc buổi Mock AI? Giám khảo AI sẽ tổng hợp nhận xét theo tiêu chí chấm thành báo cáo.")) {
-      return;
-    }
-
     const token = getToken();
     if (!token) {
-      alert("Vui lòng đăng nhập để kết thúc buổi.");
+      toast.error("Vui lòng đăng nhập để kết thúc buổi.");
       return;
     }
 
+    setShowEndConfirm(false);
     setIsEnding(true);
     try {
       // Lưu nốt các tin chưa kịp autosave để báo cáo có đủ hội thoại
@@ -853,9 +876,18 @@ export default function MockRoomAI() {
       }
       router.push(`/report/${data.report_id}`);
     } catch (err: any) {
-      alert(`Lỗi: ${err.message || "Không thể kết thúc buổi"}`);
+      toast.error(`Lỗi: ${err.message || "Không thể kết thúc buổi"}`);
       setIsEnding(false);
     }
+  };
+
+  const handleEndSession = () => {
+    if (isEnding) return;
+    if (!hasStudentAnswer) {
+      toast.error("Bạn chưa trả lời câu hỏi nào nên chưa có gì để đánh giá.");
+      return;
+    }
+    setShowEndConfirm(true);
   };
 
   // Speech recognition setup — nhận diện giọng nói và điền trực tiếp vào ô nhập liệu
@@ -1197,7 +1229,7 @@ export default function MockRoomAI() {
             <div className="flex flex-col gap-3">
               <Button
                 onClick={() => enterRoom(true)}
-                disabled={!selectedDocId || contextLoading || (!isVip && trialTickets <= 0)}
+                disabled={!selectedDocId || contextLoading || (!isVip && trialTickets <= 0 && !resumableEmptySession)}
                 className="w-full h-12 text-lg font-bold rounded-xl"
               >
                 {contextLoading ? (
@@ -1215,7 +1247,7 @@ export default function MockRoomAI() {
               <Button
                 variant="outline"
                 onClick={() => enterRoom(false)}
-                disabled={contextLoading || (!isVip && trialTickets <= 0)}
+                disabled={contextLoading || (!isVip && trialTickets <= 0 && !resumableEmptySession)}
                 className="w-full h-11 rounded-xl"
               >
                 Vào phòng hỏi tự do (không cần tài liệu)
@@ -1698,6 +1730,140 @@ export default function MockRoomAI() {
                   className="flex-1 bg-[#EF4444] hover:bg-[#DC2626] text-white rounded-xl h-11 font-semibold shadow-lg shadow-red-900/20 transition-colors"
                 >
                   Xác nhận rời
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {ticketLimitModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#1A1A1A] border border-amber-500/30 rounded-2xl p-6 w-[430px] max-w-[90vw] shadow-2xl"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                  <Crown className="w-5 h-5 text-amber-400" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-100">{ticketLimitModal.title}</h3>
+              </div>
+              <p className="text-sm text-gray-300 mb-6 leading-relaxed">
+                {ticketLimitModal.message}
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <Button
+                  onClick={() => setTicketLimitModal(null)}
+                  className="flex-1 bg-[#202020] hover:bg-[#2A2A2A] text-gray-300 rounded-xl h-10 font-semibold transition-colors"
+                >
+                  Đóng
+                </Button>
+                {ticketLimitModal.showSavedAction && (
+                  <Button
+                    onClick={() => {
+                      setTicketLimitModal(null);
+                      setStep("upload");
+                    }}
+                    className="flex-1 bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/30 text-teal-300 rounded-xl h-10 font-semibold transition-colors"
+                  >
+                    Phiên đã lưu
+                  </Button>
+                )}
+                <Button
+                  onClick={() => {
+                    setTicketLimitModal(null);
+                    router.push("/pricing");
+                  }}
+                  className="flex-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white rounded-xl h-10 font-semibold shadow-lg transition-colors"
+                >
+                  Nâng cấp VIP
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {showEndConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#1A1A1A] border border-teal-500/30 rounded-2xl p-6 w-[420px] max-w-[90vw] shadow-2xl"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-teal-500/20 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-5 h-5 text-teal-400" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-100">Kết thúc buổi Mock AI?</h3>
+              </div>
+              <p className="text-sm text-gray-400 mb-6">
+                Giám khảo AI sẽ tổng hợp nhận xét theo tiêu chí chấm thành báo cáo chi tiết cho phiên này.
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => setShowEndConfirm(false)}
+                  className="flex-1 bg-[#202020] hover:bg-[#2A2A2A] text-gray-300 rounded-xl h-11 font-semibold transition-colors"
+                >
+                  Tiếp tục hỏi đáp
+                </Button>
+                <Button
+                  onClick={() => void executeEndSession()}
+                  className="flex-1 bg-teal-500 hover:bg-teal-400 text-white rounded-xl h-11 font-semibold shadow-lg shadow-teal-900/20 transition-colors"
+                >
+                  Kết thúc & tạo báo cáo
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {deleteTargetId !== null && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#1A1A1A] border border-gray-700/60 rounded-2xl p-6 w-[400px] max-w-[90vw] shadow-2xl"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5 text-red-400" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-100">Xoá phiên chat?</h3>
+              </div>
+              <p className="text-sm text-gray-400 mb-6">
+                Hành động này không thể hoàn tác. Toàn bộ tin nhắn trong phiên sẽ bị xoá.
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => setDeleteTargetId(null)}
+                  className="flex-1 bg-[#202020] hover:bg-[#2A2A2A] text-gray-300 rounded-xl h-11 font-semibold transition-colors"
+                >
+                  Huỷ
+                </Button>
+                <Button
+                  onClick={() => void confirmDeleteSession(deleteTargetId)}
+                  className="flex-1 bg-[#EF4444] hover:bg-[#DC2626] text-white rounded-xl h-11 font-semibold shadow-lg shadow-red-900/20 transition-colors"
+                >
+                  Xoá phiên
                 </Button>
               </div>
             </motion.div>

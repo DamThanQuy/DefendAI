@@ -1,16 +1,20 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { MessageSquareHeart, Gift, Sparkles } from "lucide-react";
 import { FeedbackSurveyModal } from "./FeedbackSurveyModal";
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
 
 export function FeedbackFloatingButton() {
+  const pathname = usePathname();
   const { isAuthed, user, loading } = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState<boolean | null>(null);
   const [isEligible, setIsEligible] = useState<boolean | null>(null);
+  const hideFloatingButton =
+    pathname?.startsWith("/mock-room-ai") || pathname?.startsWith("/room");
 
   useEffect(() => {
     if (!isAuthed || !user) {
@@ -70,7 +74,7 @@ export function FeedbackFloatingButton() {
 
   return (
     <>
-      {isEligible === true && (
+      {isEligible === true && !hideFloatingButton && (
         <div className="fixed bottom-5 right-5 z-[95] print:hidden">
           <button
             onClick={() => setModalOpen(true)}
