@@ -442,7 +442,7 @@ export function NotificationBell() {
                         onClick={() => handleMarkAsRead(item.id)}
                         className={`group relative flex items-start gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer ${
                           item.read
-                            ? "border-border/40 bg-muted/10 opacity-75 hover:opacity-100 hover:bg-muted/20"
+                            ? "border-border/40 bg-muted hover:bg-muted/90"
                             : "border-border/80 bg-card hover:bg-muted/30 shadow-xs"
                         }`}
                       >
