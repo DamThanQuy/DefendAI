@@ -29,7 +29,6 @@ import {
   GraduationCap,
   HelpCircle,
   Bell,
-  Search,
   CreditCard,
   MessageSquareHeart,
 } from "lucide-react";
@@ -236,12 +235,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="text-muted-foreground/50">›</span>
             <span className="text-primary font-semibold truncate">{activeLabel}</span>
           </nav>
-
-          {/* Search-like spacer (visual match with landing hero) */}
-          <div className="hidden lg:flex flex-1 max-w-md mx-auto items-center gap-2 h-10 px-4 rounded-full border border-border bg-card/60 text-sm text-muted-foreground">
-            <Search className="w-4 h-4" />
-            <span className="text-xs">Tìm tài liệu, workspace...</span>
-          </div>
 
           <div className="flex items-center gap-2 ml-auto">
             <ThemeToggle />
