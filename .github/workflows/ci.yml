@@ -8,9 +8,9 @@ name: CI - Build & Test
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, staging]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, staging]
 
 # Cancel các workflow cũ hơn cùng branch (tiết kiệm资源)
 concurrency:
@@ -133,3 +133,33 @@ jobs:
           docker compose exec -T api alembic upgrade head
           docker compose restart api worker worker_multi
           Write-Host "Deploy completed successfully on tkm1."
+
+  # ============================================================
+  # JOB 4: Deploy Staging on tkm1 (chạy khi push/merge vào staging, sau khi test pass)
+  # ============================================================
+  deploy-staging:
+    name: "Deploy Staging (tkm1)"
+    runs-on: [self-hosted, Windows, defendai]
+    needs: [backend, frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+
+    steps:
+      - name: Deploy Staging to tkm1
+        shell: powershell
+        run: |
+          if (-not (Test-Path F:\DefendAI-staging)) {
+            git -C F:\DefendAI fetch origin staging
+            git -C F:\DefendAI worktree add F:\DefendAI-staging origin/staging
+          }
+          if (-not (Test-Path F:\DefendAI-staging\.env)) {
+            Copy-Item F:\DefendAI\.env F:\DefendAI-staging\.env -Force
+          }
+          if (-not (Test-Path F:\DefendAI-staging\docker-compose.staging.yml)) {
+            Copy-Item F:\DefendAI\docker-compose.staging.yml F:\DefendAI-staging\docker-compose.staging.yml -Force
+          }
+          Set-Location F:\DefendAI-staging
+          git fetch origin staging
+          git reset --hard origin/staging
+          docker compose -p defendai-staging -f docker-compose.staging.yml up -d --build
+          docker exec defense-api-staging alembic upgrade head
+          Write-Host "Staging deploy completed successfully on tkm1."
