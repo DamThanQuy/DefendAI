@@ -66,7 +66,10 @@ export default function WorkspaceChat({
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [activeConvId, setActiveConvId] = useState<string>(""); // "" = đoạn mặc định
+  const activeConvIdRef = useRef("");
   const [convLoading, setConvLoading] = useState(false);
+  const [creatingConversation, setCreatingConversation] = useState(false);
+  const creatingConversationRef = useRef(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [menuConvId, setMenuConvId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -105,10 +108,11 @@ export default function WorkspaceChat({
         headers: { Authorization: `Bearer ${token}` },
       });
       if (r.ok) {
-        await loadChatHistory(activeConvId || undefined);
+        const convId = activeConvIdRef.current;
+        await loadChatHistory(convId);
         if (!showFailed) {
           // Re-query để đếm tin failed còn lại
-          const r2 = await fetch(`/api/workspaces/${workspaceId}/chat?conversation_id=${encodeURIComponent(activeConvId || "")}&show_failed=true`, {
+          const r2 = await fetch(`/api/workspaces/${workspaceId}/chat?conversation_id=${encodeURIComponent(convId)}&show_failed=true`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (r2.ok) {
@@ -189,8 +193,12 @@ export default function WorkspaceChat({
         headers: { Authorization: `Bearer ${token}` },
       });
       if (r.ok) {
-        const data = await r.json();
-        setConversations(data ?? []);
+        const saved: ConversationItem[] = (await r.json()) ?? [];
+        const savedIds = new Set(saved.map((conversation) => conversation.conversation_id));
+        setConversations((prev) => {
+          const draft = prev.find((conversation) => conversation.turn_count === 0 && !savedIds.has(conversation.conversation_id));
+          return draft ? [draft, ...saved] : saved;
+        });
       }
     } catch {
       /* ignore */
@@ -200,8 +208,20 @@ export default function WorkspaceChat({
   };
 
   const createConversation = async () => {
+    if (creatingConversationRef.current || convLoading || chatRunning) return;
+    const draft = conversations.find((conversation) => conversation.turn_count === 0);
+    if (draft) {
+      if (draft.conversation_id !== activeConvIdRef.current) {
+        switchConversation(draft.conversation_id, true);
+      }
+      return;
+    }
+
     const token = getToken();
     if (!token) return;
+    creatingConversationRef.current = true;
+    setCreatingConversation(true);
+    setChatError("");
     try {
       const r = await fetch(`/api/workspaces/${workspaceId}/chat/conversations`, {
         method: "POST",
@@ -212,17 +232,18 @@ export default function WorkspaceChat({
         body: JSON.stringify({ name: "Đoạn mới" }),
       });
       if (!r.ok) throw new Error("Không tạo được đoạn chat");
-      const data = await r.json();
-      setActiveConvId(data.conversation_id);
-      setChatItems([]);
-      // Thêm trực tiếp vào list (conversation chưa có message nên backend GROUP BY
-      // chưa trả về) — nếu không, sidebar không hiện đoạn mới cho tới khi có tin nhắn.
+      const data: Pick<ConversationItem, "conversation_id" | "name"> = await r.json();
+      // API chỉ liệt kê đoạn đã có tin nhắn. Giữ một đoạn trống trong sidebar để soạn tin đầu tiên.
       setConversations((prev) => [
-        { conversation_id: data.conversation_id, name: data.name || "Đoạn mới", turn_count: 0, last_message_at: null },
-        ...prev,
+        { conversation_id: data.conversation_id, name: data.name || "Đoạn mới", turn_count: 0 },
+        ...prev.filter((conversation) => conversation.conversation_id !== data.conversation_id),
       ]);
+      switchConversation(data.conversation_id, true);
     } catch (e: any) {
       setChatError(e.message);
+    } finally {
+      creatingConversationRef.current = false;
+      setCreatingConversation(false);
     }
   };
 
@@ -236,28 +257,26 @@ export default function WorkspaceChat({
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!r.ok) throw new Error("Không xoá được đoạn chat");
-      if (activeConvId === convId) {
-        setActiveConvId("");
-        setChatItems([]);
-        loadChatHistory();
-      }
+      setConversations((prev) => prev.filter((conversation) => conversation.conversation_id !== convId));
+      if (activeConvIdRef.current === convId) switchConversation("");
       await loadConversations();
     } catch (e: any) {
       setChatError(e.message);
     }
   };
 
-  const switchConversation = (convId: string) => {
-    // Hủy fetch cũ đang pending (nếu có) trước khi load conversation mới —
-    // tránh race khi response cũ resolve sau khi state đã reset, dẫn đến
-    // setChatItems(prev) trộn tin nhắn của 2 conversation khác nhau.
-    loadAbortRef.current?.abort();
-    const ctrl = new AbortController();
-    loadAbortRef.current = ctrl;
+  const switchConversation = (convId: string, isEmptyDraft = false) => {
+    activeConvIdRef.current = convId;
     setActiveConvId(convId);
     setChatItems([]);
     setChatError("");
-    loadChatHistory(convId, ctrl.signal);
+    if (isEmptyDraft) {
+      loadAbortRef.current?.abort();
+      setChatLoading(false);
+      setChatQuestion("");
+    } else {
+      void loadChatHistory(convId);
+    }
   };
 
   const startRename = (c: ConversationItem) => {
@@ -288,14 +307,17 @@ export default function WorkspaceChat({
     }
   };
 
-  const loadChatHistory = async (convId?: string, signal?: AbortSignal, showFailedParam?: boolean) => {
+  const loadChatHistory = async (convId = "") => {
     const token = getToken();
     if (!token) return;
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
+    const { signal } = controller;
     setChatLoading(true);
     setChatError("");
     try {
-      const convParam = convId !== undefined ? `conversation_id=${encodeURIComponent(convId)}&` : "";
-      const q = `${convParam}show_failed=${showFailedParam ?? showFailed}`;
+      const q = `conversation_id=${encodeURIComponent(convId)}&show_failed=${showFailed}`;
       const r = await fetch(`/api/workspaces/${workspaceId}/chat?${q}`, {
         headers: { Authorization: `Bearer ${token}` },
         signal,
@@ -304,27 +326,23 @@ export default function WorkspaceChat({
       const data = await r.json();
       // Server trả mới → cũ (created_at.desc()), đảo lại để state là cũ → mới
       // → render map() tự nhiên, tin nhắn mới nhất nằm dưới cùng (chuẩn chat).
-      // Replace thuần (không merge) — vì switchConversation đã abort fetch cũ
-      // và abort controller ngăn response cũ ghi đè state mới. Bỏ merge giúp
-      // tránh trộn turn giữa 2 conversation khác nhau.
       const list: WorkspaceChatItem[] = (data ?? []).reverse();
-      // Nếu fetch bị abort sau khi parse xong nhưng trước khi setState, bỏ qua.
-      if (signal?.aborted) return;
+      if (signal.aborted) return;
       setChatItems(list);
     } catch (e: any) {
-      // AbortError không phải lỗi thật — user vừa switch conversation khác
-      if (e?.name === "AbortError") return;
+      if (signal.aborted) return;
       setChatError(e.message);
     } finally {
-      if (!signal?.aborted) setChatLoading(false);
+      if (!signal.aborted) setChatLoading(false);
     }
   };
 
   const sendChatQuestion = async () => {
     const trimmed = chatQuestion.trim();
-    if (!trimmed || chatRunning) return;
+    if (!trimmed || chatRunning || creatingConversationRef.current) return;
     const token = getToken();
     if (!token) return;
+    const conversationId = activeConvIdRef.current || null;
     setChatRunning(true);
     setChatError("");
     setChatQuestion("");
@@ -362,7 +380,7 @@ export default function WorkspaceChat({
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ question: trimmed, persona: chatPersona, conversation_id: activeConvId || null }),
+        body: JSON.stringify({ question: trimmed, persona: chatPersona, conversation_id: conversationId }),
         signal: controller.signal,
       });
       if (!r.ok || !r.body) throw new Error("Không kết nối được luồng trả lời");
@@ -408,6 +426,12 @@ export default function WorkspaceChat({
             if (evt.type === "meta" && evt.chat_id) {
               // Đổi id item từ tempId → chat_id để delta/done sau map trúng turn này
               streamingIdRef.current = evt.chat_id;
+              // Server đã lưu câu hỏi đầu tiên của đoạn khi phát frame meta.
+              setConversations((prev) => prev.map((conversation) =>
+                conversation.conversation_id === conversationId && conversation.turn_count === 0
+                  ? { ...conversation, turn_count: 1 }
+                  : conversation
+              ));
               setChatItems((prev) =>
                 prev.map((t) => (t.id === tempId ? { ...t, id: evt.chat_id } : t))
               );
@@ -552,10 +576,11 @@ export default function WorkspaceChat({
             <p className="px-1 text-[10px] font-bold uppercase tracking-wide text-zinc-500">Đoạn chat</p>
             <button
               onClick={createConversation}
+              disabled={creatingConversation || convLoading || chatRunning}
               title="Tạo đoạn chat mới"
-              className="px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-md text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors whitespace-nowrap"
+              className="px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-md text-[11px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Đoạn mới
+              {creatingConversation ? "Đang tạo…" : "Đoạn mới"}
             </button>
           </div>
           {/* Danh sách đoạn chat — cuộn độc lập, không làm trôi top bar */}
@@ -566,6 +591,7 @@ export default function WorkspaceChat({
             <>
               <button
                 onClick={() => switchConversation("")}
+                disabled={creatingConversation}
                 className={`w-full text-left px-2 py-1.5 rounded-md text-[12px] transition-colors ${activeConvId === "" ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-zinc-400 hover:bg-zinc-800/60"}`}
               >
                 Đoạn mặc định
@@ -587,6 +613,7 @@ export default function WorkspaceChat({
                   ) : (
                     <button
                       onClick={() => switchConversation(c.conversation_id)}
+                      disabled={creatingConversation}
                       className={`flex-1 text-left px-2 py-1.5 rounded-md text-[12px] truncate transition-colors ${activeConvId === c.conversation_id ? "bg-teal-500/10 text-teal-400 font-semibold" : "text-zinc-400 hover:bg-zinc-800/60"}`}
                     >
                       {c.name}
@@ -718,6 +745,7 @@ export default function WorkspaceChat({
         <div className={`flex gap-3 w-full ${isFullscreen ? "max-w-4xl mx-auto" : ""}`}>
           <input
             value={chatQuestion}
+            disabled={creatingConversation}
             onChange={(e) => setChatQuestion(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendChatQuestion()}
             placeholder="Hỏi về workspace..."
@@ -725,7 +753,7 @@ export default function WorkspaceChat({
           />
           <button
             onClick={sendChatQuestion}
-            disabled={!chatQuestion.trim() || chatRunning}
+            disabled={!chatQuestion.trim() || chatRunning || creatingConversation}
             className="px-6 py-3 bg-primary text-primary-foreground rounded-xl text-[15px] font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
             {chatRunning ? "..." : "Gửi"}
