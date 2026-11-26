@@ -1117,7 +1117,7 @@ export default function WorkspaceDetailPage() {
               )}
 
               {rightTab === "chat" && (
-                <WorkspaceChat workspaceId={wsId} />
+                <WorkspaceChat key={wsId} workspaceId={wsId} />
               )}
 
               {rightTab === "history" && (

@@ -156,7 +156,7 @@ Không gian làm việc (*Workspace*) là nơi lưu trữ toàn bộ tiến trì
 ### Các thao tác chính:
 - **Tạo Workspace mới:** Nhấp chọn nút **"➕ Tạo Workspace mới"**, nhập tên đề tài, chuyên ngành (SE, IA, AI, IS...) và mô tả ngắn.
 - **Truy cập Workspace:** Nhấp vào thẻ đồ án tương ứng để tiếp tục làm việc.
-- **Trò chuyện đề tài (Chat đề tài):** Sử dụng trợ lý AI chuyên biệt để thảo luận về kiến trúc dự án, công nghệ sử dụng và nhận định sơ bộ trước khi nộp.
+- **Trò chuyện đề tài (Chat đề tài):** Sử dụng trợ lý AI chuyên biệt để thảo luận về kiến trúc dự án, công nghệ sử dụng và nhận định sơ bộ trước khi nộp. Nút **Đoạn mới** mở lại đoạn trống nếu đã có. Sau khi bạn gửi tin nhắn đầu tiên, nút có thể tạo một đoạn riêng.
 
 ---
 
