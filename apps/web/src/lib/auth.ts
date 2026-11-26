@@ -5,6 +5,8 @@
  * nếu không sẽ có 2 queue refresh độc lập → race rotate token (bug đã gặp).
  */
 
+import { getFeedbackDraftOwner, removeFeedbackDraft } from "./feedback-draft";
+
 // Single-flight: mọi caller chờ cùng 1 promise, chỉ 1 request refresh được gửi.
 let refreshPromise: Promise<RefreshResult> | null = null;
 
@@ -59,12 +61,14 @@ export async function refreshAccessToken(): Promise<RefreshResult> {
 }
 
 export function clearSession() {
+  const feedbackOwner = getFeedbackDraftOwner();
   localStorage.removeItem("access_token");
   localStorage.removeItem("refresh_token");
   localStorage.removeItem("user");
   // Gói + vé Mock AI thuộc về tài khoản, không được để lại cho người đăng nhập sau.
   localStorage.removeItem("membership_plan");
   localStorage.removeItem("mock_ai_trial_tickets");
+  if (feedbackOwner !== null) removeFeedbackDraft(feedbackOwner);
 }
 
 export function handleSessionExpired() {

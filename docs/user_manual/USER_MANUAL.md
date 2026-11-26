@@ -458,6 +458,9 @@ Trang Cấu hình (`/admin/settings`) cho phép Super Admin điều chỉnh các
 ### ❓ 4. Bệnh án đồ án xuất file PDF có giá trị pháp lý chính thức không?
 - File "Bệnh án đồ án" là tài liệu chẩn đoán học thuật mang tính chất định hướng và tự đánh giá dựa trên thang chuẩn đầu ra (CLO / SEP490). Kết quả thi tốt nghiệp chính thức vẫn phụ thuộc vào quyết định của Hội đồng chấm thi tại trường đại học của bạn.
 
+### ❓ 5. Tôi có thể điền tiếp khảo sát đang dở không?
+- Khi mở lại khảo sát hoặc tải lại trang trong cùng tab, bạn có thể tiếp tục từ bước và câu trả lời đã lưu. Bản nháp được xóa khi gửi thành công hoặc đăng xuất.
+
 ---
 
 <div class="callout callout-info">

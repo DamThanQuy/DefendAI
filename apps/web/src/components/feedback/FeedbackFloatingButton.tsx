@@ -10,7 +10,8 @@ import { api } from "@/lib/api";
 export function FeedbackFloatingButton() {
   const pathname = usePathname();
   const { isAuthed, user, loading } = useAuth();
-  const [modalOpen, setModalOpen] = useState(false);
+  const userId = user?.id == null ? null : String(user.id);
+  const [modalUserId, setModalUserId] = useState<string | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState<boolean | null>(null);
   const [isEligible, setIsEligible] = useState<boolean | null>(null);
   const hideFloatingButton =
@@ -18,6 +19,7 @@ export function FeedbackFloatingButton() {
 
   useEffect(() => {
     if (!isAuthed || !user) {
+      setModalUserId(null);
       setHasSubmitted(null);
       setIsEligible(null);
       return;
@@ -57,7 +59,7 @@ export function FeedbackFloatingButton() {
     checkEligibility();
 
     window.addEventListener("feedback-refresh", checkEligibility);
-    const handleOpenModal = () => setModalOpen(true);
+    const handleOpenModal = () => setModalUserId(userId);
     window.addEventListener("open-feedback-modal", handleOpenModal);
 
     return () => {
@@ -65,10 +67,10 @@ export function FeedbackFloatingButton() {
       window.removeEventListener("feedback-refresh", checkEligibility);
       window.removeEventListener("open-feedback-modal", handleOpenModal);
     };
-  }, [isAuthed, user]);
+  }, [isAuthed, user, userId]);
 
   // Chỉ hiển thị cho user đã đăng nhập
-  if (loading || !isAuthed || !user) {
+  if (loading || !isAuthed || userId === null) {
     return null;
   }
 
@@ -77,7 +79,7 @@ export function FeedbackFloatingButton() {
       {isEligible === true && !hideFloatingButton && (
         <div className="fixed bottom-5 right-5 z-[95] print:hidden">
           <button
-            onClick={() => setModalOpen(true)}
+            onClick={() => setModalUserId(userId)}
             className="group relative flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-teal-600 via-teal-500 to-cyan-500 hover:from-teal-500 hover:to-cyan-400 text-white rounded-full shadow-lg shadow-teal-500/25 hover:shadow-xl hover:shadow-teal-500/35 border border-white/20 transition-all duration-300 hover:scale-105 active:scale-95"
             title={hasSubmitted ? "Đóng góp ý kiến cho GraduAI" : "Đóng góp ý kiến & Nhận vé Mock Room AI"}
             aria-label={hasSubmitted ? "Đóng góp ý kiến" : "Khảo sát ý kiến người dùng"}
@@ -105,8 +107,10 @@ export function FeedbackFloatingButton() {
       )}
 
       <FeedbackSurveyModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        key={userId}
+        userId={userId}
+        isOpen={modalUserId === userId}
+        onClose={() => setModalUserId(null)}
         onSuccess={() => setHasSubmitted(true)}
       />
     </>

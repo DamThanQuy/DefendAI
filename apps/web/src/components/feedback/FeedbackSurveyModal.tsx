@@ -1,9 +1,17 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
+import {
+  EMPTY_FEEDBACK_DRAFT,
+  isCurrentFeedbackUser,
+  readFeedbackDraft,
+  removeFeedbackDraft,
+  saveFeedbackDraft,
+  type FeedbackDraft,
+} from "@/lib/feedback-draft";
 import { toast } from "sonner";
 import {
   X,
@@ -43,6 +51,7 @@ export interface FeedbackUserContext {
 }
 
 interface FeedbackSurveyModalProps {
+  userId: string;
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
@@ -164,34 +173,36 @@ const PAY_WILLINGNESS_OPTIONS = [
   { id: "200k_plus", label: "Từ 200.000đ trở lên / tháng" },
 ];
 
-export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurveyModalProps) {
-  const { refreshUser } = useAuth();
+export function FeedbackSurveyModal({ userId, isOpen, onClose, onSuccess }: FeedbackSurveyModalProps) {
+  const { refreshUser, patchProfileData } = useAuth();
   const router = useRouter();
-  const { patchProfileData } = useAuth();
 
   // Trạng thái tải ngữ cảnh người dùng
   const [context, setContext] = useState<FeedbackUserContext | null>(null);
   const [loadingContext, setLoadingContext] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
 
-  // Modal Step: 1 = Đánh giá trải nghiệm; 2 = Góp ý & Định giá; 3 = Quà tặng
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [draft, setDraft] = useState(() => readFeedbackDraft(userId));
+  const [rewardGranted, setRewardGranted] = useState<boolean | null>(null);
+  const isOpenRef = useRef(isOpen);
+  const mountedRef = useRef(false);
+  isOpenRef.current = isOpen;
+  const step = rewardGranted === null ? draft.step : 3;
+  const {
+    csatScore, aspectRatings, featureRatings, featureLowReasons,
+    bestThing, suggestedChange, npsScore, payWillingness,
+  } = draft;
 
-  // Form states - Bước 1
-  const [csatScore, setCsatScore] = useState<number | null>(null); // 1-10 scale (null khi chưa chọn)
-  const [aspectRatings, setAspectRatings] = useState<Record<string, number>>({});
-  const [featureRatings, setFeatureRatings] = useState<Record<string, number>>({});
-  const [featureLowReasons, setFeatureLowReasons] = useState<Record<string, string>>({});
+  function updateDraft(fields: Partial<FeedbackDraft>) {
+    const next = { ...draft, ...fields };
+    setDraft(next);
+    saveFeedbackDraft(userId, next);
+  }
 
-  // Form states - Bước 2
-  const [bestThing, setBestThing] = useState<string>("");
-  const [suggestedChange, setSuggestedChange] = useState<string>("");
-  const [npsScore, setNpsScore] = useState<number>(10);
-  const [payWillingness, setPayWillingness] = useState<string>("50k_99k");
-
-  // Kết quả sau khi submit
-  const [newTicketsCount, setNewTicketsCount] = useState<number>(1);
-  const [rewardGranted, setRewardGranted] = useState<boolean>(false);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   // Load user context khi modal mở
   useEffect(() => {
@@ -204,9 +215,6 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
         const res = await api.get<FeedbackUserContext>("/api/feedback/user-context");
         if (!isMounted) return;
         setContext(res.data);
-
-        // Tính năng để trống, người dùng tự đánh giá (không gán sẵn 5 sao)
-        setFeatureRatings({});
       } catch (err: any) {
         if (!isMounted) return;
         // Nếu chưa đăng nhập hoặc lỗi, fallback context mặc định
@@ -232,30 +240,18 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
     };
   }, [isOpen]);
 
-  // Reset khi đóng
   function handleClose() {
+    isOpenRef.current = false;
     onClose();
-    setTimeout(() => {
-      setStep(1);
-      setCsatScore(null);
-      setAspectRatings({});
-      setFeatureRatings({});
-      setFeatureLowReasons({});
-    }, 300);
+    setRewardGranted(null);
   }
 
   // Toggle quick tag vào suggestedChange
   function toggleQuickTag(tag: string) {
-    if (suggestedChange.includes(tag)) {
-      setSuggestedChange((prev) =>
-        prev
-          .replace(tag, "")
-          .replace(/\n\s*\n/g, "\n")
-          .trim()
-      );
-    } else {
-      setSuggestedChange((prev) => (prev ? `${prev.trim()}\n${tag}` : tag));
-    }
+    const next = suggestedChange.includes(tag)
+      ? suggestedChange.replace(tag, "").replace(/\n\s*\n/g, "\n").trim()
+      : [suggestedChange.trim(), tag].filter(Boolean).join("\n");
+    updateDraft({ suggestedChange: next });
   }
 
   // Chuyển step 1 -> step 2
@@ -266,11 +262,12 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
       });
       return;
     }
-    setStep(2);
+    updateDraft({ step: 2 });
   }
 
   // Gửi feedback
   async function handleSubmit() {
+    if (submitting || !isCurrentFeedbackUser(userId)) return;
     setSubmitting(true);
     try {
       // Chuẩn hóa CSAT 1-10 về overall_rating 1-5 theo đúng schema backend (mặc định 4 nếu chưa chọn)
@@ -306,6 +303,11 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
       };
 
       const res = await api.post("/api/feedback", payload);
+      if (!mountedRef.current || !isCurrentFeedbackUser(userId)) return;
+      removeFeedbackDraft(userId);
+      setDraft(EMPTY_FEEDBACK_DRAFT);
+      const isReward = !context?.has_submitted;
+      if (isOpenRef.current) setRewardGranted(isReward);
       // Backend đã nhận feedback; làm mới hồ sơ để các trang đọc feedback_status mới.
       // Lỗi refresh không được biến một lần gửi feedback thành trạng thái thất bại.
       try {
@@ -313,10 +315,8 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
       } catch {
         // AuthProvider thường tự xử lý lỗi mạng; giữ nguyên thành công từ POST feedback.
       }
+      if (!mountedRef.current || !isCurrentFeedbackUser(userId)) return;
       const tickets = res.data?.mock_ai_trial_tickets ?? 1;
-      setNewTicketsCount(tickets);
-      const isReward = !context?.has_submitted;
-      setRewardGranted(isReward);
 
       // Đồng bộ trực tiếp vào AuthProvider.user.profile_data (0 request thừa)
       patchProfileData({
@@ -334,12 +334,12 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
       });
 
       if (onSuccess) onSuccess();
-      setStep(3); // Chuyển sang màn hình nhận quà hoặc hoàn tất
     } catch (err: any) {
+      if (!mountedRef.current || !isCurrentFeedbackUser(userId)) return;
       const msg = err?.response?.data?.detail || "Gửi phản hồi thất bại. Vui lòng thử lại.";
       toast.error("Lỗi khi gửi phản hồi", { description: msg });
     } finally {
-      setSubmitting(false);
+      if (mountedRef.current) setSubmitting(false);
     }
   }
 
@@ -384,8 +384,13 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl max-h-[90vh] bg-card border border-border/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) handleClose();
+      }}
+    >
+      <div role="dialog" aria-modal="true" aria-labelledby="feedback-survey-title" className="relative w-full max-w-2xl max-h-[90vh] bg-card border border-border/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/40 shrink-0">
           <div className="flex items-center gap-3">
@@ -398,7 +403,7 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-foreground">
+                <h2 id="feedback-survey-title" className="text-lg font-bold text-foreground">
                   {context?.has_submitted ? "Góp ý & Đánh giá" : "Khảo sát Trải nghiệm & Nhận Quà"}
                 </h2>
                 {/* Badge gói tài khoản tự động */}
@@ -419,6 +424,8 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
             </div>
           </div>
           <button
+            type="button"
+            aria-label="Đóng khảo sát"
             onClick={handleClose}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
@@ -489,7 +496,8 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
                     <button
                       key={score}
                       type="button"
-                      onClick={() => setCsatScore(score)}
+                      onClick={() => updateDraft({ csatScore: score })}
+                      aria-pressed={csatScore === score}
                       className={`h-9 rounded-lg text-xs font-bold transition-all border ${
                         csatScore === score
                           ? "bg-gradient-to-r from-teal-500 to-cyan-500 text-white border-teal-400 shadow-md shadow-teal-500/20 scale-105"
@@ -529,10 +537,7 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
                             key={star}
                             type="button"
                             onClick={() =>
-                              setAspectRatings((prev) => ({
-                                ...prev,
-                                [criterion.key]: star,
-                              }))
+                              updateDraft({ aspectRatings: { ...aspectRatings, [criterion.key]: star } })
                             }
                             className="p-1 text-muted-foreground/40 hover:text-amber-400 transition-colors"
                           >
@@ -620,10 +625,7 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
                                     key={star}
                                     type="button"
                                     onClick={() =>
-                                      setFeatureRatings((prev) => ({
-                                        ...prev,
-                                        [feature.key]: star,
-                                      }))
+                                      updateDraft({ featureRatings: { ...featureRatings, [feature.key]: star } })
                                     }
                                     className="p-1 hover:text-amber-400 transition-colors"
                                   >
@@ -665,10 +667,7 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
                               type="text"
                               value={featureLowReasons[feature.key] || ""}
                               onChange={(e) =>
-                                setFeatureLowReasons((prev) => ({
-                                  ...prev,
-                                  [feature.key]: e.target.value,
-                                }))
+                                updateDraft({ featureLowReasons: { ...featureLowReasons, [feature.key]: e.target.value } })
                               }
                               placeholder="Ví dụ: Tốc độ chậm, thiếu tùy chọn, câu hỏi chưa sát..."
                               className="w-full h-8 px-2.5 text-xs bg-muted/40 border border-amber-500/30 rounded-lg text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-amber-400"
@@ -704,7 +703,7 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
                 <textarea
                   rows={2}
                   value={bestThing}
-                  onChange={(e) => setBestThing(e.target.value)}
+                  onChange={(e) => updateDraft({ bestThing: e.target.value })}
                   placeholder="Ví dụ: Giao diện trực quan, câu hỏi mock phản xạ rất thực tế, báo cáo chi tiết..."
                   className="w-full p-2.5 text-xs bg-muted/30 border border-border rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
                 />
@@ -739,7 +738,7 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
                 <textarea
                   rows={3}
                   value={suggestedChange}
-                  onChange={(e) => setSuggestedChange(e.target.value)}
+                  onChange={(e) => updateDraft({ suggestedChange: e.target.value })}
                   placeholder="Bấm chọn nhanh các tag phía trên hoặc nhập ý kiến chi tiết của bạn..."
                   className="w-full p-2.5 text-xs bg-muted/30 border border-border rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
                 />
@@ -756,7 +755,7 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
                     <button
                       key={opt.score}
                       type="button"
-                      onClick={() => setNpsScore(opt.score)}
+                      onClick={() => updateDraft({ npsScore: opt.score })}
                       className={`p-3 text-left border rounded-xl transition-all ${
                         npsScore === opt.score
                           ? `${opt.color} shadow-sm ring-1 ring-teal-500/40`
@@ -791,7 +790,7 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
                         name="pay_willingness"
                         value={opt.id}
                         checked={payWillingness === opt.id}
-                        onChange={(e) => setPayWillingness(e.target.value)}
+                        onChange={(e) => updateDraft({ payWillingness: e.target.value })}
                         className="text-teal-500 focus:ring-teal-500"
                       />
                       <span>{opt.label}</span>
@@ -865,6 +864,7 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
                   <>
                     <Button
                       onClick={handleGoToMockRoom}
+                      disabled={submitting}
                       className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-semibold text-sm shadow-lg shadow-teal-500/25 gap-2"
                     >
                       <Sparkles className="w-4 h-4" />
@@ -913,7 +913,7 @@ export function FeedbackSurveyModal({ isOpen, onClose, onSuccess }: FeedbackSurv
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setStep(1)}
+                  onClick={() => updateDraft({ step: 1 })}
                   className="text-xs gap-1 text-muted-foreground hover:text-foreground"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
