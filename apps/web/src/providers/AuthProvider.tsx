@@ -13,6 +13,7 @@ import React, {
 import { getMe } from "@/lib/api";
 import { clearSession, handleSessionExpired } from "@/lib/auth";
 import { parseApiDate } from "@/lib/datetime";
+import { removeFeedbackDraft } from "@/lib/feedback-draft";
 
 export interface AuthUser {
   id?: number | string;
@@ -178,6 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const onStorage = () => {
       invalidateCache();
       if (!localStorage.getItem("access_token")) {
+        if (flagsOwnerId.current != null) removeFeedbackDraft(String(flagsOwnerId.current));
         flagsOwnerId.current = undefined;
         setUser(null);
         setLoading(false);
