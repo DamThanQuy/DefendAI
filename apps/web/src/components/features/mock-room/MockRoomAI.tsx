@@ -18,6 +18,7 @@ import {
   Download,
   Maximize2,
   Minimize2,
+  ArrowLeft,
   ArrowRight,
   Hand,
   MoreHorizontal,
@@ -144,6 +145,8 @@ export default function MockRoomAI() {
   const [viewSession, setViewSession] = useState<MockSessionDetail | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [searchQ, setSearchQ] = useState("");
+  const [lobbyTab, setLobbyTab] = useState<"new" | "history">("new");
+  const hasAutoPickedTabRef = useRef(false);
 
   // Chat state
   const [messages, setMessages] = useState<MockMessage[]>([]);
@@ -936,256 +939,72 @@ export default function MockRoomAI() {
     };
   }, []);
 
+  // Tự mở tab Lịch sử nếu user đã hết vé và có phiên cũ
+  useEffect(() => {
+    if (hasAutoPickedTabRef.current || !hasLoadedSessions || accessLoading) return;
+    hasAutoPickedTabRef.current = true;
+    if (!isVip && trialTickets <= 0 && !resumableEmptySession && sessions.length > 0) {
+      setLobbyTab("history");
+    }
+  }, [hasLoadedSessions, accessLoading, isVip, trialTickets, resumableEmptySession, sessions.length]);
+
   // ── Render ─────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full bg-background text-foreground overflow-hidden">
-      {/* ── Step 1: Upload ── */}
+      {/* ── Step 1: Lobby full khung ── */}
       {step === "upload" && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="flex-1 flex items-center justify-center p-8 overflow-y-auto"
+          className="flex-1 overflow-y-auto"
         >
-          <Card className="max-w-2xl w-full p-8 text-center">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_hsl(var(--primary)/0.2)]">
-              <Bot className="w-10 h-10 text-white" />
-            </div>
-            <h2 className="text-2xl font-black mb-3">
-              Vào phòng chat với Giám khảo AI
-            </h2>
-            <p className="text-muted-foreground mb-6">
-              AI vào vai Giám khảo, truy vấn và phản biện về đồ án của bạn như một buổi bảo vệ thật — không chấm điểm, không form cố định.
-              Bạn có thể chọn tài liệu đồ án để AI bám sát nội dung (khuyên dùng), hoặc vào phòng chat ngay.
-            </p>
+          <div className="w-full max-w-5xl mx-auto px-4 sm:px-8 py-6 text-left">
+            <button
+              type="button"
+              onClick={() => router.push("/mock-room")}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors mb-3"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Quay lại Mock Room
+            </button>
 
-            {/* Danh sách tài liệu student đã upload */}
-            <div className="mb-6 text-left">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-foreground">Tài liệu đã tải lên</span>
-                <button
-                  onClick={fetchStudentDocs}
-                  className="text-xs text-primary hover:underline font-medium"
-                >
-                  ↻ Làm mới
-                </button>
+            {/* Header gọn */}
+            <div className="flex items-center gap-3.5 mb-5">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shrink-0 shadow-[0_0_20px_hsl(var(--primary)/0.2)]">
+                <Bot className="w-6 h-6 text-white" />
               </div>
-
-              {docsLoading && (
-                <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Đang tải danh sách tài liệu...
-                </div>
-              )}
-
-              {!docsLoading && docsError && (
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{docsError}</span>
-                </div>
-              )}
-
-              {!docsLoading && !docsError && studentDocs.length === 0 && (
-                <div className="text-sm text-muted-foreground py-6 text-center border border-dashed border-border rounded-xl">
-                  Bạn chưa có tài liệu nào trong hệ thống. Vui lòng vào mục{" "}
-                  <a href="/documents" className="text-primary underline hover:text-primary/80">
-                    Tài liệu
-                  </a>{" "}
-                  để tải lên trước khi vào phòng, hoặc chọn vào phòng hỏi tự do bên dưới.
-                </div>
-              )}
-
-              {!docsLoading && studentDocs.length > 0 && (
-                <div className="max-h-64 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                  {studentDocs.map((doc) => {
-                    const isSelected = selectedDocId === doc.id;
-                    return (
-                      <button
-                        key={doc.id}
-                        onClick={() => setSelectedDocId(doc.id)}
-                        className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${
-                          isSelected
-                            ? "border-primary bg-primary/10"
-                            : "border-border hover:border-primary/30 bg-muted/10"
-                        }`}
-                      >
-                        <FileText className={`w-5 h-5 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{doc.filename}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {doc.doc_type.toUpperCase()} · {new Date(doc.created_at).toLocaleString("vi-VN")}
-                          </p>
-                        </div>
-                        {isSelected && <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {contextError && (
-              <div className="mb-4 flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-left">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{contextError}</span>
-              </div>
-            )}
-
-            {/* Lịch sử phiên chat — xem lại / tiếp tục / xoá theo từng tài liệu */}
-            <div className="mb-6 text-left">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-foreground">
-                  Lịch sử phiên chất vấn
-                  {sessions.length > 0 && (
-                    <span className="ml-2 text-xs font-normal text-muted-foreground">
-                      ({sessions.length} phiên)
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xl sm:text-2xl font-bold text-foreground">
+                    Phòng chat với Giám khảo AI
+                  </h2>
+                  {isVip ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                      <Crown className="w-3 h-3" /> VIP
+                    </span>
+                  ) : trialTickets > 0 ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-500/15 text-teal-400 border border-teal-500/30">
+                      Còn {trialTickets} vé dùng thử
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-muted text-muted-foreground border border-border">
+                      Hết vé dùng thử
                     </span>
                   )}
-                </span>
-                <div className="flex items-center gap-3">
-                  <input
-                    value={searchQ}
-                    onChange={(e) => setSearchQ(e.target.value)}
-                    placeholder="Tìm phiên..."
-                    className="w-36 sm:w-44 bg-muted/40 border border-border rounded-lg px-2.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary placeholder:text-muted-foreground"
-                  />
-                  <button
-                    onClick={fetchSessions}
-                    className="text-xs text-primary hover:underline font-medium"
-                  >
-                    ↻ Làm mới
-                  </button>
                 </div>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                  Chọn tài liệu để AI phản biện sát đồ án, hoặc chat tự do ngay.
+                </p>
               </div>
-
-              {sessionsLoading && sessions.length === 0 && (
-                <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Đang tải lịch sử...
-                </div>
-              )}
-
-              {!sessionsLoading && sessions.length === 0 && (
-                <div className="text-sm text-muted-foreground py-4 text-center border border-dashed border-border rounded-xl">
-                  Chưa có phiên chat nào. Vào phòng để bắt đầu — các phiên sẽ tự lưu tại đây.
-                </div>
-              )}
-
-              {sessions.length > 0 && (() => {
-                // Gom phiên theo từng tài liệu
-                const q = searchQ.trim().toLowerCase();
-                const filtered = q
-                  ? sessions.filter(
-                      (s) =>
-                        s.title.toLowerCase().includes(q) ||
-                        s.preview.toLowerCase().includes(q)
-                    )
-                  : sessions;
-                const grouped = new Map<number | null, MockSession[]>();
-                for (const s of filtered) {
-                  const key = s.document_id ?? null;
-                  if (!grouped.has(key)) grouped.set(key, []);
-                  grouped.get(key)!.push(s);
-                }
-                if (filtered.length === 0) {
-                  return (
-                    <div className="text-sm text-muted-foreground py-4 text-center border border-dashed border-border rounded-xl">
-                      Không tìm thấy phiên chat nào khớp.
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="max-h-72 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
-                    {Array.from(grouped.entries()).map(([docId, list]) => {
-                      const docName =
-                        docId != null
-                          ? studentDocs.find((d) => d.id === docId)?.filename ||
-                            `Tài liệu #${docId}`
-                          : "Chat tự do (không tài liệu)";
-                      return (
-                        <div
-                          key={docId ?? "free"}
-                          className="border border-border rounded-xl overflow-hidden"
-                        >
-                          <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b border-border">
-                            <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
-                            <span className="text-xs font-semibold text-foreground truncate">
-                              {docName}
-                            </span>
-                            <span className="ml-auto text-[11px] text-muted-foreground shrink-0">
-                              {list.length} phiên
-                            </span>
-                          </div>
-                          <div className="divide-y divide-border/60">
-                            {list.map((s) => (
-                              <div
-                                key={s.id}
-                                className="flex items-start gap-3 px-3 py-2.5 hover:bg-muted/20 transition-colors group"
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <p className="text-sm font-medium text-foreground truncate">
-                                      {s.title}
-                                    </p>
-                                    {activeSessionId === s.id && (
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary text-primary-foreground font-bold shrink-0">
-                                        Đang hoạt động
-                                      </span>
-                                    )}
-                                  </div>
-                                  {s.preview && (
-                                    <p className="text-xs text-muted-foreground truncate mt-0.5">
-                                      {s.preview}
-                                    </p>
-                                  )}
-                                  <p className="text-[11px] text-muted-foreground/70 mt-1">
-                                    {s.message_count} tin ·{" "}
-                                    {new Date(s.updated_at).toLocaleString("vi-VN")}
-                                  </p>
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
-                                  <button
-                                    onClick={() => openSessionView(s.id)}
-                                    disabled={viewLoading}
-                                    className="px-2 py-1 rounded-md border border-border bg-muted/40 hover:border-primary hover:text-primary text-[11px] font-semibold text-muted-foreground transition-colors"
-                                    title="Xem lại phiên (chỉ đọc)"
-                                  >
-                                    Xem lại
-                                  </button>
-                                  <button
-                                    onClick={() => resumeSession(s.id)}
-                                    disabled={contextLoading}
-                                    className="px-2 py-1 rounded-md border border-primary/40 bg-primary/10 hover:bg-primary/20 text-[11px] font-semibold text-primary transition-colors"
-                                    title="Tiếp tục phiên này trong phòng chat"
-                                  >
-                                    Tiếp tục
-                                  </button>
-                                  <button
-                                    onClick={() => deleteSession(s.id)}
-                                    className="px-2 py-1 rounded-md border border-border bg-muted/40 hover:border-red-500/50 hover:text-red-400 text-[11px] font-semibold text-muted-foreground transition-colors"
-                                    title="Xoá phiên"
-                                  >
-                                    Xoá
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
             </div>
 
-            {/* Banner vé trải nghiệm Mock AI */}
-            {!isVip && trialTickets <= 0 && (
+            {/* Banner vé đặt ngay trên cùng */}
+            {!isVip && trialTickets <= 0 && !resumableEmptySession && (
               hasRewardGranted ? (
-                <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                <div className="mb-5 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-200 text-xs sm:text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-base shrink-0">⚠️</span>
-                    <span>Bạn đã sử dụng hết vé trải nghiệm Mock AI. Hãy chọn phiên đã lưu bên dưới để xem lại hoặc nâng cấp VIP để tạo phiên mới.</span>
+                    <span className="text-sm shrink-0">⚠️</span>
+                    <span>Bạn đã dùng hết vé trải nghiệm. Xem lại phiên cũ ở tab Lịch sử hoặc nâng cấp VIP để tạo phiên mới.</span>
                   </div>
                   <Button
                     size="sm"
@@ -1197,11 +1016,11 @@ export default function MockRoomAI() {
                   </Button>
                 </div>
               ) : (
-                <div className="mb-4 p-3.5 bg-teal-500/10 border border-teal-500/30 rounded-xl text-teal-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                <div className="mb-5 p-3.5 bg-teal-500/10 border border-teal-500/30 rounded-xl text-teal-200 text-xs sm:text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-base shrink-0">🎁</span>
+                    <span className="text-sm shrink-0">🎁</span>
                     <span>
-                      Bạn chưa có vé trải nghiệm Mock AI. Hãy góp ý nhanh để nhận <strong>1 vé trải nghiệm miễn phí</strong>, hoặc nâng cấp VIP để phản biện không giới hạn!
+                      Góp ý nhanh để nhận <strong>1 vé trải nghiệm miễn phí</strong>, hoặc nâng cấp VIP để dùng không giới hạn.
                     </span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -1226,34 +1045,274 @@ export default function MockRoomAI() {
               )
             )}
 
-            <div className="flex flex-col gap-3">
-              <Button
-                onClick={() => enterRoom(true)}
-                disabled={!selectedDocId || contextLoading || (!isVip && trialTickets <= 0 && !resumableEmptySession)}
-                className="w-full h-12 text-lg font-bold rounded-xl"
+            {/* 2 Tabs: Phiên mới | Lịch sử */}
+            <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-muted/40 border border-border mb-5">
+              <button
+                type="button"
+                onClick={() => setLobbyTab("new")}
+                className={`py-2 px-4 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+                  lobbyTab === "new"
+                    ? "bg-background text-foreground shadow-sm border border-border/60"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
-                {contextLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Đang đọc tài liệu...
-                  </>
-                ) : (
-                  <>
-                    Dùng tài liệu đã chọn & vào phòng
-                    <ArrowRight className="w-5 h-5 ml-2" />
-                  </>
+                Phiên mới
+              </button>
+              <button
+                type="button"
+                onClick={() => setLobbyTab("history")}
+                className={`py-2 px-4 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                  lobbyTab === "history"
+                    ? "bg-background text-foreground shadow-sm border border-border/60"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>Lịch sử phiên</span>
+                {sessions.length > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-primary/15 text-primary font-bold">
+                    {sessions.length}
+                  </span>
                 )}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => enterRoom(false)}
-                disabled={contextLoading || (!isVip && trialTickets <= 0 && !resumableEmptySession)}
-                className="w-full h-11 rounded-xl"
-              >
-                Vào phòng hỏi tự do (không cần tài liệu)
-              </Button>
+              </button>
             </div>
-          </Card>
+
+            {/* Tab 1: Phiên mới */}
+            {lobbyTab === "new" && (
+              <div>
+                <div className="mb-5">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Tài liệu đồ án ({studentDocs.length})
+                    </span>
+                    <button
+                      onClick={fetchStudentDocs}
+                      className="text-xs text-primary hover:underline font-medium"
+                    >
+                      ↻ Làm mới
+                    </button>
+                  </div>
+
+                  {docsLoading && (
+                    <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Đang tải danh sách tài liệu...
+                    </div>
+                  )}
+
+                  {!docsLoading && docsError && (
+                    <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{docsError}</span>
+                    </div>
+                  )}
+
+                  {!docsLoading && !docsError && studentDocs.length === 0 && (
+                    <div className="text-xs sm:text-sm text-muted-foreground py-8 text-center border border-dashed border-border rounded-xl">
+                      Chưa có tài liệu nào. Vào{" "}
+                      <a href="/documents" className="text-primary underline hover:text-primary/80">
+                        Tài liệu
+                      </a>{" "}
+                      để tải lên, hoặc chọn chat tự do bên dưới.
+                    </div>
+                  )}
+
+                  {!docsLoading && studentDocs.length > 0 && (
+                    <div className="max-h-72 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                      {studentDocs.map((doc) => {
+                        const isSelected = selectedDocId === doc.id;
+                        return (
+                          <button
+                            key={doc.id}
+                            onClick={() => setSelectedDocId(doc.id)}
+                            className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
+                              isSelected
+                                ? "border-primary bg-primary/10"
+                                : "border-border hover:border-primary/30 bg-card/60"
+                            }`}
+                          >
+                            <FileText className={`w-4 h-4 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{doc.filename}</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {doc.doc_type.toUpperCase()} · {new Date(doc.created_at).toLocaleString("vi-VN")}
+                              </p>
+                            </div>
+                            {isSelected && <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {contextError && (
+                  <div className="mb-4 flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{contextError}</span>
+                  </div>
+                )}
+
+                <div className="flex flex-col lg:flex-row gap-3">
+                  <Button
+                    onClick={() => enterRoom(true)}
+                    disabled={!selectedDocId || contextLoading || (!isVip && trialTickets <= 0 && !resumableEmptySession)}
+                    className="w-full lg:flex-1 h-11 text-sm sm:text-base font-semibold antialiased rounded-xl"
+                  >
+                    {contextLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Đang đọc tài liệu...
+                      </>
+                    ) : (
+                      <>
+                        Dùng tài liệu đã chọn & vào phòng
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => enterRoom(false)}
+                    disabled={contextLoading || (!isVip && trialTickets <= 0 && !resumableEmptySession)}
+                    className="lg:w-auto px-5 h-11 text-sm rounded-xl whitespace-nowrap"
+                  >
+                    Vào phòng hỏi tự do (không cần tài liệu)
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 2: Lịch sử phiên */}
+            {lobbyTab === "history" && (
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <input
+                    value={searchQ}
+                    onChange={(e) => setSearchQ(e.target.value)}
+                    placeholder="Tìm kiếm phiên chất vấn..."
+                    className="flex-1 bg-card border border-border rounded-lg px-3 py-2 text-xs sm:text-sm text-foreground focus:outline-none focus:border-primary placeholder:text-muted-foreground"
+                  />
+                  <button
+                    onClick={fetchSessions}
+                    className="text-xs text-primary hover:underline font-medium shrink-0 px-2"
+                  >
+                    ↻ Làm mới
+                  </button>
+                </div>
+
+                {sessionsLoading && sessions.length === 0 && (
+                  <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Đang tải lịch sử...
+                  </div>
+                )}
+
+                {!sessionsLoading && sessions.length === 0 && (
+                  <div className="text-xs sm:text-sm text-muted-foreground py-8 text-center border border-dashed border-border rounded-xl">
+                    Chưa có phiên chat nào. Chuyển sang tab <strong>Phiên mới</strong> để bắt đầu.
+                  </div>
+                )}
+
+                {sessions.length > 0 && (() => {
+                  const q = searchQ.trim().toLowerCase();
+                  const filtered = q
+                    ? sessions.filter((s) => s.title.toLowerCase().includes(q))
+                    : sessions;
+                  const grouped = new Map<number | null, MockSession[]>();
+                  for (const s of filtered) {
+                    const key = s.document_id ?? null;
+                    if (!grouped.has(key)) grouped.set(key, []);
+                    grouped.get(key)!.push(s);
+                  }
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="text-xs sm:text-sm text-muted-foreground py-6 text-center border border-dashed border-border rounded-xl">
+                        Không tìm thấy phiên chat nào khớp.
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-3">
+                      {Array.from(grouped.entries()).map(([docId, list]) => {
+                        const docName =
+                          docId != null
+                            ? studentDocs.find((d) => d.id === docId)?.filename ||
+                              `Tài liệu #${docId}`
+                            : "Chat tự do (không tài liệu)";
+                        return (
+                          <div
+                            key={docId ?? "free"}
+                            className="border border-border rounded-xl overflow-hidden bg-card/40"
+                          >
+                            <div className="flex items-center gap-2 px-3.5 py-2 bg-muted/30 border-b border-border">
+                              <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
+                              <span className="text-xs font-semibold text-foreground truncate">
+                                {docName}
+                              </span>
+                              <span className="ml-auto text-[11px] text-muted-foreground shrink-0">
+                                {list.length} phiên
+                              </span>
+                            </div>
+                            <div className="divide-y divide-border/60">
+                              {list.map((s) => (
+                                <div
+                                  key={s.id}
+                                  className="flex items-center gap-3 px-3.5 py-3 hover:bg-muted/20 transition-colors"
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-sm font-medium text-foreground truncate">
+                                        {s.title}
+                                      </p>
+                                      {activeSessionId === s.id && (
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary text-primary-foreground font-bold shrink-0">
+                                          Đang mở
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                                      {s.message_count} tin · {new Date(s.updated_at).toLocaleString("vi-VN")}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <button
+                                      onClick={() => openSessionView(s.id)}
+                                      disabled={viewLoading}
+                                      className="px-2.5 py-1 rounded-lg border border-border bg-muted/40 hover:border-primary hover:text-primary text-xs font-semibold text-muted-foreground transition-colors"
+                                      title="Xem lại phiên (chỉ đọc)"
+                                    >
+                                      Xem lại
+                                    </button>
+                                    <button
+                                      onClick={() => resumeSession(s.id)}
+                                      disabled={contextLoading}
+                                      className="px-2.5 py-1 rounded-lg border border-primary/40 bg-primary/10 hover:bg-primary/20 text-xs font-semibold text-primary transition-colors"
+                                      title="Tiếp tục phiên này trong phòng chat"
+                                    >
+                                      Tiếp tục
+                                    </button>
+                                    <button
+                                      onClick={() => deleteSession(s.id)}
+                                      className="p-1.5 rounded-lg border border-border bg-muted/40 hover:border-red-500/50 hover:text-red-400 text-muted-foreground transition-colors"
+                                      title="Xoá phiên"
+                                      aria-label="Xoá phiên"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
         </motion.div>
       )}
 
