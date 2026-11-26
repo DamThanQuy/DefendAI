@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { GraduationCap, Loader2, LogOut } from "lucide-react";
+import { ChevronDown, GraduationCap, Loader2, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { MAJORS } from "@/constants/majors";
@@ -156,7 +156,7 @@ export default function OnboardingPage() {
                 id="major"
                 value={major}
                 onChange={(e) => setMajor(e.target.value)}
-                className={`h-12 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-3 text-sm transition-colors focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/30 ${
+                className={`h-12 w-full appearance-none rounded-xl border border-zinc-300 bg-white py-3 pl-11 pr-10 text-sm transition-colors focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/30 ${
                   major ? "text-zinc-900" : "text-muted-foreground"
                 }`}
               >
@@ -164,11 +164,12 @@ export default function OnboardingPage() {
                   — Chọn ngành học —
                 </option>
                 {MAJORS.map((m) => (
-                  <option key={m} value={m}>
+                  <option key={m} value={m} className="text-zinc-900">
                     {m}
                   </option>
                 ))}
               </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             </div>
           </div>
 
