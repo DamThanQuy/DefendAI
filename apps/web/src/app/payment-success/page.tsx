@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { isAxiosError } from "axios";
 import { motion } from "framer-motion";
 import {
   CheckCircle2,
@@ -15,12 +16,17 @@ import {
   Share2,
   Sparkles,
   ShieldCheck,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { getPlanExpiry } from "@/app/checkout/payment-data";
+import {
+  getPaymentOrderStatus,
+  paymentStatusError,
+  type PaymentOrderStatus,
+} from "@/app/checkout/payment-data";
 import { parseApiDate } from "@/lib/datetime";
-import { setMembershipPlan } from "@/lib/mock-ai-data";
+import { useAuthContext } from "@/providers/AuthProvider";
 
 function getPlanInfo(planId: string, planName: string | null) {
   if (planId === "vip") return { name: planName || "VIP", color: "amber", icon: "crown" };
@@ -28,41 +34,90 @@ function getPlanInfo(planId: string, planName: string | null) {
 }
 
 export default function PaymentSuccessPage() {
+  return (
+    <Suspense>
+      <PaymentSuccessContent />
+    </Suspense>
+  );
+}
+
+function PaymentSuccessContent() {
   const searchParams = useSearchParams();
-  const planId = searchParams.get("plan") || "premium";
-  const cycle = searchParams.get("cycle") || "monthly";
-  const orderId = searchParams.get("order_id") || `MOCK-${Date.now()}`;
+  const { refreshUser } = useAuthContext();
+  const orderId = searchParams.get("order_id") || searchParams.get("orderCode");
+  const [confirmation, setConfirmation] = useState<{ orderId: string; data: PaymentOrderStatus } | null>(null);
+  const [checkError, setCheckError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
+  const order = confirmation?.orderId === orderId ? confirmation.data : null;
+  const planId = order?.membership?.plan || searchParams.get("plan") || "premium";
+  const cycle = order?.membership?.cycle || searchParams.get("cycle") || "monthly";
   const plan = getPlanInfo(planId, searchParams.get("plan_name"));
-  const [paidUntil, setPaidUntil] = useState<string | null>(null);
 
-  // Hạn thật do backend tính: mua tiếp cùng gói thì đã cộng thời gian còn lại của gói cũ.
   useEffect(() => {
-    const orderCode = searchParams.get("order_id");
-    if (!orderCode) return;
-    fetch(`/api/payment/order-status/${orderCode}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-      cache: "no-store",
-    })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => setPaidUntil(data?.membership?.expires_at || null))
-      .catch(() => undefined);
-  }, [searchParams]);
+    if (!orderId) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setCheckError("");
 
-  // Auto-redirect to dashboard after 10s
-  useEffect(() => {
-    // Set cờ membership vào localStorage để các tính năng VIP đọc được
-    if (planId === "vip" || planId === "premium") {
+    const check = async () => {
       try {
-        setMembershipPlan(planId as any);
-      } catch {}
-    }
+        const data = await getPaymentOrderStatus(orderId, controller.signal);
+        if (controller.signal.aborted) return;
+        setCheckError("");
+        setConfirmation({ orderId, data });
+        if (data.status === "PENDING" || data.status === "AWAITING_REVIEW") {
+          timer = setTimeout(check, 5000);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setCheckError(paymentStatusError(error));
+        const responseStatus = isAxiosError(error) ? error.response?.status : undefined;
+        if (!responseStatus || responseStatus >= 500 || responseStatus === 429) {
+          timer = setTimeout(check, 5000);
+        }
+      }
+    };
+    void check();
+
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [orderId, retryCount]);
+
+  const paid = order?.status === "PAID";
+  useEffect(() => {
+    if (!paid) return;
+    void refreshUser();
     const t = setTimeout(() => {
       window.location.href = "/profile/billing";
     }, 10000);
     return () => clearTimeout(t);
-  }, []);
+  }, [paid, refreshUser]);
 
-  const expiresAt = paidUntil ? parseApiDate(paidUntil) : getPlanExpiry(cycle);
+  if (!paid) {
+    const orderClosed = order?.status === "CANCELLED" || order?.status === "EXPIRED";
+    const message = !orderId
+      ? "Không tìm thấy mã đơn hàng."
+      : checkError || order?.message || "Hệ thống đang kiểm tra giao dịch. Vui lòng chờ xác nhận.";
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 py-12">
+        <Card className="w-full max-w-lg space-y-4 p-8 text-center">
+          <h1 className="text-2xl font-bold">Xác nhận thanh toán</h1>
+          <p role="status" className="text-sm text-muted-foreground">{message}</p>
+          {orderId && <p className="text-sm font-mono">Đơn #{orderId}</p>}
+          {orderId && !orderClosed && checkError ? (
+            <Button onClick={() => setRetryCount((count) => count + 1)}>Kiểm tra lại</Button>
+          ) : orderId && !orderClosed && (
+            <Loader2 aria-hidden="true" className="mx-auto h-5 w-5 animate-spin text-primary" />
+          )}
+          <Link href="/profile/billing" className="block text-sm text-primary">Về trang quản lý gói</Link>
+        </Card>
+      </div>
+    );
+  }
+
+  const expiresAt = order?.membership?.expires_at ? parseApiDate(order.membership.expires_at) : null;
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 relative overflow-hidden">
@@ -143,7 +198,7 @@ export default function PaymentSuccessPage() {
                   Hiệu lực đến
                 </div>
                 <span className="font-semibold">
-                  {expiresAt.toLocaleDateString("vi-VN")}
+                  {expiresAt?.toLocaleDateString("vi-VN") || "Đang cập nhật"}
                 </span>
               </div>
               <div className="flex items-center justify-between p-3 rounded-lg bg-card border border-border">

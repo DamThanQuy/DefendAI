@@ -1,5 +1,5 @@
 """
-Payment router for PayOS, VietQR, and student subscription checkouts.
+Payment router for PayOS and student subscription checkouts.
 
 Giá chỉ lấy từ bảng subscription_plans và được chốt vào payment_orders lúc tạo đơn:
 lúc kích hoạt, gói, chu kỳ và số tiền đều đọc từ đơn chứ không đọc lại bảng giá.
@@ -13,8 +13,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,13 +25,13 @@ from app.models.user import User
 from app.models.subscription_plan import SubscriptionPlan
 from app.routers.subscriptions import get_plans
 from app.services.membership import PLAN_ALIASES, get_plan_access, membership_expired, membership_key
-from app.services.payos_service import payos_service
+from app.services.payos_service import PayOSRequestError, PayOSUnavailableError, payos_service
 from app.models.payment import PaymentOrder, Subscription, Wallet
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/payment", tags=["Payment"])
-security = HTTPBearer()
+DEMO_PROVIDER_REFERENCE = "payos:demo"
 
 
 class CreateOrderRequest(BaseModel):
@@ -46,7 +45,8 @@ class CreateOrderRequest(BaseModel):
 class WebhookPayload(BaseModel):
     code: str = "00"
     desc: str = "success"
-    data: Dict[str, Any] = {}
+    success: bool = True
+    data: Dict[str, Any] = Field(default_factory=dict)
     signature: str = ""
 
 
@@ -97,20 +97,24 @@ async def create_payment_order(
     return_query = urlencode({"plan": plan_key, "plan_name": plan.name, "cycle": req.cycle, "order_id": order_code})
     cancel_query = urlencode({"plan": plan_key, "cycle": req.cycle})
 
-    # Call PayOS service
-    payment_res = await payos_service.create_payment_link(
-        order_code=order_code,
-        amount=amount,
-        description=description,
-        return_url=f"{req.return_url or settings.payos_return_url}?{return_query}",
-        cancel_url=f"{req.cancel_url or settings.payos_cancel_url}?{cancel_query}",
-        method=req.method or "payos",
-        items=[{
-            "name": f"Gói {plan.name} ({req.cycle})",
-            "quantity": 1,
-            "price": amount
-        }]
-    )
+    method = req.method or "payos"
+    if payos_service.is_sandbox_enabled():
+        provider_reference = DEMO_PROVIDER_REFERENCE
+        payment_res = {
+            "success": True, "status": "PENDING", "isSandbox": True, "canMockConfirm": True,
+            "orderCode": order_code, "amount": amount,
+        }
+    else:
+        payment_res = await payos_service.create_payment_link(
+            order_code=order_code,
+            amount=amount,
+            description=description,
+            return_url=f"{req.return_url or settings.payos_return_url}?{return_query}",
+            cancel_url=f"{req.cancel_url or settings.payos_cancel_url}?{cancel_query}",
+            method=method,
+            items=[{"name": f"Gói {plan.name} ({req.cycle})", "quantity": 1, "price": amount}],
+        )
+        provider_reference = payment_res.pop("paymentLinkId", None)
 
     db.add(PaymentOrder(
         order_code=str(order_code),
@@ -119,8 +123,9 @@ async def create_payment_order(
         purpose="subscription",
         cycle=req.cycle,
         amount=amount,
-        method=req.method or "payos",
+        method=method,
         status="pending",
+        provider_reference=provider_reference,
         payment_url=payment_res.get("checkoutUrl"),
         qr_code=payment_res.get("qrCode") or None,
     ))
@@ -150,10 +155,15 @@ async def get_order(db: AsyncSession, order_code: int, for_update: bool = False)
 
 
 def amount_matches(order: PaymentOrder, paid_amount: Any) -> bool:
-    try:
-        return int(paid_amount) == order.amount
-    except (TypeError, ValueError):
-        return False
+    return type(paid_amount) is int and paid_amount == order.amount
+
+
+def is_legacy_bank_transfer(order: PaymentOrder) -> bool:
+    return order.purpose == "subscription" and order.payment_url == f"/checkout?orderCode={order.order_code}"
+
+
+def link_matches(order: PaymentOrder, link_id: Any) -> bool:
+    return not order.provider_reference or order.provider_reference == link_id
 
 
 async def apply_paid_membership(db: AsyncSession, order: PaymentOrder) -> Dict[str, Any]:
@@ -224,18 +234,37 @@ async def check_order_status(
     if not order or order.user_id != user.id:
         raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
 
-    current_status = "PAID" if order.status == "paid" else "PENDING"
-
-    # Check PayOS upstream if configured and still pending
-    if current_status == "PENDING" and payos_service.is_configured():
-        payos_info = await payos_service.get_payment_link_information(order_code)
+    legacy_bank_transfer = is_legacy_bank_transfer(order)
+    if order.status == "paid":
+        current_status = "PAID"
+    elif order.status == "awaiting_review":
+        current_status = "AWAITING_REVIEW"
+    elif order.provider_reference == DEMO_PROVIDER_REFERENCE:
+        current_status = "PENDING"
+    else:
+        current_status = "PENDING"
+        try:
+            payos_info = await payos_service.get_payment_link_information(order_code)
+        except PayOSUnavailableError as error:
+            if not legacy_bank_transfer:
+                raise HTTPException(status_code=503, detail="Chưa kết nối được cổng thanh toán PayOS.") from error
+            payos_info = {}
+        except PayOSRequestError as error:
+            if not legacy_bank_transfer:
+                raise HTTPException(status_code=502, detail="Chưa kiểm tra được trạng thái PayOS. Vui lòng thử lại.") from error
+            payos_info = {}
         payos_status = payos_info.get("status")
         if payos_status == "PAID":
-            if amount_matches(order, payos_info.get("amount")):
+            if (
+                payos_info.get("orderCode") == order_code
+                and link_matches(order, payos_info.get("id"))
+                and amount_matches(order, payos_info.get("amount"))
+                and amount_matches(order, payos_info.get("amountPaid"))
+            ):
                 current_status = "PAID"
             else:
-                logger.error("PayOS amount %s differs from order %s", payos_info.get("amount"), order_code)
-        elif payos_status in ("CANCELLED", "EXPIRED"):
+                logger.error("PayOS payment details do not match order %s", order_code)
+        elif not legacy_bank_transfer and payos_status in ("CANCELLED", "EXPIRED"):
             current_status = payos_status
 
     if current_status == "PAID":
@@ -248,12 +277,20 @@ async def check_order_status(
             "membership": membership_data
         }
 
-    messages = {"CANCELLED": "Đơn hàng đã bị hủy", "EXPIRED": "Đơn hàng đã hết hạn"}
+    messages = {
+        "CANCELLED": "Đơn hàng đã bị hủy",
+        "EXPIRED": "Đơn hàng đã hết hạn",
+        "AWAITING_REVIEW": "Đơn hàng cần được đối soát. Nếu bạn đã chuyển tiền, hãy liên hệ hỗ trợ với mã đơn.",
+        "PENDING": (
+            "Chưa đối soát được đơn. Nếu bạn đã chuyển tiền, hãy liên hệ hỗ trợ với mã đơn."
+            if legacy_bank_transfer else "Đang chờ thanh toán"
+        ),
+    }
     return {
         "success": True,
         "status": current_status,
         "orderCode": order_code,
-        "message": messages.get(current_status, "Đang chờ thanh toán")
+        "message": messages[current_status],
     }
 
 
@@ -265,8 +302,10 @@ async def mock_confirm_payment(
 ) -> Dict[str, Any]:
     """Xác nhận thanh toán thành công (dành cho chế độ Sandbox / Demo), chỉ với đơn của chính người dùng."""
 
+    if not payos_service.is_sandbox_enabled():
+        raise HTTPException(status_code=404, detail="Chế độ thanh toán thử nghiệm chưa được bật")
     order = await get_order(db, order_code, for_update=True)
-    if not order or order.user_id != user.id:
+    if not order or order.user_id != user.id or order.provider_reference != DEMO_PROVIDER_REFERENCE:
         raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
 
     membership_data = await apply_paid_membership(db, order)
@@ -286,30 +325,27 @@ async def payos_webhook(
     db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """Nhận IPN Webhook từ PayOS khi khách hàng hoàn tất thanh toán."""
-    logger.info("Received PayOS Webhook: %s", payload)
-
     if not payos_service.is_configured():
         raise HTTPException(status_code=503, detail="PayOS chưa được cấu hình")
 
-    if not payos_service.verify_webhook_signature(payload.data, payload.signature):
+    if not payos_service.verify_signature(payload.data, payload.signature):
         logger.warning("Invalid PayOS webhook signature received!")
         raise HTTPException(status_code=400, detail="Invalid signature")
 
-    if payload.code != "00":
+    if not payload.success or payload.code != "00" or payload.data.get("code") != "00":
         return {"success": True, "message": "Ignored unsuccessful payment"}
 
-    try:
-        order_code = int(payload.data.get("orderCode"))
-    except (TypeError, ValueError):
+    order_code = payload.data.get("orderCode")
+    if type(order_code) is not int:
         return {"success": False, "message": "Missing orderCode"}
 
     order = await get_order(db, order_code, for_update=True)
-    if not order:
+    if not order or order.provider_reference == DEMO_PROVIDER_REFERENCE:
         logger.warning("PayOS webhook for unknown order %s", order_code)
         return {"success": True, "message": "Unknown order ignored"}
 
-    if not amount_matches(order, payload.data.get("amount")):
-        logger.error("PayOS webhook amount %s differs from order %s", payload.data.get("amount"), order_code)
+    if not link_matches(order, payload.data.get("paymentLinkId")) or not amount_matches(order, payload.data.get("amount")):
+        logger.error("PayOS webhook payment details do not match order %s", order_code)
         return {"success": False, "message": "Amount mismatch"}
 
     await apply_paid_membership(db, order)

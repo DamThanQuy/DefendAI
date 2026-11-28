@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useCallback, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -25,16 +25,18 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   PAYMENT_METHODS,
-  BANK_LIST,
+  getPaymentOrderStatus,
   getOrderSummary,
   formatVND,
+  paymentStatusError,
   type PaymentMethodId,
+  type PaymentOrderStatus,
 } from "./payment-data";
 import { fetchPlans } from "@/app/pricing/pricing-api";
 import { PLANS } from "@/app/pricing/pricing-data";
 import { detailToMessage } from "@/lib/auth-form";
 import { parseApiDate } from "@/lib/datetime";
-import { setMembershipPlan } from "@/lib/mock-ai-data";
+import { useAuthContext } from "@/providers/AuthProvider";
 import { toast } from "sonner";
 
 type CheckoutPlan = { id: string; name: string; monthly: number; yearly: number };
@@ -45,15 +47,14 @@ type OrderResponse = {
   success: boolean;
   orderCode: number;
   amount: number;
-  description: string;
+  description?: string;
   checkoutUrl?: string;
   qrCode?: string;
   qrImageUrl?: string;
   accountName?: string;
   accountNumber?: string;
-  bin?: string;
-  status: string;
-  isSandbox?: boolean;
+  status: PaymentOrderStatus["status"];
+  canMockConfirm?: boolean;
   /** `id` là tên gói lưu trong membership ("vip", "premium" hoặc mã gói tự tạo). */
   plan?: { id: string; name: string; monthly?: number; yearly?: number };
 };
@@ -78,6 +79,7 @@ function toCheckoutPlan({ id, name, monthly, yearly }: CheckoutPlan): CheckoutPl
 export default function CheckoutClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { refreshUser } = useAuthContext();
 
   const planId = searchParams.get("plan") || "premium";
   const cycle = searchParams.get("cycle") === "yearly" ? "yearly" : "monthly";
@@ -94,21 +96,27 @@ export default function CheckoutClient() {
 
   // PayOS Order details
   const [orderData, setOrderData] = useState<OrderResponse | null>(null);
-  const [paymentStatus, setPaymentStatus] = useState<"PENDING" | "PAID" | "EXPIRED">("PENDING");
-
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<PaymentOrderStatus["status"]>("PENDING");
+  const [statusCheckError, setStatusCheckError] = useState("");
+  const activeOrderCode = useRef<number | null>(null);
+  const pendingCheck = useRef<{ code: number; request: Promise<PaymentOrderStatus> } | null>(null);
 
   // Giá lấy từ bảng giá của hệ thống. Bảng giá tĩnh chỉ để hiển thị khi API lỗi:
   // số tiền phải trả luôn do backend quyết định lúc tạo đơn.
   useEffect(() => {
+    let active = true;
     setPlanNotFound(false);
     const showPlan = (selected: CheckoutPlan | undefined) => {
+      if (!active) return;
       if (selected) setPlan(toCheckoutPlan(selected));
       else setPlanNotFound(true);
     };
     fetchPlans()
       .then((plans) => showPlan(findPlan(plans, planId)))
       .catch(() => showPlan(findPlan(PLANS, planId)));
+    return () => {
+      active = false;
+    };
   }, [planId]);
 
   // Gói đang dùng quyết định hạn sử dụng của gói mới.
@@ -126,8 +134,10 @@ export default function CheckoutClient() {
     if (!plan) return;
 
     let isMounted = true;
+    activeOrderCode.current = null;
     setIsCreatingOrder(true);
     setErrorMsg("");
+    setStatusCheckError("");
     setOrderData(null);
 
     const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
@@ -148,10 +158,13 @@ export default function CheckoutClient() {
         const data = await res.json();
         if (isMounted) {
           if (res.ok && data.orderCode) {
+            activeOrderCode.current = data.orderCode;
             setOrderData(data);
-            setPaymentStatus((data.status as any) || "PENDING");
+            setPaymentStatus(data.status || "PENDING");
           } else if (res.ok && data.status === "PAID") {
-            handlePaymentSuccess(data.orderCode || 0);
+            void refreshUser();
+            toast.success(data.message || "Gói hội viên của bạn đã được kích hoạt.");
+            router.push("/profile/billing");
           } else {
             setErrorMsg(detailToMessage(data.detail ?? data.message ?? data.error, "Không thể tạo mã thanh toán."));
           }
@@ -168,103 +181,90 @@ export default function CheckoutClient() {
 
     return () => {
       isMounted = false;
+      activeOrderCode.current = null;
     };
-  }, [plan, cycle, selectedMethod, retryCount]);
+  }, [plan, cycle, selectedMethod, retryCount, refreshUser, router]);
 
-  // Auto-polling payment status
-  useEffect(() => {
-    if (!orderData?.orderCode || paymentStatus === "PAID") return;
-
-    const checkStatus = async () => {
-      try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-        const res = await fetch(`/api/payment/order-status/${orderData.orderCode}`, {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
-        const data = await res.json();
-
-        if (data.status === "PAID") {
-          handlePaymentSuccess(orderData.orderCode);
-        } else if (data.status === "CANCELLED" || data.status === "EXPIRED") {
-          setPaymentStatus("EXPIRED");
-          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-          toast.error(
-            data.status === "CANCELLED"
-              ? "Đơn hàng đã bị hủy."
-              : "Đơn hàng đã hết hạn. Vui lòng tạo đơn mới."
-          );
-        }
-      } catch (e) {}
-    };
-
-    // Initial delay of 3s before first poll, then every 5s
-    const initialTimeout = setTimeout(() => {
-      checkStatus();
-      pollIntervalRef.current = setInterval(checkStatus, 5000);
-    }, 3000);
-
-    return () => {
-      clearTimeout(initialTimeout);
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    };
-  }, [orderData?.orderCode, paymentStatus]);
-
-
-  const handlePaymentSuccess = (code: number) => {
+  const handlePaymentSuccess = useCallback((code: number) => {
+    if (activeOrderCode.current !== code) return;
+    activeOrderCode.current = null;
     setPaymentStatus("PAID");
-    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-
-    const planKey = orderData?.plan?.id ?? plan?.id ?? "premium";
-    try {
-      if (planKey === "vip" || planKey === "premium") {
-        setMembershipPlan(planKey);
-      }
-    } catch {}
-
     toast.success("Thanh toán thành công! Gói hội viên của bạn đã được kích hoạt.");
 
     const query = new URLSearchParams({
-      plan: planKey,
+      plan: orderData?.plan?.id ?? plan?.id ?? "premium",
       plan_name: orderData?.plan?.name ?? plan?.name ?? "",
       cycle,
       order_id: String(code),
     });
-    setTimeout(() => {
-      router.push(`/payment-success?${query}`);
-    }, 1200);
-  };
+    router.push(`/payment-success?${query}`);
+  }, [cycle, orderData?.plan, plan, router]);
+
+  const checkPayment = useCallback((code: number) => {
+    if (pendingCheck.current?.code === code) return pendingCheck.current.request;
+    const request = getPaymentOrderStatus(code).finally(() => {
+      if (pendingCheck.current?.request === request) pendingCheck.current = null;
+    });
+    pendingCheck.current = { code, request };
+    return request;
+  }, []);
+
+  const applyStatus = useCallback((code: number, data: PaymentOrderStatus) => {
+    if (activeOrderCode.current !== code) return;
+    setStatusCheckError("");
+    if (data.status === "PAID") handlePaymentSuccess(code);
+    else setPaymentStatus(data.status);
+  }, [handlePaymentSuccess]);
+
+  useEffect(() => {
+    const code = orderData?.orderCode;
+    if (!code || orderData.canMockConfirm || (paymentStatus !== "PENDING" && paymentStatus !== "AWAITING_REVIEW")) return;
+
+    let timer: ReturnType<typeof setTimeout>;
+    let active = true;
+    const poll = async () => {
+      try {
+        const data = await checkPayment(code);
+        if (!active) return;
+        applyStatus(code, data);
+        if (data.status !== "PENDING" && data.status !== "AWAITING_REVIEW") return;
+      } catch (error) {
+        if (!active) return;
+        setStatusCheckError(paymentStatusError(error));
+      }
+      timer = setTimeout(poll, 5000);
+    };
+    timer = setTimeout(poll, 3000);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [orderData, paymentStatus, checkPayment, applyStatus]);
 
   const handleVerifyPayment = async () => {
-    if (!orderData?.orderCode) return;
+    const code = orderData?.orderCode;
+    if (!code) return;
     setIsConfirming(true);
 
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-      const res = await fetch(`/api/payment/order-status/${orderData.orderCode}`, {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-      const data = await res.json();
-
-      if (data.status === "PAID") {
-        handlePaymentSuccess(orderData.orderCode);
-      } else {
+      const data = await checkPayment(code);
+      if (activeOrderCode.current !== code) return;
+      applyStatus(code, data);
+      if (data.status === "PENDING") {
         toast.info(
-          `Hệ thống chưa nhận được tiền từ ngân hàng cho đơn #${orderData.orderCode}. Nếu bạn vừa chuyển tiền, vui lòng đợi 15-30 giây để hệ thống đối soát và nhấn kiểm tra lại!`
+          data.message || `Đơn #${code} đang chờ xác nhận. Nếu bạn vừa chuyển tiền, vui lòng đợi hệ thống đối soát.`
         );
       }
-    } catch {
-      toast.error("Không thể kết nối đến máy chủ kiểm tra thanh toán. Vui lòng thử lại!");
+    } catch (error) {
+      if (activeOrderCode.current === code) setStatusCheckError(paymentStatusError(error));
     } finally {
       setIsConfirming(false);
     }
   };
 
   const handleSandboxConfirm = async () => {
-    if (!orderData?.orderCode) return;
+    if (!orderData?.canMockConfirm) return;
     setIsConfirming(true);
 
     try {
@@ -277,7 +277,7 @@ export default function CheckoutClient() {
         },
       });
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.status === "PAID") {
         handlePaymentSuccess(orderData.orderCode);
       } else {
         toast.error(detailToMessage(data.detail, "Không kích hoạt được đơn hàng này."));
@@ -330,7 +330,7 @@ export default function CheckoutClient() {
     isSamePlan ? parseApiDate(currentPlan?.expires_at) : undefined
   );
   const displayAmount = orderData?.amount ?? order.total;
-  const displayOrderCode = `DEFEND ${orderData?.orderCode ?? ""}`;
+  const displayOrderCode = orderData?.description || `DEFEND ${orderData?.orderCode ?? ""}`;
   const displayAccountName = orderData?.accountName || "NGUYEN THE BAO";
   const displayAccountNo = orderData?.accountNumber || "040060104";
 
@@ -342,6 +342,8 @@ export default function CheckoutClient() {
         `https://img.vietqr.io/image/970422-${displayAccountNo}-compact2.png?amount=${displayAmount}&addInfo=${encodeURIComponent(
           displayOrderCode
         )}&accountName=${encodeURIComponent(displayAccountName)}`;
+
+  const orderClosed = paymentStatus === "CANCELLED" || paymentStatus === "EXPIRED";
 
   const getMethodIcon = (id: PaymentMethodId) => {
     switch (id) {
@@ -490,7 +492,7 @@ export default function CheckoutClient() {
                 </div>
 
                 {/* Polling indicator */}
-                {orderData && (
+                {orderData && !orderData.canMockConfirm && paymentStatus === "PENDING" && !statusCheckError && (
                   <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
                     Đang chờ thanh toán...
@@ -508,6 +510,28 @@ export default function CheckoutClient() {
                 <Button variant="outline" size="sm" onClick={() => setRetryCount((count) => count + 1)}>
                   Thử tạo lại mã thanh toán
                 </Button>
+              ) : orderData.canMockConfirm ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSandboxConfirm}
+                  disabled={isConfirming || paymentStatus === "PAID"}
+                >
+                  Kích hoạt thử nghiệm (Sandbox Demo)
+                </Button>
+              ) : orderClosed ? (
+                <div className="space-y-3">
+                  <p role="status" className="text-sm">
+                    {paymentStatus === "CANCELLED" ? "Đơn hàng đã bị hủy." : "Đơn hàng đã hết hạn."}
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => setRetryCount((count) => count + 1)}>
+                    Tạo mã thanh toán mới
+                  </Button>
+                </div>
+              ) : paymentStatus === "AWAITING_REVIEW" ? (
+                <p role="status" className="text-sm">
+                  Đơn #{orderData.orderCode} đang chờ đối soát thủ công. Nếu bạn đã chuyển tiền, vui lòng chờ xác nhận.
+                </p>
               ) : (
                 <div className="flex flex-col sm:flex-row items-center gap-6">
                   {/* QR Image Box */}
@@ -608,17 +632,6 @@ export default function CheckoutClient() {
                         </>
                       )}
                     </Button>
-
-                    {/* Sandbox quick activate button */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleSandboxConfirm}
-                      disabled={isConfirming || paymentStatus === "PAID"}
-                      className="w-full text-[11px] text-muted-foreground hover:text-foreground h-7"
-                    >
-                      Kích hoạt thử nghiệm (Sandbox Demo)
-                    </Button>
                   </div>
                 </div>
               )}
@@ -629,6 +642,9 @@ export default function CheckoutClient() {
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   {errorMsg}
                 </div>
+              )}
+              {statusCheckError && (
+                <p role="status" className="mt-4 text-sm text-muted-foreground">{statusCheckError}</p>
               )}
             </Card>
           </motion.div>

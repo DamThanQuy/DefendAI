@@ -50,7 +50,7 @@ from app.main import app  # noqa: E402
 from app.core import database as app_db  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.security import create_access_token  # noqa: E402
-from app.services.payos_service import payos_service  # noqa: E402
+from app.services.payos_service import PayOSRequestError, payos_service  # noqa: E402
 
 MONTHLY = 50000
 YEARLY = 450000
@@ -189,17 +189,27 @@ def payos(monkeypatch):
             "amount": kwargs["amount"],
             "checkoutUrl": "https://pay.example.com/link",
             "qrCode": "000201test",
+            "paymentLinkId": f"link-{kwargs['order_code']}",
             "status": "PENDING",
             "isSandbox": False,
         }
 
     async def link_info(order_code):
-        return state.paid.get(order_code, {})
+        result = state.paid.get(order_code)
+        if not result:
+            return {}
+        return {
+            "orderCode": order_code,
+            "id": f"link-{order_code}",
+            "amountPaid": result.get("amount"),
+            **result,
+        }
 
     monkeypatch.setattr(payos_service, "create_payment_link", create_link)
     monkeypatch.setattr(payos_service, "get_payment_link_information", link_info)
     monkeypatch.setattr(payos_service, "is_configured", lambda: True)
-    monkeypatch.setattr(payos_service, "verify_webhook_signature", lambda data, signature: signature == "valid")
+    monkeypatch.setattr(payos_service, "verify_signature", lambda data, signature: signature == "valid")
+    monkeypatch.setattr(payos_service, "is_sandbox_enabled", lambda: False)
     return state
 
 
@@ -210,10 +220,10 @@ def distinct_order_codes(monkeypatch):
     monkeypatch.setattr("app.routers.payment.secrets.randbelow", lambda limit: next(counter) % limit)
 
 
-async def _create_order(client, user, plan_id: str, cycle: str = "yearly"):
+async def _create_order(client, user, plan_id: str, cycle: str = "yearly", method: str = "payos"):
     return await client.post(
         "/api/payment/create-order",
-        json={"plan_id": plan_id, "cycle": cycle, "method": "payos"},
+        json={"plan_id": plan_id, "cycle": cycle, "method": method},
         headers=user.auth,
     )
 
@@ -632,7 +642,11 @@ async def test_cancelled_or_expired_links_are_reported(client, payos, buyer, pla
 async def _webhook(client, code: int, amount: int, signature: str = "valid", status_code: str = "00"):
     return await client.post(
         "/api/payment/webhook",
-        json={"code": status_code, "desc": "x", "data": {"orderCode": code, "amount": amount}, "signature": signature},
+        json={
+            "code": status_code,
+            "data": {"orderCode": code, "amount": amount, "code": status_code, "paymentLinkId": f"link-{code}"},
+            "signature": signature,
+        },
     )
 
 
@@ -703,8 +717,13 @@ async def test_webhook_is_refused_when_payos_is_not_configured(client, monkeypat
 
 
 @pytest.mark.asyncio
-async def test_sandbox_confirm_activates_own_order_with_its_plan_and_cycle(client, buyer, plan):
-    code = (await _create_order(client, buyer, plan.slug)).json()["orderCode"]
+async def test_sandbox_confirm_activates_own_order_with_its_plan_and_cycle(client, monkeypatch, buyer, plan):
+    monkeypatch.setattr(payos_service, "is_sandbox_enabled", lambda: True)
+    created = (await _create_order(client, buyer, plan.slug, method="momo")).json()
+    code = created["orderCode"]
+    assert created["isSandbox"] and created["canMockConfirm"]
+    assert "qrCode" not in created and "checkoutUrl" not in created
+    assert _order(code)["method"] == "momo"
 
     r = await client.post(f"/api/payment/mock-confirm/{code}", headers=buyer.auth)
 
@@ -716,7 +735,8 @@ async def test_sandbox_confirm_activates_own_order_with_its_plan_and_cycle(clien
 
 
 @pytest.mark.asyncio
-async def test_sandbox_confirm_rejects_other_users_and_unknown_orders(client, buyer, other_user, plan):
+async def test_sandbox_confirm_rejects_other_users_and_unknown_orders(client, monkeypatch, buyer, other_user, plan):
+    monkeypatch.setattr(payos_service, "is_sandbox_enabled", lambda: True)
     code = (await _create_order(client, buyer, plan.slug)).json()["orderCode"]
 
     other = await client.post(f"/api/payment/mock-confirm/{code}", headers=other_user.auth)
@@ -728,6 +748,143 @@ async def test_sandbox_confirm_rejects_other_users_and_unknown_orders(client, bu
     assert anonymous.status_code == 401
     assert _subscriptions(other_user.id) == []
     assert _subscriptions(buyer.id) == []
+
+
+@pytest.mark.asyncio
+async def test_sandbox_confirm_rejects_payos_orders(client, monkeypatch, buyer, plan):
+    code = (await _create_order(client, buyer, plan.slug)).json()["orderCode"]
+    response = await client.post(f"/api/payment/mock-confirm/{code}", headers=buyer.auth)
+    assert response.status_code == 404
+
+    monkeypatch.setattr(payos_service, "is_sandbox_enabled", lambda: True)
+    response = await client.post(f"/api/payment/mock-confirm/{code}", headers=buyer.auth)
+    assert response.status_code == 404
+    assert _order(code)["status"] == "pending"
+    assert _subscriptions(buyer.id) == []
+
+
+@pytest.mark.asyncio
+async def test_sandbox_confirm_rejects_previous_bank_fallback(client, monkeypatch, buyer, plan):
+    async def bank_fallback(order_code, **kwargs):
+        return {
+            "orderCode": order_code,
+            "checkoutUrl": f"/checkout?orderCode={order_code}",
+            "isSandbox": True,
+        }
+
+    monkeypatch.setattr(payos_service, "create_payment_link", bank_fallback)
+    created = (await _create_order(client, buyer, plan.slug, method="bank_transfer")).json()
+    code = created["orderCode"]
+    assert created["isSandbox"] and "canMockConfirm" not in created
+    monkeypatch.setattr(payos_service, "is_sandbox_enabled", lambda: True)
+
+    response = await client.post(f"/api/payment/mock-confirm/{code}", headers=buyer.auth)
+    assert response.status_code == 404
+    assert _order(code)["status"] == "pending"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["payos", "momo", "zalopay", "vnpay", "bank_transfer", "card"])
+async def test_selected_method_uses_existing_creation_and_confirmation(client, payos, buyer, plan, method):
+    response = await _create_order(client, buyer, plan.slug, method=method)
+    assert response.status_code == 200
+    created = response.json()
+    code = created["orderCode"]
+    assert payos.links[0]["method"] == method
+    assert _order(code)["method"] == method
+    assert created["checkoutUrl"] and "canMockConfirm" not in created
+
+    payos.paid[code] = {"status": "PAID", "amount": YEARLY}
+    result = (await _status(client, buyer, code)).json()
+    assert result["status"] == "PAID" and result["membership"]["plan"] == plan.slug
+
+
+@pytest.mark.asyncio
+async def test_status_check_retries_after_provider_failure(client, payos, buyer, plan, monkeypatch):
+    code = (await _create_order(client, buyer, plan.slug)).json()["orderCode"]
+    original_get = payos_service.get_payment_link_information
+
+    async def unavailable(order_code):
+        raise PayOSRequestError
+
+    monkeypatch.setattr(payos_service, "get_payment_link_information", unavailable)
+    failed = await _status(client, buyer, code)
+    assert failed.status_code == 502
+    assert _order(code)["status"] == "pending"
+
+    monkeypatch.setattr(payos_service, "get_payment_link_information", original_get)
+    payos.paid[code] = {"status": "PAID", "amount": YEARLY}
+    assert (await _status(client, buyer, code)).json()["status"] == "PAID"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mismatch", [{"amountPaid": MONTHLY}, {"orderCode": 1}, {"id": "another-link"}])
+async def test_payos_paid_details_must_match_order(client, payos, buyer, plan, mismatch):
+    code = (await _create_order(client, buyer, plan.slug)).json()["orderCode"]
+    payos.paid[code] = {"status": "PAID", "amount": YEARLY, **mismatch}
+    response = await _status(client, buyer, code)
+    assert response.json()["status"] == "PENDING"
+    assert _subscriptions(buyer.id) == []
+
+
+@pytest.mark.asyncio
+async def test_webhook_uses_signed_payment_status(client, buyer, plan):
+    code = (await _create_order(client, buyer, plan.slug)).json()["orderCode"]
+    response = await client.post(
+        "/api/payment/webhook",
+        json={
+            "code": "00",
+            "data": {"orderCode": code, "amount": YEARLY, "code": "01", "paymentLinkId": f"link-{code}"},
+            "signature": "valid",
+        },
+    )
+    assert response.status_code == 200
+    assert _order(code)["status"] == "pending"
+    assert _subscriptions(buyer.id) == []
+
+
+@pytest.mark.asyncio
+async def test_admin_reconciles_legacy_bank_transfer_once(client, admin, buyer, plan, monkeypatch):
+    code = (await _create_order(client, buyer, plan.slug, method="bank_transfer")).json()["orderCode"]
+    confirm_url = f"/api/admin/payments/{code}/confirm"
+
+    _execute(
+        "UPDATE payment_orders SET payment_url = %s, qr_code = NULL, provider_reference = NULL WHERE order_code = %s",
+        f"/checkout?orderCode={code}",
+        str(code),
+    )
+
+    async def unknown_order(order_code):
+        raise PayOSRequestError
+
+    monkeypatch.setattr(payos_service, "get_payment_link_information", unknown_order)
+    status = await _status(client, buyer, code)
+    assert status.json()["status"] == "PENDING"
+    assert "đối soát" in status.json()["message"]
+
+    bank_reference = {"provider_reference": "bank-reference-confirmed"}
+    assert (await client.post(confirm_url, json=bank_reference, headers=buyer.auth)).status_code == 403
+    for _ in range(2):
+        result = await client.post(confirm_url, json=bank_reference, headers=admin.auth)
+        assert result.status_code == 200 and result.json()["status"] == "paid"
+        paid = (await _status(client, buyer, code)).json()
+        assert paid["status"] == "PAID"
+    account = (await client.get("/api/payment/account", headers=buyer.auth)).json()
+    assert account["subscription"]["plan_id"] == plan.slug
+    assert account["access"]["plan"] == "premium"
+    assert len(_subscriptions(buyer.id)) == 1
+    assert _order(code)["provider_reference"] == bank_reference["provider_reference"]
+    assert _order(code)["reviewed_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_previous_order_without_provider_reference_can_be_verified(client, payos, buyer, plan):
+    code = (await _create_order(client, buyer, plan.slug, method="bank_transfer")).json()["orderCode"]
+    _execute("UPDATE payment_orders SET provider_reference = NULL WHERE order_code = %s", str(code))
+    payos.paid[code] = {"status": "PAID", "amount": YEARLY}
+
+    assert (await _status(client, buyer, code)).json()["status"] == "PAID"
+    assert len(_subscriptions(buyer.id)) == 1
 
 
 # ---------------------------------------------------------------------------
