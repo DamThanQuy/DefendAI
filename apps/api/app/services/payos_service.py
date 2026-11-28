@@ -1,14 +1,13 @@
-"""
-PayOS Service for handling payment requests and VietQR code generation.
-"""
+"""Create and verify PayOS payment links."""
 from __future__ import annotations
 
 import hashlib
 import hmac
 import json
 import logging
-import urllib.parse
 from typing import Any, Dict, Optional
+import urllib.parse
+
 import httpx
 
 from app.core.config import settings
@@ -18,10 +17,26 @@ logger = logging.getLogger(__name__)
 PAYOS_API_BASE = "https://api-merchant.payos.vn"
 
 
-class PayOSService:
-    def __init__(self):
-        pass
+class PayOSUnavailableError(Exception):
+    """The payment channel is not configured."""
 
+
+class PayOSRequestError(Exception):
+    """PayOS did not return a usable payment response."""
+
+
+def _signature_value(value: Any) -> str:
+    if value is None or value in ("null", "undefined"):
+        return ""
+    if isinstance(value, list):
+        sorted_items = [dict(sorted(item.items())) if isinstance(item, dict) else item for item in value]
+        return json.dumps(sorted_items, separators=(",", ":"), ensure_ascii=False)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+class PayOSService:
     @property
     def client_id(self) -> str:
         return settings.payos.client_id if settings.payos else ""
@@ -49,33 +64,19 @@ class PayOSService:
     def is_configured(self) -> bool:
         return bool(self.client_id and self.api_key and self.checksum_key)
 
-    def generate_signature(self, data: Dict[str, Any]) -> str:
-        """
-        Creates HMAC SHA256 signature for PayOS request payload.
-        Keys sorted alphabetically, formatted as key=value&key2=value2
-        """
-        sorted_keys = sorted(data.keys())
-        sign_string = "&".join(f"{k}={data[k]}" for k in sorted_keys if data[k] is not None)
-        return hmac.new(
-            self.checksum_key.encode("utf-8"),
-            sign_string.encode("utf-8"),
-            hashlib.sha256
-        ).hexdigest()
+    def is_sandbox_enabled(self) -> bool:
+        return bool(settings.payos and settings.payos.sandbox_enabled) and not any(
+            (self.client_id, self.api_key, self.checksum_key)
+        )
 
-    def verify_webhook_signature(self, webhook_data: Dict[str, Any], signature: str) -> bool:
-        """
-        Verifies the signature of a webhook notification from PayOS.
-        """
-        if not self.checksum_key:
-            return True
-        sorted_keys = sorted(webhook_data.keys())
-        sign_string = "&".join(f"{k}={webhook_data[k]}" for k in sorted_keys if k != "signature" and webhook_data[k] is not None)
-        expected_sig = hmac.new(
-            self.checksum_key.encode("utf-8"),
-            sign_string.encode("utf-8"),
-            hashlib.sha256
-        ).hexdigest()
-        return hmac.compare_digest(expected_sig, signature)
+    def generate_signature(self, data: dict[str, Any]) -> str:
+        sign_string = "&".join(f"{key}={_signature_value(value)}" for key, value in sorted(data.items()))
+        return hmac.new(self.checksum_key.encode("utf-8"), sign_string.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    def verify_signature(self, data: dict[str, Any], signature: Any) -> bool:
+        if not self.checksum_key or not isinstance(signature, str) or not signature.isascii():
+            return False
+        return hmac.compare_digest(self.generate_signature(data), signature)
 
     async def create_payment_link(
         self,
@@ -142,6 +143,7 @@ class PayOSService:
                             "accountName": res_data.get("accountName", "NGUYEN THE BAO"),
                             "accountNumber": res_data.get("accountNumber"),
                             "bin": res_data.get("bin", "970422"),
+                            "paymentLinkId": res_data.get("paymentLinkId"),
                             "status": "PENDING",
                             "isSandbox": False
                         }
@@ -172,28 +174,29 @@ class PayOSService:
             "isSandbox": not self.is_configured()
         }
 
-    async def get_payment_link_information(self, order_code: int) -> Dict[str, Any]:
-        """
-        Retrieves status of a PayOS payment request.
-        """
-        if self.is_configured():
-            try:
-                headers = {
-                    "x-client-id": self.client_id,
-                    "x-api-key": self.api_key,
-                    "Content-Type": "application/json"
-                }
-                async with httpx.AsyncClient(timeout=8.0) as client:
-                    res = await client.get(
-                        f"{PAYOS_API_BASE}/v2/payment-requests/{order_code}",
-                        headers=headers
-                    )
-                    data = res.json()
-                    if res.status_code == 200 and data.get("code") == "00":
-                        return data.get("data", {})
-            except Exception as exc:
-                logger.error("Error fetching PayOS order status for %s: %s", order_code, exc)
-        return {}
+    async def get_payment_link_information(self, order_code: int) -> dict[str, Any]:
+        if not self.is_configured():
+            raise PayOSUnavailableError
+
+        headers = {"x-client-id": self.client_id, "x-api-key": self.api_key}
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                response = await client.get(f"{PAYOS_API_BASE}/v2/payment-requests/{order_code}", headers=headers)
+            result = response.json()
+        except (httpx.RequestError, ValueError) as error:
+            logger.warning("PayOS status check failed for order %s (%s)", order_code, type(error).__name__)
+            raise PayOSRequestError from error
+
+        if not isinstance(result, dict) or not response.is_success or result.get("code") != "00":
+            code = result.get("code") if isinstance(result, dict) else None
+            logger.warning("PayOS status check failed for order %s (HTTP %s, code %s)", order_code, response.status_code, code)
+            raise PayOSRequestError
+
+        data = result.get("data")
+        if not isinstance(data, dict) or not self.verify_signature(data, result.get("signature")):
+            logger.warning("PayOS returned an invalid status response signature for order %s", order_code)
+            raise PayOSRequestError
+        return data
 
 
 payos_service = PayOSService()

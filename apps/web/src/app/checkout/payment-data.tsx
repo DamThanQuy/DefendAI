@@ -1,4 +1,26 @@
 import { yearlyDiscountPercent } from "@/app/pricing/pricing-data";
+import { isAxiosError } from "axios";
+import { api } from "@/lib/api";
+import { detailToMessage } from "@/lib/auth-form";
+
+export type PaymentOrderStatus = {
+  status: "PENDING" | "PAID" | "CANCELLED" | "EXPIRED" | "AWAITING_REVIEW";
+  message?: string;
+  membership?: { plan?: string; cycle?: string; expires_at?: string };
+};
+
+export async function getPaymentOrderStatus(orderCode: number | string, signal?: AbortSignal) {
+  const { data } = await api.get<PaymentOrderStatus>(
+    `/api/payment/order-status/${encodeURIComponent(orderCode)}`,
+    { signal, timeout: 25_000 }
+  );
+  return data;
+}
+
+export function paymentStatusError(error: unknown): string {
+  const detail = isAxiosError(error) ? error.response?.data?.detail : undefined;
+  return detailToMessage(detail, "Chưa thể kiểm tra giao dịch. Vui lòng thử lại sau.");
+}
 
 export type PaymentMethodId =
   | "payos"

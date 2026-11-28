@@ -98,7 +98,8 @@ async function mockApi(
     if (options.createOrder) return options.createOrder(route, body);
     const key = String(body.plan_id).toLowerCase();
     const plan = plans.find((item) => item.slug === key) ?? PLANS[1];
-    return route.fulfill(json(orderFor(plan, body.cycle)));
+    const sandbox = options.mockConfirm ? { isSandbox: true, canMockConfirm: true } : {};
+    return route.fulfill(json({ ...orderFor(plan, body.cycle), ...sandbox }));
   });
   if (options.mockConfirm) {
     await page.route("**/api/payment/mock-confirm/**", (route) => route.fulfill(options.mockConfirm!));
@@ -167,6 +168,35 @@ test.describe("Thanh toán", () => {
     await login(page, STUDENT);
   });
 
+  test("Các phương thức hiện có giữ nguyên mã khi tạo đơn và dùng chung bước xác nhận", async ({ page }) => {
+    const orders = await mockApi(page);
+    let paid = false;
+    await page.route("**/api/payment/order-status/**", (route) => route.fulfill(json(paid
+      ? { status: "PAID", membership: { plan: "premium", cycle: "monthly" } }
+      : { status: "PENDING" }
+    )));
+    await page.goto("/checkout?plan=100002");
+
+    const methods = [
+      [/Ví ZaloPay/, "zalopay"],
+      [/Cổng VNPay/, "vnpay"],
+      [/Chuyển khoản ngân hàng/, "bank_transfer"],
+      [/Thẻ quốc tế/, "card"],
+      [/Quét mã VietQR/, "payos"],
+      [/Ví MoMo/, "momo"],
+    ] as const;
+    await expect(page.getByAltText("Mã QR thanh toán VietQR PayOS")).toBeVisible();
+    expect(orders).toEqual([{ plan_id: "100002", cycle: "monthly", method: "payos" }]);
+    for (const [name, method] of methods) {
+      await page.getByRole("button", { name }).click();
+      await expect.poll(() => orders[orders.length - 1]).toMatchObject({ method });
+    }
+
+    paid = true;
+    await page.getByRole("button", { name: /Tôi đã chuyển tiền/ }).click();
+    await expect(page.getByRole("heading", { name: /Thanh toán thành công/ })).toBeVisible();
+  });
+
   test("Kịch bản 3: Premium năm: 1.188.000đ trừ 198.000đ còn 990.000đ", async ({ page }) => {
     const orders = await mockApi(page);
     await page.goto("/checkout?plan=100002&cycle=yearly");
@@ -218,6 +248,9 @@ test.describe("Thanh toán", () => {
       plans: [...PLANS, custom],
       mockConfirm: json({ success: true, status: "PAID", membership: { plan: "176735" } }),
     });
+    await page.route("**/api/payment/order-status/**", (route) =>
+      route.fulfill(json({ success: true, status: "PAID", membership: { plan: "176735" } }))
+    );
     await page.goto("/checkout?plan=176735&cycle=yearly");
 
     await expect(page.getByRole("heading", { name: "Thanh toán đăng ký gói Gói Thử" })).toBeVisible();
@@ -280,6 +313,34 @@ test.describe("Thanh toán", () => {
     await expect(page).toHaveURL(/\/checkout/);
     await page.waitForTimeout(1500);
     await expect(page).toHaveURL(/\/checkout/);
+  });
+
+  test("Thanh toán PayOS tiếp tục được đối soát sau khi kiểm tra gặp lỗi tạm thời", async ({ page }) => {
+    const orders = await mockApi(page, {
+      createOrder: (route, body) => route.fulfill(json({
+        ...orderFor(PLANS[1], body.cycle),
+        description: "DTX3K7H9",
+        isSandbox: true,
+      })),
+    });
+    let providerAvailable = false;
+    await page.route("**/api/payment/order-status/**", (route) => route.fulfill(
+      providerAvailable
+        ? json({ success: true, status: "PAID", membership: { plan: "premium", cycle: "yearly" } })
+        : json({ detail: "Chưa thể đối soát với PayOS." }, 503)
+    ));
+    await page.goto("/checkout?plan=100002&cycle=yearly");
+
+    const verifyButton = page.getByRole("button", { name: /Tôi đã chuyển tiền/ });
+    await expect(page.getByText("DTX3K7H9")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Sandbox Demo/ })).toHaveCount(0);
+    await verifyButton.click();
+    await expect(page.getByText("Chưa thể đối soát với PayOS.")).toBeVisible();
+    await expect(page).toHaveURL(/\/checkout/);
+
+    providerAvailable = true;
+    await expect(page.getByRole("heading", { name: /Thanh toán thành công/ })).toBeVisible();
+    expect(orders).toHaveLength(1);
   });
 });
 
@@ -379,11 +440,23 @@ test.describe("Đang có gói", () => {
 
   test("Kịch bản 22: Sau khi thanh toán: hiện đúng hạn do backend trả về", async ({ page }) => {
     await mockApi(page);
+    let paymentStatusAvailable = false;
+    let confirmed = false;
     await page.route("**/api/payment/order-status/**", (route) =>
-      route.fulfill(json({ success: true, status: "PAID", membership: { plan: "vip", cycle: "yearly", expires_at: "2100-06-15T12:00:00" } }))
+      route.fulfill(!paymentStatusAvailable
+        ? json({ detail: "Chưa thể đối soát với PayOS." }, 503)
+        : json(confirmed
+          ? { success: true, status: "PAID", membership: { plan: "vip", cycle: "yearly", expires_at: "2100-06-15T12:00:00" } }
+          : { success: true, status: "PENDING", message: "Đang chờ xác nhận giao dịch." }))
     );
     await page.goto("/payment-success?plan=vip&plan_name=VIP&cycle=yearly&order_id=12345678");
 
+    await expect(page.getByRole("heading", { name: "Xác nhận thanh toán" })).toBeVisible();
+    await expect(page.getByText("Chưa thể đối soát với PayOS.")).toBeVisible();
+    paymentStatusAvailable = true;
+    await expect(page.getByText("Đang chờ xác nhận giao dịch.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Thanh toán thành công/ })).toHaveCount(0);
+    confirmed = true;
     await expect(page.getByText("Hiệu lực đến").locator("xpath=ancestor::div[2]")).toContainText("15/6/2100");
   });
 });
