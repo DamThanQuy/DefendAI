@@ -156,7 +156,7 @@ Không gian làm việc (*Workspace*) là nơi lưu trữ toàn bộ tiến trì
 ### Các thao tác chính:
 - **Tạo Workspace mới:** Nhấp chọn nút **"➕ Tạo Workspace mới"**, nhập tên đề tài, chuyên ngành (SE, IA, AI, IS...) và mô tả ngắn.
 - **Truy cập Workspace:** Nhấp vào thẻ đồ án tương ứng để tiếp tục làm việc.
-- **Trò chuyện đề tài (Chat đề tài):** Sử dụng trợ lý AI chuyên biệt để thảo luận về kiến trúc dự án, công nghệ sử dụng và nhận định sơ bộ trước khi nộp.
+- **Trò chuyện đề tài (Chat đề tài):** Sử dụng trợ lý AI chuyên biệt để thảo luận về kiến trúc dự án, công nghệ sử dụng và nhận định sơ bộ trước khi nộp. Nút **Đoạn mới** mở lại đoạn trống nếu đã có. Sau khi bạn gửi tin nhắn đầu tiên, nút có thể tạo một đoạn riêng.
 
 ---
 
@@ -457,6 +457,9 @@ Trang Cấu hình (`/admin/settings`) cho phép Super Admin điều chỉnh các
 
 ### ❓ 4. Bệnh án đồ án xuất file PDF có giá trị pháp lý chính thức không?
 - File "Bệnh án đồ án" là tài liệu chẩn đoán học thuật mang tính chất định hướng và tự đánh giá dựa trên thang chuẩn đầu ra (CLO / SEP490). Kết quả thi tốt nghiệp chính thức vẫn phụ thuộc vào quyết định của Hội đồng chấm thi tại trường đại học của bạn.
+
+### ❓ 5. Tôi có thể điền tiếp khảo sát đang dở không?
+- Khi mở lại khảo sát hoặc tải lại trang trong cùng tab, bạn có thể tiếp tục từ bước và câu trả lời đã lưu. Bản nháp được xóa khi gửi thành công hoặc đăng xuất.
 
 ---
 

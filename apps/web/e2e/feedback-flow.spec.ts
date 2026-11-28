@@ -3,11 +3,12 @@ import { test, expect, Page } from "@playwright/test";
 /**
  * E2E Test Suite: Feedback Flow (GraduAI / DefendAI)
  *
- * Bao gồm 3 kịch bản:
+ * Các kịch bản chính:
  * 1. Kịch bản 1: Login student -> Mở modal qua Floating Button -> Test conditional input (<= 3 sao)
  *    -> Hoàn thành form -> Nhận quà 1 vé Mock AI -> Mở khóa /mock-room thành công.
  * 2. Kịch bản 2: Kiểm tra chính sách Once-Only tại trang /report (không tự động bung popup).
  * 3. Kịch bản 3: Login admin -> Vào /admin/feedbacks -> Kiểm tra KPI cards và bảng danh sách phản hồi.
+ * Kiểm tra bản nháp qua đóng, tải lại, gửi lại và đăng xuất.
  */
 
 // Mock payloads chuẩn theo schema backend
@@ -449,6 +450,128 @@ test.describe("Feedback Flow & Mock AI Reward Tests", () => {
     // Khảo sát vẫn mở được theo ý muốn, nhưng lần sau ở chế độ góp ý/đánh giá.
     await page.evaluate(() => window.dispatchEvent(new CustomEvent("open-feedback-modal")));
     await expect(page.locator('h2:has-text("Góp ý & Đánh giá")')).toBeVisible();
+  });
+
+  test("Khảo sát khôi phục bản nháp khi đóng hoặc tải lại và chỉ xóa sau khi gửi thành công", async ({ page }) => {
+    await page.route("**/api/**", (route) => route.fulfill({ json: { items: [], total: 0 } }));
+    await setupApiMocks(page);
+
+    let submissionCount = 0;
+    await page.route("**/api/feedback", (route) => {
+      if (route.request().method() === "POST" && ++submissionCount === 1) {
+        return route.fulfill({ status: 400, json: { detail: "Lỗi gửi thử nghiệm" } });
+      }
+      return route.fallback();
+    });
+
+    await loginUser(page, mockStudentUser.email);
+    await page.goto("/documents");
+    const draftKey = `feedback_draft_${mockStudentUser.id}`;
+    const readDraft = () => page.evaluate((key) => sessionStorage.getItem(key), draftKey);
+    const openSurvey = page.getByRole("button", { name: "Khảo sát ý kiến người dùng", exact: true });
+    const closeSurvey = page.getByRole("button", { name: "Đóng khảo sát", exact: true });
+    const stepOne = page.getByText("Bước 1: Đánh giá chất lượng dịch vụ", { exact: true });
+    const stepTwo = page.getByText("Bước 2: Ý kiến đóng góp & Sẵn sàng chi trả", { exact: true });
+    const bestThing = page.getByPlaceholder(/Ví dụ: Giao diện trực quan/);
+    const improvements = page.getByPlaceholder(/Bấm chọn nhanh các tag phía trên/);
+    const freeOption = page.getByRole("radio", { name: "Chỉ muốn dùng bản Miễn phí (0đ)" });
+    const workspaceCard = page.locator(".border.rounded-xl", { hasText: "Quản lý Đề tài & Workspace" });
+    const lowReason = workspaceCard.getByPlaceholder(/Ví dụ: Tốc độ chậm/);
+
+    await openSurvey.click();
+    await expect(stepOne).toBeVisible();
+    await page.getByRole("button", { name: "7", exact: true }).click();
+    await page.getByText("Giao diện & Trải nghiệm (UI/UX)", { exact: true })
+      .locator("xpath=../..").getByRole("button").nth(3).click();
+    await workspaceCard.getByRole("button").nth(1).click();
+    await lowReason.fill("Nên giữ lịch sử đề tài khi tải lại.");
+
+    await closeSurvey.click();
+    await expect(closeSurvey).toHaveCount(0);
+    await openSurvey.click();
+    await expect(stepOne).toBeVisible();
+    await expect(lowReason).toHaveValue("Nên giữ lịch sử đề tài khi tải lại.");
+    await page.getByRole("button", { name: "Tiếp tục", exact: true }).click();
+
+    await bestThing.fill("Câu hỏi sát nội dung bảo vệ.");
+    await improvements.fill("Thêm ví dụ cho câu hỏi phản biện.");
+    await page.getByRole("button", { name: /Cần cải thiện thêm/ }).click();
+    await freeOption.check();
+    await page.mouse.click(4, 4);
+    await expect(closeSurvey).toHaveCount(0);
+
+    await openSurvey.click();
+    await expect(stepTwo).toBeVisible();
+    await expect(bestThing).toHaveValue("Câu hỏi sát nội dung bảo vệ.");
+    await expect(improvements).toHaveValue("Thêm ví dụ cho câu hỏi phản biện.");
+
+    await page.reload();
+    await openSurvey.click();
+    await expect(stepTwo).toBeVisible();
+    await expect(bestThing).toHaveValue("Câu hỏi sát nội dung bảo vệ.");
+    await expect(improvements).toHaveValue("Thêm ví dụ cho câu hỏi phản biện.");
+    await expect(freeOption).toBeChecked();
+
+    const submit = page.getByRole("button", { name: /Hoàn tất & Nhận quà/ });
+    const [failedSubmission] = await Promise.all([
+      page.waitForResponse((response) => new URL(response.url()).pathname === "/api/feedback" && response.request().method() === "POST"),
+      submit.click(),
+    ]);
+    expect(failedSubmission.status()).toBe(400);
+    expect(failedSubmission.request().postDataJSON()).toMatchObject({
+      aspect_ratings: { csat_10: 7, ui_ux: 4 },
+      feature_ratings: { workspaces: 2 },
+      low_rating_reasons: ["[workspaces] Nên giữ lịch sử đề tài khi tải lại."],
+      best_thing: "Câu hỏi sát nội dung bảo vệ.",
+      suggested_change: "Thêm ví dụ cho câu hỏi phản biện.",
+      will_recommend: 5,
+      pay_willingness: "free_only",
+    });
+    await expect(page.getByText("Lỗi khi gửi phản hồi", { exact: true })).toBeVisible();
+    await expect.poll(readDraft).not.toBeNull();
+    await expect(bestThing).toHaveValue("Câu hỏi sát nội dung bảo vệ.");
+
+    await submit.click();
+    await expect(page.getByText("Hoàn thành khảo sát", { exact: true })).toBeVisible();
+    await expect.poll(readDraft).toBeNull();
+    await closeSurvey.click();
+    await page.getByRole("button", { name: "Đóng góp ý kiến", exact: true }).click();
+    await expect(stepOne).toBeVisible();
+    await expect(page.getByText("Chưa đánh giá", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Tiếp tục", exact: true }).click();
+    await expect(bestThing).toHaveValue("");
+    await expect(improvements).toHaveValue("");
+  });
+
+  test("Khảo sát xóa bản nháp khi đăng xuất và mở form mới sau khi đăng nhập lại", async ({ page }) => {
+    await page.route("**/api/**", (route) => route.fulfill({ json: { items: [], total: 0 } }));
+    await setupApiMocks(page);
+    await loginUser(page, mockStudentUser.email);
+    await page.goto("/documents");
+
+    const draftKey = `feedback_draft_${mockStudentUser.id}`;
+    const otherDraftKey = "feedback_draft_other-user";
+    const otherDraft = JSON.stringify({ step: 2, bestThing: "Bản nháp tài khoản khác" });
+    await page.evaluate(({ key, value }) => sessionStorage.setItem(key, value), { key: otherDraftKey, value: otherDraft });
+    const readDraft = () => page.evaluate((key) => sessionStorage.getItem(key), draftKey);
+    const openSurvey = page.getByRole("button", { name: "Khảo sát ý kiến người dùng", exact: true });
+    await openSurvey.click();
+    await page.getByRole("button", { name: "7", exact: true }).click();
+    await page.getByRole("button", { name: "Đóng khảo sát", exact: true }).click();
+    await expect.poll(readDraft).not.toBeNull();
+    expect(await page.evaluate((key) => sessionStorage.getItem(key), otherDraftKey)).toBe(otherDraft);
+
+    await page.getByRole("button", { name: "Mở menu tài khoản", exact: true }).click();
+    await page.getByRole("button", { name: "Đăng xuất", exact: true }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await expect.poll(readDraft).toBeNull();
+    expect(await page.evaluate((key) => sessionStorage.getItem(key), otherDraftKey)).toBe(otherDraft);
+
+    await loginUser(page, mockStudentUser.email);
+    await page.goto("/documents");
+    await openSurvey.click();
+    await expect(page.getByText("Bước 1: Đánh giá chất lượng dịch vụ", { exact: true })).toBeVisible();
+    await expect(page.getByText("Chưa đánh giá", { exact: true })).toBeVisible();
   });
 
   test("Kịch bản 2: Kiểm tra chính sách Once-Only tại trang /report (không tự động bung popup)", async ({
