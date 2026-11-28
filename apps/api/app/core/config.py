@@ -156,6 +156,7 @@ class PayOSConfig(BaseSettings):
     client_id: str = ""
     api_key: str = ""
     checksum_key: str = ""
+    sandbox_enabled: bool = False
     bank_bin: str = "970422"  # MBBank
     bank_account: str = "040060104"
     bank_account_name: str = "NGUYEN THE BAO"
